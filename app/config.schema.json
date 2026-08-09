@@ -1,0 +1,460 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "agents": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "botToken": { "type": "string", "minLength": 1, "description": "This agent's Mattermost bot token" },
+          "contextBudgetTokens": {
+            "description": "Overrides app.contextBudgetTokens for this agent. Absent means the app-wide value.",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "expertise": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What this agent should be contacted about, in a few words. Shown to every other agent so they know when to hand work over."
+          },
+          "mailbox": {
+            "description": "The one email address this agent acts as. Absent means the agent has no mail capability, and a deployment with no mailbox anywhere runs exactly as it does today.",
+            "type": "object",
+            "properties": {
+              "announcementChannelId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Channel where arriving mail is announced. Must not be a DM, and the agent must be a member — both refused at boot rather than discovered at runtime."
+              },
+              "pollIntervalMs": {
+                "default": 60000,
+                "description": "How often the mailbox is polled for new arrivals, each poll advancing the durable cursor. Announcement latency is bounded by this plus idle-gating.",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "provider": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "address": {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                        "description": "The mailbox address this agent acts as. Fixed here and never model-supplied: the from on everything the agent sends."
+                      },
+                      "clientId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Client id of this agent's Entra app registration. One registration per agent mailbox — scoped by Exchange App RBAC — so the provider itself enforces that an agent reaches no mailbox but its own."
+                      },
+                      "clientSecret": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Client secret of the app registration. It expires on a tenant schedule, and mail stops when it does."
+                      },
+                      "kind": { "type": "string", "const": "exchange" },
+                      "tenantId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Entra tenant id the mailbox lives in"
+                      }
+                    },
+                    "required": ["address", "clientId", "clientSecret", "kind", "tenantId"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "address": {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                        "description": "The mailbox address this agent acts as. Fixed here and never model-supplied: the from on everything the agent sends."
+                      },
+                      "imap": {
+                        "type": "object",
+                        "properties": {
+                          "host": { "type": "string", "minLength": 1, "description": "Hostname of the endpoint" },
+                          "port": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 65535,
+                            "description": "Port of the endpoint"
+                          },
+                          "secure": {
+                            "type": "boolean",
+                            "description": "true for implicit TLS from the first byte (typically ports 993/465); false to connect plain and upgrade via STARTTLS where the server offers it (typically ports 143/587)"
+                          }
+                        },
+                        "required": ["host", "port", "secure"],
+                        "additionalProperties": false,
+                        "description": "The IMAP endpoint mail is read from"
+                      },
+                      "kind": { "type": "string", "const": "imap" },
+                      "password": { "type": "string", "minLength": 1, "description": "Password for both endpoints" },
+                      "smtp": {
+                        "type": "object",
+                        "properties": {
+                          "host": { "type": "string", "minLength": 1, "description": "Hostname of the endpoint" },
+                          "port": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 65535,
+                            "description": "Port of the endpoint"
+                          },
+                          "secure": {
+                            "type": "boolean",
+                            "description": "true for implicit TLS from the first byte (typically ports 993/465); false to connect plain and upgrade via STARTTLS where the server offers it (typically ports 143/587)"
+                          }
+                        },
+                        "required": ["host", "port", "secure"],
+                        "additionalProperties": false,
+                        "description": "The SMTP endpoint mail is sent through"
+                      },
+                      "username": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Login username for both endpoints, where it differs from the address"
+                      }
+                    },
+                    "required": ["address", "imap", "kind", "password", "smtp", "username"],
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "Which kind of provider serves this mailbox, with its credentials: Exchange Online, or generic IMAP/SMTP."
+              }
+            },
+            "required": ["announcementChannelId", "pollIntervalMs", "provider"],
+            "additionalProperties": false
+          },
+          "memoryCaps": {
+            "description": "Per-field overrides of app.memoryCaps for this agent. Unnamed fields keep the app-wide value.",
+            "type": "object",
+            "properties": {
+              "maxBodyChars": {
+                "default": 4000,
+                "description": "Longest body one entry may hold. A longer write is refused rather than truncated.",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxDescriptionChars": {
+                "default": 200,
+                "description": "Longest description one entry may hold. Descriptions enter the system prompt every turn, so this bounds that cost.",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxEntries": {
+                "default": 50,
+                "description": "How many entries one agent may hold. Writing beyond it evicts the oldest entry.",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "additionalProperties": false
+          },
+          "model": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "enum": ["deepseek-v4-flash", "deepseek-v4-pro"] },
+                  "provider": { "type": "string", "const": "deepseek" }
+                },
+                "required": ["name", "provider"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "enum": ["anthropic/claude-sonnet-5", "deepseek-v4-flash", "deepseek-v4-pro"]
+                  },
+                  "provider": { "type": "string", "const": "openrouter" }
+                },
+                "required": ["name", "provider"],
+                "additionalProperties": false
+              }
+            ],
+            "description": "LLM model and provider for this agent"
+          },
+          "skills": {
+            "default": [],
+            "description": "Names of the skills this agent is assigned: framework skills by bare name, plugin skills by their qualified \"<plugin>__<skill>\" name",
+            "type": "array",
+            "items": {
+              "anyOf": [
+                { "type": "string", "enum": ["handing-work-to-a-peer"] },
+                { "type": "string", "pattern": "^[a-z](?:_?[a-z0-9])*__[a-z](?:-?[a-z0-9])*$" }
+              ]
+            }
+          },
+          "systemPrompt": { "type": "string", "minLength": 1, "description": "The agent's system prompt" },
+          "tools": {
+            "default": [],
+            "description": "Names of the tools this agent may call: framework tools by bare name, plugin tools by their qualified \"<plugin>__<tool>\" name",
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "browser",
+                    "load_skill",
+                    "mail",
+                    "read_memory",
+                    "resolve_trigger",
+                    "shell",
+                    "write_file",
+                    "write_memory"
+                  ]
+                },
+                { "type": "string", "pattern": "^[a-z](?:_?[a-z0-9])*__[a-z](?:_?[a-z0-9])*$" }
+              ]
+            }
+          },
+          "username": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "The agent's unique identity (a lowercase slug) — must equal the username of its Mattermost bot account"
+          }
+        },
+        "required": ["botToken", "expertise", "model", "skills", "systemPrompt", "tools", "username"],
+        "additionalProperties": false
+      }
+    },
+    "app": {
+      "type": "object",
+      "properties": {
+        "contextBudgetTokens": {
+          "default": 8000,
+          "description": "How many estimated tokens of channel history one turn may assemble (§3.8), overridable per agent. The estimate is a character ratio, not a tokenizer.",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "debounce": {
+          "description": "How message fragments are folded into one turn (§4.4)",
+          "type": "object",
+          "properties": {
+            "ceilingMs": {
+              "default": 15000,
+              "description": "Hard limit on how long folding may delay a turn, so a human typing steadily still gets a response",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "windowMs": {
+              "default": 750,
+              "description": "How long to wait after each message before starting a turn, folding fragments into one turn for free (§4.4). Past this the running turn folds them instead, at the cost of a discarded completion. Keep it well under 5s: it is also how long the typing indicator must cover before the turn lights its own.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": ["ceilingMs", "windowMs"],
+          "additionalProperties": false
+        },
+        "enableLifecycleNotifications": { "default": true, "type": "boolean" },
+        "inferenceRetry": {
+          "description": "How transport failures from a model provider are retried. Semantic failures are never retried.",
+          "type": "object",
+          "properties": {
+            "backoffMs": {
+              "default": 250,
+              "description": "Delay before the first retry of a transport failure, doubling with each further attempt",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "maxAttempts": {
+              "default": 3,
+              "description": "Total attempts allowed for one completion, the first attempt included",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": ["backoffMs", "maxAttempts"],
+          "additionalProperties": false
+        },
+        "inferenceTimeoutMs": {
+          "default": 120000,
+          "description": "How long one completion attempt may run before it is aborted and classified as a retryable transport failure. Bounds a provider that accepts the connection and never responds.",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "logLevel": {
+          "default": "info",
+          "description": "Minimum severity the app logs",
+          "type": "string",
+          "enum": ["debug", "info", "error", "warn"]
+        },
+        "memoryCaps": {
+          "description": "The default bounds on every agent’s memory, overridable per agent",
+          "type": "object",
+          "properties": {
+            "maxBodyChars": {
+              "default": 4000,
+              "description": "Longest body one entry may hold. A longer write is refused rather than truncated.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "maxDescriptionChars": {
+              "default": 200,
+              "description": "Longest description one entry may hold. Descriptions enter the system prompt every turn, so this bounds that cost.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "maxEntries": {
+              "default": 50,
+              "description": "How many entries one agent may hold. Writing beyond it evicts the oldest entry.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": ["maxBodyChars", "maxDescriptionChars", "maxEntries"],
+          "additionalProperties": false
+        },
+        "timezone": { "default": "UTC", "description": "The timezone to use when displaying dates", "type": "string" },
+        "turnCeilingPerHour": {
+          "default": 250,
+          "description": "Framework-wide ceiling on turns started per rolling hour. A breach halts every agent until a human posts /resume (§7.4).",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "contextBudgetTokens",
+        "debounce",
+        "enableLifecycleNotifications",
+        "inferenceRetry",
+        "inferenceTimeoutMs",
+        "logLevel",
+        "memoryCaps",
+        "timezone",
+        "turnCeilingPerHour"
+      ],
+      "additionalProperties": false
+    },
+    "channels": {
+      "default": [],
+      "description": "Per-channel triggering mode. Any channel not listed here is mention-required.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "description": "Mattermost channel id" },
+          "triggerMode": {
+            "type": "string",
+            "enum": ["mention-required", "respond-to-all"],
+            "description": "mention-required: the agent acts only when explicitly @-mentioned. respond-to-all: every human post starts a turn, and the channel may hold at most one agent (§3.10)."
+          }
+        },
+        "required": ["id", "triggerMode"],
+        "additionalProperties": false
+      }
+    },
+    "mattermost": {
+      "type": "object",
+      "properties": {
+        "mainChannelId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ID of the main channel: where the orchestrator posts its status, and the one channel in which agents answer only when explicitly @-mentioned. Every bot must be a member."
+        },
+        "systemBotToken": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Mattermost token for the orchestrator's own bot account, which posts status notices and owns the slash-command surface. Not an agent, and separate from every agent's bot token. The account must hold authority to manage the team's slash commands (manage_slash_commands, e.g. team admin); boot refuses without it (§8.4)."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Base URL of the Mattermost server (e.g. https://mattermost.example.com)"
+        }
+      },
+      "required": ["mainChannelId", "systemBotToken", "url"],
+      "additionalProperties": false
+    },
+    "models": {
+      "type": "object",
+      "properties": {
+        "deepseek": {
+          "type": "object",
+          "properties": {
+            "apiKey": {
+              "type": "string",
+              "minLength": 1,
+              "description": "DeepSeek API key (https://platform.deepseek.com/api_keys)"
+            },
+            "baseUrl": {
+              "default": "https://api.deepseek.com",
+              "description": "Base URL of the DeepSeek-compatible API",
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "required": ["apiKey", "baseUrl"],
+          "additionalProperties": false
+        },
+        "openrouter": {
+          "type": "object",
+          "properties": {
+            "apiKey": {
+              "type": "string",
+              "minLength": 1,
+              "description": "OpenRouter API key (https://openrouter.ai/keys)"
+            },
+            "baseUrl": {
+              "default": "https://openrouter.ai/api/v1",
+              "description": "Base URL of the OpenRouter-compatible API",
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "required": ["apiKey", "baseUrl"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z](?:_?[a-z0-9])*$",
+            "description": "The plugin's identity: it qualifies the plugin's tools and skills (\"<name>__<capability>\") and scopes its stored records. Must equal the name the plugin's own manifest declares."
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to the plugin's package root, resolved relative to config.json"
+          },
+          "settings": { "description": "This plugin's settings, validated against the schema the plugin declares" }
+        },
+        "required": ["name", "path"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["agents", "app", "channels", "mattermost", "models"],
+  "additionalProperties": false
+}

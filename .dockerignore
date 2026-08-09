@@ -1,0 +1,23 @@
+# Deny by default: the build context is copied wholesale into a published image, and this
+# working tree holds live secrets (.env, config.json) beside host-built binaries. Each
+# re-inclusion below names a build input; nothing else reaches the image.
+*
+
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!app/package.json
+!app/.swcrc
+!app/tsconfig.json
+!app/prisma.config.ts
+!app/prisma
+!app/scripts
+!app/src
+!packages/*/package.json
+!packages/*/src
+!packages/*/tsconfig.json
+!packages/*/tsconfig.build.json
+!plugins/*/package.json
+!plugins/*/src
+!plugins/*/tsconfig.json

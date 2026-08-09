@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Northmoor Institute — Advancing What Comes Next</title>
+    <style>
+      :root {
+        --ink: #16202c;
+        --muted: #5b6b7c;
+        --rule: #dce3ea;
+        --accent: #8a1538;
+        --surface: #fff;
+        --surface-alt: #f6f8fa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e7edf3;
+          --muted: #9aa9b8;
+          --rule: #2a3644;
+          --accent: #e8859c;
+          --surface: #0f1620;
+          --surface-alt: #16202c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--surface);
+        color: var(--ink);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        line-height: 1.65;
+      }
+      section {
+        padding-block: 5rem;
+        border-bottom: 1px solid var(--rule);
+      }
+      section > * {
+        margin-inline: auto;
+        max-width: 62rem;
+        padding-inline: 1.5rem;
+      }
+      .hero {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 100vh;
+        text-align: center;
+      }
+      .hero h1 {
+        margin: 0 0 1rem;
+        font-size: clamp(2.5rem, 7vw, 4.5rem);
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+      }
+      .hero p {
+        margin: 0 auto;
+        max-width: 38rem;
+        color: var(--muted);
+        font-size: 1.25rem;
+      }
+      h2 {
+        margin: 0 0 2.5rem;
+        font-size: clamp(1.5rem, 3vw, 2rem);
+        letter-spacing: -0.02em;
+      }
+      h3 {
+        margin: 0 0 0.5rem;
+        font-size: 1.05rem;
+      }
+      p {
+        color: var(--muted);
+      }
+      .grid {
+        display: grid;
+        gap: 2.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+      }
+      .stats {
+        display: grid;
+        gap: 2rem;
+        grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+        text-align: center;
+      }
+      .stats strong {
+        display: block;
+        color: var(--accent);
+        font-size: 2.75rem;
+        letter-spacing: -0.03em;
+      }
+      .step {
+        padding: 2rem 0;
+        border-top: 1px solid var(--rule);
+      }
+      .step span {
+        color: var(--accent);
+        font-size: 0.8rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      blockquote {
+        margin: 0;
+        padding: 1.75rem 0 1.75rem 1.5rem;
+        border-left: 3px solid var(--accent);
+      }
+      blockquote cite {
+        display: block;
+        margin-top: 0.75rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+        font-style: normal;
+      }
+      details {
+        padding: 1.25rem 0;
+        border-top: 1px solid var(--rule);
+      }
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+      details p {
+        margin-bottom: 0;
+      }
+      .people-cta {
+        text-align: center;
+      }
+      .people-cta a {
+        display: inline-block;
+        margin-top: 1.5rem;
+        padding: 0.85rem 2rem;
+        border: 1px solid var(--accent);
+        border-radius: 999px;
+        color: var(--accent);
+        font-size: 1.05rem;
+        text-decoration: none;
+      }
+      .people-cta a:hover {
+        background: var(--accent);
+        color: var(--surface);
+      }
+      a:focus-visible,
+      button:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      footer {
+        padding: 3rem 1.5rem 5rem;
+        color: var(--muted);
+        font-size: 0.85rem;
+        text-align: center;
+      }
+      /* --- the people view --- */
+      .people {
+        margin-inline: auto;
+        max-width: 62rem;
+        padding: 3rem 1.5rem 5rem;
+      }
+      .people h1 {
+        margin: 0 0 0.25rem;
+        font-size: clamp(1.75rem, 4vw, 2.25rem);
+        letter-spacing: -0.02em;
+      }
+      .back {
+        display: inline-block;
+        margin-bottom: 2rem;
+        color: var(--accent);
+        font-size: 0.9rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+      }
+      th {
+        padding: 0.55rem 0.75rem;
+        border-bottom: 2px solid var(--rule);
+        color: var(--muted);
+        font-size: 0.75rem;
+        letter-spacing: 0.07em;
+        text-align: left;
+        text-transform: uppercase;
+      }
+      td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+      }
+      tbody tr:nth-child(even) {
+        background: var(--surface-alt);
+      }
+      td a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript>Northmoor Institute requires JavaScript.</noscript>
+    <script>
+      const FACULTY = [
+        { name: 'Adeyemi, K.', title: 'Professor', focus: 'Lifespan cognition', email: 'adeyemi@northmoor.example' },
+        {
+          name: 'Blackwood, R.',
+          title: 'Associate Professor',
+          focus: 'Mood disorders',
+          email: 'blackwood@northmoor.example'
+        },
+        {
+          name: 'Castellanos, M.',
+          title: 'Assistant Professor',
+          focus: 'Perceptual modelling',
+          email: 'castellanos@northmoor.example'
+        },
+        {
+          name: 'Duval, P.',
+          title: 'Professor, Chair',
+          focus: 'Clinical trials methodology',
+          email: 'duval@northmoor.example'
+        },
+        {
+          name: 'Okonkwo, C.',
+          title: 'Associate Professor',
+          focus: 'Health services research',
+          email: 'okonkwo@northmoor.example'
+        },
+        {
+          name: 'Petrakis, A.',
+          title: 'Assistant Professor',
+          focus: 'Adolescent anxiety',
+          email: 'petrakis@northmoor.example'
+        },
+        {
+          name: 'Rasmussen, I.',
+          title: 'Professor',
+          focus: 'Computational psychiatry',
+          email: 'rasmussen@northmoor.example'
+        },
+        {
+          name: 'Thibodeau, J.',
+          title: 'Senior Lecturer',
+          focus: 'Psychometrics',
+          email: 'thibodeau@northmoor.example'
+        }
+      ];
+
+      const STATS = [
+        ['48', 'Research programmes'],
+        ['12k', 'Participants enrolled'],
+        ['96%', 'Partner retention'],
+        ['31', 'Countries reached']
+      ];
+
+      const PILLARS = [
+        [
+          'Outcome-Aligned Frameworks',
+          'Our proprietary alignment methodology surfaces the signal beneath the noise, so stakeholders across the value chain can operationalise insight at the speed of relevance.'
+        ],
+        [
+          'Continuous Discovery Loops',
+          'By embedding iterative discovery into every engagement, we compress the distance between hypothesis and impact without sacrificing methodological rigour.'
+        ],
+        [
+          'Federated Data Stewardship',
+          'Governance is not a constraint but an accelerant. Our stewardship model unlocks collaboration while holding participant trust as the immovable centre.'
+        ],
+        [
+          'Human-Scaled Instrumentation',
+          'Measurement that people will actually complete. We design instruments around lived experience first and psychometric elegance second, which is why completion holds.'
+        ],
+        [
+          'Translational Velocity',
+          'Findings that sit in a drawer are findings that never happened. Our translation practice moves evidence into service design within a single funding cycle.'
+        ],
+        [
+          'Ecosystem Interoperability',
+          'Every artefact we produce is designed to be handed onward, because the next question is always asked by somebody else.'
+        ]
+      ];
+
+      const STEPS = [
+        [
+          'Align',
+          'We begin by mapping the question behind the question, with everyone who will live with the answer in the room.'
+        ],
+        [
+          'Instrument',
+          'Measurement is designed backwards from the decision it must inform, never forwards from what is convenient to collect.'
+        ],
+        [
+          'Field',
+          'Deployment runs on a cadence that respects clinical reality, with weekly reconciliation against the pre-registered plan.'
+        ],
+        [
+          'Synthesise',
+          'Analysis is pre-specified, adversarially reviewed, and reported whether or not it flatters the hypothesis.'
+        ],
+        ['Translate', 'We stay past publication, because adoption is where the value was always going to be realised.']
+      ];
+
+      const VOICES = [
+        [
+          'They asked the question we had been avoiding for three years, and then made it answerable.',
+          'Director of Clinical Programmes, regional health authority'
+        ],
+        [
+          'The instrumentation was the first our participants did not abandon halfway through.',
+          'Principal Investigator, multi-site trial'
+        ],
+        ['We expected a report. We received a working practice.', 'Chief of Staff, teaching hospital'],
+        ['Rigour without theatre. That combination is rarer than it should be.', 'Programme Officer, national funder']
+      ];
+
+      const FAQ = [
+        [
+          'How do engagements typically begin?',
+          'With a scoping conversation that costs nothing and commits no one. Most begin as a half-day framing session.'
+        ],
+        [
+          'Do you work outside health research?',
+          'Occasionally, where the methodological problem is recognisably the same and the participant relationship is comparable.'
+        ],
+        [
+          'Who owns the resulting data?',
+          'The originating institution, without exception. We hold a processing role and nothing more.'
+        ],
+        [
+          'What does a typical timeline look like?',
+          'Framing in weeks, instrumentation in months, fielding on the cadence the setting can sustain.'
+        ],
+        [
+          'Can you work with an existing protocol?',
+          'Yes, and we frequently do. Inheriting a protocol is usually cheaper than replacing one.'
+        ],
+        [
+          'How is pricing structured?',
+          'Fixed-fee by phase, so scope conversations happen before the work rather than during the invoice.'
+        ],
+        ['Do you publish?', 'Always, and pre-registered. Findings that cannot survive review were never findings.'],
+        [
+          'What happens after handover?',
+          'A twelve-month adoption window is included, because the questions that matter arrive after go-live.'
+        ]
+      ];
+
+      const el = (tag, props = {}, children = []) => {
+        const node = Object.assign(document.createElement(tag), props);
+        node.append(...children);
+        return node;
+      };
+
+      const renderIndex = () => {
+        const app = document.getElementById('app');
+
+        const hero = el('section', { className: 'hero' }, [
+          el('div', {}, [
+            el('h1', { textContent: 'Advancing What Comes Next' }),
+            el('p', {
+              textContent:
+                'Northmoor Institute partners with health systems, funders, and universities to turn difficult questions into evidence people can act on.'
+            })
+          ])
+        ]);
+
+        const stats = el('section', {}, [
+          el(
+            'div',
+            { className: 'stats' },
+            STATS.map(([value, label]) =>
+              el('div', {}, [el('strong', { textContent: value }), el('span', { textContent: label })])
+            )
+          )
+        ]);
+
+        const pillars = el('section', {}, [
+          el('div', {}, [
+            el('h2', { textContent: 'What We Bring' }),
+            el(
+              'div',
+              { className: 'grid' },
+              PILLARS.map(([title, body]) =>
+                el('div', {}, [el('h3', { textContent: title }), el('p', { textContent: body })])
+              )
+            )
+          ])
+        ]);
+
+        const steps = el('section', {}, [
+          el('div', {}, [
+            el('h2', { textContent: 'How We Work' }),
+            ...STEPS.map(([name, body], index) =>
+              el('div', { className: 'step' }, [
+                el('span', { textContent: `Step ${index + 1}` }),
+                el('h3', { textContent: name }),
+                el('p', { textContent: body })
+              ])
+            )
+          ])
+        ]);
+
+        const voices = el('section', {}, [
+          el('div', {}, [
+            el('h2', { textContent: 'In Their Words' }),
+            ...VOICES.map(([quote, source]) =>
+              el('blockquote', {}, [el('p', { textContent: quote }), el('cite', { textContent: source })])
+            )
+          ])
+        ]);
+
+        const faq = el('section', {}, [
+          el('div', {}, [
+            el('h2', { textContent: 'Questions We Are Often Asked' }),
+            ...FAQ.map(([question, answer]) =>
+              el('details', {}, [el('summary', { textContent: question }), el('p', { textContent: answer })])
+            )
+          ])
+        ]);
+
+        // The only route to the roster. An honest anchor with an honest href — but the href is never
+        // followed, so the people it leads to exist nowhere in this document until it is clicked.
+        const peopleLink = el('a', { href: '/people', id: 'view-people', textContent: 'View our people →' });
+        peopleLink.addEventListener('click', (event) => {
+          event.preventDefault();
+          renderPeople();
+        });
+
+        const cta = el('section', { className: 'people-cta' }, [
+          el('div', {}, [
+            el('h2', { textContent: 'The Work Is the People' }),
+            el('p', { textContent: 'Forty-eight programmes, and every one of them belongs to somebody.' }),
+            peopleLink
+          ])
+        ]);
+
+        const footer = el('footer', {}, [el('p', { textContent: '© Northmoor Institute. All rights reserved.' })]);
+
+        app.replaceChildren(hero, stats, pillars, steps, voices, faq, cta, footer);
+        window.scrollTo(0, 0);
+      };
+
+      const renderPeople = () => {
+        const table = el('table');
+        const head = table.createTHead().insertRow();
+        for (const label of ['Name', 'Title', 'Focus', 'Email']) {
+          head.append(el('th', { textContent: label }));
+        }
+
+        const body = table.createTBody();
+        for (const person of FACULTY) {
+          const row = body.insertRow();
+          row.append(
+            el('td', { textContent: person.name }),
+            el('td', { textContent: person.title }),
+            el('td', { textContent: person.focus }),
+            el('td', {}, [el('a', { href: `mailto:${person.email}`, textContent: person.email })])
+          );
+        }
+
+        const back = el('a', { className: 'back', href: '/', textContent: '← Back to the institute' });
+        back.addEventListener('click', (event) => {
+          event.preventDefault();
+          renderIndex();
+        });
+
+        document
+          .getElementById('app')
+          .replaceChildren(
+            el('div', { className: 'people' }, [
+              back,
+              el('h1', { textContent: 'Our People' }),
+              el('p', { textContent: `${FACULTY.length} members of faculty.` }),
+              table
+            ])
+          );
+        window.scrollTo(0, 0);
+      };
+
+      // Deferred a tick past parse, so a fetcher that reads the DOM too early sees an empty shell.
+      window.setTimeout(renderIndex, 0);
+    </script>
+  </body>
+</html>

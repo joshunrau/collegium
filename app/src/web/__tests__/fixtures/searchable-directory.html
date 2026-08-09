@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>People Directory — Northmoor Institute</title>
+    <style>
+      body {
+        margin: 2rem auto;
+        max-width: 48rem;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        line-height: 1.6;
+      }
+      input[type='search'] {
+        margin-bottom: 1.5rem;
+        padding: 0.5rem 0.75rem;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid #dce3ea;
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript>This directory requires JavaScript.</noscript>
+    <script>
+      const FACULTY = [
+        { email: 'adeyemi@northmoor.example', name: 'Adeyemi, K.', title: 'Professor' },
+        { email: 'blackwood@northmoor.example', name: 'Blackwood, R.', title: 'Associate Professor' },
+        { email: 'castellanos@northmoor.example', name: 'Castellanos, M.', title: 'Assistant Professor' },
+        { email: 'duval@northmoor.example', name: 'Duval, P.', title: 'Professor, Chair' },
+        { email: 'okonkwo@northmoor.example', name: 'Okonkwo, C.', title: 'Associate Professor' },
+        { email: 'petrakis@northmoor.example', name: 'Petrakis, A.', title: 'Assistant Professor' },
+        { email: 'rasmussen@northmoor.example', name: 'Rasmussen, I.', title: 'Professor' },
+        { email: 'thibodeau@northmoor.example', name: 'Thibodeau, J.', title: 'Senior Lecturer' }
+      ];
+
+      const el = (tag, props = {}, children = []) => {
+        const node = Object.assign(document.createElement(tag), props);
+        node.append(...children);
+        return node;
+      };
+
+      // The search is deliberately not a <form>: filtering happens only through the keydown
+      // handler, so no URL ever addresses a filtered view — a fetcher must type and press Enter.
+      const render = (query) => {
+        const matches = query
+          ? FACULTY.filter((person) => person.name.toLowerCase().includes(query.toLowerCase()))
+          : FACULTY;
+
+        const search = el('input', {
+          ariaLabel: 'Search people',
+          placeholder: 'Search people',
+          type: 'search',
+          value: query
+        });
+        search.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') {
+            render(search.value);
+          }
+        });
+
+        const table = el('table');
+        const head = table.createTHead().insertRow();
+        for (const label of ['Name', 'Title', 'Email']) {
+          head.append(el('th', { textContent: label }));
+        }
+        const body = table.createTBody();
+        for (const person of matches) {
+          const row = body.insertRow();
+          row.append(
+            el('td', { textContent: person.name }),
+            el('td', { textContent: person.title }),
+            el('td', {}, [el('a', { href: `mailto:${person.email}`, textContent: person.email })])
+          );
+        }
+
+        document
+          .getElementById('app')
+          .replaceChildren(
+            el('h1', { textContent: 'People Directory' }),
+            el('p', { textContent: `${matches.length} of ${FACULTY.length} members shown.` }),
+            search,
+            table
+          );
+      };
+
+      window.setTimeout(() => render(''), 0);
+    </script>
+  </body>
+</html>

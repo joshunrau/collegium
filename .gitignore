@@ -1,0 +1,11 @@
+.coverage
+.DS_Store
+.env
+.turbo
+app/src/prisma/generated
+config.json
+data
+dist
+node_modules
+scratch
+state

@@ -1,0 +1,25 @@
+FROM alpine:3.22 AS download
+
+ARG MATTERMOST_VERSION=11.7.7
+ARG TARGETARCH
+
+RUN wget -qO- "https://releases.mattermost.com/${MATTERMOST_VERSION}/mattermost-${MATTERMOST_VERSION}-linux-${TARGETARCH}.tar.gz" | tar -xz
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN groupadd -g 2000 mattermost
+RUN useradd -u 2000 -g mattermost -d /mattermost -s /usr/sbin/nologin mattermost
+
+COPY --from=download --chown=mattermost:mattermost /mattermost /mattermost
+
+RUN install -d -o mattermost -g mattermost /mattermost/config /mattermost/data /mattermost/logs
+
+USER mattermost
+WORKDIR /mattermost
+
+ENV PATH="/mattermost/bin:${PATH}"
+
+EXPOSE 8065
+
+ENTRYPOINT ["mattermost"]

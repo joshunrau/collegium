@@ -1,0 +1,26 @@
+name: collegium
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./app/Dockerfile
+    container_name: collegium
+    env_file: .env
+    environment:
+      - CONFIG_PATH=/app/config.json
+      - DATABASE_URL=file:///data/prod.db
+      - WORKSPACE_ROOT=/workspaces
+    image: ghcr.io/joshunrau/collegium:latest
+    # the browser and the shell tool leave grandchildren behind, and PID 1 is the only reaper
+    init: true
+    # Mattermost runs on this host, so the address the app binds is the address it is reached at and
+    # APP_PUBLIC_URL never has to be stated. A bridge network splits those two apart.
+    network_mode: host
+    pull_policy: always
+    restart: unless-stopped
+    stop_grace_period: 15s
+    volumes:
+      - ${CONFIG_PATH:?}:/app/config.json:ro
+      - ./state/data:/data
+      - ./state/home:/home
+      - ./state/workspaces:/workspaces

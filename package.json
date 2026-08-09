@@ -1,0 +1,49 @@
+{
+  "name": "collegium",
+  "type": "module",
+  "version": "0.0.q",
+  "private": true,
+  "packageManager": "pnpm@11.8.0",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "build:schema": "turbo run build:schema",
+    "clean": "find . -type d '(' -name '.turbo' -o -name 'dist' -o -name 'node_modules' ')' -prune -exec rm -rf {} \\;",
+    "db:generate": "turbo run db:generate",
+    "format": "prettier --write .",
+    "knip": "knip --production",
+    "lint": "turbo run lint",
+    "prepare": "husky",
+    "test": "vitest --project unit --project packages --project plugins",
+    "test:coverage": "vitest --project unit --project packages --project plugins --coverage",
+    "test:e2e": "vitest --project e2e"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "devDependencies": {
+    "@douglasneuroinformatics/eslint-config": "^6.0.0",
+    "@douglasneuroinformatics/prettier-config": "^0.3.0",
+    "@douglasneuroinformatics/tsconfig": "^2.0.0",
+    "@types/node": "^24.x",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "9.39.2",
+    "happy-dom": "^20.11.1",
+    "husky": "^9.1.7",
+    "knip": "^6.26.0",
+    "prettier": "^3.8.1",
+    "turbo": "^2.10.8",
+    "typescript": "6.0.x",
+    "unplugin-swc": "^1.5.9",
+    "vitest": "^4.1.10"
+  },
+  "prettier": "@douglasneuroinformatics/prettier-config"
+}

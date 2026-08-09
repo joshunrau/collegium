@@ -1,0 +1,208 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/prisma/generated"
+  importFileExtension = "ts"
+}
+
+generator json {
+  provider  = "prisma-json-types-generator"
+  namespace = "PrismaJson"
+}
+
+enum ApprovalStatus {
+  approved
+  denied
+  denied_with_reason
+  invalidated
+  pending
+}
+
+enum AuthorKind {
+  agent
+  human
+  system
+}
+
+// cron joins this when its adapter lands
+enum TriggerSource {
+  mail
+  webhook
+}
+
+enum TriggerStatus {
+  pending
+  posted
+  resolved
+}
+
+enum TurnEventKind {
+  approval_decided
+  approval_requested
+  assistant_message
+  memory_written
+  tool_result
+}
+
+enum TurnStatus {
+  abandoned
+  budget_exhausted
+  completed
+  denied
+  halted
+  killed
+  provider_outage
+  running
+  semantic_error
+  side_effect_ambiguous
+  stopped
+}
+
+// Mattermost owns post ids and decides when a post is observed, so a column naming a post is a
+// plain string: the row it refers to may not have been recorded yet. Columns naming a turn are
+// foreign keys, because the framework creates the turn before anything can reference it.
+
+model Post {
+  id              String     @id
+  authorKind      AuthorKind
+  authorUsername  String
+  channelId       String
+  createdAt       DateTime
+  isForgotten     Boolean    @default(false)
+  message         String
+  observedAt      DateTime   @default(now())
+  authoringTurnId String?
+  authoringTurn   Turn?      @relation(fields: [authoringTurnId], references: [id], onDelete: SetNull)
+
+  @@index([channelId, createdAt])
+}
+
+model Turn {
+  id               String      @id @default(uuid())
+  actionCount      Int         @default(0)
+  agentUsername    String
+  channelId        String
+  completionTokens Int?
+  depth            Int
+  endedAt          DateTime?
+  modelName        String
+  promptTokens     Int?
+  startedAt        DateTime    @default(now())
+  status           TurnStatus
+  statusPostId     String?
+  triggeringPostId String?
+  approvals        Approval[]
+  authoredPosts    Post[]
+  events           TurnEvent[]
+
+  @@index([agentUsername, channelId, startedAt])
+  @@index([status])
+}
+
+model TurnEvent {
+  id        String        @id @default(uuid())
+  createdAt DateTime      @default(now())
+  kind      TurnEventKind
+  /// [TurnEventPayload]
+  payload   Json
+  sequence  Int
+  turnId    String
+  turn      Turn          @relation(fields: [turnId], references: [id], onDelete: Cascade)
+
+  @@unique([turnId, sequence])
+}
+
+model Approval {
+  id                String         @id @default(uuid())
+  /// [ApprovalArgs]
+  args              Json
+  createdAt         DateTime       @default(now())
+  decidedAt         DateTime?
+  decidedByUsername String?
+  payloadText       String
+  promptPostId      String?
+  reason            String?
+  status            ApprovalStatus
+  toolName          String
+  turnId            String
+  turn              Turn           @relation(fields: [turnId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model Trigger {
+  id                  String        @id @default(uuid())
+  createdAt           DateTime      @default(now())
+  // exactly-once intake: an adapter that can re-observe the same event (mail, after a crash
+  // between recording and cursor advance) supplies a stable key, and a duplicate is a no-op
+  dedupeKey           String?       @unique
+  postId              String?
+  postedAt            DateTime?
+  /// [TriggerReference]
+  reference           Json
+  resolvedAt          DateTime?
+  source              TriggerSource
+  status              TriggerStatus
+  targetAgentUsername String
+  targetChannelId     String
+
+  @@index([targetAgentUsername, status])
+  @@index([targetChannelId, status])
+}
+
+// One row per agent mailbox: where inbound polling has read to. Created at first connection
+// without announcing existing mail; the serialization is the provider adapter's own, and
+// nothing else parses it.
+model MailCursor {
+  id            String   @id @default(uuid())
+  agentUsername String   @unique
+  cursor        String
+  updatedAt     DateTime @updatedAt
+}
+
+model QueueEntry {
+  id                        String   @id @default(uuid())
+  agentUsername             String
+  channelId                 String
+  createdAt                 DateTime @default(now())
+  earliestUnprocessedPostId String
+
+  @@unique([agentUsername, channelId])
+}
+
+model PluginRecord {
+  id         String   @id @default(uuid())
+  collection String
+  createdAt  DateTime @default(now())
+  key        String
+  /// [PluginRecordPayload]
+  payload    Json
+  pluginName String
+  updatedAt  DateTime @updatedAt
+
+  @@unique([pluginName, collection, key])
+}
+
+model Memory {
+  id            String   @id @default(uuid())
+  agentUsername String
+  body          String
+  createdAt     DateTime @default(now())
+  description   String
+  originPostId  String
+
+  @@index([agentUsername, createdAt])
+}
+
+model Episode {
+  id            String   @id @default(uuid())
+  agentUsername String
+  channelId     String
+  createdAt     DateTime @default(now())
+  postId        String
+
+  @@index([agentUsername, channelId, createdAt])
+}

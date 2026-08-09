@@ -1,0 +1,50 @@
+{
+  "name": "@collegium/core",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "exports": {
+    "./approvals": {
+      "types": "./src/approvals.ts",
+      "source": "./src/approvals.ts",
+      "default": "./dist/approvals.js"
+    },
+    "./plugins": {
+      "types": "./src/plugins.ts",
+      "source": "./src/plugins.ts",
+      "default": "./dist/plugins.js"
+    },
+    "./skills": {
+      "types": "./src/skills.ts",
+      "source": "./src/skills.ts",
+      "default": "./dist/skills.js"
+    },
+    "./tools": {
+      "types": "./src/tools.ts",
+      "source": "./src/tools.ts",
+      "default": "./dist/tools.js"
+    },
+    "./utils": {
+      "types": "./src/utils.ts",
+      "source": "./src/utils.ts",
+      "default": "./dist/utils.js"
+    }
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "lint": "tsc && eslint --fix ."
+  },
+  "dependencies": {
+    "clean-stack": "^6.0.0",
+    "es-toolkit": "catalog:",
+    "extract-stack": "^3.0.0",
+    "serialize-error": "^13.0.1",
+    "type-fest": "catalog:",
+    "yaml": "^2.9.0",
+    "zod": "catalog:"
+  }
+}

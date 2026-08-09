@@ -1,0 +1,57 @@
+{
+  "name": "@collegium/app",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "build": "rm -rf dist && swc --config-file .swcrc src/ -d dist --strip-leading-paths --copy-files --ignore '**/__tests__/**,**/testing/**'",
+    "build:schema": "node --conditions=source scripts/schema.ts build",
+    "db:deploy": "prisma migrate deploy",
+    "db:generate": "prisma generate --no-hints",
+    "db:migrate:dev": "NODE_ENV=development prisma migrate dev",
+    "db:reset:dev": "NODE_ENV=development prisma migrate reset",
+    "format": "prettier --write src",
+    "lint": "tsc && eslint --fix .",
+    "postinstall": "node scripts/postinstall.ts"
+  },
+  "dependencies": {
+    "@collegium/core": "workspace:*",
+    "@mattermost/client": "^11.8.0",
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-fastify": "^11.1.28",
+    "@prisma/adapter-better-sqlite3": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "@swc/helpers": "^0.5.23",
+    "camoufox-js": "^0.11.5",
+    "colorette": "^2.0.20",
+    "es-toolkit": "catalog:",
+    "imapflow": "^1.6.5",
+    "mailparser": "^3.9.14",
+    "node-html-markdown": "^2.0.0",
+    "nodemailer": "^9.0.3",
+    "playwright-core": "^1.62.0",
+    "prisma": "^7.8.0",
+    "reflect-metadata": "^0.2.2",
+    "serialize-error": "^13.0.1",
+    "ts-pattern": "^5.9.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@mattermost/types": "^11.8.0",
+    "@nestjs/testing": "^11.1.28",
+    "@swc-node/register": "^1.11.1",
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "^1.15.43",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/mailparser": "^3.4.6",
+    "@types/nodemailer": "^8.0.1",
+    "commander": "^15.0.0",
+    "prisma-json-types-generator": "^5.1.1",
+    "type-fest": "catalog:"
+  }
+}

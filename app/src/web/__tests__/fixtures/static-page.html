@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Research Themes — Northmoor University</title>
+    <style>
+      :root {
+        --ink: #16202c;
+        --muted: #5b6b7c;
+        --rule: #dce3ea;
+        --accent: #8a1538;
+        --surface: #fff;
+        --surface-alt: #f6f8fa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e7edf3;
+          --muted: #9aa9b8;
+          --rule: #2a3644;
+          --accent: #e8859c;
+          --surface: #0f1620;
+          --surface-alt: #16202c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 3rem 1.5rem;
+        background: var(--surface);
+        color: var(--ink);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        line-height: 1.65;
+      }
+      h1 {
+        margin: 0 0 0.25rem;
+        font-size: clamp(1.75rem, 4vw, 2.25rem);
+        letter-spacing: -0.02em;
+      }
+      h1 + .lede {
+        color: var(--muted);
+        font-size: 1.15rem;
+      }
+      ul {
+        margin: 2rem 0;
+        padding: 0;
+        list-style: none;
+      }
+      li {
+        padding: 0.85rem 0 0.85rem 1.25rem;
+        border-top: 1px solid var(--rule);
+        position: relative;
+      }
+      li::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 1.45rem;
+        width: 0.4rem;
+        height: 0.4rem;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      li:last-child {
+        border-bottom: 1px solid var(--rule);
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 0.2em;
+      }
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 style="text-align: center">Research Themes</h1>
+    <div style="display: flex; flex-direction: column; max-width: 768px; margin: 20px auto; width: 100%">
+      <p class="lede">The department groups its work into <strong>three</strong> broad themes.</p>
+      <ul>
+        <li>Cognitive development across the lifespan</li>
+        <li>Clinical trials in <em>mood and anxiety</em> disorders</li>
+        <li>Computational models of perception</li>
+      </ul>
+      <p>
+        Enquiries go to <a href="mailto:research@northmoor.example">research@northmoor.example</a>, or see the
+        <a href="/psychology/people/">people directory</a>.
+      </p>
+    </div>
+    <script>
+      document.title = document.title.trim();
+    </script>
+  </body>
+</html>

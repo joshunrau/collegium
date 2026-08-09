@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Full-Time Faculty — Department of Psychology — Northmoor University</title>
+    <style>
+      :root {
+        --ink: #16202c;
+        --muted: #5b6b7c;
+        --rule: #dce3ea;
+        --accent: #8a1538;
+        --surface: #fff;
+        --surface-alt: #f6f8fa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e7edf3;
+          --muted: #9aa9b8;
+          --rule: #2a3644;
+          --accent: #e8859c;
+          --surface: #0f1620;
+          --surface-alt: #16202c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 2.5rem 1.5rem 4rem;
+        background: var(--surface);
+        color: var(--ink);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        line-height: 1.6;
+      }
+      #root {
+        margin-inline: auto;
+        max-width: 62rem;
+      }
+      h1 {
+        margin: 0 0 0.25rem;
+        font-size: clamp(1.75rem, 4vw, 2.25rem);
+        letter-spacing: -0.02em;
+      }
+      .count {
+        margin: 0 0 1.5rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+      }
+      th {
+        padding: 0.55rem 0.75rem;
+        border-bottom: 2px solid var(--rule);
+        color: var(--muted);
+        font-size: 0.75rem;
+        letter-spacing: 0.07em;
+        text-align: left;
+        text-transform: uppercase;
+      }
+      td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+      }
+      tbody tr:nth-child(even) {
+        background: var(--surface-alt);
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 0.2em;
+      }
+      nav[aria-label='Pagination'] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        margin-top: 1.75rem;
+      }
+      nav[aria-label='Pagination'] .status {
+        color: var(--muted);
+        font-size: 0.9rem;
+        min-width: 8rem;
+        text-align: center;
+      }
+      button {
+        padding: 0.45rem 1.1rem;
+        border: 1px solid var(--rule);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--ink);
+        font: inherit;
+        font-size: 0.9rem;
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      a:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>This directory requires JavaScript.</noscript>
+    <script>
+      // The same roster as static-directory.html, reachable only after the page runs — and only five
+      // at a time. Everyone past the fifth exists solely behind the Next control.
+      const FACULTY = [
+        { name: 'Adeyemi, K.', office: '5030 PDB', extension: '20114', email: 'adeyemi@northmoor.example' },
+        { name: 'Blackwood, R.', office: '108B', extension: '20762', email: 'blackwood@northmoor.example' },
+        { name: 'Castellanos, M.', office: '324 BSB', extension: '40563', email: 'castellanos@northmoor.example' },
+        { name: 'Duval, P.', office: '217 BSB', extension: '—', email: 'duval@northmoor.example' },
+        {
+          name: 'Okonkwo, C.',
+          office: '1122 Sherman Health Science Centre',
+          extension: '33418',
+          email: 'okonkwo@northmoor.example'
+        },
+        { name: 'Petrakis, A.', office: '5030 PDB', extension: '20115', email: 'petrakis@northmoor.example' },
+        { name: 'Rasmussen, I.', office: '232 BSB', extension: '40901', email: 'rasmussen@northmoor.example' },
+        { name: 'Thibodeau, J.', office: '109 BSB', extension: '—', email: 'thibodeau@northmoor.example' },
+        { name: 'Aliyev, N.', office: '402 BSB', extension: '21188', email: 'aliyev@northmoor.example' },
+        { name: 'Bergstrom, L.', office: '118 PDB', extension: '20340', email: 'bergstrom@northmoor.example' },
+        {
+          name: 'Chaudhry, S.',
+          office: '006 Sherman Health Science Centre',
+          extension: '33502',
+          email: 'chaudhry@northmoor.example'
+        },
+        { name: 'Delacroix, H.', office: '221 BSB', extension: '—', email: 'delacroix@northmoor.example' },
+        { name: 'Eskildsen, T.', office: '5031 PDB', extension: '20119', email: 'eskildsen@northmoor.example' },
+        { name: 'Fujimoto, Y.', office: '340 BSB', extension: '40712', email: 'fujimoto@northmoor.example' },
+        { name: 'Garrido, V.', office: '112 PDB', extension: '20355', email: 'garrido@northmoor.example' },
+        {
+          name: 'Haddad, R.',
+          office: '1140 Sherman Health Science Centre',
+          extension: '33461',
+          email: 'haddad@northmoor.example'
+        },
+        { name: 'Ivanovic, M.', office: '209 BSB', extension: '40588', email: 'ivanovic@northmoor.example' },
+        { name: 'Jankowski, E.', office: '5044 PDB', extension: '20127', email: 'jankowski@northmoor.example' },
+        { name: 'Kaur, S.', office: '318 BSB', extension: '—', email: 'kaur@northmoor.example' },
+        { name: 'Lindqvist, O.', office: '127 PDB', extension: '20366', email: 'lindqvist@northmoor.example' },
+        {
+          name: 'Mwangi, G.',
+          office: '1108 Sherman Health Science Centre',
+          extension: '33429',
+          email: 'mwangi@northmoor.example'
+        },
+        { name: 'Nakamura, A.', office: '231 BSB', extension: '40640', email: 'nakamura@northmoor.example' },
+        { name: 'Oyelaran, F.', office: '5012 PDB', extension: '20108', email: 'oyelaran@northmoor.example' }
+      ];
+
+      const PAGE_SIZE = 5;
+      const PAGE_COUNT = Math.ceil(FACULTY.length / PAGE_SIZE);
+
+      const cell = (text) => {
+        const td = document.createElement('td');
+        td.textContent = text;
+        return td;
+      };
+
+      const emailCell = (address) => {
+        const td = document.createElement('td');
+        const link = document.createElement('a');
+        link.href = `mailto:${address}`;
+        link.textContent = address;
+        td.append(link);
+        return td;
+      };
+
+      const buildTable = (page) => {
+        const table = document.createElement('table');
+        const head = table.createTHead().insertRow();
+        for (const label of ['Name', 'Office', 'Extension', 'Email']) {
+          const th = document.createElement('th');
+          th.textContent = label;
+          head.append(th);
+        }
+
+        const body = table.createTBody();
+        for (const person of FACULTY.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)) {
+          const row = body.insertRow();
+          row.append(cell(person.name), cell(person.office), cell(person.extension), emailCell(person.email));
+        }
+        return table;
+      };
+
+      const step = (label, targetPage, enabled) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.setAttribute('data-nav', label.toLowerCase());
+        button.disabled = !enabled;
+        button.addEventListener('click', () => render(targetPage));
+        return button;
+      };
+
+      // Real directories put this in a <nav>. Nothing here writes to location, so no page past the
+      // first is reachable by navigating — only by clicking through.
+      const buildPagination = (page) => {
+        const pagination = document.createElement('nav');
+        pagination.setAttribute('aria-label', 'Pagination');
+
+        const status = document.createElement('span');
+        status.className = 'status';
+        status.textContent = `Page ${page + 1} of ${PAGE_COUNT}`;
+
+        pagination.append(step('Previous', page - 1, page > 0), status, step('Next', page + 1, page < PAGE_COUNT - 1));
+        return pagination;
+      };
+
+      const render = (page) => {
+        const heading = document.createElement('h1');
+        heading.textContent = 'Full-Time Faculty';
+
+        const count = document.createElement('p');
+        count.className = 'count';
+        count.textContent = `${FACULTY.length} members, ${PAGE_SIZE} per page.`;
+
+        const root = document.getElementById('root');
+        root.replaceChildren(heading, count, buildTable(page), buildPagination(page));
+      };
+
+      // Deferred a tick past parse, so a fetcher that reads the DOM too early sees an empty root.
+      window.setTimeout(() => render(0), 0);
+    </script>
+  </body>
+</html>

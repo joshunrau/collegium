@@ -1,0 +1,21 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "envMode": "loose",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "build:schema": {
+      "cache": false
+    },
+    "db:generate": {
+      "cache": false
+    },
+    "lint": {
+      "cache": false,
+      "dependsOn": ["^build"]
+    }
+  },
+  "ui": "stream"
+}

@@ -1,0 +1,43 @@
+# the mattermost image is built and tagged by e2e/support/cluster.ts, which also supplies every
+# variable interpolated below; one project per run keeps the containers and network isolated
+services:
+  mattermost:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS: 'false'
+      MM_LOGSETTINGS_CONSOLELEVEL: ERROR
+      MM_PLUGINSETTINGS_ENABLE: 'false'
+      # Mattermost refuses to call a private address unless it is listed here — without it every
+      # approval button click fails as `address forbidden`
+      MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS: host.docker.internal 127.0.0.1
+      MM_SERVICESETTINGS_ENABLEBOTACCOUNTCREATION: 'true'
+      MM_SERVICESETTINGS_ENABLELOCALMODE: 'true'
+      MM_SERVICESETTINGS_ENABLEUSERACCESSTOKENS: 'true'
+      MM_SERVICESETTINGS_LISTENADDRESS: ':${E2E_MATTERMOST_PORT}'
+      MM_SERVICESETTINGS_SITEURL: 'http://127.0.0.1:${E2E_MATTERMOST_PORT}'
+      MM_SQLSETTINGS_DATASOURCE: 'postgres://collegium_e2e:e2e-password@postgres:5432/mattermost?sslmode=disable&connect_timeout=10'
+      # every harness provisions fresh bots into the shared team; the 50-member default caps the suite
+      MM_TEAMSETTINGS_MAXUSERSPERTEAM: '1000'
+    # the app under test runs on the host, and this is the only name that reaches it from here
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    image: ${E2E_MATTERMOST_IMAGE}
+    ports:
+      - '127.0.0.1:${E2E_MATTERMOST_PORT}:${E2E_MATTERMOST_PORT}'
+  postgres:
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_DB: mattermost
+      POSTGRES_PASSWORD: e2e-password
+      POSTGRES_USER: collegium_e2e
+    healthcheck:
+      interval: 1s
+      retries: 60
+      test: ['CMD-SHELL', 'pg_isready --dbname=mattermost --username=collegium_e2e']
+      timeout: 3s
+    image: postgres:17-alpine
+    # the cluster lives and dies with the run, so its storage never needs to touch a disk
+    tmpfs:
+      - /var/lib/postgresql/data
