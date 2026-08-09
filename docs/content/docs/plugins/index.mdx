@@ -1,18 +1,19 @@
 ---
 title: Plugins
-description: Extend an agent with your own tools and skills through @collegium/sdk.
+description: Operator-supplied capability — the declarePlugin contract and the trust model.
 ---
 
 <Callout type="warn" title="Not written yet">
-  This section is a placeholder. The site scaffold is in place; the prose is not.
+  This page is a placeholder. The site scaffold is in place; the prose is not.
 </Callout>
 
 Planned coverage:
 
-- Declaring a plugin with `declarePlugin` from `@collegium/sdk`
-- Defining a tool: its input schema, its result type, and what makes it require approval
-- Shipping a skill alongside the tools that need it
-- `plugins/bookmark` as a worked example
+- What a plugin may contribute — tools, skills, durable records — and why that is the whole surface
+- Qualified names and per-agent grants: installing a plugin grants it to no one
+- Declared, never discovered: every plugin failure is a startup failure
+- Plugins are fully trusted; agents are not
+- `@collegium/sdk` as the sole import, and what that boundary buys both sides
 
-Until then, the [specification](https://github.com/joshunrau/collegium/blob/main/SPEC.md) is the
-authoritative description of how the system behaves.
+Until then, the [specification](/docs/specification) is the authoritative description of how the
+system behaves.

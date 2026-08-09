@@ -1,19 +1,25 @@
 ---
 title: Reference
-description: Configuration, commands, and the surfaces an operator touches.
+description: The lookup surfaces — configuration, environment, commands, and HTTP.
 ---
 
-<Callout type="warn" title="Not written yet">
-  This section is a placeholder. The site scaffold is in place; the prose is not.
-</Callout>
+Everything an operator greps for, one page per surface.
 
-Planned coverage:
-
-- Configuration reference, generated from the committed `app/config.schema.json` so it cannot drift
-  from the Zod schema it is built from
-- The command surface an operator drives from chat
-- Approvals, halts, and manual intervention
-- What is persisted, and what is visible in the channel
-
-Until then, the [specification](https://github.com/joshunrau/collegium/blob/main/SPEC.md) is the
-authoritative description of how the system behaves.
+<Cards>
+  <Card
+    href="/docs/reference/configuration"
+    title="Configuration"
+    description="Every config.json field, generated from the committed schema."
+  />
+  <Card href="/docs/reference/environment" title="Environment" description="The environment variables the app reads." />
+  <Card
+    href="/docs/reference/commands"
+    title="Commands"
+    description="The slash-command surface an operator drives from chat."
+  />
+  <Card
+    href="/docs/reference/http"
+    title="HTTP Endpoints"
+    description="The callback endpoints and the network-trust posture."
+  />
+</Cards>

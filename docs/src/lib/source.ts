@@ -7,6 +7,9 @@ import type { StructuredData } from 'fumadocs-core/mdx-plugins';
 import { loader } from 'fumadocs-core/source';
 import type { StaticSource } from 'fumadocs-core/source';
 
+/** A renderable docs entry: a file under content/docs, or the spec loaded from SPEC.md. */
+type DocEntry = CollectionEntry<'docs'> | CollectionEntry<'spec'>;
+
 /**
  * Bridge Astro's content collections into a Fumadocs source. Each entry keeps a `_raw` handle on
  * its collection entry so a route can `render()` it and the search index can read its body.
@@ -15,7 +18,7 @@ async function createSource() {
   const out: StaticSource<{
     metaData: CollectionEntry<'meta'>['data'];
     pageData: CollectionEntry<'docs'>['data'] & {
-      _raw: CollectionEntry<'docs'>;
+      _raw: DocEntry;
     };
   }> = {
     files: []
@@ -25,6 +28,16 @@ async function createSource() {
     out.files.push({
       data: { ...page.data, _raw: page },
       path: path.relative('content/docs', page.filePath!),
+      type: 'page'
+    });
+  }
+
+  // The spec has no file under content/docs (content.config.ts loads it from SPEC.md), so its
+  // place in the tree is named here.
+  for (const page of await getCollection('spec')) {
+    out.files.push({
+      data: { ...page.data, _raw: page },
+      path: 'specification.md',
       type: 'page'
     });
   }
@@ -50,8 +63,8 @@ function getPageImageUrl(page: (typeof source)['$inferPage']) {
 }
 
 /** The section index the search server is built from, derived from the raw MDX body. */
-function getStructuredData(entry: CollectionEntry<'docs'>): StructuredData {
+function getStructuredData(entry: DocEntry): StructuredData {
   return structure(entry.body!);
 }
 
-export { getPageImageUrl, getStructuredData, source };
+export { type DocEntry, getPageImageUrl, getStructuredData, source };

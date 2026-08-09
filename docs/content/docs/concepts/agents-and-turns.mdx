@@ -1,0 +1,21 @@
+---
+title: Agents & Turns
+description: Identity, activation, context assembly, and how queued messages and fragments become turns.
+---
+
+<Callout type="warn" title="Not written yet">
+  This page is a placeholder. The site scaffold is in place; the prose is not.
+</Callout>
+
+Planned coverage:
+
+- What an agent is: a Mattermost bot account with a fixed system prompt, model, tool set, skill
+  set, and private memory
+- What starts a turn — and why an agent can never schedule or wake itself
+- Context assembly: pure recency, the channel window, and `/reset` as an episode boundary
+- One turn at a time per channel; the queue, and the 👀 acknowledgement
+- Message folding: how fragments typed seconds apart become one turn
+- The peer roster, and what happens when an agent mentions a colleague
+
+Until then, the [specification](/docs/specification) is the authoritative description of how the
+system behaves.

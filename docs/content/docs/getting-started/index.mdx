@@ -1,19 +1,18 @@
 ---
-title: Getting Started
-description: Deploy Collegium against a Mattermost server and bring up your first agent.
+title: Quickstart
+description: From docker compose up to a running workspace.
 ---
 
 <Callout type="warn" title="Not written yet">
-  This section is a placeholder. The site scaffold is in place; the prose is not.
+  This page is a placeholder. The site scaffold is in place; the prose is not.
 </Callout>
 
 Planned coverage:
 
-- What Collegium needs from a Mattermost server before it will start
-- Running the published image with `docker-compose.yaml`
-- Writing `config.json`, validated against `app/config.schema.json`
-- The environment the app reads (`APP_HOST`, `APP_PORT`, `CONFIG_PATH`, `DATABASE_URL`)
-- Bringing up a first agent and giving it a work channel
+- What `docker compose up` brings up: the app and a bundled Mattermost server
+- The environment the app reads: `APP_HOST`, `APP_PORT`, `CONFIG_PATH`, `DATABASE_URL`
+- What boot checks — and what it refuses to start without
+- Logging into the workspace and finding the system bot
 
-Until then, the [specification](https://github.com/joshunrau/collegium/blob/main/SPEC.md) is the
-authoritative description of how the system behaves.
+Until then, the [specification](/docs/specification) is the authoritative description of how the
+system behaves.

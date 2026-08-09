@@ -1,0 +1,19 @@
+---
+title: Failure & Halts
+description: Clean stop over graceful degradation — the failure taxonomy, loop control, and restart semantics.
+---
+
+<Callout type="warn" title="Not written yet">
+  This page is a placeholder. The site scaffold is in place; the prose is not.
+</Callout>
+
+Planned coverage:
+
+- Every way a turn can stop, and what the human sees in each case
+- Retry the transport, never the intent
+- Loop control: the delegation depth limit, width pinned at one, and the global hourly ceiling
+- `/stop`, `/kill`, and `/resume` — what each guarantees and what it cannot
+- Restart: nothing resumes, and why that is the safer promise
+
+Until then, the [specification](/docs/specification) is the authoritative description of how the
+system behaves.

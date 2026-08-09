@@ -3,16 +3,63 @@ import Layout from '@/components/layout.astro';
 
 const description = 'A multi-agent orchestration framework that runs LLM-backed agents as Mattermost bot users.';
 
+const steps = [
+  {
+    body: 'A mention, a DM, or a trigger from mail, cron, or a webhook. An agent never wakes itself — deterministic code decides when it acts.',
+    title: 'A post activates an agent'
+  },
+  {
+    body: 'It assembles context from the channel, works its hand-written tools, and posts its result. One turn at a time, per channel.',
+    title: 'The agent takes one turn'
+  },
+  {
+    body: 'Anything irreversible or externally visible blocks for approval — the full payload in the channel, with buttons. Reads stay free.',
+    title: 'Consequences stop and wait'
+  },
+  {
+    body: 'The whole turn accumulates in one status post as it runs, and the complete tool trace is one command away.',
+    title: 'Everything leaves a trace'
+  }
+];
+
+const principles = [
+  {
+    body: 'If work is happening, there is a post you can point at. Debugging is scrollback.',
+    title: 'Chat is the substrate'
+  },
+  {
+    body: 'Every capability is a hand-written, reviewed tool with a schema. No ambient code execution.',
+    title: 'Capability is enumerable'
+  },
+  {
+    body: 'Code decides when an agent acts; the agent decides what to do once activated.',
+    title: 'Deterministic activation'
+  },
+  {
+    body: 'When something goes wrong, the agent stops and says so. It never degrades quietly.',
+    title: 'Clean stop over graceful degradation'
+  },
+  {
+    body: 'Everything is recorded and surfaced; only actions with consequences block for consent.',
+    title: 'Visibility is not consent'
+  }
+];
+
 const cards = [
   {
-    description: 'Deploy Collegium against a Mattermost server and bring up your first agent.',
+    description: 'How Collegium works — the model in five minutes, then each mechanism in depth.',
+    href: '/docs/concepts',
+    title: 'Concepts'
+  },
+  {
+    description: "From docker compose up to your first agent's first approval.",
     href: '/docs/getting-started',
     title: 'Getting Started'
   },
   {
-    description: 'Configuration, commands, and the surfaces an operator touches.',
-    href: '/docs/reference',
-    title: 'Reference'
+    description: 'Grow a deployment: grant an agent shell access or a mailbox.',
+    href: '/docs/guides',
+    title: 'Guides'
   },
   {
     description: 'Extend an agent with your own tools and skills through @collegium/sdk.',
@@ -20,16 +67,21 @@ const cards = [
     title: 'Plugins'
   },
   {
+    description: 'Configuration, environment, commands, and HTTP endpoints.',
+    href: '/docs/reference',
+    title: 'Reference'
+  },
+  {
     description: 'The design axioms and execution model the implementation answers to.',
-    href: 'https://github.com/joshunrau/collegium/blob/main/SPEC.md',
+    href: '/docs/specification',
     title: 'Specification'
   }
 ];
 ---
 
 <Layout description={description} title="Collegium">
-  <main class="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center gap-16 px-6 py-24">
-    <div class="flex flex-col items-start gap-6">
+  <main class="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-24 px-6 py-24">
+    <section class="flex flex-col items-start gap-6">
       <h1 class="text-5xl font-semibold tracking-tight">Collegium</h1>
       <p class="text-fd-muted-foreground max-w-2xl text-xl">
         Agents that live in your chat, do work you can watch, and stop when they should.
@@ -43,13 +95,66 @@ const cards = [
         </a>
         <a
           class="border-fd-border hover:bg-fd-accent rounded-lg border px-5 py-2.5 text-sm font-medium transition-colors"
-          href="https://github.com/joshunrau/collegium/blob/main/SPEC.md"
+          href="/docs/concepts"
         >
-          Read the specification
+          How it works
         </a>
       </div>
-    </div>
-    <div class="grid gap-4 sm:grid-cols-2">
+    </section>
+
+    <section class="flex flex-col gap-4">
+      <h2 class="text-2xl font-semibold tracking-tight">Built for the work that isn't code</h2>
+      <p class="text-fd-muted-foreground max-w-3xl">
+        Nearly every agent framework is built for autonomous coding: a shell, a repository, and an agent left alone to
+        iterate until the tests pass. That shape is wrong for the rest of the work — monitoring inboxes, drafting
+        replies, researching on the open web — where the medium is conversation, not a terminal, and running unattended
+        is a liability rather than a feature.
+      </p>
+      <p class="text-fd-muted-foreground max-w-3xl">
+        Collegium is non-coding-first. Agents are persistent colleagues in your Mattermost workspace: each one a bot
+        user with hand-written tools instead of a shell, and a human approval in front of every consequential action.
+      </p>
+    </section>
+
+    <section class="flex flex-col gap-6">
+      <h2 class="text-2xl font-semibold tracking-tight">How it works</h2>
+      <ol class="grid gap-4 sm:grid-cols-2">
+        {
+          steps.map((step, index) => (
+            <li class="border-fd-border bg-fd-card flex flex-col gap-2 rounded-xl border p-5">
+              <span class="text-fd-muted-foreground font-mono text-sm">{index + 1}</span>
+              <span class="font-medium">{step.title}</span>
+              <span class="text-fd-muted-foreground text-sm">{step.body}</span>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="flex flex-col gap-6">
+      <h2 class="text-2xl font-semibold tracking-tight">Principles</h2>
+      <ul class="flex flex-col gap-4">
+        {
+          principles.map((principle) => (
+            <li class="border-fd-border flex flex-col gap-1 border-l-2 pl-4">
+              <span class="font-medium">{principle.title}</span>
+              <span class="text-fd-muted-foreground text-sm">{principle.body}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="flex flex-col gap-4">
+      <h2 class="text-2xl font-semibold tracking-tight">What it is not</h2>
+      <p class="text-fd-muted-foreground max-w-3xl">
+        Not an autonomous agent platform. Agents do not run continuously, do not decide when to act, do not write their
+        own instructions, and do not create other agents. Every consequential action stops and waits for a human. The
+        design trades throughput and autonomy for supervisability and predictable failure — deliberately.
+      </p>
+    </section>
+
+    <section class="grid gap-4 sm:grid-cols-2">
       {
         cards.map((card) => (
           <a
@@ -61,6 +166,6 @@ const cards = [
           </a>
         ))
       }
-    </div>
+    </section>
   </main>
 </Layout>

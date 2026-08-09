@@ -3,28 +3,42 @@ title: Overview
 description: A multi-agent orchestration framework that runs LLM-backed agents as Mattermost bot users.
 ---
 
-Collegium runs LLM-backed agents as Mattermost bot users: they live in your chat, do work you can
-watch, and stop when they should.
+Collegium runs LLM-backed agents as bot users in your Mattermost workspace. They are persistent
+colleagues, not job runners: each holds conversations with your staff, works a fixed set of
+hand-written tools, and stops for human approval on every consequential action.
+
+It is built for the work that isn't code — monitoring inboxes, drafting replies, researching on the
+open web. There is no shell at the center of it: capability is granted tool by tool, every action
+lands in a channel you can scroll, and when something goes wrong the agent stops and says so.
+
+Collegium is not an autonomous agent platform. Agents do not run continuously, do not decide when to
+act, do not write their own instructions, and do not create other agents. The design trades
+throughput for supervisability, and that trade is deliberate.
 
 <Cards>
   <Card
-    href="/docs/getting-started"
-    title="Getting Started"
-    description="Deploy Collegium against a Mattermost server and bring up your first agent."
+    href="/docs/concepts"
+    title="Concepts"
+    description="How Collegium works — the model in five minutes, then each mechanism in depth."
   />
   <Card
-    href="/docs/reference"
-    title="Reference"
-    description="Configuration, commands, and the surfaces an operator touches."
+    href="/docs/getting-started"
+    title="Getting Started"
+    description="From docker compose up to your first agent's first approval."
   />
+  <Card href="/docs/guides" title="Guides" description="Grow a deployment: grant an agent shell access or a mailbox." />
   <Card
     href="/docs/plugins"
     title="Plugins"
     description="Extend an agent with your own tools and skills through @collegium/sdk."
   />
   <Card
-    external
-    href="https://github.com/joshunrau/collegium/blob/main/SPEC.md"
+    href="/docs/reference"
+    title="Reference"
+    description="Configuration, environment, commands, and HTTP endpoints."
+  />
+  <Card
+    href="/docs/specification"
     title="Specification"
     description="The design axioms and execution model the implementation answers to."
   />
