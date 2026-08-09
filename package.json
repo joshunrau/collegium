@@ -34,6 +34,7 @@
     "@douglasneuroinformatics/prettier-config": "^0.3.0",
     "@douglasneuroinformatics/tsconfig": "^2.0.0",
     "@types/node": "^24.x",
+    "@typescript-eslint/parser": "^8.66.0",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "9.39.2",
     "happy-dom": "^20.11.1",
