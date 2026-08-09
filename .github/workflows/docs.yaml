@@ -1,0 +1,46 @@
+name: Docs
+on:
+  push:
+    branches: ['main']
+  workflow_dispatch:
+defaults:
+  run:
+    shell: bash
+permissions:
+  contents: read
+  id-token: write
+  pages: write
+# a half-finished deployment must not be abandoned, so this does not cancel in progress
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          cache: 'pnpm'
+          node-version-file: '.nvmrc'
+      # filtered: the app's postinstall provisions a browser this job has no use for
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile --filter @collegium/docs
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+      - name: Build Docs
+        run: pnpm --filter @collegium/docs build
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/dist
+      - name: Deploy to Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
