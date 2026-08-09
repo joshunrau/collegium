@@ -17,6 +17,10 @@ const remarkPlugins = [remarkHeading, remarkCodeTab, remarkNpm, [remarkStructure
 const rehypePlugins = [rehypeCode];
 
 export default defineConfig({
+  build: {
+    assets: '_assets'
+  },
+  compressHTML: true,
   integrations: [
     react(),
     mdx({
@@ -30,6 +34,10 @@ export default defineConfig({
       remarkPlugins
     }),
     syntaxHighlight: false
+  },
+  output: 'static',
+  server: {
+    port: 3000
   },
   site: 'https://collegium.sh',
   vite: {
