@@ -1,90 +1,52 @@
 ---
 import Layout from '@/components/layout.astro';
 
-const description = 'A multi-agent orchestration framework that runs LLM-backed agents as Mattermost bot users.';
+const description =
+  "Collegium runs LLM agents as members of your team's chat — handling mail, research, and follow-through, with a human approving anything consequential.";
 
-const steps = [
-  {
-    body: 'A mention, a DM, or a trigger from mail, cron, or a webhook. An agent never wakes itself — deterministic code decides when it acts.',
-    title: 'A post activates an agent'
-  },
-  {
-    body: 'It assembles context from the channel, works its hand-written tools, and posts its result. One turn at a time, per channel.',
-    title: 'The agent takes one turn'
-  },
-  {
-    body: 'Anything irreversible or externally visible blocks for approval — the full payload in the channel, with buttons. Reads stay free.',
-    title: 'Consequences stop and wait'
-  },
-  {
-    body: 'The whole turn accumulates in one status post as it runs, and the complete tool trace is one command away.',
-    title: 'Everything leaves a trace'
-  }
+const traceLines = [
+  { detail: 'searched for "charged twice"', tool: 'mail' },
+  { detail: 'opened "Charged twice for August" from marcus.hale@northgate.io', tool: 'mail' },
+  { detail: 'how billing disputes are handled', tool: 'read_memory' }
 ];
 
-const principles = [
-  {
-    body: 'If work is happening, there is a post you can point at. Debugging is scrollback.',
-    title: 'Chat is the substrate'
-  },
-  {
-    body: 'Every capability is a hand-written, reviewed tool with a schema. No ambient code execution.',
-    title: 'Capability is enumerable'
-  },
-  {
-    body: 'Code decides when an agent acts; the agent decides what to do once activated.',
-    title: 'Deterministic activation'
-  },
-  {
-    body: 'When something goes wrong, the agent stops and says so. It never degrades quietly.',
-    title: 'Clean stop over graceful degradation'
-  },
-  {
-    body: 'Everything is recorded and surfaced; only actions with consequences block for consent.',
-    title: 'Visibility is not consent'
-  }
+const jobs = [
+  'Keep a shared inbox from piling up — read, search, and draft, with every send approved.',
+  'Research across live pages, including the ones that need JavaScript to render.',
+  'Start work from anything that can send a request — your scheduler, your monitoring, your own systems.',
+  'Run commands on the machine it lives on, if you grant it that.'
 ];
 
-const cards = [
+const commitments = [
   {
-    description: 'How Collegium works — the model in five minutes, then each mechanism in depth.',
-    href: '/docs/concepts',
-    title: 'Concepts'
+    body: 'Every capability is a hand-written tool with a schema. Shell access is a grant to one agent, never a default. You can enumerate what an agent is able to touch by reading its configuration.',
+    cost: 'A new capability is code you write.',
+    title: 'Its whole reach is a list you can read'
   },
   {
-    description: "From docker compose up to your first agent's first approval.",
-    href: '/docs/getting-started',
-    title: 'Getting Started'
+    body: 'Before an email leaves or a command runs, the full payload lands in the channel with two buttons and no timeout. Reads never interrupt you; consequences always do.',
+    cost: 'An agent can sit waiting for days, and throughput is bounded by your attention.',
+    title: 'Anything consequential stops and asks'
   },
   {
-    description: 'Grow a deployment: grant an agent shell access or a mailbox.',
-    href: '/docs/guides',
-    title: 'Guides'
-  },
-  {
-    description: 'Extend an agent with your own tools and skills through @collegium/sdk.',
-    href: '/docs/plugins',
-    title: 'Plugins'
-  },
-  {
-    description: 'Configuration, environment, commands, and HTTP endpoints.',
-    href: '/docs/reference',
-    title: 'Reference'
-  },
-  {
-    description: 'The design axioms and execution model the implementation answers to.',
-    href: '/docs/specification',
-    title: 'Specification'
+    body: 'No retrying around a failure, no quiet fallback to a worse answer, no half-finished work reported as done. A turn that cannot continue ends and says why.',
+    cost: 'You get interrupted by things another system would have papered over.',
+    title: 'When it goes wrong, it stops and says so'
   }
 ];
 ---
 
 <Layout description={description} title="Collegium">
-  <main class="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-24 px-6 py-24">
+  <main class="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-24 px-6 py-20 sm:py-28">
     <section class="flex flex-col items-start gap-6">
-      <h1 class="text-5xl font-semibold tracking-tight">Collegium</h1>
-      <p class="text-fd-muted-foreground max-w-2xl text-xl">
-        Agents that live in your chat, do work you can watch, and stop when they should.
+      <span class="text-fd-muted-foreground font-mono text-sm tracking-wide">Collegium</span>
+      <h1 class="max-w-3xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+        Agents you supervise like people, not services.
+      </h1>
+      <p class="text-fd-muted-foreground max-w-2xl text-lg sm:text-xl">
+        Collegium agents are members of your team's chat, each with its own name, tools, and memory. They handle the
+        work that isn't writing software — mail, research, follow-through — and stop for a human before anything leaves
+        the building.
       </p>
       <div class="flex flex-wrap gap-3">
         <a
@@ -95,77 +57,188 @@ const cards = [
         </a>
         <a
           class="border-fd-border hover:bg-fd-accent rounded-lg border px-5 py-2.5 text-sm font-medium transition-colors"
-          href="/docs/concepts"
+          href="https://github.com/joshunrau/collegium"
+          rel="noreferrer"
+          target="_blank"
         >
-          How it works
+          GitHub
         </a>
       </div>
     </section>
 
-    <section class="flex flex-col gap-4">
-      <h2 class="text-2xl font-semibold tracking-tight">Built for the work that isn't code</h2>
-      <p class="text-fd-muted-foreground max-w-3xl">
-        Nearly every agent framework is built for autonomous coding: a shell, a repository, and an agent left alone to
-        iterate until the tests pass. That shape is wrong for the rest of the work — monitoring inboxes, drafting
-        replies, researching on the open web — where the medium is conversation, not a terminal, and running unattended
-        is a liability rather than a feature.
+    <section class="flex flex-col gap-6">
+      <p class="text-fd-muted-foreground max-w-2xl">
+        A customer says he was charged twice. Here is the whole thing, as it appears in the channel.
       </p>
-      <p class="text-fd-muted-foreground max-w-3xl">
-        Collegium is non-coding-first. Agents are persistent colleagues in your Mattermost workspace: each one a bot
-        user with hand-written tools instead of a shell, and a human approval in front of every consequential action.
-      </p>
+
+      <div class="border-fd-border bg-fd-card flex flex-col gap-7 rounded-xl border p-5 sm:p-6">
+        <article class="flex gap-3">
+          <span
+            class="bg-fd-muted text-fd-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
+          >
+            co
+          </span>
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <p class="flex items-baseline gap-2">
+              <span class="text-sm font-medium">collegium</span>
+              <span class="text-fd-muted-foreground text-xs">9:14 AM</span>
+            </p>
+            <p class="text-sm">
+              New mail for <span class="bg-fd-accent text-fd-accent-foreground rounded px-1 py-0.5 font-medium">
+                @jane
+              </span>
+            </p>
+            <div class="border-fd-border bg-fd-background rounded-lg border text-sm">
+              <dl class="border-fd-border grid gap-1 border-b px-4 py-3 sm:grid-cols-[4rem_1fr]">
+                <dt class="text-fd-muted-foreground text-xs">From</dt>
+                <dd class="text-sm">marcus.hale@northgate.io</dd>
+                <dt class="text-fd-muted-foreground text-xs">Subject</dt>
+                <dd class="text-sm">Charged twice for August</dd>
+              </dl>
+              <p class="text-fd-muted-foreground px-4 py-3">
+                Hi — I just noticed two charges for the August subscription on the same card, on the 3rd and again on
+                the 4th. Same amount both times. Can someone take a look? Happy to send screenshots if that helps.
+              </p>
+            </div>
+          </div>
+        </article>
+
+        <article class="flex gap-3">
+          <span
+            class="bg-fd-primary/15 text-fd-primary flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
+          >
+            ja
+          </span>
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <p class="flex items-baseline gap-2">
+              <span class="text-sm font-medium">jane</span>
+              <span class="text-fd-muted-foreground text-xs">9:15 AM</span>
+            </p>
+            <ul class="border-fd-border flex flex-col gap-1.5 border-l pl-3">
+              {
+                traceLines.map((line) => (
+                  <li class="flex flex-wrap items-baseline gap-x-2 text-xs">
+                    <code class="font-mono">{line.tool}</code>
+                    <span class="text-fd-muted-foreground">{line.detail}</span>
+                  </li>
+                ))
+              }
+            </ul>
+          </div>
+        </article>
+
+        <article class="flex gap-3">
+          <span
+            class="bg-fd-primary/15 text-fd-primary flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
+          >
+            ja
+          </span>
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <p class="flex items-baseline gap-2">
+              <span class="text-sm font-medium">jane</span>
+              <span class="text-fd-muted-foreground text-xs">9:16 AM</span>
+            </p>
+            <div class="border-fd-border bg-fd-background rounded-lg border">
+              <p class="border-fd-border text-fd-muted-foreground border-b px-4 py-2.5 font-mono text-xs tracking-wide">
+                approval required — send mail
+              </p>
+              <dl class="border-fd-border grid gap-1 border-b px-4 py-3 sm:grid-cols-[4rem_1fr]">
+                <dt class="text-fd-muted-foreground text-xs">To</dt>
+                <dd class="text-sm">marcus.hale@northgate.io</dd>
+                <dt class="text-fd-muted-foreground text-xs">Subject</dt>
+                <dd class="text-sm">Re: Charged twice for August</dd>
+              </dl>
+              <div class="flex flex-col gap-3 px-4 py-3 text-sm">
+                <p>Hi Marcus,</p>
+                <p>
+                  You're right — the August subscription was charged twice, on the 3rd and again on the 4th. The
+                  duplicate charge is being reversed; you should see $148.00 back on the card ending 4417 within three
+                  business days.
+                </p>
+                <p>Apologies for the trouble, and thanks for catching it.</p>
+                <p>Jane</p>
+              </div>
+              <div class="border-fd-border flex flex-wrap items-center gap-2 border-t px-4 py-3">
+                <span class="bg-fd-primary text-fd-primary-foreground rounded-md px-3 py-1.5 text-xs font-medium">
+                  Approve
+                </span>
+                <span class="border-fd-border rounded-md border px-3 py-1.5 text-xs font-medium">Deny</span>
+                <span class="text-fd-muted-foreground text-xs sm:ml-auto">Approved by joshua · 9:41 AM</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="flex gap-3">
+          <span
+            class="bg-fd-primary/15 text-fd-primary flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
+          >
+            ja
+          </span>
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <p class="flex items-baseline gap-2">
+              <span class="text-sm font-medium">jane</span>
+              <span class="text-fd-muted-foreground text-xs">9:41 AM</span>
+            </p>
+            <p class="text-sm">
+              Sent. This is the second duplicate charge on Marcus's account this year — the first was in March. I've
+              noted it, in case that pattern matters to someone.
+            </p>
+          </div>
+        </article>
+      </div>
     </section>
 
     <section class="flex flex-col gap-6">
-      <h2 class="text-2xl font-semibold tracking-tight">How it works</h2>
-      <ol class="grid gap-4 sm:grid-cols-2">
+      <h2 class="text-2xl font-semibold tracking-tight">What agents do</h2>
+      <ul class="flex flex-col gap-3">
         {
-          steps.map((step, index) => (
-            <li class="border-fd-border bg-fd-card flex flex-col gap-2 rounded-xl border p-5">
-              <span class="text-fd-muted-foreground font-mono text-sm">{index + 1}</span>
-              <span class="font-medium">{step.title}</span>
-              <span class="text-fd-muted-foreground text-sm">{step.body}</span>
+          jobs.map((job) => (
+            <li class="border-fd-border text-fd-muted-foreground border-l-2 pl-4">
+              <span class="text-fd-foreground">{job}</span>
             </li>
           ))
         }
-      </ol>
+      </ul>
+      <p class="text-fd-muted-foreground max-w-3xl">
+        Anything past that is a tool you write. Plugins add tools, skills, and stored records through one SDK — a GitHub
+        integration, your ticket system, your internal database — and installing one grants it to nobody until you say
+        so.
+      </p>
     </section>
 
     <section class="flex flex-col gap-6">
-      <h2 class="text-2xl font-semibold tracking-tight">Principles</h2>
-      <ul class="flex flex-col gap-4">
+      <h2 class="text-2xl font-semibold tracking-tight">Why it's built this way</h2>
+      <p class="text-fd-muted-foreground max-w-3xl">
+        Agent frameworks are mostly built around a model with a shell, iterating on its own until the work is done. That
+        shape assumes the work is code and the supervisor is a test suite.
+      </p>
+      <ul class="flex flex-col gap-6">
         {
-          principles.map((principle) => (
-            <li class="border-fd-border flex flex-col gap-1 border-l-2 pl-4">
-              <span class="font-medium">{principle.title}</span>
-              <span class="text-fd-muted-foreground text-sm">{principle.body}</span>
+          commitments.map((commitment) => (
+            <li class="flex flex-col gap-2">
+              <span class="font-medium">{commitment.title}</span>
+              <span class="text-fd-muted-foreground max-w-3xl text-sm">{commitment.body}</span>
+              <span class="text-fd-muted-foreground border-fd-border max-w-3xl border-l-2 pl-3 text-sm italic">
+                {commitment.cost}
+              </span>
             </li>
           ))
         }
       </ul>
     </section>
 
-    <section class="flex flex-col gap-4">
-      <h2 class="text-2xl font-semibold tracking-tight">What it is not</h2>
-      <p class="text-fd-muted-foreground max-w-3xl">
-        Not an autonomous agent platform. Agents do not run continuously, do not decide when to act, do not write their
-        own instructions, and do not create other agents. Every consequential action stops and waits for a human. The
-        design trades throughput and autonomy for supervisability and predictable failure — deliberately.
+    <section class="flex flex-col items-start gap-6">
+      <p class="max-w-2xl text-lg">
+        Agents that wait for you are slower than agents that don't. The specification explains every place that trade
+        was made, and why.
       </p>
-    </section>
-
-    <section class="grid gap-4 sm:grid-cols-2">
-      {
-        cards.map((card) => (
-          <a
-            class="border-fd-border bg-fd-card hover:bg-fd-accent flex flex-col gap-2 rounded-xl border p-5 transition-colors"
-            href={card.href}
-          >
-            <span class="font-medium">{card.title}</span>
-            <span class="text-fd-muted-foreground text-sm">{card.description}</span>
-          </a>
-        ))
-      }
+      <a
+        class="bg-fd-primary text-fd-primary-foreground hover:bg-fd-primary/90 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors"
+        href="/docs/specification"
+      >
+        Read the specification
+      </a>
     </section>
   </main>
 </Layout>
