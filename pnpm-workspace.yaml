@@ -2,6 +2,7 @@ allowBuilds:
   '@prisma/engines': true
   '@swc/core': true
   better-sqlite3: true
+  esbuild: true
   prisma: true
 catalog:
   es-toolkit: ^1.49.0
@@ -11,4 +12,4 @@ catalog:
 # refuses to run without this since pnpm v10
 injectWorkspacePackages: true
 minimumReleaseAge: 1440
-packages: ['app', 'packages/*', 'plugins/*']
+packages: ['app', 'docs', 'packages/*', 'plugins/*']

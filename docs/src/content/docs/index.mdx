@@ -1,0 +1,46 @@
+---
+title: Collegium
+description: A multi-agent orchestration framework that runs LLM-backed agents as Mattermost bot users.
+template: splash
+hero:
+  # relative, not root-absolute: Starlight prefixes the links it generates with `base`, but leaves
+  # author-written ones alone, and this site is served under /collegium on Pages
+  tagline: Agents that live in your chat, do work you can watch, and stop when they should.
+  actions:
+    - text: Getting Started
+      link: getting-started/
+      icon: right-arrow
+    - text: Read the specification
+      link: https://github.com/joshunrau/collegium/blob/main/SPEC.md
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="Getting Started" icon="rocket">
+    Deploy Collegium against a Mattermost server and bring up your first agent.
+
+    [Read the guide](getting-started/)
+
+  </Card>
+  <Card title="Reference" icon="setting">
+    Configuration, commands, and the surfaces an operator touches.
+
+    [Browse the reference](reference/)
+
+  </Card>
+  <Card title="Plugins" icon="puzzle">
+    Extend an agent with your own tools and skills through `@collegium/sdk`.
+
+    [Write a plugin](plugins/)
+
+  </Card>
+  <Card title="Specification" icon="document">
+    The design axioms and execution model the implementation answers to.
+
+    [Read SPEC.md](https://github.com/joshunrau/collegium/blob/main/SPEC.md)
+
+  </Card>
+</CardGrid>

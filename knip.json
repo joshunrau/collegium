@@ -12,6 +12,10 @@
       "ignore": ["src/prisma/generated/**", "src/testing/**"],
       "ignoreDependencies": ["@prisma/client", "prisma"]
     },
+    "docs": {
+      "entry": ["astro.config.js", "src/content.config.ts"],
+      "project": ["src/**/*.{ts,js,astro}"]
+    },
     "packages/core": {
       "entry": ["src/index.ts!"],
       "project": ["src/**/*.ts!"]

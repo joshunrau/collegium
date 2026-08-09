@@ -1,0 +1,19 @@
+---
+title: Getting Started
+description: Deploy Collegium against a Mattermost server and bring up your first agent.
+---
+
+:::caution[Not written yet]
+This section is a placeholder. The site scaffold is in place; the prose is not.
+:::
+
+Planned coverage:
+
+- What Collegium needs from a Mattermost server before it will start
+- Running the published image with `docker-compose.yaml`
+- Writing `config.json`, validated against `app/config.schema.json`
+- The environment the app reads (`APP_HOST`, `APP_PORT`, `CONFIG_PATH`, `DATABASE_URL`)
+- Bringing up a first agent and giving it a work channel
+
+Until then, the [specification](https://github.com/joshunrau/collegium/blob/main/SPEC.md) is the
+authoritative description of how the system behaves.

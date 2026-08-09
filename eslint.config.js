@@ -30,6 +30,9 @@ const restrictImports = (...patterns) => ({
 
 export default config(
   {
+    astro: {
+      enabled: true
+    },
     env: {
       browser: false,
       es2021: true,

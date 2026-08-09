@@ -1,0 +1,13 @@
+{
+  "extends": ["../tsconfig.base.json"],
+  "compilerOptions": {
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "target": "ESNext"
+  },
+  "include": [".astro/types.d.ts", "**/*"],
+  "exclude": ["dist"]
+}
