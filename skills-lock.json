@@ -37,24 +37,6 @@
       "skillPath": "skills/frontend-design/SKILL.md",
       "computedHash": "4eabc66183767153e404b39d1b839b1c37f2d82d86f0a0d7e880a579d8d62336"
     },
-    "grill-me": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "skillPath": "skills/productivity/grill-me/SKILL.md",
-      "computedHash": "f361db4e15e6bfd562a9282b1dccda513910a50061f9e838ce017be9c69dde3f"
-    },
-    "grill-with-docs": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
-      "computedHash": "9c460cbd94fd3c63cdef967dbdb6e66ca687103cdc380cd37834e4d10b738f78"
-    },
-    "grilling": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "skillPath": "skills/productivity/grilling/SKILL.md",
-      "computedHash": "4ebdd12fe61ff3abf20cff6683740e2b9b3739454be0a3f4a928a1c4d07d6b34"
-    },
     "implement": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -66,12 +48,6 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "bce096b49db40761adb1d5348f064c303fc152e4e50fc3fd81b79df8b6cf137f"
-    },
-    "loop-me": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "skillPath": "skills/in-progress/loop-me/SKILL.md",
-      "computedHash": "1001228c475a89d565d0059ebd64b3e922f93a87aad29becb8e358c0399880a7"
     },
     "research": {
       "source": "mattpocock/skills",
