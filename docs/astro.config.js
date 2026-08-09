@@ -1,10 +1,7 @@
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 
-// Pages serves this as a project page, so the site lives under a path prefix rather than at the root
-// of the origin. Starlight prefixes internal links from `base` itself.
 export default defineConfig({
-  base: '/collegium',
   integrations: [
     starlight({
       editLink: {
@@ -19,5 +16,5 @@ export default defineConfig({
       title: 'Collegium'
     })
   ],
-  site: 'https://joshunrau.github.io'
+  site: 'https://collegium.sh'
 });
