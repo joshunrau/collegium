@@ -13,8 +13,8 @@
       "ignoreDependencies": ["@prisma/client", "prisma"]
     },
     "docs": {
-      "entry": ["astro.config.js", "src/content.config.ts"],
-      "project": ["src/**/*.{ts,js,astro}"]
+      "entry": ["astro.config.js", "src/content.config.ts", "src/pages/**/*.{ts,astro}"],
+      "project": ["src/**/*.{ts,tsx,js,astro}"]
     },
     "packages/core": {
       "entry": ["src/index.ts!"],

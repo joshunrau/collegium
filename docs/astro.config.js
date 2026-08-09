@@ -1,20 +1,38 @@
-import starlight from '@astrojs/starlight';
+// @ts-check
+
+import { unified } from '@astrojs/markdown-remark';
+import mdx from '@astrojs/mdx';
+import react from '@astrojs/react';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
+import { rehypeCode, remarkCodeTab, remarkHeading, remarkNpm, remarkStructure } from 'fumadocs-core/mdx-plugins';
+
+// Fumadocs owns the pipeline: remarkHeading supplies the heading ids the TOC anchors to,
+// remarkStructure the section index search is built from, and rehypeCode the highlighting
+// Astro's own shiki pass is turned off for.
+/** @type {import('@astrojs/markdown-remark').RemarkPlugins} */
+const remarkPlugins = [remarkHeading, remarkCodeTab, remarkNpm, [remarkStructure, { exportAs: 'structuredData' }]];
+
+/** @type {import('@astrojs/markdown-remark').RehypePlugins} */
+const rehypePlugins = [rehypeCode];
 
 export default defineConfig({
   integrations: [
-    starlight({
-      editLink: {
-        baseUrl: 'https://github.com/joshunrau/collegium/edit/main/docs/'
-      },
-      sidebar: [
-        { items: [{ autogenerate: { directory: 'getting-started' } }], label: 'Getting Started' },
-        { items: [{ autogenerate: { directory: 'reference' } }], label: 'Reference' },
-        { items: [{ autogenerate: { directory: 'plugins' } }], label: 'Plugins' }
-      ],
-      social: [{ href: 'https://github.com/joshunrau/collegium', icon: 'github', label: 'GitHub' }],
-      title: 'Collegium'
+    react(),
+    mdx({
+      extendMarkdownConfig: true,
+      syntaxHighlight: false
     })
   ],
-  site: 'https://collegium.sh'
+  markdown: {
+    processor: unified({
+      rehypePlugins,
+      remarkPlugins
+    }),
+    syntaxHighlight: false
+  },
+  site: 'https://collegium.sh',
+  vite: {
+    plugins: [tailwindcss()]
+  }
 });

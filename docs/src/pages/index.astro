@@ -1,0 +1,66 @@
+---
+import Layout from '@/components/layout.astro';
+
+const description = 'A multi-agent orchestration framework that runs LLM-backed agents as Mattermost bot users.';
+
+const cards = [
+  {
+    description: 'Deploy Collegium against a Mattermost server and bring up your first agent.',
+    href: '/docs/getting-started',
+    title: 'Getting Started'
+  },
+  {
+    description: 'Configuration, commands, and the surfaces an operator touches.',
+    href: '/docs/reference',
+    title: 'Reference'
+  },
+  {
+    description: 'Extend an agent with your own tools and skills through @collegium/sdk.',
+    href: '/docs/plugins',
+    title: 'Plugins'
+  },
+  {
+    description: 'The design axioms and execution model the implementation answers to.',
+    href: 'https://github.com/joshunrau/collegium/blob/main/SPEC.md',
+    title: 'Specification'
+  }
+];
+---
+
+<Layout description={description} title="Collegium">
+  <main class="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center gap-16 px-6 py-24">
+    <div class="flex flex-col items-start gap-6">
+      <h1 class="text-5xl font-semibold tracking-tight">Collegium</h1>
+      <p class="text-fd-muted-foreground max-w-2xl text-xl">
+        Agents that live in your chat, do work you can watch, and stop when they should.
+      </p>
+      <div class="flex flex-wrap gap-3">
+        <a
+          class="bg-fd-primary text-fd-primary-foreground hover:bg-fd-primary/90 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors"
+          href="/docs/getting-started"
+        >
+          Getting Started
+        </a>
+        <a
+          class="border-fd-border hover:bg-fd-accent rounded-lg border px-5 py-2.5 text-sm font-medium transition-colors"
+          href="https://github.com/joshunrau/collegium/blob/main/SPEC.md"
+        >
+          Read the specification
+        </a>
+      </div>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      {
+        cards.map((card) => (
+          <a
+            class="border-fd-border bg-fd-card hover:bg-fd-accent flex flex-col gap-2 rounded-xl border p-5 transition-colors"
+            href={card.href}
+          >
+            <span class="font-medium">{card.title}</span>
+            <span class="text-fd-muted-foreground text-sm">{card.description}</span>
+          </a>
+        ))
+      }
+    </div>
+  </main>
+</Layout>

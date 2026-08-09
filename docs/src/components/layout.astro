@@ -1,0 +1,41 @@
+---
+import '@/styles/global.css';
+
+import { ClientRouter } from 'astro:transitions';
+
+interface Props {
+  description?: string;
+  /** Site-root-relative path to the OpenGraph image, if the page has one. */
+  image?: string;
+  title: string;
+}
+
+const { description, image, title } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="/favicon.svg" rel="icon" type="image/svg+xml" />
+    <link href={canonical} rel="canonical" />
+    <title>{title}</title>
+    <meta content={title} name="title" />
+    <meta content={title} property="og:title" />
+    <meta content={canonical} property="og:url" />
+    <meta content="website" property="og:type" />
+    {description && <meta content={description} name="description" />}
+    {description && <meta content={description} property="og:description" />}
+    {image && <meta content={new URL(image, Astro.site)} property="og:image" />}
+    <ClientRouter />
+  </head>
+  <body
+    class="dark flex min-h-screen flex-col"
+    transition:persist
+    transition:animate="none"
+    transition:name="page-layout"
+  >
+    <slot />
+  </body>
+</html>
