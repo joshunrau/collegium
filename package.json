@@ -15,7 +15,7 @@
     "db:generate": "turbo run db:generate",
     "format": "prettier --write .",
     "knip": "knip --production",
-    "lint": "turbo run lint",
+    "lint": "node scripts/check-module-map.js && turbo run lint",
     "prepare": "husky",
     "test": "vitest --project unit --project packages --project plugins",
     "test:coverage": "vitest --project unit --project packages --project plugins --coverage",
