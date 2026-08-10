@@ -16,6 +16,7 @@ const vendorSocket = vi.hoisted(() => ({
   addCloseListener: vi.fn(),
   addErrorListener: vi.fn(),
   addMessageListener: vi.fn(),
+  addMissedMessageListener: vi.fn(),
   close: vi.fn(),
   initialize: vi.fn(),
   userTyping: vi.fn()
@@ -28,6 +29,7 @@ vi.mock('@mattermost/client', () => ({
     addCloseListener = vendorSocket.addCloseListener;
     addErrorListener = vendorSocket.addErrorListener;
     addMessageListener = vendorSocket.addMessageListener;
+    addMissedMessageListener = vendorSocket.addMissedMessageListener;
     close = vendorSocket.close;
     initialize = vendorSocket.initialize;
     userTyping = vendorSocket.userTyping;
@@ -42,14 +44,17 @@ const createFakeSocket = () => {
   const closeListeners: ((connectFailCount: number) => void)[] = [];
   const errorListeners: SocketListener[] = [];
   const listeners: SocketListener[] = [];
+  const missedListeners: (() => void)[] = [];
   return {
     addCloseListener: (listener: (connectFailCount: number) => void) => closeListeners.push(listener),
     addErrorListener: (listener: SocketListener) => errorListeners.push(listener),
     addMessageListener: (listener: SocketListener) => listeners.push(listener),
+    addMissedMessageListener: (listener: () => void) => missedListeners.push(listener),
     close: vi.fn(),
     emit: (event: unknown) => listeners.forEach((listener) => listener(event)),
     emitClose: (connectFailCount: number) => closeListeners.forEach((listener) => listener(connectFailCount)),
     emitError: () => errorListeners.forEach((listener) => listener(undefined)),
+    emitMissedMessages: () => missedListeners.forEach((listener) => listener()),
     initialize: vi.fn(),
     userTyping: vi.fn()
   };
@@ -204,6 +209,13 @@ describe('MattermostTransport', () => {
     it('should log a websocket closure with its fail count', () => {
       socket.emitClose(3);
       expect(logger.warn).toHaveBeenCalledWith('mattermost websocket closed (connectFailCount=3)');
+    });
+
+    // the client reconnects on its own; this is the only signal that it could not resume, and
+    // without it a mention posted during the gap is never seen live and never triggers (§5.2)
+    it('should ask for a resync when the socket reconnects without resuming', () => {
+      socket.emitMissedMessages();
+      expect(events).toContainEqual({ agentUsername: 'mira', kind: 'resync' });
     });
 
     it('should close the socket on disconnect', () => {

@@ -68,6 +68,17 @@ export class TurnsService {
     });
   }
 
+  /**
+   * §7.4 — how many turns have started strictly after a given moment, framework-wide. The rolling
+   * window is counted here rather than held in memory: a crash-looping instance must not grant
+   * itself a fresh allowance every boot, which would make the framework-wide number untrue. Strictly
+   * after, because both moments it is asked about — the hour boundary and the `/resume` watermark —
+   * are already past when they are handed over.
+   */
+  countStartedAfter(moment: Date): Promise<number> {
+    return this.turns.count({ where: { startedAt: { gt: moment } } });
+  }
+
   /** the full §8.3 trace, in the order it happened */
   listEvents(turnId: string): Promise<ModelRow<'TurnEvent'>[]> {
     return this.events.findMany({ orderBy: { sequence: 'asc' }, where: { turnId } });

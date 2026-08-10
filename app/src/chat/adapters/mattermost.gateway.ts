@@ -15,9 +15,9 @@ import type { ChatTransport } from '../chat.transport.ts';
 import type {
   AgentConnection,
   ChatFailure,
+  PostFile,
   SlashCommandRegistration,
   SlashCommandSurface,
-  SystemPostFile,
   SystemPostReceipt
 } from '../chat.types.ts';
 
@@ -81,7 +81,7 @@ export class MattermostGateway extends ChatGateway {
   postAsSystemIn(
     channelId: string,
     content: string,
-    files?: readonly SystemPostFile[]
+    files?: readonly PostFile[]
   ): Promise<Result<SystemPostReceipt, ChatFailure>> {
     return toChatResult(async () => {
       const fileIds = await Promise.all(

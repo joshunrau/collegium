@@ -49,6 +49,7 @@ describe('ApprovalsService', () => {
     transport.isChannelMember.mockResolvedValue(Result.ok(true));
     transport.openDialog.mockResolvedValue(Result.ok());
     transport.send.mockResolvedValue(Result.ok({ createdAt: new Date(), postId: 'prompt-1' }));
+    transport.maxPostSizeChars.mockResolvedValue(Result.ok(16_383));
     transport.updatePost.mockImplementation((postId, update) => {
       updates.push({ postId, text: update.text });
       return Promise.resolve(Result.ok());

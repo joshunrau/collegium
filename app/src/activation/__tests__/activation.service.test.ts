@@ -416,6 +416,29 @@ describe('ActivationService', () => {
     });
   });
 
+  describe('posts recovered after a reconnect', () => {
+    // §5.2 — a gap holds an unknown number of posts, and ten missed mentions must become one turn
+    it('should queue every addressed post and drain the channel once', async () => {
+      agentRegistry.get.mockReturnValue(PROFILE);
+      queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-1' } as never);
+      queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-1' } as never);
+      const posts = [createObservedPost({ id: 'post-1' }), createObservedPost({ id: 'post-2' })];
+      await activationService.onResynced(PROFILE, posts);
+      await settle();
+      expect(queueService.enqueue).toHaveBeenCalledTimes(2);
+      expect(reactions).toStrictEqual(['post-1:eyes', 'post-2:eyes']);
+      expect(turnRunner.run).toHaveBeenCalledTimes(1);
+    });
+
+    it('should leave an unaddressed post as history, starting nothing', async () => {
+      agentRegistry.isAddressedBy.mockReturnValue(false);
+      await activationService.onResynced(PROFILE, [createObservedPost({ id: 'post-1' })]);
+      await settle();
+      expect(queueService.enqueue).not.toHaveBeenCalled();
+      expect(turnRunner.run).not.toHaveBeenCalled();
+    });
+  });
+
   describe('the boot and /resume sweep', () => {
     const standingQueue = (): void => {
       agentRegistry.get.mockReturnValue(PROFILE);

@@ -13,23 +13,33 @@ const INPUT = { payloadText: 'write notes.md with 12 words', toolName: 'write_fi
 
 describe('renderApprovalPrompt', () => {
   it('should show the whole payload inline when a post can carry it (§6.2)', () => {
-    expect(renderApprovalPrompt(INPUT, 'collapse')).toBe(
-      '🔐 **Approval required: `write_file`**\n\nwrite notes.md with 12 words'
-    );
+    expect(renderApprovalPrompt(INPUT, 'collapse', 16_383)).toStrictEqual({
+      files: [],
+      text: '🔐 **Approval required: `write_file`**\n\nwrite notes.md with 12 words'
+    });
   });
 
-  it('should move an oversized collapse payload behind an expandable control (§6.2)', () => {
-    const payloadText = 'x'.repeat(601);
-    expect(renderApprovalPrompt({ ...INPUT, payloadText }, 'collapse')).toBe(
-      `🔐 **Approval required: \`write_file\`**\n\n<details><summary>Show the full payload (601 characters)</summary>\n\n${payloadText}\n\n</details>`
-    );
+  // §6.2/§3.7 — a bounded prefix inline and the complete payload attached, so the approver reads
+  // the exact bytes rather than a rendering of them
+  it('should attach a collapse payload the substrate cannot carry (§6.2)', () => {
+    const payloadText = 'x'.repeat(20_000);
+    const rendered = renderApprovalPrompt({ ...INPUT, payloadText }, 'collapse', 16_383);
+    expect(rendered.files).toStrictEqual([{ content: payloadText, filename: 'payload.md' }]);
+    expect(rendered.text).toContain('all 20000 characters are attached as payload.md');
+    expect(rendered.text.length).toBeLessThan(16_383);
   });
 
-  it('should never collapse a verbatim payload, however long, so a shell command is shown in full (§6.2)', () => {
-    const payloadText = 'x'.repeat(601);
-    expect(renderApprovalPrompt({ payloadText, toolName: 'shell' }, 'verbatim')).toBe(
-      `🔐 **Approval required: \`shell\`**\n\n${payloadText}`
-    );
+  it('should never attach a verbatim payload, so a shell command is shown in full or not at all (§6.2)', () => {
+    const payloadText = 'x'.repeat(20_000);
+    expect(renderApprovalPrompt({ payloadText, toolName: 'shell' }, 'verbatim', 16_383)).toStrictEqual({
+      files: [],
+      text: `🔐 **Approval required: \`shell\`**\n\n${payloadText}`
+    });
+  });
+
+  it('should stay inline when the substrate limit cannot be read', () => {
+    const payloadText = 'x'.repeat(20_000);
+    expect(renderApprovalPrompt({ ...INPUT, payloadText }, 'collapse', undefined).files).toStrictEqual([]);
   });
 });
 

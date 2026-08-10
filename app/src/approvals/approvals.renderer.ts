@@ -1,28 +1,65 @@
 import type { ApprovalPayloadPresentation } from '@collegium/core/approvals';
 import { match } from 'ts-pattern';
 
-import type { MessageAttachment } from '@/chat/chat.types.ts';
+import type { MessageAttachment, PostFile } from '@/chat/chat.types.ts';
 
 import type { ApprovalDecision, ApprovalFailureDecision } from './approvals.types.ts';
 
-/** §6.2 — a long 'collapse' payload goes behind an expandable control; a 'verbatim' one (shell) never would */
-const COLLAPSE_THRESHOLD_CHARS = 600;
+/** how much of an attached payload still shows inline, so the post says what it is about */
+const INLINE_PREFIX_CHARS = 600;
 
-function renderPayload(payloadText: string, presentation: ApprovalPayloadPresentation): string {
-  if (presentation === 'verbatim' || payloadText.length <= COLLAPSE_THRESHOLD_CHARS) {
+const ATTACHED_PAYLOAD_FILENAME = 'payload.md';
+
+function renderHeader(toolName: string): string {
+  return `🔐 **Approval required: \`${toolName}\`**`;
+}
+
+/** the resolved post is a historical record; the untruncated payload lives in the trace (§8.3) */
+function capPayload(payloadText: string): string {
+  if (payloadText.length <= INLINE_PREFIX_CHARS) {
     return payloadText;
   }
-  return `<details><summary>Show the full payload (${payloadText.length} characters)</summary>\n\n${payloadText}\n\n</details>`;
+  return `${payloadText.slice(0, INLINE_PREFIX_CHARS)}\n…${payloadText.length - INLINE_PREFIX_CHARS} further characters`;
 }
+
+/** the prompt as it goes on the wire: the post, and the payload it could not carry inline */
+export type RenderedPrompt = {
+  readonly files: readonly PostFile[];
+  readonly text: string;
+};
 
 export type PromptInput = {
   readonly payloadText: string;
   readonly toolName: string;
 };
 
-/** the full payload, not just the intent — a payload nobody can read is a payload nobody is checking (§6.2) */
-export function renderApprovalPrompt(input: PromptInput, presentation: ApprovalPayloadPresentation): string {
-  return `🔐 **Approval required: \`${input.toolName}\`**\n\n${renderPayload(input.payloadText, presentation)}`;
+/**
+ * §6.2 — the approver sees the exact bytes, not a rendering of them. Inline while they fit the
+ * substrate's own limit, and otherwise a bounded prefix inline with the whole payload attached: the
+ * same answer §4.2 gives a trigger body and §8.3 gives a trace, in the third place it arises.
+ *
+ * A `verbatim` payload — a shell command — is never attached. One too long to present is refused
+ * before it reaches here, because a command that will not fit in a post is itself the signal.
+ */
+export function renderApprovalPrompt(
+  input: PromptInput,
+  presentation: ApprovalPayloadPresentation,
+  maxPostSizeChars: number | undefined
+): RenderedPrompt {
+  const inline = `${renderHeader(input.toolName)}\n\n${input.payloadText}`;
+  if (presentation === 'verbatim' || maxPostSizeChars === undefined || inline.length <= maxPostSizeChars) {
+    return { files: [], text: inline };
+  }
+  return {
+    files: [{ content: input.payloadText, filename: ATTACHED_PAYLOAD_FILENAME }],
+    text: [
+      renderHeader(input.toolName),
+      '',
+      capPayload(input.payloadText),
+      '',
+      `The payload is too large to post, so all ${input.payloadText.length} characters are attached as ${ATTACHED_PAYLOAD_FILENAME}.`
+    ].join('\n')
+  };
 }
 
 /** once resolved, the prompt is rewritten into a terminal state and its buttons removed (§3.7) */
@@ -45,8 +82,8 @@ export function renderResolvedPrompt(input: PromptInput, decision: ApprovalDecis
     .exhaustive();
   // the resolved prompt is a struck-through historical record: the decision already happened with
   // the full payload visible, and the untruncated payload lives in the approval_requested trace, so
-  // even a verbatim payload may collapse here without hiding anything from the approver (§6.2)
-  return `🔐 ~~Approval required: \`${input.toolName}\`~~\n\n${line}\n\n${renderPayload(input.payloadText, 'collapse')}`;
+  // even a verbatim payload may be capped here without hiding anything from the approver (§6.2)
+  return `🔐 ~~Approval required: \`${input.toolName}\`~~\n\n${line}\n\n${capPayload(input.payloadText)}`;
 }
 
 /**

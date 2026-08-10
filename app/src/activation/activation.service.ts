@@ -140,6 +140,25 @@ export class ActivationService {
     this.debounceService.schedule(batch, () => this.activate(profile, post));
   }
 
+  /**
+   * §5.2 — posts a reconnect recovered. They are queued rather than activated: a gap holds an
+   * unknown number of posts, and ten missed mentions must become one turn rather than ten, which is
+   * what the queue is for. Draining happens once per affected channel, after everything is in, so
+   * the turn that answers assembles a window containing all of it. Unaddressed posts are recorded
+   * and reach the next turn as ordinary history.
+   */
+  async onResynced(profile: AgentProfile, posts: readonly ObservedPost[]): Promise<void> {
+    const queuedChannelIds = new Set<string>();
+    for (const post of posts) {
+      if (await this.queueIfAddressed(profile, post)) {
+        queuedChannelIds.add(post.channelId);
+      }
+    }
+    for (const channelId of queuedChannelIds) {
+      await this.drainQueue(profile, channelId);
+    }
+  }
+
   /** the boot and /resume sweep: standing queues drain and held triggers flush (§7.3, §7.4) */
   async sweep(): Promise<void> {
     const entries = await this.queueService.listAll();
@@ -268,6 +287,22 @@ export class ActivationService {
       channelId: post.channelId,
       postId: post.id
     });
+  }
+
+  /** whether this post is work for the agent, and if so, the queue entry that says so (§5.2) */
+  private async queueIfAddressed(profile: AgentProfile, post: ObservedPost): Promise<boolean> {
+    if (this.multiMentionPolicy.refuses(post)) {
+      return false;
+    }
+    const mode = this.channelsService.getTriggerMode({
+      channelId: post.channelId,
+      isDirectMessage: post.isDirectMessage
+    });
+    if (!this.agentRegistry.isAddressedBy(profile, post, mode)) {
+      return false;
+    }
+    await this.enqueueBusy(profile, post);
+    return true;
   }
 
   private async runTurn(

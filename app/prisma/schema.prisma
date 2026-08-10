@@ -99,7 +99,17 @@ model Turn {
   events           TurnEvent[]
 
   @@index([agentUsername, channelId, startedAt])
+  @@index([startedAt])
   @@index([status])
+}
+
+// The §7.4 rolling window's lower bound: when a human last cleared a ceiling halt. The count itself
+// is the Turn table's, so the window survives a restart and a crash-looping instance cannot grant
+// itself a fresh allowance every boot; this row only says where the trailing hour starts counting
+// from, which is what `/resume` advances. One row, pinned by a constant key.
+model ResumeWatermark {
+  key       String   @id
+  resumedAt DateTime
 }
 
 model TurnEvent {

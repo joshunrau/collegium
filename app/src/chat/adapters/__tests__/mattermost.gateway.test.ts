@@ -64,6 +64,7 @@ const vendor = vi.hoisted(() => {
     addMessageListener = vi.fn((listener: (event: unknown) => void) => {
       this.messageListeners.push(listener);
     });
+    addMissedMessageListener = vi.fn();
     close = vi.fn();
     initialize = vi.fn();
     constructor() {

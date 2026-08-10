@@ -51,12 +51,12 @@ describe('BrowserTool', () => {
     webService.navigate.mockResolvedValue(
       Result.ok(
         snapshot({
-          formElements: [{ kind: 'input', label: 'Search people', ref: 'e4', type: 'search', value: 'duval' }]
+          formElements: [{ isFilled: true, kind: 'input', label: 'Search people', ref: 'e4', type: 'search' }]
         })
       )
     );
     const result = await tool.execute({ action: 'navigate', url: 'https://northmoor.example/' }, turn);
-    expect(result.success && result.value.text).toContain('- ⟨e4⟩ input[type=search] "Search people" = "duval"');
+    expect(result.success && result.value.text).toContain('- ⟨e4⟩ input[type=search] "Search people" (filled)');
   });
 
   it('should hand a recoverable failure back as text the model can act on', async () => {
@@ -77,7 +77,7 @@ describe('BrowserTool', () => {
     );
     expect(tool.renderTraceDetail({ action: 'click', ref: 'e4' })).toBe('click ⟨e4⟩');
     expect(tool.renderTraceDetail({ action: 'fill', pressEnter: true, ref: 'e4', text: 'duval' })).toBe(
-      'fill ⟨e4⟩ with "duval" then press "Enter"'
+      'fill ⟨e4⟩ with 5 character(s) then press "Enter"'
     );
   });
 

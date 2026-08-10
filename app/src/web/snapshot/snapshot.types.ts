@@ -32,16 +32,22 @@ export declare namespace FormElement {
     readonly kind: TKind;
     readonly label: string;
     readonly ref: string;
-    readonly value: string;
   };
 
-  type Button = Base<'button'>;
+  /** a button's value is its submit value — page-authored, never anything a user typed */
+  type Button = Base<'button'> & { readonly value: string };
 
-  type Input = Base<'input'> & { readonly type: HtmlInputElementType };
+  /**
+   * §3.4 — whether it holds text, never which text. The tool may sign in, so an input's contents
+   * are credentials as often as not; echoing them back would recirculate into the model's context
+   * exactly what it just typed, and `isFilled` is all the model needs to know its fill landed.
+   */
+  type Input = Base<'input'> & { readonly isFilled: boolean; readonly type: HtmlInputElementType };
 
-  type Select = Base<'select'>;
+  /** a select's value is one of the page's own options, so it carries no user content */
+  type Select = Base<'select'> & { readonly value: string };
 
-  type TextArea = Base<'textarea'>;
+  type TextArea = Base<'textarea'> & { readonly isFilled: boolean };
 
   type Any = Button | Input | Select | TextArea;
 }

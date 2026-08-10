@@ -22,7 +22,16 @@ export declare namespace ChatEvent {
     kind: 'posted';
     post: ObservedPost;
   };
-  type Any = Membership | Posted;
+  /**
+   * The socket reconnected without resuming its session, so an unknown number of events were never
+   * delivered. It says only *that* something was missed, never what — repairing means re-reading
+   * the channels (§8.2's primitive, a different occasion).
+   */
+  type Resync = {
+    agentUsername: string;
+    kind: 'resync';
+  };
+  type Any = Membership | Posted | Resync;
 }
 
 export type ChatEvent = ChatEvent.Any;
@@ -80,6 +89,8 @@ export type MessageAttachmentAction = {
 export type OutgoingChatMessage = {
   attachments?: readonly MessageAttachment[];
   channelId: string;
+  /** uploads riding the post — how an over-limit approval payload reaches its approver (§6.2) */
+  files?: readonly PostFile[];
   text: string;
 };
 
@@ -112,8 +123,8 @@ export type SlashCommandSurface = {
   readonly ownUserId: string;
 };
 
-/** a text file riding a system post — how content larger than a post travels whole (§6.2) */
-export type SystemPostFile = {
+/** content too large for a post, travelling whole as a real upload beside it (§6.2, §4.2, §8.3) */
+export type PostFile = {
   readonly content: string;
   readonly filename: string;
 };

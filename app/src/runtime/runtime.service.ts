@@ -12,6 +12,7 @@ import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { CommandReconcilerService } from '@/commands/registration/command-reconciler.service.ts';
 import type { $AgentDefinition } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
+import { ResyncService } from '@/conversations/resync/resync.service.ts';
 import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MailBootService } from '@/mail/boot/boot.service.ts';
@@ -27,6 +28,9 @@ import type { RunningAgent } from './runtime.types.ts';
 
 @Injectable()
 export class RuntimeService implements OnApplicationBootstrap, OnApplicationShutdown {
+  /** §7.3 — what arrived while boot was still running, replayed in order once it has finished */
+  private readonly bufferedEvents: { event: ChatEvent; running: RunningAgent }[] = [];
+  private isBooted = false;
   private running = new Map<string, RunningAgent>();
 
   constructor(
@@ -41,6 +45,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     private readonly mailBootService: MailBootService,
     private readonly mailInboundService: MailInboundService,
     private readonly notificationsService: NotificationsService,
+    private readonly resyncService: ResyncService,
     private readonly rosterService: RosterService,
     private readonly shellService: ShellService,
     private readonly transportRegistry: TransportRegistry,
@@ -61,6 +66,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     this.running = new Map(started.map((running) => [running.profile.username, running]));
     this.triggersService.onRecorded((channelId) => void this.activationService.flushTriggersIfIdle(channelId));
     const boot = await this.bootService.run();
+    await this.drainBufferedEvents();
     // after boot: the DM check needs connected transports and the membership check a reconciled roster
     await this.mailBootService.assertReady();
     this.mailInboundService.start();
@@ -81,16 +87,41 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     }
   }
 
+  /**
+   * The sockets are live from the moment each agent connects, but nothing acts on what they carry
+   * until the §7.3 sweep has finished. Acting earlier means acting on a stale world: the roster is
+   * empty until it reconciles, so the §4.5 multi-mention refusal answers false for a post naming two
+   * present agents and both start turns — and a turn started before the sweep is abandoned by it, or
+   * has its approval invalidated out from under it. Buffering rather than reordering the connect is
+   * what keeps that from costing anything: no post goes unobserved while boot completes.
+   */
+  private async drainBufferedEvents(): Promise<void> {
+    const buffered = this.bufferedEvents.splice(0, this.bufferedEvents.length);
+    this.isBooted = true;
+    for (const { event, running } of buffered) {
+      await this.handleEvent(running, event);
+    }
+  }
+
   private async handleEvent(running: RunningAgent, event: ChatEvent): Promise<void> {
-    if (event.kind !== 'posted') {
-      const violation = this.rosterService.onMembershipEvent(event);
-      if (violation) {
-        // boot refuses to start on this topology; a running process cannot refuse, so it stops (§3.10)
-        await this.haltService.halt({ ...violation, kind: 'topology-violation' });
-      }
+    if (!this.isBooted) {
+      this.bufferedEvents.push({ event, running });
       return;
     }
-    await this.activationService.onPost(running.profile, event.post);
+    if (event.kind === 'posted') {
+      await this.activationService.onPost(running.profile, event.post);
+      return;
+    }
+    if (event.kind === 'resync') {
+      // §5.2 — the socket dropped events, so what it missed is re-read and queued rather than lost
+      await this.activationService.onResynced(running.profile, await this.resyncService.recover(running.profile));
+      return;
+    }
+    const violation = this.rosterService.onMembershipEvent(event);
+    if (violation) {
+      // boot refuses to start on this topology; a running process cannot refuse, so it stops (§3.10)
+      await this.haltService.halt({ ...violation, kind: 'topology-violation' });
+    }
   }
 
   private async start(definition: $AgentDefinition): Promise<RunningAgent> {

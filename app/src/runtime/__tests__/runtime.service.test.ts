@@ -4,7 +4,7 @@ import * as path from 'node:path';
 
 import { Test } from '@nestjs/testing';
 import type { PartialDeep } from 'type-fest';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ActivationService } from '@/activation/activation.service.ts';
 import { AgentRegistry } from '@/agents/agents.registry.ts';
@@ -17,6 +17,7 @@ import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { CommandReconcilerService } from '@/commands/registration/command-reconciler.service.ts';
 import type { $AgentDefinition, Config } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
+import { ResyncService } from '@/conversations/resync/resync.service.ts';
 import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MailBootService } from '@/mail/boot/boot.service.ts';
@@ -56,6 +57,7 @@ describe('RuntimeService', () => {
   let commandReconcilerService: MockedInstance<CommandReconcilerService>;
   let haltService: MockedInstance<HaltService>;
   let notificationsService: MockedInstance<NotificationsService>;
+  let resyncService: MockedInstance<ResyncService>;
   let rosterService: MockedInstance<RosterService>;
   let shellService: MockedInstance<ShellService>;
   let transport: MockedInstance<ChatTransport>;
@@ -83,6 +85,7 @@ describe('RuntimeService', () => {
         MockFactory.createForService(MailBootService),
         MockFactory.createForService(MailInboundService),
         { provide: NotificationsService, useValue: notificationsService },
+        { provide: ResyncService, useValue: resyncService },
         { provide: RosterService, useValue: rosterService },
         { provide: ShellService, useValue: shellService },
         { provide: TransportRegistry, useValue: transportRegistry },
@@ -120,6 +123,8 @@ describe('RuntimeService', () => {
     commandReconcilerService = MockFactory.createMock(CommandReconcilerService);
     haltService = MockFactory.createMock(HaltService);
     notificationsService = MockFactory.createMock(NotificationsService);
+    resyncService = MockFactory.createMock(ResyncService);
+    resyncService.recover.mockResolvedValue([]);
     rosterService = MockFactory.createMock(RosterService);
     shellService = MockFactory.createMock(ShellService);
     shellService.assertProvisioned.mockResolvedValue(undefined);
@@ -200,6 +205,24 @@ describe('RuntimeService', () => {
     await runtimeService.onApplicationBootstrap();
     await handleEvent({ kind: 'posted', post });
     expect(activationService.onPost).toHaveBeenCalledExactlyOnceWith(mira, post);
+  });
+
+  // §7.3/§4.5 — the roster is empty until it reconciles, so a post evaluated during boot slips the
+  // multi-mention refusal; the socket stays live all the same, so nothing goes unobserved
+  it('should hold an event that arrives during boot until the sweep has finished', async () => {
+    const post = createObservedPost();
+    let finishBoot!: () => void;
+    bootService.run.mockReturnValue(
+      new Promise((resolve) => (finishBoot = () => resolve({ abandonedTurns: 0, downSince: undefined })))
+    );
+    const runtimeService = await compile();
+    const booting = runtimeService.onApplicationBootstrap();
+    await vi.waitFor(() => expect(transport.listen).toHaveBeenCalled());
+    await handleEvent({ kind: 'posted', post });
+    expect(activationService.onPost).not.toHaveBeenCalled();
+    finishBoot();
+    await booting;
+    expect(activationService.onPost).toHaveBeenCalledWith(mira, post);
   });
 
   it('should record a membership event without halting when the topology holds', async () => {

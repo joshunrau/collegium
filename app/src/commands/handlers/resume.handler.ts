@@ -19,19 +19,19 @@ export class ResumeHandler extends CommandHandler {
     super();
   }
 
-  handle(input: CommandInput): Promise<CommandResponse> {
-    const resumed = this.haltService.resume(input.username);
+  async handle(input: CommandInput): Promise<CommandResponse> {
+    const resumed = await this.haltService.resume(input.username);
     if (!resumed.success) {
       const text =
         resumed.error.kind === 'not-halted'
           ? 'Nothing is halted.'
           : `⛔ Cannot resume: respond-to-all channel ${resumed.error.channelId} still holds more than one agent. Remove the extra agents first.`;
-      return Promise.resolve({ audience: 'channel', text });
+      return { audience: 'channel', text };
     }
-    return Promise.resolve({
+    return {
       afterAnnouncing: () => this.activationService.sweep(),
       audience: 'channel',
       text: '🟢 Resumed — queued work is draining.'
-    });
+    };
   }
 }

@@ -37,7 +37,13 @@ const BACKFILL_PAGE_SIZE = 60;
 
 type MattermostSocket = Pick<
   WebSocketClient,
-  'addCloseListener' | 'addErrorListener' | 'addMessageListener' | 'close' | 'initialize' | 'userTyping'
+  | 'addCloseListener'
+  | 'addErrorListener'
+  | 'addMessageListener'
+  | 'addMissedMessageListener'
+  | 'close'
+  | 'initialize'
+  | 'userTyping'
 >;
 
 export type MattermostTransportOptions = {
@@ -117,6 +123,18 @@ export class MattermostTransport extends ChatTransport {
       this.logger.warn(`mattermost websocket closed (connectFailCount=${connectFailCount})`);
     });
 
+    // the client reconnects on its own, and fires this when it could not resume the session — the
+    // one signal that events were dropped. Without it a mention posted during a blip is never seen
+    // live and never triggers, since §8.2 backfill only runs at boot and never activates.
+    this.socket.addMissedMessageListener(() => {
+      this.logger.warn('mattermost websocket reconnected without resuming; re-reading channels');
+      void Promise.resolve(
+        onEvent({ agentUsername: this.agent.username, kind: 'resync' } satisfies ChatEvent.Resync)
+      ).catch((error: unknown) => {
+        this.logger.error(new Error('failed to repair missed mattermost events', { cause: error }));
+      });
+    });
+
     this.socket.initialize(toWebsocketUrl(this.url), this.botToken);
   }
 
@@ -165,9 +183,15 @@ export class MattermostTransport extends ChatTransport {
 
   send(message: OutgoingChatMessage): Promise<Result<{ createdAt: Date; postId: string }, ChatFailure>> {
     return toChatResult(async () => {
+      const fileIds = await Promise.all(
+        (message.files ?? []).map((file) =>
+          this.client.uploadFile({ channelId: message.channelId, content: file.content, filename: file.filename })
+        )
+      );
       const created = await this.client.createPost({
         attachments: message.attachments,
         channelId: message.channelId,
+        ...(fileIds.length > 0 && { fileIds }),
         message: message.text
       });
       return { createdAt: new Date(created.createAt), postId: created.id };

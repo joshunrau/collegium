@@ -78,13 +78,19 @@ export class BrowserTool extends Tool({
     return false;
   }
 
+  /**
+   * §3.4 — the line names the action, never what was typed. This tool may sign in, and the status
+   * post is a channel post while the trace is readable by everyone who can approve, so fill text is
+   * the one argument a supervisor must not be shown: masking it costs nothing a reviewer needs.
+   */
   renderTraceDetail(args: $BrowserArgs): string {
     return match(args)
       .with({ action: 'navigate' }, ({ url }) => `navigate ${url}`)
       .with({ action: 'click' }, ({ ref }) => `click ⟨${ref}⟩`)
       .with(
         { action: 'fill' },
-        ({ pressEnter, ref, text }) => `fill ⟨${ref}⟩ with "${text}"${pressEnter === true ? ' then press "Enter"' : ''}`
+        ({ pressEnter, ref, text }) =>
+          `fill ⟨${ref}⟩ with ${text.length} character(s)${pressEnter === true ? ' then press "Enter"' : ''}`
       )
       .exhaustive();
   }
@@ -105,11 +111,19 @@ export class BrowserTool extends Tool({
       .exhaustive();
   }
 
+  /** §3.4 — a filled input says that it is filled, never with what; a select names its own option */
   private renderFormElement(element: FormElement): string {
     const kind = element.kind === 'input' ? `input[type=${element.type}]` : element.kind;
     const label = element.label ? ` "${element.label}"` : '';
-    const value = element.value ? ` = "${element.value}"` : '';
-    return `- ⟨${element.ref}⟩ ${kind}${label}${value}`;
+    const state =
+      element.kind === 'input' || element.kind === 'textarea'
+        ? element.isFilled
+          ? ' (filled)'
+          : ''
+        : element.value
+          ? ` = "${element.value}"`
+          : '';
+    return `- ⟨${element.ref}⟩ ${kind}${label}${state}`;
   }
 
   private renderSnapshot(snapshot: WebSnapshot): string {

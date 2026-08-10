@@ -67,7 +67,7 @@ export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
 
   const describeControl = (element: Element, ref: string): FormElement | null => {
     if (element instanceof HTMLInputElement) {
-      return { kind: 'input', label: controlLabel(element), ref, type: element.type, value: element.value };
+      return { isFilled: element.value !== '', kind: 'input', label: controlLabel(element), ref, type: element.type };
     }
     if (element instanceof HTMLButtonElement) {
       return { kind: 'button', label: controlLabel(element), ref, value: element.value };
@@ -76,7 +76,7 @@ export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
       return { kind: 'select', label: controlLabel(element), ref, value: element.value };
     }
     if (element instanceof HTMLTextAreaElement) {
-      return { kind: 'textarea', label: controlLabel(element), ref, value: element.value };
+      return { isFilled: element.value !== '', kind: 'textarea', label: controlLabel(element), ref };
     }
     return null;
   };

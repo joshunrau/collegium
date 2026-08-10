@@ -1,10 +1,10 @@
-import type { SystemPostFile } from '@/chat/chat.types.ts';
+import type { PostFile } from '@/chat/chat.types.ts';
 
 import type { Trigger } from './triggers.types.ts';
 
 /** what a trigger becomes on the wire: the post, and any file carrying content a post cannot hold */
 type RenderedTrigger = {
-  readonly files: readonly SystemPostFile[];
+  readonly files: readonly PostFile[];
   readonly message: string;
 };
 

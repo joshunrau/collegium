@@ -243,10 +243,12 @@ export class ApprovalsService {
     input: ApprovalRequest,
     approvalId: string
   ): Promise<Result<{ postId: string }, ApprovalFailure.PromptUndeliverable>> {
+    const prompt = renderApprovalPrompt(input, input.payloadPresentation, await this.readPostLimit(input));
     const sent = await this.transportRegistry.get(input.agentUsername).send({
       attachments: renderApprovalActions({ approvalId, decisionsUrl: this.decisionsUrl }),
       channelId: input.channelId,
-      text: renderApprovalPrompt(input, input.payloadPresentation)
+      files: prompt.files,
+      text: prompt.text
     });
     if (!sent.success) {
       return Result.err({ kind: 'prompt-undeliverable', message: sent.error.message });
@@ -254,16 +256,8 @@ export class ApprovalsService {
     return Result.ok({ postId: sent.value.postId });
   }
 
-  /**
-   * §6.2 — a verbatim payload (a shell command) that would not fit in a post is refused here, before
-   * any prompt is posted, rather than truncated. A 'collapse' payload folds behind a control and is
-   * never refused. If the substrate's limit cannot be read we do not block a legitimate small
-   * command; the post itself fails loudly if it is genuinely too large.
-   */
-  private async refuseIfOverLimit(input: ApprovalRequest): Promise<ApprovalFailure.PayloadTooLarge | undefined> {
-    if (input.payloadPresentation !== 'verbatim') {
-      return undefined;
-    }
+  /** unreadable is not a reason to attach a payload that would have fitted; the post fails loudly if not */
+  private async readPostLimit(input: ApprovalRequest): Promise<number | undefined> {
     const limit = await this.transportRegistry.get(input.agentUsername).maxPostSizeChars();
     if (!limit.success) {
       this.loggingService.warn(
@@ -271,11 +265,29 @@ export class ApprovalsService {
       );
       return undefined;
     }
-    const promptText = renderApprovalPrompt(input, input.payloadPresentation);
-    if (promptText.length <= limit.value) {
+    return limit.value;
+  }
+
+  /**
+   * §6.2 — a verbatim payload (a shell command) that would not fit in a post is refused here, before
+   * any prompt is posted, rather than truncated or attached: shell commands are presented inline and
+   * in full, and one too long to present is itself the signal. A 'collapse' payload is never refused
+   * — it travels as an attachment instead. If the substrate's limit cannot be read we do not block a
+   * legitimate small command; the post itself fails loudly if it is genuinely too large.
+   */
+  private async refuseIfOverLimit(input: ApprovalRequest): Promise<ApprovalFailure.PayloadTooLarge | undefined> {
+    if (input.payloadPresentation !== 'verbatim') {
       return undefined;
     }
-    return { actualChars: promptText.length, kind: 'payload-too-large', limitChars: limit.value };
+    const limit = await this.readPostLimit(input);
+    if (limit === undefined) {
+      return undefined;
+    }
+    const { text } = renderApprovalPrompt(input, input.payloadPresentation, limit);
+    if (text.length <= limit) {
+      return undefined;
+    }
+    return { actualChars: text.length, kind: 'payload-too-large', limitChars: limit };
   }
 
   /**
