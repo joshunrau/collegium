@@ -298,7 +298,7 @@
           "default": "info",
           "description": "Minimum severity the app logs",
           "type": "string",
-          "enum": ["debug", "info", "error", "warn"]
+          "enum": ["debug", "info", "warn", "error"]
         },
         "memoryCaps": {
           "description": "The default bounds on every agent’s memory, overridable per agent",

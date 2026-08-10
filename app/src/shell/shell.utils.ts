@@ -8,6 +8,21 @@ import {
 
 import type { CapturedProcess } from './shell.types.ts';
 
+/**
+ * `$0` for the inner shell, so a command that reports its own name says something legible rather
+ * than naming the wrapper's arguments.
+ */
+const SHELL_ARGV0 = 'collegium-shell';
+
+/**
+ * Establishes what `sudo --login` used to, without letting sudo near the command: `--set-home` puts
+ * the agent's own home in `$HOME` from the passwd database, this cds there, and `-l` on the outer
+ * shell reads the login profiles. The command rides in its own argv slot and reaches the inner shell
+ * as a quoted `"$1"`, so nothing between the approver and execution re-parses it. `exec` keeps the
+ * pid `timeout(1)` is watching.
+ */
+const RUN_FROM_HOME = 'cd -- "$HOME" || exit 1; exec bash -c "$1" "$0"';
+
 function capStream(text: string): string {
   const trimmed = text.trim();
   if (trimmed.length <= OUTPUT_CAP_CHARS) {
@@ -35,17 +50,22 @@ export function deriveShellOsUser(agentUsername: string): string {
 }
 
 /**
- * The command line that runs one shell command as the agent's OS user. `sudo --login` drops to that
- * user with a clean login environment (env_reset), so the app's secrets never reach the child, and
- * the deadline is enforced by `timeout(1)` running *as the dedicated user*: the service user cannot
- * signal a process owned by another user, and the setuid `sudo` parent runs as root, so a Node-side
- * kill would silently EPERM. Every element is a distinct argv entry — the command is never re-parsed
- * by an intermediate shell on our side.
+ * The command line that runs one shell command as the agent's OS user. `sudo` execs this argv
+ * directly — deliberately *without* `--login`, because with a login shell sudo does not exec at all:
+ * it joins every argument into one string, backslash-escaping all but `[A-Za-z0-9_-$]`, and hands
+ * that to the target's login shell. A single-quoted `$TOKEN` the approver read as a literal would be
+ * expanded, and a two-line command would fold into one — §6.2's guarantee is that the bytes approved
+ * are the bytes that run, so the login shell is reached another way (see `RUN_FROM_HOME`).
+ *
+ * `env_reset` is a sudoers default and holds without `--login`, so the app's secrets still never
+ * reach the child. The deadline is enforced by `timeout(1)` running *as the dedicated user*: the
+ * service user cannot signal a process owned by another user, and the setuid `sudo` parent runs as
+ * root, so a Node-side kill would silently EPERM.
  */
 export function buildRunArgv(osUser: string, command: string): readonly string[] {
   return [
     '--non-interactive',
-    '--login',
+    '--set-home',
     '--user',
     osUser,
     '--',
@@ -53,14 +73,20 @@ export function buildRunArgv(osUser: string, command: string): readonly string[]
     `--kill-after=${DEADLINE_KILL_GRACE_SECONDS}`,
     String(COMMAND_DEADLINE_SECONDS),
     'bash',
-    '-c',
+    '-lc',
+    RUN_FROM_HOME,
+    SHELL_ARGV0,
     command
   ];
 }
 
-/** the boot probe (§6.1): can the app assume this OS user via passwordless sudo at all? */
+/**
+ * The boot probe (§6.1): can the app assume this OS user via passwordless sudo at all? It mirrors
+ * the run invocation's sudo flags, or a host where one succeeds and the other fails would pass boot
+ * and break on the first real command.
+ */
 export function buildProbeArgv(osUser: string): readonly string[] {
-  return ['--non-interactive', '--user', osUser, '--', 'timeout', '1', 'true'];
+  return ['--non-interactive', '--set-home', '--user', osUser, '--', 'timeout', '1', 'true'];
 }
 
 /**

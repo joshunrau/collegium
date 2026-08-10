@@ -13,7 +13,7 @@ import { BrowserSession } from '../browser/browser.session.ts';
 import { MARKDOWN_CAP_CHARS, MAX_LIVE_SESSIONS } from '../web.constants.ts';
 import { WebService } from '../web.service.ts';
 
-import type { RenderedCapture } from '../web.types.ts';
+import type { RenderedCapture, WebFailure } from '../web.types.ts';
 
 const fixture = (name: string): string => {
   return fs.readFileSync(path.resolve(import.meta.dirname, 'fixtures', `${name}.html`), 'utf-8');
@@ -121,6 +121,28 @@ describe('WebService', () => {
       expect(session.dispose).toHaveBeenCalledTimes(1);
       const result = await webService.click('turn-1', 'e1');
       expect(result.error).toStrictEqual({ kind: 'no-session' });
+    });
+
+    // a tool timeout or /kill ends the turn while the launch is still in flight; the session that
+    // arrives afterwards would otherwise hold one of MAX_LIVE_SESSIONS until restart
+    it('should dispose a session whose launch outlived the turn that asked for it', async () => {
+      let settle!: (created: Result<BrowserSession, WebFailure.Unreachable>) => void;
+      browserClient.createSession.mockReturnValue(new Promise((resolve) => (settle = resolve)));
+      session.navigate.mockResolvedValue(Result.ok(rendered({})));
+      const navigating = webService.navigate('turn-1', 'https://northmoor.example/');
+      const ending = webService.endTurn('turn-1');
+      settle(Result.ok(session as unknown as BrowserSession));
+      await Promise.all([navigating, ending]);
+      expect(session.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('should free the slot when a launch fails, so the turn may browse again', async () => {
+      browserClient.createSession.mockResolvedValueOnce(Result.err({ kind: 'unreachable', message: 'no browser' }));
+      session.navigate.mockResolvedValue(Result.ok(rendered({})));
+      expect((await webService.navigate('turn-1', 'https://northmoor.example/')).error).toMatchObject({
+        kind: 'unreachable'
+      });
+      expect((await webService.navigate('turn-1', 'https://northmoor.example/')).success).toBe(true);
     });
   });
 });

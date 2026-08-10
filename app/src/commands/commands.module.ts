@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ActivationModule } from '@/activation/activation.module.ts';
 import { AgentsModule } from '@/agents/agents.module.ts';
 import { ApprovalsModule } from '@/approvals/approvals.module.ts';
+import { ChannelsModule } from '@/channels/channels.module.ts';
 import { ChatModule } from '@/chat/chat.module.ts';
 import { ConversationsModule } from '@/conversations/conversations.module.ts';
 import { HaltModule } from '@/halt/halt.module.ts';
@@ -49,6 +50,7 @@ const COMMAND_HANDLER_CLASSES = [
     ActivationModule,
     AgentsModule,
     ApprovalsModule,
+    ChannelsModule,
     ChatModule,
     ConversationsModule,
     HaltModule,

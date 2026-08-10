@@ -19,7 +19,7 @@
     "prepare": "husky",
     "test": "vitest --project unit --project packages --project plugins",
     "test:coverage": "vitest --project unit --project packages --project plugins --coverage",
-    "test:e2e": "vitest --project e2e"
+    "test:e2e": "turbo run build --filter=@collegium/core --filter=@collegium/sdk && vitest --project e2e"
   },
   "os": [
     "darwin",

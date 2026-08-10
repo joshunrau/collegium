@@ -11,9 +11,11 @@ vi.mock('colorette', () => ({
 }));
 
 describe('JSONLogger', () => {
+  let stderrSpy: MockInstance<(...args: any[]) => any>;
   let stdoutSpy: MockInstance<(...args: any[]) => any>;
 
   beforeEach(() => {
+    stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
   });
 
@@ -28,5 +30,16 @@ describe('JSONLogger', () => {
       message: 'Test message',
       timestamp: expect.any(String)
     });
+  });
+
+  // the threshold ranks by position in LOG_LEVELS, so a misordering here silences the failure record
+  it('should emit an error at a warn threshold', () => {
+    new JSONLogger(undefined, 'warn').error('Broke');
+    expect(JSON.parse(stderrSpy.mock.lastCall?.[0])).toMatchObject({ level: 'error', message: 'Broke' });
+  });
+
+  it('should drop a debug below an info threshold', () => {
+    new JSONLogger(undefined, 'info').debug('noise');
+    expect(stdoutSpy).not.toHaveBeenCalled();
   });
 });

@@ -20,7 +20,11 @@ import type { RenderedCapture, WebFailure, WebSnapshot } from './web.types.ts';
  */
 @Injectable()
 export class WebService {
-  private readonly sessions = new Map<string, BrowserSession>();
+  /**
+   * The slot is the promise, not the session: it is claimed before the browser launches, so a turn
+   * ending mid-launch still finds something to dispose (§5.1's lock is not held across a tool call).
+   */
+  private readonly sessions = new Map<string, Promise<Result<BrowserSession, WebFailure.Unreachable>>>();
 
   constructor(private readonly browserClient: BrowserClient) {}
 
@@ -28,29 +32,37 @@ export class WebService {
     turnId: string,
     ref: string
   ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
-    const session = this.sessions.get(turnId);
-    if (!session) {
+    const opened = await this.sessions.get(turnId);
+    if (!opened?.success) {
       return Result.err({ kind: 'no-session' });
     }
-    return this.toSnapshot(await session.click(ref));
+    return this.toSnapshot(await opened.value.click(ref));
   }
 
-  /** guaranteed-once at turn end: the turn engine calls this on every path out of a turn */
+  /**
+   * Guaranteed-once at turn end: the turn engine calls this on every path out of a turn, including
+   * the ones that abandon an in-flight `navigate` — a tool timeout, a `/kill`. Awaiting the claim
+   * rather than reading a session out of the map is what makes that safe: the launch it abandoned
+   * still resolves, and whatever it produces is disposed here rather than held until restart.
+   */
   async endTurn(turnId: string): Promise<void> {
-    const session = this.sessions.get(turnId);
+    const opening = this.sessions.get(turnId);
     this.sessions.delete(turnId);
-    await session?.dispose();
+    const opened = await opening;
+    if (opened?.success) {
+      await opened.value.dispose();
+    }
   }
 
   async fill(
     turnId: string,
     args: { pressEnter?: boolean; ref: string; text: string }
   ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
-    const session = this.sessions.get(turnId);
-    if (!session) {
+    const opened = await this.sessions.get(turnId);
+    if (!opened?.success) {
       return Result.err({ kind: 'no-session' });
     }
-    return this.toSnapshot(await session.fill(args.ref, args.text, args.pressEnter ?? false));
+    return this.toSnapshot(await opened.value.fill(args.ref, args.text, args.pressEnter ?? false));
   }
 
   /** the only action that opens a session — click and fill before any navigate are `no-session` */
@@ -64,19 +76,35 @@ export class WebService {
     if (refused) {
       return Result.err(refused);
     }
+    const opened = await this.openSession(turnId);
+    if (!opened.success) {
+      return opened;
+    }
+    return this.toSnapshot(await opened.value.navigate(url));
+  }
+
+  /**
+   * Claiming the slot is synchronous — the map is written before the launch is awaited — which makes
+   * the cap a compare-and-swap rather than a check-then-act: concurrent first-navigates in different
+   * turns can no longer all pass a size read that is already stale.
+   */
+  private async openSession(turnId: string): Promise<Result<BrowserSession, WebFailure.Busy | WebFailure.Unreachable>> {
     const existing = this.sessions.get(turnId);
     if (existing) {
-      return this.toSnapshot(await existing.navigate(url));
+      return existing;
     }
     if (this.sessions.size >= MAX_LIVE_SESSIONS) {
       return Result.err({ kind: 'busy' });
     }
-    const created = await this.browserClient.createSession();
-    if (!created.success) {
-      return created;
+    const opening = this.browserClient.createSession();
+    this.sessions.set(turnId, opening);
+    const opened = await opening;
+    if (!opened.success) {
+      // a launch that produced no session holds no slot, and memoizing the failure would sink the
+      // rest of the turn's browsing with it
+      this.sessions.delete(turnId);
     }
-    this.sessions.set(turnId, created.value);
-    return this.toSnapshot(await created.value.navigate(url));
+    return opened;
   }
 
   private toSnapshot<TFailure extends WebFailure>(

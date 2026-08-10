@@ -13,5 +13,12 @@ export const OUTPUT_CAP_CHARS = 8_192;
 /** Prefix of the dedicated OS user a shell-holding agent runs as (§A2): `collegium-<username>`. */
 export const SHELL_OS_USER_PREFIX = 'collegium-';
 
+/**
+ * Where `sudo` is launched from. The child inherits it, and the app's own working directory is
+ * deliberately untraversable to agent users (§6.1) — a shell starting somewhere it cannot stat
+ * prints a `getcwd` warning onto the model's stderr before it can reach the agent's home.
+ */
+export const SPAWN_WORKING_DIRECTORY = '/';
+
 /** The model-facing name of the shell tool, and the grant marker an agent's `tools` list carries. */
 export const SHELL_TOOL_NAME = 'shell';

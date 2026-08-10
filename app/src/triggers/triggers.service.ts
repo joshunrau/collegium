@@ -74,22 +74,18 @@ export class TriggersService {
    * announcement is recorded here rather than waiting for a socket round-trip, so the turn started
    * on it assembles a window that contains it. No idle check of its own: it trusts its single
    * caller, activation, which holds the channel lock while calling (open question 6).
+   *
+   * Everything that can fail happens before the claim, so the only step inside it is the send, whose
+   * failure releases it. A throw between claim and release would leave the row `posted` with no post
+   * id — outstanding forever, since every flush path looks for `pending`.
    */
   async post(triggerId: string): Promise<Result<{ postId: string }, TriggerFailure>> {
     const trigger = await this.triggers.findUnique({ where: { id: triggerId } });
     if (!trigger) {
       return Result.err({ kind: 'not-found', triggerId });
     }
-    const claimed = await this.triggers.updateMany({
-      data: { postedAt: new Date(), status: 'posted' },
-      where: { id: triggerId, status: 'pending' }
-    });
-    if (claimed.count === 0) {
-      return Result.err({ kind: 'not-pending', triggerId });
-    }
     const maxPostSizeChars = await this.chatGateway.maxPostSizeChars();
     if (!maxPostSizeChars.success) {
-      await this.releaseClaim(triggerId);
       return Result.err({
         channelId: trigger.targetChannelId,
         kind: 'channel-unreachable',
@@ -97,6 +93,13 @@ export class TriggersService {
       });
     }
     const { files, message } = renderTriggerPost(trigger, maxPostSizeChars.value);
+    const claimed = await this.triggers.updateMany({
+      data: { postedAt: new Date(), status: 'posted' },
+      where: { id: triggerId, status: 'pending' }
+    });
+    if (claimed.count === 0) {
+      return Result.err({ kind: 'not-pending', triggerId });
+    }
     const posted = await this.chatGateway.postAsSystemIn(trigger.targetChannelId, message, files);
     if (!posted.success) {
       this.loggingService.error(new Error(`failed to post trigger ${trigger.id}: ${posted.error.message}`));

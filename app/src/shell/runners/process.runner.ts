@@ -12,9 +12,13 @@ import type { CapturedProcess, ShellSpawnFailure } from '../shell.types.ts';
  */
 @Injectable()
 export class ProcessRunner {
-  spawnCaptured(file: string, args: readonly string[]): Promise<Result<CapturedProcess, ShellSpawnFailure>> {
+  spawnCaptured(
+    file: string,
+    args: readonly string[],
+    options: { cwd: string }
+  ): Promise<Result<CapturedProcess, ShellSpawnFailure>> {
     return new Promise((resolve) => {
-      const child = spawn(file, [...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawn(file, [...args], { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] });
       let stdout = '';
       let stderr = '';
       child.stdout.setEncoding('utf8').on('data', (chunk: string) => {

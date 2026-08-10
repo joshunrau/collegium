@@ -303,6 +303,33 @@ describe('TurnRunner', () => {
     expect(sends.at(-1)?.text).toContain('action attempts');
   });
 
+  // §5.3 — "stop and tell me what you have" must get that, not a notice saying the budget ran out
+  it('should end the actions but not the voice when an extension is denied with a reason', async () => {
+    approvalsService.request.mockResolvedValueOnce(
+      Result.ok({ byUsername: 'casey', kind: 'denied-with-reason', reason: 'stop and summarise' })
+    );
+    complete.mockResolvedValueOnce(Result.ok(toolUse(Array.from({ length: 11 }, () => 'lookup_fixture'))));
+    complete.mockResolvedValueOnce(Result.ok(text('here is what I have')));
+    const outcome = await run();
+    expect(outcome.status).toBe('completed');
+    expect(toolExecutor.execute).toHaveBeenCalledTimes(10);
+    const finalRequest = complete.mock.calls[1]![0];
+    expect(finalRequest.messages.at(-1)?.content).toContain('stop and summarise');
+    expect(sends.at(-1)?.text).toBe('here is what I have');
+  });
+
+  it('should end a turn that calls a tool after a reasoned denial, without prompting twice', async () => {
+    approvalsService.request.mockResolvedValueOnce(
+      Result.ok({ byUsername: 'casey', kind: 'denied-with-reason', reason: 'stop and summarise' })
+    );
+    complete.mockResolvedValueOnce(Result.ok(toolUse(Array.from({ length: 11 }, () => 'lookup_fixture'))));
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    const outcome = await run();
+    expect(outcome.status).toBe('budget_exhausted');
+    expect(approvalsService.request).toHaveBeenCalledOnce();
+    expect(toolExecutor.execute).toHaveBeenCalledTimes(10);
+  });
+
   it('should grant ten further attempts against the accumulated context when the extension is approved', async () => {
     approvalsService.request.mockResolvedValueOnce(Result.ok({ byUsername: 'casey', kind: 'approved' }));
     complete.mockResolvedValueOnce(Result.ok(toolUse(Array.from({ length: 11 }, () => 'lookup_fixture'))));

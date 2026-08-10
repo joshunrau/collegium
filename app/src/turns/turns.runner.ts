@@ -5,6 +5,7 @@ import { match } from 'ts-pattern';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
+import type { ApprovalDecision } from '@/approvals/approvals.types.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
@@ -28,6 +29,7 @@ import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 import { WebService } from '@/web/web.service.ts';
 
 import { ActionBudget } from './budget/action.budget.ts';
+import { renderExtensionDenialResult } from './budget/budget.renderer.ts';
 import { ContextAssembler } from './context/context.assembler.ts';
 import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
@@ -74,6 +76,12 @@ type RunInput = {
   profile: AgentProfile;
   triggeringPostId?: string;
 };
+
+/**
+ * §5.3 — what an exhausted budget resolved to. `voice-only` is the reasoned denial: the turn keeps
+ * running so the agent can answer, holding the human's reason, but every further action is refused.
+ */
+type Exhaustion = { kind: 'ended'; outcome: TurnOutcome } | { kind: 'extended' } | { kind: 'voice-only'; text: string };
 
 type TurnState = {
   readonly budget: ActionBudget;
@@ -316,9 +324,21 @@ export class TurnRunner {
         return this.close(state, aborted);
       }
       if (state.budget.trySpend(call.name) === 'exhausted') {
-        const ended = await this.handleExhaustion(input, state);
-        if (ended) {
-          return ended;
+        const exhaustion = await this.handleExhaustion(input, state);
+        if (exhaustion.kind === 'ended') {
+          return exhaustion.outcome;
+        }
+        if (exhaustion.kind === 'voice-only') {
+          // §5.3 — the reason arrives as this call's result with zero attempts left, so the call
+          // does not run and neither does anything after it in this completion's batch
+          await this.turnsService.appendEvent(state.turn.id, {
+            callId: call.id,
+            kind: 'tool_result',
+            output: exhaustion.text,
+            toolName: call.name
+          });
+          state.messages.push({ content: exhaustion.text, role: 'tool', toolCallId: call.id });
+          return undefined;
         }
         state.budget.trySpend(call.name);
       }
@@ -371,14 +391,19 @@ export class TurnRunner {
 
   /**
    * §5.3 — on exhaustion the turn blocks on an approval to extend. Approving grants a further ten
-   * attempts against the context accumulated so far; any denial ends the turn as exhausted.
-   * Returns undefined when the extension was granted and the turn may continue.
+   * attempts against the context accumulated so far; a bare denial ends the turn; a denial carrying
+   * a reason ends the turn's actions but not its voice, so the reason comes back for the agent to
+   * conclude in words. A turn whose extensions were already refused is never prompted twice.
    */
-  private async handleExhaustion(input: RunInput, state: TurnState): Promise<TurnOutcome | undefined> {
+  private async handleExhaustion(input: RunInput, state: TurnState): Promise<Exhaustion> {
     // §7.5 — a stopped turn asks for nothing further, least of all an extension
     const aborted = state.control.aborted();
     if (aborted) {
-      return this.close(state, aborted);
+      return { kind: 'ended', outcome: await this.close(state, aborted) };
+    }
+    if (!state.budget.acceptsExtension) {
+      await this.postNotice(input, state, renderBudgetExhaustedNotice(state.budget.limitCount));
+      return { kind: 'ended', outcome: await this.close(state, 'budget_exhausted') };
     }
     const extensionNumber = state.budget.extensionCount + 1;
     this.loggingService.log(
@@ -395,30 +420,38 @@ export class TurnRunner {
       turnId: state.turn.id
     });
     if (!decision.success) {
-      return this.close(state, 'provider_outage');
+      return { kind: 'ended', outcome: await this.close(state, 'provider_outage') };
     }
-    return match(decision.value)
-      .with({ kind: 'approved' }, () => {
-        state.budget.extend();
-        return undefined;
-      })
-      .with({ kind: 'cancelled' }, ({ reason }) =>
-        this.close(
-          state,
-          match(reason)
-            .with('halt', () => 'halted' as const)
-            .with('kill', () => 'killed' as const)
-            // a live turn can only observe halt/kill/stop; restart cancellations exist for rows a dead process left
-            .with('restart', () => 'halted' as const)
-            .with('stop', () => 'stopped' as const)
-            .exhaustive()
-        )
-      )
-      .with({ kind: 'denied' }, { kind: 'denied-with-reason' }, async () => {
-        await this.postNotice(input, state, renderBudgetExhaustedNotice(state.budget.limitCount));
-        return this.close(state, 'budget_exhausted');
-      })
-      .exhaustive();
+    return (
+      match<ApprovalDecision, Promise<Exhaustion>>(decision.value)
+        .with({ kind: 'approved' }, () => {
+          state.budget.extend();
+          return Promise.resolve<Exhaustion>({ kind: 'extended' });
+        })
+        .with({ kind: 'cancelled' }, async ({ reason }) => ({
+          kind: 'ended',
+          outcome: await this.close(
+            state,
+            match(reason)
+              .with('halt', () => 'halted' as const)
+              .with('kill', () => 'killed' as const)
+              // a live turn can only observe halt/kill/stop; restart cancellations exist for rows a dead process left
+              .with('restart', () => 'halted' as const)
+              .with('stop', () => 'stopped' as const)
+              .exhaustive()
+          )
+        }))
+        // §5.3 — bare denial is a full stop; the reasoned one leaves the turn a final word
+        .with({ kind: 'denied' }, async () => {
+          await this.postNotice(input, state, renderBudgetExhaustedNotice(state.budget.limitCount));
+          return { kind: 'ended', outcome: await this.close(state, 'budget_exhausted') };
+        })
+        .with({ kind: 'denied-with-reason' }, ({ reason }) => {
+          state.budget.refuseFurtherExtensions();
+          return Promise.resolve<Exhaustion>({ kind: 'voice-only', text: renderExtensionDenialResult(reason) });
+        })
+        .exhaustive()
+    );
   }
 
   /** §7.1's human-visible notices: deterministic strings posted under the agent's name (§3.2) */
@@ -494,18 +527,24 @@ export class TurnRunner {
         if (!this.refusesFinalOutput(input, content)) {
           return this.closeWithFinalOutput(input, state, content);
         }
+        let rejection = 'post rejected: multiple agent mentions';
         if (state.budget.trySpendOnRejectedPost() === 'exhausted') {
-          const ended = await this.handleExhaustion(input, state);
-          if (ended) {
-            return ended;
+          const exhaustion = await this.handleExhaustion(input, state);
+          if (exhaustion.kind === 'ended') {
+            return exhaustion.outcome;
           }
-          state.budget.trySpendOnRejectedPost();
+          if (exhaustion.kind === 'voice-only') {
+            // no tool call to carry the reason here, so it joins the rejection in the same message
+            rejection = `${rejection}\n\n${exhaustion.text}`;
+          } else {
+            state.budget.trySpendOnRejectedPost();
+          }
         }
         // fed back as a user message — the final-output branch carries no tool call for a tool
         // result to reference (§4.5). Not a semantic failure: the model produced valid output
         // violating a framework rule it cannot see, and one retry is cheap.
         state.messages.push({ content, role: 'assistant' });
-        state.messages.push({ content: 'post rejected: multiple agent mentions', role: 'user' });
+        state.messages.push({ content: rejection, role: 'user' });
         continue;
       }
       const outcome = await this.dispatchToolCalls(input, state, completion.value);

@@ -23,7 +23,7 @@ describe('buildRunArgv', () => {
   it('should drop to the OS user and enforce the deadline as that user with timeout(1)', () => {
     expect(buildRunArgv('collegium-mira', 'ls -la')).toStrictEqual([
       '--non-interactive',
-      '--login',
+      '--set-home',
       '--user',
       'collegium-mira',
       '--',
@@ -31,7 +31,9 @@ describe('buildRunArgv', () => {
       '--kill-after=5',
       '60',
       'bash',
-      '-c',
+      '-lc',
+      'cd -- "$HOME" || exit 1; exec bash -c "$1" "$0"',
+      'collegium-shell',
       'ls -la'
     ]);
   });
@@ -39,12 +41,19 @@ describe('buildRunArgv', () => {
   it('should pass the command as a single argv element, never re-parsed on our side', () => {
     expect(buildRunArgv('collegium-mira', 'echo "a; b" && rm -rf x').at(-1)).toBe('echo "a; b" && rm -rf x');
   });
+
+  // with --login sudo joins the argv into one string and escapes all but [A-Za-z0-9_-$], so the
+  // target's login shell would expand a literal the approver read and fold a newline away (§6.2)
+  it('should never ask sudo for a login shell, which would re-parse the command', () => {
+    expect(buildRunArgv('collegium-mira', 'echo a')).not.toContain('--login');
+  });
 });
 
 describe('buildProbeArgv', () => {
-  it('should assume the OS user non-interactively and bound the probe', () => {
+  it('should assume the OS user with the same sudo flags the real run uses', () => {
     expect(buildProbeArgv('collegium-mira')).toStrictEqual([
       '--non-interactive',
+      '--set-home',
       '--user',
       'collegium-mira',
       '--',

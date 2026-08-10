@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 
 import { ProcessRunner } from './runners/process.runner.ts';
-import { SHELL_TOOL_NAME } from './shell.constants.ts';
+import { SHELL_TOOL_NAME, SPAWN_WORKING_DIRECTORY } from './shell.constants.ts';
 import { buildProbeArgv, buildRunArgv, deriveShellOsUser, toRunOutput } from './shell.utils.ts';
 
 import type { ShellRunFailure, ShellRunOutput } from './shell.types.ts';
@@ -29,7 +29,9 @@ export class ShellService {
         continue;
       }
       const osUser = deriveShellOsUser(profile.username);
-      const probe = await this.processRunner.spawnCaptured('sudo', buildProbeArgv(osUser));
+      const probe = await this.processRunner.spawnCaptured('sudo', buildProbeArgv(osUser), {
+        cwd: SPAWN_WORKING_DIRECTORY
+      });
       if (!probe.success) {
         throw new Error(
           `agent "${profile.username}" holds ${SHELL_TOOL_NAME} but its dedicated user is unusable: ${probe.error.message}`
@@ -51,7 +53,9 @@ export class ShellService {
    */
   async run(params: { agentUsername: string; command: string }): Promise<Result<ShellRunOutput, ShellRunFailure>> {
     const osUser = deriveShellOsUser(params.agentUsername);
-    const captured = await this.processRunner.spawnCaptured('sudo', buildRunArgv(osUser, params.command));
+    const captured = await this.processRunner.spawnCaptured('sudo', buildRunArgv(osUser, params.command), {
+      cwd: SPAWN_WORKING_DIRECTORY
+    });
     if (!captured.success) {
       return Result.err({ message: `the shell command could not be launched: ${captured.error.message}` });
     }
