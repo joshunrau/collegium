@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 
 import { BrowserClient } from './browser/browser.client.ts';
 import { MAX_LIVE_SESSIONS } from './web.constants.ts';
+import { refuseUnbrowsableUrl } from './web.policy.ts';
 import { capMarkdown, toMarkdown } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
@@ -23,7 +24,10 @@ export class WebService {
 
   constructor(private readonly browserClient: BrowserClient) {}
 
-  async click(turnId: string, ref: string): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy>>> {
+  async click(
+    turnId: string,
+    ref: string
+  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
     const session = this.sessions.get(turnId);
     if (!session) {
       return Result.err({ kind: 'no-session' });
@@ -41,7 +45,7 @@ export class WebService {
   async fill(
     turnId: string,
     args: { pressEnter?: boolean; ref: string; text: string }
-  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy>>> {
+  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
     const session = this.sessions.get(turnId);
     if (!session) {
       return Result.err({ kind: 'no-session' });
@@ -54,6 +58,12 @@ export class WebService {
     turnId: string,
     url: string
   ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.NoSession | WebFailure.StaleRef>>> {
+    // before the session, not inside it: a refused address must cost neither a browser launch nor
+    // one of the live-session slots §3.4's cap hands out
+    const refused = refuseUnbrowsableUrl(url);
+    if (refused) {
+      return Result.err(refused);
+    }
     const existing = this.sessions.get(turnId);
     if (existing) {
       return this.toSnapshot(await existing.navigate(url));

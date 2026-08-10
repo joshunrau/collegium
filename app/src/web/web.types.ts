@@ -49,7 +49,13 @@ export declare namespace WebFailure {
     kind: 'unreachable';
     message: string;
   };
-  type Any = Busy | EmptyRender | Navigation | NoSession | StaleRef | Unreachable;
+  /** the address is outside what this instrument reads — the open web, over http(s) (§3.4) */
+  type UrlRefused = {
+    kind: 'url-refused';
+    reason: 'not-public-host' | 'not-web-scheme';
+    url: string;
+  };
+  type Any = Busy | EmptyRender | Navigation | NoSession | StaleRef | Unreachable | UrlRefused;
 }
 
 export type WebFailure = WebFailure.Any;

@@ -108,6 +108,12 @@ try {
   // carries whatever ownership it was made with
   const databaseDirectory = path.dirname(fileURLToPath(env.DATABASE_URL));
   for (const stateDirectory of [databaseDirectory, env.WORKSPACE_ROOT]) {
+    // the recursion below is the whole reason: rooted here it would re-own the entire container,
+    // bind-mounted host files included, and then make / untraversable to the app that follows
+    const resolved = path.resolve(stateDirectory);
+    if (resolved === path.parse(resolved).root) {
+      throw new Error(`"${stateDirectory}" is the filesystem root; state must live in a directory of its own`);
+    }
     fs.mkdirSync(stateDirectory, { recursive: true });
     run('chown', ['--recursive', `${APP_UID}:${APP_GID}`, stateDirectory]);
     fs.chmodSync(stateDirectory, 0o700);

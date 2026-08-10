@@ -71,7 +71,7 @@ export class ExchangeMailProvider extends MailProvider {
 
   async getConversation(ref: MailMessageRef): Promise<Result<MailSummary[], MailFailure.Read>> {
     const opened = await this.getJson(
-      { path: `/messages/${ref}`, query: { $select: `${SUMMARY_SELECT},conversationId` }, ref },
+      { query: { $select: `${SUMMARY_SELECT},conversationId` }, ref, segments: ['messages', ref] },
       $GraphMessageSummary
     );
     if (!opened.success) {
@@ -83,12 +83,12 @@ export class ExchangeMailProvider extends MailProvider {
     }
     const thread = await this.getJson(
       {
-        path: '/messages',
         query: {
           $filter: `conversationId eq '${conversationId.replaceAll("'", "''")}'`,
           $select: SUMMARY_SELECT,
           $top: String(CONVERSATION_PAGE_SIZE)
-        }
+        },
+        segments: ['messages']
       },
       $GraphMessageSummaryList
     );
@@ -103,7 +103,7 @@ export class ExchangeMailProvider extends MailProvider {
 
   /** walks the whole delta once, keeping only the high-water mark — existing mail is old and stays silent */
   async initializeCursor(): Promise<Result<string, MailFailure.Poll>> {
-    let link = this.graphUrl('/mailFolders/inbox/messages/delta', { $select: DELTA_SELECT }).toString();
+    let link = this.graphUrl(['mailFolders', 'inbox', 'messages', 'delta'], { $select: DELTA_SELECT }).toString();
     let watermarkMs = 0;
     let boundaryIds: string[] = [];
     for (let page = 0; page < MAX_INITIALIZATION_PAGES; page++) {
@@ -146,8 +146,8 @@ export class ExchangeMailProvider extends MailProvider {
   async listRecent(limit: number): Promise<Result<MailSummary[], MailFailure.Read>> {
     const fetched = await this.getJson(
       {
-        path: '/mailFolders/inbox/messages',
-        query: { $orderby: 'receivedDateTime desc', $select: SUMMARY_SELECT, $top: String(limit) }
+        query: { $orderby: 'receivedDateTime desc', $select: SUMMARY_SELECT, $top: String(limit) },
+        segments: ['mailFolders', 'inbox', 'messages']
       },
       $GraphMessageSummaryList
     );
@@ -161,7 +161,7 @@ export class ExchangeMailProvider extends MailProvider {
     const dispatched = await this.dispatch({
       body: { isRead: true },
       method: 'PATCH',
-      url: this.graphUrl(`/messages/${ref}`, {})
+      url: this.graphUrl(['messages', ref], {})
     });
     if (!dispatched.success) {
       return dispatched;
@@ -174,7 +174,7 @@ export class ExchangeMailProvider extends MailProvider {
 
   async open(ref: MailMessageRef): Promise<Result<MailMessage, MailFailure.Read>> {
     const fetched = await this.getJson(
-      { path: `/messages/${ref}`, query: { $select: MESSAGE_SELECT }, ref },
+      { query: { $select: MESSAGE_SELECT }, ref, segments: ['messages', ref] },
       $GraphMessage
     );
     if (!fetched.success) {
@@ -183,7 +183,7 @@ export class ExchangeMailProvider extends MailProvider {
     const message = fetched.value;
     const attachments = message.hasAttachments
       ? await this.getJson(
-          { path: `/messages/${ref}/attachments`, query: { $select: 'name,contentType,size' }, ref },
+          { query: { $select: 'name,contentType,size' }, ref, segments: ['messages', ref, 'attachments'] },
           $GraphAttachmentList
         )
       : Result.ok({ value: [] });
@@ -246,7 +246,7 @@ export class ExchangeMailProvider extends MailProvider {
   /** GET on the inbox itself: proves the token is honoured and the RBAC scope reaches this mailbox */
   async probe(): Promise<Result<void, MailFailure.Probe>> {
     const fetched = await this.getJson(
-      { path: '/mailFolders/inbox', query: { $select: 'id' } },
+      { query: { $select: 'id' }, segments: ['mailFolders', 'inbox'] },
       z.object({ id: z.string() })
     );
     if (fetched.success) {
@@ -271,7 +271,7 @@ export class ExchangeMailProvider extends MailProvider {
    */
   async reply(ref: MailMessageRef, mail: OutboundMail): Promise<Result<void, MailFailure.Send>> {
     const created = await this.readJson(
-      this.graphUrl(`/messages/${ref}/createReply`, {}),
+      this.graphUrl(['messages', ref, 'createReply'], {}),
       z.object({ id: z.string().min(1) }),
       ref,
       'POST'
@@ -283,24 +283,24 @@ export class ExchangeMailProvider extends MailProvider {
     const overwritten = await this.dispatch({
       body: toGraphOutbound(mail),
       method: 'PATCH',
-      url: this.graphUrl(`/messages/${draftId}`, {})
+      url: this.graphUrl(['messages', draftId], {})
     });
     if (!overwritten.success || !overwritten.value.ok) {
-      await this.dispatch({ method: 'DELETE', url: this.graphUrl(`/messages/${draftId}`, {}) });
+      await this.dispatch({ method: 'DELETE', url: this.graphUrl(['messages', draftId], {}) });
       if (!overwritten.success) {
         return overwritten;
       }
       return this.classifyFailure(overwritten.value, ref);
     }
     return this.finishSend(
-      await this.dispatch({ method: 'POST', url: this.graphUrl(`/messages/${draftId}/send`, {}) })
+      await this.dispatch({ method: 'POST', url: this.graphUrl(['messages', draftId, 'send'], {}) })
     );
   }
 
   async search(query: string, limit: number): Promise<Result<MailSummary[], MailFailure.Read>> {
     const escaped = query.replaceAll('"', String.raw`\"`);
     const fetched = await this.getJson(
-      { path: '/messages', query: { $search: `"${escaped}"`, $select: SUMMARY_SELECT, $top: String(limit) } },
+      { query: { $search: `"${escaped}"`, $select: SUMMARY_SELECT, $top: String(limit) }, segments: ['messages'] },
       $GraphMessageSummaryList
     );
     if (!fetched.success) {
@@ -314,7 +314,7 @@ export class ExchangeMailProvider extends MailProvider {
       await this.dispatch({
         body: { message: toGraphOutbound(mail), saveToSentItems: true },
         method: 'POST',
-        url: this.graphUrl('/sendMail', {})
+        url: this.graphUrl(['sendMail'], {})
       })
     );
   }
@@ -371,7 +371,7 @@ export class ExchangeMailProvider extends MailProvider {
    */
   private async fetchArrival(ref: MailMessageRef): Promise<Result<MailArrival | undefined, MailFailure.Poll>> {
     const fetched = await this.getJson(
-      { path: `/messages/${ref}`, query: { $select: ARRIVAL_SELECT }, ref },
+      { query: { $select: ARRIVAL_SELECT }, ref, segments: ['messages', ref] },
       $GraphMessage
     );
     if (fetched.success) {
@@ -460,14 +460,22 @@ export class ExchangeMailProvider extends MailProvider {
   }
 
   private getJson<TValue>(
-    input: { path: string; query: { [param: string]: string }; ref?: MailMessageRef },
+    input: { query: { [param: string]: string }; ref?: MailMessageRef; segments: readonly string[] },
     schema: z.ZodType<TValue>
   ): Promise<Result<TValue, MailFailure.Read>> {
-    return this.readJson(this.graphUrl(input.path, input.query), schema, input.ref);
+    return this.readJson(this.graphUrl(input.segments, input.query), schema, input.ref);
   }
 
-  private graphUrl(path: string, query: { [param: string]: string }): URL {
-    const url = new URL(`${GRAPH_BASE_URL}/users/${encodeURIComponent(this.address)}${path}`);
+  /**
+   * The path arrives as segments and every one of them is encoded, so a ref cannot become anything
+   * but a ref. Refs reach here straight from LLM tool arguments on the ungated read actions, and a
+   * `/`, `..`, `?` or `#` inside one would otherwise re-point a request carrying this app's Graph
+   * token at another endpoint entirely. Graph's own ids need the encoding regardless: outside the
+   * immutable-id form they contain `/` and `=`.
+   */
+  private graphUrl(segments: readonly string[], query: { [param: string]: string }): URL {
+    const path = [this.address, ...segments].map((segment) => encodeURIComponent(segment)).join('/');
+    const url = new URL(`${GRAPH_BASE_URL}/users/${path}`);
     for (const [param, value] of Object.entries(query)) {
       url.searchParams.set(param, value);
     }

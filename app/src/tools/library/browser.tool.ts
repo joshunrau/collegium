@@ -19,7 +19,7 @@ type $BrowserArgs = z.infer<typeof $BrowserArgs>;
 const $BrowserArgs = z.discriminatedUnion('action', [
   z.object({
     action: z.enum(['navigate']),
-    url: z.url().describe("The absolute URL to open in this turn's page")
+    url: z.url().describe("The absolute http(s) URL of a public web page, to open in this turn's page")
   }),
   z.object({
     action: z.enum(['click']),
@@ -100,6 +100,8 @@ export class BrowserTool extends Tool({
         ({ ref }) =>
           `⟨${ref}⟩ is not on the current page; the page has changed since that snapshot — use refs from the latest one`
       )
+      .with({ kind: 'url-refused', reason: 'not-web-scheme' }, ({ url }) => `${url} is not an http or https page`)
+      .with({ kind: 'url-refused', reason: 'not-public-host' }, ({ url }) => `${url} is not on the public web`)
       .exhaustive();
   }
 

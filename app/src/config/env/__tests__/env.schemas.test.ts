@@ -52,6 +52,20 @@ describe('$Env', () => {
     expect($Env.safeParse({ ...env, DATABASE_URL: 'collegium.db' }).success).toBe(false);
   });
 
+  // a path the root prologue would take for a state directory and chown recursively
+  it('should reject a relative file URL, which normalizes to the filesystem root', () => {
+    expect($Env.safeParse({ ...env, DATABASE_URL: 'file:./dev.db' }).success).toBe(false);
+    expect($Env.safeParse({ ...env, DATABASE_URL: 'file:dev.db' }).success).toBe(false);
+  });
+
+  it('should reject a file URL naming a host, which resolves to no path at all', () => {
+    expect($Env.safeParse({ ...env, DATABASE_URL: 'file://data/prod.db' }).success).toBe(false);
+  });
+
+  it('should accept a single-slash absolute file URL', () => {
+    expect($Env.safeParse({ ...env, DATABASE_URL: 'file:/dev/null' }).success).toBe(true);
+  });
+
   it('should reject a missing workspace root', () => {
     expect($Env.safeParse({ ...env, WORKSPACE_ROOT: undefined }).success).toBe(false);
   });

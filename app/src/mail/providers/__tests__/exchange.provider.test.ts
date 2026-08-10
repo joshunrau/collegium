@@ -117,6 +117,20 @@ describe('ExchangeMailProvider', () => {
     expect(requestedInit()?.body).toBe('{"isRead":true}');
   });
 
+  // refs are LLM tool arguments on an ungated action, so an unencoded one would re-point a request
+  // carrying the app's Graph token at another endpoint entirely
+  it('should keep a traversing ref inside the mailbox path', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(graphMessage()));
+    await provider.open('../../../me/messages');
+    expect(requestedUrl()).toContain('/users/tess.rivera%40example.org/messages/..%2F..%2F..%2Fme%2Fmessages');
+  });
+
+  it('should keep a query-injecting ref out of the query string', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ isRead: true }));
+    await provider.markRead('msg-1?$select=body');
+    expect(new URL(requestedUrl()).pathname).toContain('msg-1%3F%24select%3Dbody');
+  });
+
   it('should report a ref Graph does not know as not-found', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: { code: 'ErrorItemNotFound' } }, 404));
     expect((await provider.open('msg-gone')).error).toStrictEqual({ kind: 'not-found', ref: 'msg-gone' });
