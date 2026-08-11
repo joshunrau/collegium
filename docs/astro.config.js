@@ -2,7 +2,7 @@ import { unified } from '@astrojs/markdown-remark';
 import mdx from '@astrojs/mdx';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'astro/config';
+import { defineConfig, fontProviders } from 'astro/config';
 import { rehypeCode, remarkCodeTab, remarkHeading, remarkNpm, remarkStructure } from 'fumadocs-core/mdx-plugins';
 
 // Fumadocs owns the pipeline: remarkHeading supplies the heading ids the TOC anchors to,
@@ -19,6 +19,29 @@ export default defineConfig({
     assets: '_assets'
   },
   compressHTML: true,
+  fonts: [
+    {
+      cssVariable: '--font-geist',
+      name: 'Geist',
+      provider: fontProviders.google(),
+      subsets: ['latin'],
+      weights: [400, 500, 600]
+    },
+    {
+      cssVariable: '--font-geist-mono',
+      name: 'Geist Mono',
+      provider: fontProviders.google(),
+      subsets: ['latin'],
+      weights: [400, 500]
+    },
+    {
+      cssVariable: '--font-newsreader',
+      name: 'Newsreader',
+      provider: fontProviders.google(),
+      subsets: ['latin'],
+      weights: [400, 500]
+    }
+  ],
   integrations: [
     react(),
     mdx({

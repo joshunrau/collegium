@@ -1,6 +1,7 @@
 ---
 import '@/styles/global.css';
 
+import { Font } from 'astro:assets';
 import { ClientRouter } from 'astro:transitions';
 
 interface Props {
@@ -8,13 +9,15 @@ interface Props {
   /** Site-root-relative path to the OpenGraph image, if the page has one. */
   image?: string;
   title: string;
+  /** `user` lets the reader choose a theme; the chosen class must reach `<html>` before first paint. */
+  theme?: 'forced-dark' | 'user';
 }
 
-const { description, image, title } = Astro.props;
+const { description, image, theme = 'forced-dark', title } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 ---
 
-<html lang="en">
+<html data-theme={theme} lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -28,10 +31,35 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta content={description} name="description" />
     <meta content={description} property="og:description" />
     {image && <meta content={new URL(image, Astro.site)} property="og:image" />}
+    {
+      theme === 'user' && (
+        <>
+          <Font cssVariable="--font-geist" preload />
+          <Font cssVariable="--font-geist-mono" />
+          <Font cssVariable="--font-newsreader" preload />
+        </>
+      )
+    }
+    <script is:inline>
+      (() => {
+        const apply = () => {
+          if (document.documentElement.dataset.theme !== 'user') return;
+          const stored = localStorage.getItem('collegium-theme');
+          const dark = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.classList.toggle('dark', dark);
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        };
+        apply();
+        if (!window.collegiumThemeListenerBound) {
+          window.collegiumThemeListenerBound = true;
+          document.addEventListener('astro:after-swap', apply);
+        }
+      })();
+    </script>
     <ClientRouter />
   </head>
   <body
-    class="dark flex min-h-screen flex-col"
+    class:list={['flex min-h-screen flex-col', theme === 'forced-dark' && 'dark']}
     transition:persist
     transition:animate="none"
     transition:name="page-layout"

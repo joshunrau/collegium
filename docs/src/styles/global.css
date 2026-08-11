@@ -5,3 +5,51 @@
 .prose {
   --tw-prose-size: calc(15 / 16);
 }
+
+/*
+ * Landing-page tokens. Namespaced `lp-` and never applied to the docs shell, which keeps its
+ * fumadocs preset untouched. Amber is the only hue on the page and it carries one meaning: held,
+ * waiting for a human. It appears on the approval card, on mentions, and on the cost of a refusal.
+ */
+@theme {
+  --font-lp-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-lp-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-lp-serif: var(--font-newsreader), ui-serif, Georgia, serif;
+
+  --color-lp-accent: var(--lp-accent);
+  --color-lp-accent-foreground: var(--lp-accent-foreground);
+  --color-lp-background: var(--lp-background);
+  --color-lp-border: var(--lp-border);
+  --color-lp-muted: var(--lp-muted);
+  --color-lp-panel: var(--lp-panel);
+  --color-lp-surface: var(--lp-surface);
+  --color-lp-text: var(--lp-text);
+}
+
+:root {
+  --lp-accent: #b45309;
+  --lp-accent-foreground: #ffffff;
+  --lp-background: #fcfcfc;
+  --lp-border: #e4e4e7;
+  --lp-muted: #52525b;
+  --lp-panel: #f7f7f7;
+  --lp-surface: #ffffff;
+  --lp-text: #0a0a0a;
+}
+
+.dark {
+  --lp-accent: #f0b429;
+  --lp-accent-foreground: #1a1206;
+  --lp-background: #0a0a0a;
+  --lp-border: #262626;
+  --lp-muted: #a1a1aa;
+  --lp-panel: #0f0f0f;
+  --lp-surface: #141414;
+  --lp-text: #fafafa;
+}
+
+.landing {
+  background-color: var(--lp-background);
+  color: var(--lp-text);
+  font-family: var(--font-lp-sans);
+}

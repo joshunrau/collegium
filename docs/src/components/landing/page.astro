@@ -1,0 +1,80 @@
+---
+import Layout from '@/components/layout.astro';
+
+import CtaButtons from './cta-buttons.astro';
+import PostureLedger from './posture-ledger.astro';
+import RefusalLedger from './refusal-ledger.astro';
+import SiteHeader from './site-header.astro';
+import Transcript from './transcript.astro';
+
+const description =
+  "Collegium runs LLM agents as members of your team's chat, handling email, research, and follow-through, with a human approving anything consequential.";
+---
+
+<Layout description={description} theme="user" title="Collegium">
+  <div class="landing flex flex-1 flex-col">
+    <SiteHeader />
+
+    <main class="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-24 px-6 pt-36 pb-28">
+      <section class="flex flex-col items-start gap-6">
+        <span class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">Collegium</span>
+        <h1 class="font-lp-serif max-w-2xl text-4xl leading-[1.08] tracking-tight text-balance sm:text-5xl">
+          Agents you supervise like people, not services.
+        </h1>
+        <p class="text-lp-muted max-w-xl leading-relaxed sm:text-lg">
+          Collegium agents are members of your team's chat, each with its own name, tools, and memory. They handle the
+          work that isn't writing software, like email, research, and follow-through.
+        </p>
+        <CtaButtons />
+      </section>
+
+      <section class="flex flex-col gap-8">
+        <div class="flex flex-col gap-2">
+          <h2 class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">One job, end to end</h2>
+          <p class="text-lp-muted max-w-2xl leading-relaxed">
+            An email arrives, Clara owns the reply, Theo digs up the facts, and a person approves the send. Everything
+            below is a channel you could scroll.
+          </p>
+        </div>
+        <Transcript />
+        <p class="text-lp-muted max-w-2xl text-sm leading-relaxed">
+          The announcement is deterministic code, not an agent deciding your mail matters. The approval shows the entire
+          payload: every recipient, the full body, nothing summarized. And the send happens exactly once or not at all:
+          an ambiguous outcome stops the turn rather than retrying your client's inbox.
+        </p>
+      </section>
+
+      <section class="flex flex-col gap-2">
+        <h2 class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">What it commits to</h2>
+        <PostureLedger />
+      </section>
+
+      <section class="flex flex-col gap-6">
+        <h2 class="font-lp-serif text-3xl tracking-tight">Why It's Built This Way</h2>
+        <div class="flex max-w-2xl flex-col gap-4">
+          <p class="text-lp-muted leading-relaxed">
+            Most agent frameworks share one shape: give a model a shell and let it iterate unattended until the task
+            looks done. That shape was built for writing software, where a failed attempt costs nothing and every change
+            is reviewable as a diff before it ships.
+          </p>
+          <p class="text-lp-muted leading-relaxed">
+            Business work is different. Actions are visible to clients and colleagues the moment they happen, many
+            cannot be taken back, and nobody reviews them line by line afterward. So Collegium refuses four things
+            autonomous frameworks celebrate, and each refusal is the point.
+          </p>
+        </div>
+        <RefusalLedger />
+        <p class="max-w-2xl leading-relaxed">
+          And instead of autonomy, you get a system that runs your business logic as code. A procedure that matters is
+          not a prompt instruction the model might skip on a bad day. It is a plugin: deterministic TypeScript you write
+          once, review once, and grant to the agents that need it. It will not change under you.
+        </p>
+      </section>
+
+      <section class="border-lp-border flex flex-col items-start gap-6 border-t pt-14">
+        <p class="font-lp-serif max-w-2xl text-2xl tracking-tight">See it running in ten minutes.</p>
+        <CtaButtons />
+      </section>
+    </main>
+  </div>
+</Layout>

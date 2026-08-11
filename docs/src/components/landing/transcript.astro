@@ -1,0 +1,19 @@
+---
+import type { ImageMetadata } from 'astro';
+
+import type { TranscriptAuthor } from '@/landing/transcript';
+
+import MessageCard from './message-card.astro';
+
+import { TRANSCRIPT } from '@/landing/transcript';
+
+import clara from '@/assets/clara.png';
+import orchestrator from '@/assets/orchestrator.png';
+import theo from '@/assets/theo.png';
+
+const AVATARS: { [K in TranscriptAuthor]: ImageMetadata } = { clara, orchestrator, theo };
+---
+
+<div class="flex flex-col gap-3">
+  {TRANSCRIPT.map((turn) => <MessageCard avatar={AVATARS[turn.author]} turn={turn} />)}
+</div>

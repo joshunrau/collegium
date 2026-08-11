@@ -1,0 +1,44 @@
+<header class="border-lp-border bg-lp-background/80 fixed inset-x-0 top-0 z-50 border-b backdrop-blur">
+  <div class="mx-auto flex h-14 w-full max-w-3xl items-center gap-6 px-6">
+    <a class="flex items-center gap-2.5 text-sm font-medium" href="/">
+      <svg aria-hidden="true" class="size-5" fill="none" viewBox="0 0 32 32">
+        <path d="M21.5 11.6a7 7 0 1 0 0 8.8" stroke="currentColor" stroke-linecap="round" stroke-width="3"></path>
+      </svg>
+      Collegium
+    </a>
+    <nav class="text-lp-muted ml-auto flex items-center gap-5 text-sm">
+      <a class="hover:text-lp-text transition-colors" href="/docs/getting-started/introduction">Docs</a>
+      <a
+        class="hover:text-lp-text transition-colors"
+        href="https://github.com/joshunrau/collegium"
+        rel="noreferrer"
+        target="_blank">GitHub</a
+      >
+      <button
+        aria-label="Toggle colour theme"
+        class="hover:text-lp-text hover:border-lp-border rounded-md border border-transparent p-1.5 transition-colors"
+        id="lp-theme-toggle"
+        type="button"
+      >
+        <svg aria-hidden="true" class="size-4" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9"></circle>
+          <path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor" stroke="none"></path>
+        </svg>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<script>
+  const bind = () => {
+    document.getElementById('lp-theme-toggle')?.addEventListener('click', () => {
+      const dark = !document.documentElement.classList.contains('dark');
+      document.documentElement.classList.toggle('dark', dark);
+      document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      localStorage.setItem('collegium-theme', dark ? 'dark' : 'light');
+    });
+  };
+
+  bind();
+  document.addEventListener('astro:after-swap', bind);
+</script>
