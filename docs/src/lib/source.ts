@@ -13,17 +13,23 @@ import { CONTENT_DIR } from '@/content.constants.ts';
 type DocEntry = CollectionEntry<'docs'> | CollectionEntry<'spec'>;
 
 /**
+ * The sidebar, top to bottom, by page name. Fumadocs shows only what a folder's meta names, so a
+ * page absent from this list would be reachable and invisible — `createSource` refuses instead.
+ */
+const NAVIGATION = ['getting-started', 'specification'];
+
+/**
  * Bridge Astro's content collections into a Fumadocs source. Each entry keeps a `_raw` handle on
  * its collection entry so a route can `render()` it and the search index can read its body.
  */
 async function createSource() {
   const out: StaticSource<{
-    metaData: CollectionEntry<'meta'>['data'];
+    metaData: { pages: string[] };
     pageData: CollectionEntry<'docs'>['data'] & {
       _raw: DocEntry;
     };
   }> = {
-    files: []
+    files: [{ data: { pages: NAVIGATION }, path: 'meta.json', type: 'meta' }]
   };
 
   for (const page of await getCollection('docs')) {
@@ -44,12 +50,13 @@ async function createSource() {
     });
   }
 
-  for (const meta of await getCollection('meta')) {
-    out.files.push({
-      data: meta.data,
-      path: path.relative(CONTENT_DIR, meta.filePath!),
-      type: 'meta'
-    });
+  const unnavigable = out.files
+    .filter((file) => file.type === 'page')
+    .map((file) => path.parse(file.path).name)
+    .filter((name) => !NAVIGATION.includes(name));
+
+  if (unnavigable.length > 0) {
+    throw new Error(`no place in the sidebar for: ${unnavigable.join(', ')}; add them to NAVIGATION`);
   }
 
   return out;

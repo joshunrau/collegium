@@ -15,14 +15,6 @@ const docs = defineCollection({
   })
 });
 
-/** Sidebar order, which is the only thing a folder's meta.json is used for here. */
-const meta = defineCollection({
-  loader: glob({ base: `./${CONTENT_DIR}`, pattern: '**/*.json' }),
-  schema: z.object({
-    pages: z.array(z.string())
-  })
-});
-
 const specPath = fileURLToPath(new URL('../../SPEC.md', import.meta.url));
 
 /**
@@ -68,6 +60,5 @@ const spec = defineCollection({
 
 export const collections = {
   docs,
-  meta,
   spec
 };
