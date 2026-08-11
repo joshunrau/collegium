@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import type { ToolName } from '@/tools/tools.types.ts';
 
+import { toConfigJsonSchema } from '../../../scripts/schema.utils.ts';
 import { $AgentDefinition, $Config, $MailboxDefinition } from '../config.schemas.ts';
 
 import type { Config } from '../config.schemas.ts';
@@ -165,6 +166,6 @@ describe('config.schema.json', () => {
   it('should match the schema generated from $Config (run `pnpm build:schema` if stale)', () => {
     const checkedInPath = path.resolve(import.meta.dirname, '../../../config.schema.json');
     const checkedIn: unknown = JSON.parse(fs.readFileSync(checkedInPath, 'utf-8'));
-    expect(checkedIn).toStrictEqual(z.toJSONSchema($Config, { target: 'draft-7' }));
+    expect(checkedIn).toStrictEqual(toConfigJsonSchema($Config));
   });
 });

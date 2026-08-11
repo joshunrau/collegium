@@ -66,8 +66,7 @@
                         "description": "Entra tenant id the mailbox lives in"
                       }
                     },
-                    "required": ["address", "clientId", "clientSecret", "kind", "tenantId"],
-                    "additionalProperties": false
+                    "required": ["address", "clientId", "clientSecret", "kind", "tenantId"]
                   },
                   {
                     "type": "object",
@@ -94,7 +93,6 @@
                           }
                         },
                         "required": ["host", "port", "secure"],
-                        "additionalProperties": false,
                         "description": "The IMAP endpoint mail is read from"
                       },
                       "kind": { "type": "string", "const": "imap" },
@@ -115,7 +113,6 @@
                           }
                         },
                         "required": ["host", "port", "secure"],
-                        "additionalProperties": false,
                         "description": "The SMTP endpoint mail is sent through"
                       },
                       "username": {
@@ -124,15 +121,13 @@
                         "description": "Login username for both endpoints, where it differs from the address"
                       }
                     },
-                    "required": ["address", "imap", "kind", "password", "smtp", "username"],
-                    "additionalProperties": false
+                    "required": ["address", "imap", "kind", "password", "smtp", "username"]
                   }
                 ],
                 "description": "Which kind of provider serves this mailbox, with its credentials: Exchange Online, or generic IMAP/SMTP."
               }
             },
-            "required": ["announcementChannel", "pollIntervalMs", "provider"],
-            "additionalProperties": false
+            "required": ["announcementChannel", "provider"]
           },
           "memoryCaps": {
             "description": "Per-field overrides of app.memoryCaps for this agent. Unnamed fields keep the app-wide value.",
@@ -159,8 +154,7 @@
                 "exclusiveMinimum": 0,
                 "maximum": 9007199254740991
               }
-            },
-            "additionalProperties": false
+            }
           },
           "model": {
             "oneOf": [
@@ -170,8 +164,7 @@
                   "name": { "type": "string", "enum": ["deepseek-v4-flash", "deepseek-v4-pro"] },
                   "provider": { "type": "string", "const": "deepseek" }
                 },
-                "required": ["name", "provider"],
-                "additionalProperties": false
+                "required": ["name", "provider"]
               },
               {
                 "type": "object",
@@ -182,8 +175,7 @@
                   },
                   "provider": { "type": "string", "const": "openrouter" }
                 },
-                "required": ["name", "provider"],
-                "additionalProperties": false
+                "required": ["name", "provider"]
               }
             ],
             "description": "LLM model and provider for this agent"
@@ -229,11 +221,11 @@
             "description": "The agent's unique identity (a lowercase slug) — must equal the username of its Mattermost bot account"
           }
         },
-        "required": ["botToken", "expertise", "model", "skills", "systemPrompt", "tools", "username"],
-        "additionalProperties": false
+        "required": ["botToken", "expertise", "model", "systemPrompt", "username"]
       }
     },
     "app": {
+      "default": {},
       "type": "object",
       "properties": {
         "contextBudgetTokens": {
@@ -245,6 +237,7 @@
         },
         "debounce": {
           "description": "How message fragments are folded into one turn (§4.4)",
+          "default": {},
           "type": "object",
           "properties": {
             "ceilingMs": {
@@ -261,13 +254,12 @@
               "exclusiveMinimum": 0,
               "maximum": 9007199254740991
             }
-          },
-          "required": ["ceilingMs", "windowMs"],
-          "additionalProperties": false
+          }
         },
         "enableLifecycleNotifications": { "default": true, "type": "boolean" },
         "inferenceRetry": {
           "description": "How transport failures from a model provider are retried. Semantic failures are never retried.",
+          "default": {},
           "type": "object",
           "properties": {
             "backoffMs": {
@@ -284,9 +276,7 @@
               "exclusiveMinimum": 0,
               "maximum": 9007199254740991
             }
-          },
-          "required": ["backoffMs", "maxAttempts"],
-          "additionalProperties": false
+          }
         },
         "inferenceTimeoutMs": {
           "default": 120000,
@@ -303,6 +293,7 @@
         },
         "memoryCaps": {
           "description": "The default bounds on every agent’s memory, overridable per agent",
+          "default": {},
           "type": "object",
           "properties": {
             "maxBodyChars": {
@@ -326,9 +317,7 @@
               "exclusiveMinimum": 0,
               "maximum": 9007199254740991
             }
-          },
-          "required": ["maxBodyChars", "maxDescriptionChars", "maxEntries"],
-          "additionalProperties": false
+          }
         },
         "timezone": { "default": "UTC", "description": "The timezone to use when displaying dates", "type": "string" },
         "turnCeilingPerHour": {
@@ -338,19 +327,7 @@
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991
         }
-      },
-      "required": [
-        "contextBudgetTokens",
-        "debounce",
-        "enableLifecycleNotifications",
-        "inferenceRetry",
-        "inferenceTimeoutMs",
-        "logLevel",
-        "memoryCaps",
-        "timezone",
-        "turnCeilingPerHour"
-      ],
-      "additionalProperties": false
+      }
     },
     "channels": {
       "default": [],
@@ -371,8 +348,7 @@
             "description": "mention-required: the agent acts only when explicitly @-mentioned. respond-to-all: every human post starts a turn, and the channel may hold at most one agent (§3.10)."
           }
         },
-        "required": ["handle", "triggerMode"],
-        "additionalProperties": false
+        "required": ["handle", "triggerMode"]
       }
     },
     "mattermost": {
@@ -391,8 +367,7 @@
           "description": "Mattermost token for the orchestrator's own bot account, which posts status notices and owns the slash-command surface. Not an agent, and separate from every agent's bot token. The account must hold authority to manage the team's slash commands (manage_slash_commands, e.g. team admin); boot refuses without it (§8.4)."
         }
       },
-      "required": ["mainChannel", "systemBotToken"],
-      "additionalProperties": false
+      "required": ["systemBotToken"]
     },
     "models": {
       "type": "object",
@@ -412,8 +387,7 @@
               "format": "uri"
             }
           },
-          "required": ["apiKey", "baseUrl"],
-          "additionalProperties": false
+          "required": ["apiKey"]
         },
         "openrouter": {
           "type": "object",
@@ -430,11 +404,9 @@
               "format": "uri"
             }
           },
-          "required": ["apiKey", "baseUrl"],
-          "additionalProperties": false
+          "required": ["apiKey"]
         }
-      },
-      "additionalProperties": false
+      }
     },
     "plugins": {
       "type": "array",
@@ -453,11 +425,9 @@
           },
           "settings": { "description": "This plugin's settings, validated against the schema the plugin declares" }
         },
-        "required": ["name", "path"],
-        "additionalProperties": false
+        "required": ["name", "path"]
       }
     }
   },
-  "required": ["agents", "app", "channels", "mattermost", "models"],
-  "additionalProperties": false
+  "required": ["agents", "mattermost", "models"]
 }
