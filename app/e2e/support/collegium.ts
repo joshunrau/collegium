@@ -54,14 +54,17 @@ type CollegiumConfigOptions = {
   agents: ReadonlyMap<string, AgentBot>;
   channels: ReadonlyMap<string, WorkspaceChannel>;
   inference: { apiKey: string; baseUrl: string };
-  mainChannelId: string;
-  mattermostUrl: string;
+  mainChannel: string;
   scenario: Scenario;
   systemBotToken: string;
 };
 
 type CollegiumProcessOptions = {
   config: Config;
+  mattermost: {
+    teamName: string;
+    url: string;
+  };
   port: number;
   /** Mattermost runs in a container and reaches the app on the host only by this address */
   publicHost: string;
@@ -90,8 +93,7 @@ function buildCollegiumConfig({
   agents,
   channels,
   inference,
-  mainChannelId,
-  mattermostUrl,
+  mainChannel,
   scenario,
   systemBotToken
 }: CollegiumConfigOptions): Config {
@@ -128,16 +130,19 @@ function buildCollegiumConfig({
       if (!channel.triggerMode) {
         return [];
       }
+      // config names channels by handle, and a DM has none to name — it is respond-to-all by type (§3.10)
+      if (channel.type === 'direct') {
+        throw new Error(`direct channel "${channel.name}" cannot declare a trigger mode`);
+      }
       const provisioned = channels.get(channel.name);
       if (!provisioned) {
         throw new Error(`channel "${channel.name}" has no provisioned Mattermost channel`);
       }
-      return [{ id: provisioned.id, triggerMode: channel.triggerMode }];
+      return [{ handle: provisioned.name, triggerMode: channel.triggerMode }];
     }),
     mattermost: {
-      mainChannelId,
-      systemBotToken,
-      url: mattermostUrl
+      mainChannel,
+      systemBotToken
     },
     models: {
       deepseek: {
@@ -169,6 +174,7 @@ class CollegiumProcess {
   private readonly configPath: string;
   private readonly databasePath: string;
   private readonly databaseUrl: string;
+  private readonly mattermost: { teamName: string; url: string };
   private readonly port: number;
   private readonly publicUrl: string;
   private stderr = '';
@@ -176,7 +182,8 @@ class CollegiumProcess {
   private readonly tmpDir: string;
   private readonly workspaceRoot: string;
 
-  constructor({ config, port, publicHost }: CollegiumProcessOptions) {
+  constructor({ config, mattermost, port, publicHost }: CollegiumProcessOptions) {
+    this.mattermost = mattermost;
     this.port = port;
     this.publicUrl = `http://${publicHost}:${port}`;
     this.tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `${E2E_RESOURCE_PREFIX}-`));
@@ -237,6 +244,8 @@ class CollegiumProcess {
           APP_PUBLIC_URL: this.publicUrl,
           CONFIG_PATH: this.configPath,
           DATABASE_URL: this.databaseUrl,
+          MATTERMOST_TEAM: this.mattermost.teamName,
+          MATTERMOST_URL: this.mattermost.url,
           WORKSPACE_ROOT: this.workspaceRoot
         },
         stdio: ['pipe', 'pipe', 'pipe']

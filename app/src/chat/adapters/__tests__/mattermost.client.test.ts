@@ -13,6 +13,7 @@ const sdk = vi.hoisted(() => ({
   editCommand: vi.fn(),
   getBaseRoute: vi.fn(() => 'https://mattermost.test/api/v4'),
   getChannel: vi.fn(),
+  getChannelByName: vi.fn(),
   getChannelMember: vi.fn(),
   getClientConfig: vi.fn(),
   getCustomTeamCommands: vi.fn(),
@@ -22,6 +23,7 @@ const sdk = vi.hoisted(() => ({
   getPosts: vi.fn(),
   getPostsAfter: vi.fn(),
   getProfilesByIds: vi.fn(),
+  getTeamByName: vi.fn(),
   getToken: vi.fn(() => 'bot-token'),
   getUser: vi.fn(),
   patchPost: vi.fn(),
@@ -136,10 +138,20 @@ describe('MattermostClient', () => {
     expect(sdk.deleteCommand).toHaveBeenCalledWith('command-1');
   });
 
-  it('should project a fetched channel onto its team id and its type', async () => {
+  it('should project a fetched channel onto its type', async () => {
     sdk.getChannel.mockResolvedValue({ id: 'channel-1', team_id: 'team-1', type: 'O' });
-    await expect(client.getChannelTeamId('channel-1')).resolves.toBe('team-1');
     await expect(client.getChannelType('channel-1')).resolves.toBe('O');
+  });
+
+  it('should resolve a channel handle to its id within the team', async () => {
+    sdk.getChannelByName.mockResolvedValue({ id: 'channel-1', team_id: 'team-1', type: 'O' });
+    await expect(client.getChannelIdByName({ handle: 'town-square', teamId: 'team-1' })).resolves.toBe('channel-1');
+    expect(sdk.getChannelByName).toHaveBeenCalledWith('team-1', 'town-square');
+  });
+
+  it('should resolve a team handle to its id', async () => {
+    sdk.getTeamByName.mockResolvedValue({ id: 'team-1' });
+    await expect(client.getTeamIdByName('collegium')).resolves.toBe('team-1');
   });
 
   it('should return the latest posts in the order the page names, dropping ids it lacks', async () => {

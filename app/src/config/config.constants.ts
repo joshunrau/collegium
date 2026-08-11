@@ -17,6 +17,9 @@ export const CONFIG_DEFAULTS = {
   mailbox: {
     pollIntervalMs: 60_000
   },
+  mattermost: {
+    mainChannel: 'town-square'
+  },
   models: {
     deepseek: { baseUrl: 'https://api.deepseek.com' },
     openrouter: { baseUrl: 'https://openrouter.ai/api/v1' }

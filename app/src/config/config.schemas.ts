@@ -20,12 +20,22 @@ export const $ModelRef = z.discriminatedUnion('provider', [
   z.object({ name: z.enum(OPENROUTER_MODELS), provider: z.literal('openrouter') })
 ]);
 
+/**
+ * A channel's name in its URL, not its display name and not its id — the one handle for a channel
+ * an operator can state before the channel exists. Mattermost's own rule for the field.
+ */
+export type $ChannelHandle = z.infer<typeof $ChannelHandle>;
+export const $ChannelHandle = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9_-]*$/)
+  .max(64);
+
 export type $TriggerMode = z.infer<typeof $TriggerMode>;
 export const $TriggerMode = z.enum(['mention-required', 'respond-to-all']);
 
 export type $ChannelDefinition = z.infer<typeof $ChannelDefinition>;
 export const $ChannelDefinition = z.object({
-  id: z.string().min(1).describe('Mattermost channel id'),
+  handle: $ChannelHandle.describe("The channel's name in its URL, resolved against the configured team at boot"),
   triggerMode: $TriggerMode.describe(
     'mention-required: the agent acts only when explicitly @-mentioned. respond-to-all: every human post starts a turn, and the channel may hold at most one agent (§3.10).'
   )
@@ -115,12 +125,9 @@ export const $ImapMailProvider = z.object({
 
 export type $MailboxDefinition = z.infer<typeof $MailboxDefinition>;
 export const $MailboxDefinition = z.object({
-  announcementChannelId: z
-    .string()
-    .min(1)
-    .describe(
-      'Channel where arriving mail is announced. Must not be a DM, and the agent must be a member — both refused at boot rather than discovered at runtime.'
-    ),
+  announcementChannel: $ChannelHandle.describe(
+    'Channel where arriving mail is announced, by handle. Must not be a DM, and the agent must be a member — both refused at boot rather than discovered at runtime.'
+  ),
   pollIntervalMs: z
     .number()
     .int()
@@ -252,19 +259,19 @@ export const $AppConfig = z.object({
 
 export type $MattermostConfig = z.infer<typeof $MattermostConfig>;
 export const $MattermostConfig = z.object({
-  mainChannelId: z
-    .string()
-    .min(1)
+  // the default holds without the operator provisioning anything: town-square is created with every
+  // team, every member is added to it automatically, and it can be neither left nor archived
+  mainChannel: $ChannelHandle
+    .default(CONFIG_DEFAULTS.mattermost.mainChannel)
     .describe(
-      'ID of the main channel: where the orchestrator posts its status, and the one channel in which agents answer only when explicitly @-mentioned. Every bot must be a member.'
+      'Handle of the main channel: where the orchestrator posts its status, and the one channel in which agents answer only when explicitly @-mentioned. Every bot must be a member.'
     ),
   systemBotToken: z
     .string()
     .min(1)
     .describe(
       "Mattermost token for the orchestrator's own bot account, which posts status notices and owns the slash-command surface. Not an agent, and separate from every agent's bot token. The account must hold authority to manage the team's slash commands (manage_slash_commands, e.g. team admin); boot refuses without it (§8.4)."
-    ),
-  url: z.url().describe('Base URL of the Mattermost server (e.g. https://mattermost.example.com)')
+    )
 });
 
 export type $Config = z.infer<typeof $Config>;

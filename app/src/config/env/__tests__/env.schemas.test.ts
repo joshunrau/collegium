@@ -7,6 +7,8 @@ const env: Omit<{ [K in keyof $Env]: string }, 'APP_PUBLIC_URL'> = {
   APP_PORT: '3000',
   CONFIG_PATH: '/etc/collegium/config.json',
   DATABASE_URL: 'file:///var/lib/collegium.db',
+  MATTERMOST_TEAM: 'collegium',
+  MATTERMOST_URL: 'http://mattermost:8065',
   WORKSPACE_ROOT: '/workspaces'
 };
 
@@ -68,5 +70,13 @@ describe('$Env', () => {
 
   it('should reject a missing workspace root', () => {
     expect($Env.safeParse({ ...env, WORKSPACE_ROOT: undefined }).success).toBe(false);
+  });
+
+  it('should reject a missing team', () => {
+    expect($Env.safeParse({ ...env, MATTERMOST_TEAM: undefined }).success).toBe(false);
+  });
+
+  it('should reject a malformed Mattermost URL', () => {
+    expect($Env.safeParse({ ...env, MATTERMOST_URL: 'mattermost:8065' }).success).toBe(false);
   });
 });

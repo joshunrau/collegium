@@ -37,7 +37,7 @@ const config = {
     turnCeilingPerHour: 250
   },
   channels: [],
-  mattermost: { mainChannelId: 'channel_1', systemBotToken: 'token_2', url: 'http://localhost:8065' },
+  mattermost: { mainChannel: 'main', systemBotToken: 'token_2' },
   models: { deepseek: { apiKey: 'key_1', baseUrl: 'https://api.deepseek.com' } }
 } satisfies Config;
 

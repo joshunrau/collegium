@@ -25,9 +25,10 @@ is shown once:
 - **One bot per agent.** Its username is the agent's identity, a lowercase slug, and must equal the
   `username` the agent is configured under.
 
-Then create the main channel — where the system bot posts status, and the one channel in which
-agents answer only when explicitly `@`-mentioned — and add every bot to the team and to that
-channel. The channel id is in **View Info**.
+Add every bot to the team. Agents answer only when explicitly `@`-mentioned in the main channel,
+which is where the system bot posts status; that defaults to **Town Square**, which every team
+already has and every member belongs to automatically, so a first deployment creates no channel at
+all. Naming a different one means creating it and adding every bot to it.
 
 ## Configure
 
@@ -44,10 +45,15 @@ development alone.
 APP_HOST=127.0.0.1
 APP_PORT=3000
 CONFIG_PATH=./config.json
+MATTERMOST_URL=https://mattermost.example.com
+MATTERMOST_TEAM=northgate
 ```
 
 The decision, command, and trigger endpoints trust the network, so bind the loopback or an interface
 only the Mattermost server can reach.
+
+`MATTERMOST_TEAM` is the team's handle — the name in its URL, not its display name. Every channel
+handle in `config.json` resolves within it, and the slash-command surface belongs to it.
 
 `config.json` is the whole deployment: every agent, every grant, every credential.
 
@@ -55,9 +61,7 @@ only the Mattermost server can reach.
 {
   "$schema": "./app/config.schema.json",
   "mattermost": {
-    "mainChannelId": "8f4k2m9x7c3r5t1w6y0qz2n5v8",
-    "systemBotToken": "…",
-    "url": "https://mattermost.example.com"
+    "systemBotToken": "…"
   },
   "models": {
     "openrouter": { "apiKey": "…" }
@@ -85,8 +89,10 @@ at. Four things decide how a first deployment behaves:
   for a human is the tool's own decision, not a setting: `shell` and `write_file` always do, `mail`
   does on send and reply, and reading — the browser, memory, a mailbox — never interrupts you.
 - **`expertise`** is shown to every other agent, so they know when to hand work over.
-- **`channels`** sets per-channel triggering mode. Any channel absent from it is mention-required,
-  which is why a first config can omit it entirely.
+- **`channels`** sets per-channel triggering mode, naming each channel by handle. Any channel absent
+  from it is mention-required, which is why a first config can omit it entirely.
+- **`mattermost.mainChannel`** is a handle too, defaulting to `town-square`. A handle naming no
+  channel in the team is a boot refusal, not a channel that silently never triggers.
 - **`app`** holds the framework-wide bounds — context budget, debounce window, memory caps, the
   hourly turn ceiling — each with a default, so it can be omitted until one of them is wrong for
   you.

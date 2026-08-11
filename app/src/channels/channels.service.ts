@@ -1,15 +1,11 @@
-import { Injectable } from '@nestjs/common';
-
 import type { $TriggerMode } from '@/config/config.schemas.ts';
-import { ConfigService } from '@/config/config.service.ts';
 
-@Injectable()
+/**
+ * Built by the module's factory from handles already resolved to ids, so an unresolved instance is
+ * not a state this can be in.
+ */
 export class ChannelsService {
-  private readonly modes: ReadonlyMap<string, $TriggerMode>;
-
-  constructor(configService: ConfigService) {
-    this.modes = new Map(configService.get('channels').map((channel) => [channel.id, channel.triggerMode]));
-  }
+  constructor(private readonly modes: ReadonlyMap<string, $TriggerMode>) {}
 
   /** DMs are respond-to-all inherently, as a property of the channel type (§3.10) */
   getTriggerMode(input: { channelId: string; isDirectMessage: boolean }): $TriggerMode {

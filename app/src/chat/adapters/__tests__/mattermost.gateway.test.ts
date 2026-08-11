@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { $AgentDefinition } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
+import { EnvService } from '@/config/env/env.service.ts';
 import { LoggerFactory } from '@/logging/logging.factory.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
+import { createEnvServiceMock } from '@/testing/factories/env-service.factory.ts';
 
 import { MattermostChannelType } from '../mattermost.constants.ts';
 import { MattermostGateway } from '../mattermost.gateway.ts';
@@ -33,6 +35,10 @@ const vendor = vi.hoisted(() => {
     deleteCommand = vi.fn();
     editCommand = vi.fn();
     getChannel = vi.fn();
+    // the fixture's channel ids are their handles, so what a caller asked for stays legible downstream
+    getChannelByName = vi.fn((teamId: string, handle: string) =>
+      Promise.resolve({ id: handle, team_id: teamId, type: 'O' })
+    );
     getChannelMember = vi.fn((channelId: string, userId: string) => {
       if (!mattermost.channelMemberIds.has(userId)) {
         return Promise.reject(new ClientError('app.channel.get_member.missing.app_error'));
@@ -44,6 +50,7 @@ const vendor = vi.hoisted(() => {
     token = '';
     getMe = vi.fn(() => Promise.resolve(mattermost.profilesByToken.get(this.token)));
     getProfilesByIds = vi.fn();
+    getTeamByName = vi.fn(() => Promise.resolve({ id: 'team-1' }));
     uploadFile = vi.fn();
     url = '';
     constructor() {
@@ -144,10 +151,15 @@ describe('MattermostGateway', () => {
     const configService = createConfigServiceMock({
       agents: [definition('mira', 'mira-token'), definition('tess', 'tess-token')],
       app: { logLevel: 'error' },
-      mattermost: { mainChannelId: 'main-channel', systemBotToken: 'system-token', url: 'http://localhost:8065/' }
+      mattermost: { mainChannel: 'main-channel', systemBotToken: 'system-token' }
     });
     const moduleRef = await Test.createTestingModule({
-      providers: [LoggerFactory, MattermostGateway, { provide: ConfigService, useValue: configService }]
+      providers: [
+        LoggerFactory,
+        MattermostGateway,
+        { provide: ConfigService, useValue: configService },
+        { provide: EnvService, useValue: createEnvServiceMock({ MATTERMOST_URL: 'http://localhost:8065/' }) }
+      ]
     }).compile();
     mattermostGateway = moduleRef.get(MattermostGateway);
   });
@@ -192,16 +204,33 @@ describe('MattermostGateway', () => {
     });
   });
 
-  describe('slash commands', () => {
-    beforeEach(() => {
-      systemClient().getChannel.mockResolvedValue({
-        id: 'main-channel',
-        team_id: 'team-1',
-        type: MattermostChannelType.Open
-      });
+  describe('channel resolution', () => {
+    it('should resolve a handle to its id within the configured team', async () => {
+      await expect(mattermostGateway.resolveChannelId('work')).resolves.toBe('work');
+      expect(systemClient().getChannelByName).toHaveBeenCalledWith('team-1', 'work');
     });
 
-    it("should create a missing command on the main channel's team", async () => {
+    it('should resolve each handle once and share the answer', async () => {
+      await mattermostGateway.resolveChannelId('work');
+      await mattermostGateway.resolveChannelId('work');
+      expect(systemClient().getChannelByName).toHaveBeenCalledOnce();
+    });
+
+    it('should refuse a handle the team does not hold', async () => {
+      systemClient().getChannelByName.mockRejectedValue(new Error('404'));
+      await expect(mattermostGateway.resolveChannelId('ghost')).rejects.toThrow(
+        'no channel "ghost" in team "collegium"'
+      );
+    });
+
+    it('should refuse a team the server does not hold', async () => {
+      systemClient().getTeamByName.mockRejectedValue(new Error('404'));
+      await expect(mattermostGateway.resolveChannelId('work')).rejects.toThrow('no team "collegium"');
+    });
+  });
+
+  describe('slash commands', () => {
+    it('should create a missing command on the configured team', async () => {
       await mattermostGateway.createSlashCommand(REGISTRATION);
       expect(systemClient().addCommand).toHaveBeenCalledWith(
         expect.objectContaining({ team_id: 'team-1', trigger: 'stop', url: REGISTRATION.url })
@@ -223,17 +252,7 @@ describe('MattermostGateway', () => {
     it('should resolve the team once and share it across registrations', async () => {
       await mattermostGateway.createSlashCommand(REGISTRATION);
       await mattermostGateway.correctSlashCommand('command-1', REGISTRATION);
-      expect(systemClient().getChannel).toHaveBeenCalledOnce();
-    });
-
-    it('should refuse to reconcile when the main channel belongs to no team', async () => {
-      systemClient().getChannel.mockResolvedValue({
-        id: 'main-channel',
-        team_id: '',
-        type: MattermostChannelType.Direct
-      });
-      const creating = mattermostGateway.createSlashCommand(REGISTRATION);
-      await expect(creating).rejects.toThrow('names no team');
+      expect(systemClient().getTeamByName).toHaveBeenCalledOnce();
     });
 
     it("should snapshot the team's commands with their creators resolved", async () => {
@@ -261,6 +280,12 @@ describe('MattermostGateway', () => {
         createdAt: new Date(1700000000000),
         postId: 'post-1'
       });
+    });
+
+    // the crash handler reports through this path, so a throw here would replace the failure it carries
+    it('should answer a failure rather than throw when the main channel cannot be resolved', async () => {
+      systemClient().getChannelByName.mockRejectedValue(new Error('404'));
+      await expect(mattermostGateway.postAsSystem('halted')).resolves.toMatchObject({ success: false });
     });
 
     it('should post a notice to a named channel', async () => {

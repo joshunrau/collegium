@@ -25,10 +25,11 @@
             "description": "The one email address this agent acts as. Absent means the agent has no mail capability, and a deployment with no mailbox anywhere runs exactly as it does today.",
             "type": "object",
             "properties": {
-              "announcementChannelId": {
+              "announcementChannel": {
                 "type": "string",
-                "minLength": 1,
-                "description": "Channel where arriving mail is announced. Must not be a DM, and the agent must be a member — both refused at boot rather than discovered at runtime."
+                "maxLength": 64,
+                "pattern": "^[a-z0-9][a-z0-9_-]*$",
+                "description": "Channel where arriving mail is announced, by handle. Must not be a DM, and the agent must be a member — both refused at boot rather than discovered at runtime."
               },
               "pollIntervalMs": {
                 "default": 60000,
@@ -130,7 +131,7 @@
                 "description": "Which kind of provider serves this mailbox, with its credentials: Exchange Online, or generic IMAP/SMTP."
               }
             },
-            "required": ["announcementChannelId", "pollIntervalMs", "provider"],
+            "required": ["announcementChannel", "pollIntervalMs", "provider"],
             "additionalProperties": false
           },
           "memoryCaps": {
@@ -358,37 +359,39 @@
       "items": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "minLength": 1, "description": "Mattermost channel id" },
+          "handle": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "The channel's name in its URL, resolved against the configured team at boot"
+          },
           "triggerMode": {
             "type": "string",
             "enum": ["mention-required", "respond-to-all"],
             "description": "mention-required: the agent acts only when explicitly @-mentioned. respond-to-all: every human post starts a turn, and the channel may hold at most one agent (§3.10)."
           }
         },
-        "required": ["id", "triggerMode"],
+        "required": ["handle", "triggerMode"],
         "additionalProperties": false
       }
     },
     "mattermost": {
       "type": "object",
       "properties": {
-        "mainChannelId": {
+        "mainChannel": {
+          "default": "town-square",
+          "description": "Handle of the main channel: where the orchestrator posts its status, and the one channel in which agents answer only when explicitly @-mentioned. Every bot must be a member.",
           "type": "string",
-          "minLength": 1,
-          "description": "ID of the main channel: where the orchestrator posts its status, and the one channel in which agents answer only when explicitly @-mentioned. Every bot must be a member."
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
         },
         "systemBotToken": {
           "type": "string",
           "minLength": 1,
           "description": "Mattermost token for the orchestrator's own bot account, which posts status notices and owns the slash-command surface. Not an agent, and separate from every agent's bot token. The account must hold authority to manage the team's slash commands (manage_slash_commands, e.g. team admin); boot refuses without it (§8.4)."
-        },
-        "url": {
-          "type": "string",
-          "format": "uri",
-          "description": "Base URL of the Mattermost server (e.g. https://mattermost.example.com)"
         }
       },
-      "required": ["mainChannelId", "systemBotToken", "url"],
+      "required": ["mainChannel", "systemBotToken"],
       "additionalProperties": false
     },
     "models": {

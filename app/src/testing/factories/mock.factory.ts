@@ -1,7 +1,17 @@
 import type { Provider } from '@nestjs/common';
-import type { AbstractClass } from 'type-fest';
 import { vi } from 'vitest';
 import type { Mock } from 'vitest';
+
+/**
+ * All the factory needs of a class: the injection token it doubles as, and the prototype naming the
+ * methods to fake. Stated without a construct signature so a class whose constructor is private —
+ * one reachable only through its own async factory — can still be mocked. Overriding `prototype`
+ * is what keeps it typed rather than `Function`'s own `any`.
+ */
+// the built-in is named on purpose: Nest's InjectionToken admits `Function`, and this must stay
+// assignable to it
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+type ClassToken<T> = Omit<Function, 'prototype'> & { prototype: T };
 
 export type MockedInstance<T extends object> = {
   [K in keyof T as T[K] extends (...args: any[]) => any ? K : never]: T[K] extends (...args: any[]) => any
@@ -10,14 +20,14 @@ export type MockedInstance<T extends object> = {
 };
 
 export class MockFactory {
-  static createForService<T extends object>(constructor: AbstractClass<T>): Provider<MockedInstance<T>> {
+  static createForService<T extends object>(constructor: ClassToken<T>): Provider<MockedInstance<T>> {
     return {
       provide: constructor,
       useValue: this.createMock(constructor)
     };
   }
 
-  static createMock<T extends object>(constructor: AbstractClass<T>): MockedInstance<T> {
+  static createMock<T extends object>(constructor: ClassToken<T>): MockedInstance<T> {
     const target: { [key: string]: unknown } = {};
     this.getAllPropertyNames(constructor.prototype)
       .filter((property) => property !== 'constructor')

@@ -26,12 +26,12 @@ const definition = (tools: $AgentDefinition['tools']): $AgentDefinition => ({
 
 const config: PartialDeep<Config> = {
   agents: [definition([])],
-  mattermost: { mainChannelId: 'channel_1', systemBotToken: 'token_2', url: 'http://localhost:8065' },
+  mattermost: { mainChannel: 'main', systemBotToken: 'token_2' },
   models: { deepseek: { apiKey: 'key_1' } }
 };
 
 const exchangeMailbox = (address: string, clientId: string): z.input<typeof $MailboxDefinition> => ({
-  announcementChannelId: 'channel_2',
+  announcementChannel: 'channel-2',
   provider: {
     address,
     clientId,
@@ -107,7 +107,7 @@ describe('$Config', () => {
   });
   it('should accept an IMAP/SMTP mailbox', () => {
     const mailbox: z.input<typeof $MailboxDefinition> = {
-      announcementChannelId: 'channel_2',
+      announcementChannel: 'channel-2',
       provider: {
         address: 'tess@example.org',
         imap: { host: 'imap.example.org', port: 993, secure: true },
