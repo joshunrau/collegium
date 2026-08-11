@@ -6,8 +6,7 @@ import { defineCollection } from 'astro:content';
 import { z } from 'zod';
 
 const schema = z.object({
-  description: z.string().optional(),
-  icon: z.string().optional(),
+  description: z.string(),
   title: z.string()
 });
 
@@ -16,13 +15,11 @@ const docs = defineCollection({
   schema
 });
 
+/** Sidebar order, which is the only thing a folder's meta.json is used for here. */
 const meta = defineCollection({
-  loader: glob({ base: './content/docs', pattern: '**/*.{json,yaml}' }),
+  loader: glob({ base: './content/docs', pattern: '**/*.json' }),
   schema: z.object({
-    description: z.string().optional(),
-    icon: z.string().optional(),
-    pages: z.array(z.string()).optional(),
-    title: z.string().optional()
+    pages: z.array(z.string())
   })
 });
 

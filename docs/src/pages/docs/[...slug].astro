@@ -33,7 +33,7 @@ const toc: TOCItemType[] = headings.map((heading) => ({
 <Layout description={entry.data.description} image={getPageImageUrl(page)} title={entry.data.title}>
   <Docs client:load page={{ toc }} params={Astro.params} pathname={Astro.url.pathname} tree={source.getPageTree()}>
     <h1 class="text-3xl font-semibold">{entry.data.title}</h1>
-    {entry.data.description && <p class="text-fd-muted-foreground mb-8 text-lg">{entry.data.description}</p>}
+    <p class="text-fd-muted-foreground mb-8 text-lg">{entry.data.description}</p>
     <div class="prose flex-1">
       <Content components={defaultMdxComponents} />
     </div>

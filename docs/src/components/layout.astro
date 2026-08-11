@@ -4,7 +4,7 @@ import '@/styles/global.css';
 import { ClientRouter } from 'astro:transitions';
 
 interface Props {
-  description?: string;
+  description: string;
   /** Site-root-relative path to the OpenGraph image, if the page has one. */
   image?: string;
   title: string;
@@ -25,8 +25,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta content={title} property="og:title" />
     <meta content={canonical} property="og:url" />
     <meta content="website" property="og:type" />
-    {description && <meta content={description} name="description" />}
-    {description && <meta content={description} property="og:description" />}
+    <meta content={description} name="description" />
+    <meta content={description} property="og:description" />
     {image && <meta content={new URL(image, Astro.site)} property="og:image" />}
     <ClientRouter />
   </head>

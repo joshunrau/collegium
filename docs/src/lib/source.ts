@@ -62,7 +62,6 @@ function getPageImageUrl(page: (typeof source)['$inferPage']) {
   return '/' + ['og', 'docs', ...page.slugs, 'image.webp'].join('/');
 }
 
-/** The section index the search server is built from, derived from the raw MDX body. */
 function getStructuredData(entry: DocEntry): StructuredData {
   return structure(entry.body!);
 }
