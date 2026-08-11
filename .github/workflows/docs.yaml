@@ -30,7 +30,6 @@ jobs:
         with:
           cache: 'pnpm'
           node-version-file: '.nvmrc'
-      # filtered: the app's postinstall provisions a browser this job has no use for
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile --filter @collegium/docs
       - name: Configure Pages

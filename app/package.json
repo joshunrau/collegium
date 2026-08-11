@@ -16,7 +16,7 @@
     "db:reset:dev": "NODE_ENV=development prisma migrate reset",
     "format": "prettier --write src",
     "lint": "tsc && eslint --fix .",
-    "postinstall": "node scripts/postinstall.ts"
+    "postinstall": "CAMOUFOX_PATH=$(camoufox-js path); [[ -e \"$CAMOUFOX_PATH/version.json\" ]] || camoufox-js fetch"
   },
   "dependencies": {
     "@collegium/core": "workspace:*",
