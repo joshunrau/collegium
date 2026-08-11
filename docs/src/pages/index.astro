@@ -1,5 +1,10 @@
 ---
+import ChatAvatar from '@/components/chat-avatar.astro';
 import Layout from '@/components/layout.astro';
+
+import clara from '@/assets/clara.png';
+import orchestrator from '@/assets/orchestrator.png';
+import theo from '@/assets/theo.png';
 
 const description =
   "Collegium runs LLM agents as members of your team's chat, handling email, research, and follow-through, with a human approving anything consequential.";
@@ -128,14 +133,10 @@ const theoTrace = [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', 
 
       <div class="border-fd-border bg-fd-card flex flex-col gap-7 rounded-xl border p-5 sm:p-6">
         <article class="flex gap-3">
-          <span
-            class="bg-fd-muted text-fd-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
-          >
-            co
-          </span>
+          <ChatAvatar image={orchestrator} />
           <div class="flex min-w-0 flex-1 flex-col gap-2">
             <p class="flex items-baseline gap-2">
-              <span class="text-sm font-medium">collegium</span>
+              <span class="text-sm font-medium">Orchestrator</span>
               <span class="text-fd-muted-foreground text-xs">10:02 AM</span>
             </p>
             <p class="text-sm">
@@ -159,14 +160,10 @@ const theoTrace = [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', 
         </article>
 
         <article class="flex gap-3">
-          <span
-            class="bg-fd-primary/15 text-fd-primary flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
-          >
-            cl
-          </span>
+          <ChatAvatar image={clara} />
           <div class="flex min-w-0 flex-1 flex-col gap-2">
             <p class="flex items-baseline gap-2">
-              <span class="text-sm font-medium">clara</span>
+              <span class="text-sm font-medium">Clara</span>
               <span class="text-fd-muted-foreground text-xs">10:02 AM</span>
             </p>
             <ul class="border-fd-border flex flex-col gap-1.5 border-l pl-3">
@@ -183,14 +180,10 @@ const theoTrace = [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', 
         </article>
 
         <article class="flex gap-3">
-          <span
-            class="bg-fd-primary/15 text-fd-primary flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
-          >
-            cl
-          </span>
+          <ChatAvatar image={clara} />
           <div class="flex min-w-0 flex-1 flex-col gap-2">
             <p class="flex items-baseline gap-2">
-              <span class="text-sm font-medium">clara</span>
+              <span class="text-sm font-medium">Clara</span>
               <span class="text-fd-muted-foreground text-xs">10:03 AM</span>
             </p>
             <p class="text-sm">
@@ -201,14 +194,10 @@ const theoTrace = [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', 
         </article>
 
         <article class="flex gap-3">
-          <span
-            class="bg-fd-primary/15 text-fd-primary flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
-          >
-            th
-          </span>
+          <ChatAvatar image={theo} />
           <div class="flex min-w-0 flex-1 flex-col gap-2">
             <p class="flex items-baseline gap-2">
-              <span class="text-sm font-medium">theo</span>
+              <span class="text-sm font-medium">Theo</span>
               <span class="text-fd-muted-foreground text-xs">10:03 AM</span>
             </p>
             <ul class="border-fd-border flex flex-col gap-1.5 border-l pl-3">
@@ -225,14 +214,10 @@ const theoTrace = [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', 
         </article>
 
         <article class="flex gap-3">
-          <span
-            class="bg-fd-primary/15 text-fd-primary flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
-          >
-            th
-          </span>
+          <ChatAvatar image={theo} />
           <div class="flex min-w-0 flex-1 flex-col gap-2">
             <p class="flex items-baseline gap-2">
-              <span class="text-sm font-medium">theo</span>
+              <span class="text-sm font-medium">Theo</span>
               <span class="text-fd-muted-foreground text-xs">10:05 AM</span>
             </p>
             <p class="text-sm">
@@ -244,14 +229,10 @@ const theoTrace = [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', 
         </article>
 
         <article class="flex gap-3">
-          <span
-            class="bg-fd-primary/15 text-fd-primary flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
-          >
-            cl
-          </span>
+          <ChatAvatar image={clara} />
           <div class="flex min-w-0 flex-1 flex-col gap-2">
             <p class="flex items-baseline gap-2">
-              <span class="text-sm font-medium">clara</span>
+              <span class="text-sm font-medium">Clara</span>
               <span class="text-fd-muted-foreground text-xs">10:06 AM</span>
             </p>
             <div class="border-fd-border bg-fd-background rounded-lg border">
@@ -286,14 +267,10 @@ const theoTrace = [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', 
         </article>
 
         <article class="flex gap-3">
-          <span
-            class="bg-fd-primary/15 text-fd-primary flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-medium"
-          >
-            cl
-          </span>
+          <ChatAvatar image={clara} />
           <div class="flex min-w-0 flex-1 flex-col gap-2">
             <p class="flex items-baseline gap-2">
-              <span class="text-sm font-medium">clara</span>
+              <span class="text-sm font-medium">Clara</span>
               <span class="text-fd-muted-foreground text-xs">10:31 AM</span>
             </p>
             <p class="text-sm">Sent. I noted the $500 increase for next year's budgeting.</p>
