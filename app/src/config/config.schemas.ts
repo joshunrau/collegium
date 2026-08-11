@@ -30,6 +30,13 @@ export const $ChannelHandle = z
   .regex(/^[a-z0-9][a-z0-9_-]*$/)
   .max(64);
 
+/** a Mattermost account name: the slug an agent is addressed by, and its bot account's own handle */
+export type $Username = z.infer<typeof $Username>;
+export const $Username = z
+  .string()
+  .regex(/^[a-z][a-z0-9-]*$/)
+  .max(22);
+
 export type $TriggerMode = z.infer<typeof $TriggerMode>;
 export const $TriggerMode = z.enum(['mention-required', 'respond-to-all']);
 
@@ -145,7 +152,6 @@ export const $MailboxDefinition = z.object({
 
 export type $AgentDefinition = z.infer<typeof $AgentDefinition>;
 export const $AgentDefinition = z.object({
-  botToken: z.string().min(1).describe("This agent's Mattermost bot token"),
   contextBudgetTokens: z
     .number()
     .int()
@@ -181,10 +187,9 @@ export const $AgentDefinition = z.object({
     .describe(
       'Names of the tools this agent may call: framework tools by bare name, plugin tools by their qualified "<plugin>__<tool>" name'
     ),
-  username: z
-    .string()
-    .regex(/^[a-z][a-z0-9-]*$/)
-    .describe("The agent's unique identity (a lowercase slug) — must equal the username of its Mattermost bot account")
+  username: $Username.describe(
+    "The agent's unique identity (a lowercase slug). Provisioning creates the Mattermost bot account of this name if it is absent."
+  )
 });
 
 export type $InferenceRetryPolicy = z.infer<typeof $InferenceRetryPolicy>;
@@ -266,11 +271,10 @@ export const $MattermostConfig = z.object({
     .describe(
       'Handle of the main channel: where the orchestrator posts its status, and the one channel in which agents answer only when explicitly @-mentioned. Every bot must be a member.'
     ),
-  systemBotToken: z
-    .string()
-    .min(1)
+  systemBotUsername: $Username
+    .default(CONFIG_DEFAULTS.mattermost.systemBotUsername)
     .describe(
-      "Mattermost token for the orchestrator's own bot account, which posts status notices and owns the slash-command surface. Not an agent, and separate from every agent's bot token. The account must hold authority to manage the team's slash commands (manage_slash_commands, e.g. team admin); boot refuses without it (§8.4)."
+      "Username of the orchestrator's own bot account, which posts status notices and owns the slash-command surface. Not an agent, and separate from every agent. Provisioning creates it if it is absent and grants it authority to manage the team's slash commands (§8.4)."
     )
 });
 
@@ -289,7 +293,7 @@ export const $Config = z
       .array($ChannelDefinition)
       .default([])
       .describe('Per-channel triggering mode. Any channel not listed here is mention-required.'),
-    mattermost: $MattermostConfig,
+    mattermost: $MattermostConfig.prefault({}),
     models: z.object({
       deepseek: z
         .object({
@@ -319,6 +323,10 @@ export const $Config = z
   })
   .refine((config) => config.models.deepseek ?? config.models.openrouter, {
     message: 'at least one model provider must be configured'
+  })
+  // one account cannot be both the mechanical voice (§3.2) and an agent that thinks
+  .refine((config) => config.agents.every((agent) => agent.username !== config.mattermost.systemBotUsername), {
+    message: 'the system bot username must not be an agent username'
   })
   .refine(
     (config) => {

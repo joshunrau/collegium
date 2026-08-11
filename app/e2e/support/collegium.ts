@@ -56,11 +56,13 @@ type CollegiumConfigOptions = {
   inference: { apiKey: string; baseUrl: string };
   mainChannel: string;
   scenario: Scenario;
-  systemBotToken: string;
+  systemBotUsername: string;
 };
 
 type CollegiumProcessOptions = {
   config: Config;
+  /** what the workspace minted: the app reads its tokens from the store provisioning writes */
+  credentials: readonly AgentBot[];
   mattermost: {
     teamName: string;
     url: string;
@@ -95,7 +97,7 @@ function buildCollegiumConfig({
   inference,
   mainChannel,
   scenario,
-  systemBotToken
+  systemBotUsername
 }: CollegiumConfigOptions): Config {
   return {
     agents: scenario.agents.map((agent) => {
@@ -142,7 +144,7 @@ function buildCollegiumConfig({
     }),
     mattermost: {
       mainChannel,
-      systemBotToken
+      systemBotUsername
     },
     models: {
       deepseek: {
@@ -172,6 +174,7 @@ class CollegiumProcess {
   private child: ChildProcessWithoutNullStreams | undefined;
   private readonly config: Config;
   private readonly configPath: string;
+  private readonly credentials: readonly AgentBot[];
   private readonly databasePath: string;
   private readonly databaseUrl: string;
   private readonly mattermost: { teamName: string; url: string };
@@ -182,7 +185,8 @@ class CollegiumProcess {
   private readonly tmpDir: string;
   private readonly workspaceRoot: string;
 
-  constructor({ config, mattermost, port, publicHost }: CollegiumProcessOptions) {
+  constructor({ config, credentials, mattermost, port, publicHost }: CollegiumProcessOptions) {
+    this.credentials = credentials;
     this.mattermost = mattermost;
     this.port = port;
     this.publicUrl = `http://${publicHost}:${port}`;
@@ -235,6 +239,7 @@ class CollegiumProcess {
     try {
       await fs.promises.writeFile(this.configPath, JSON.stringify(this.config), { mode: 0o600 });
       await this.migrate();
+      this.seedCredentials();
       this.child = spawn(process.execPath, ['src/main.ts'], {
         cwd: PROJECT_ROOT,
         env: {
@@ -287,6 +292,24 @@ class CollegiumProcess {
     await exec('npx', ['prisma', 'migrate', 'deploy'], {
       env: { ...process.env, DATABASE_URL: this.databaseUrl }
     });
+  }
+
+  /**
+   * The rows provisioning would have written. This suite provisions its own workspace instead — one
+   * uniquely named bot set per run, so runs do not collide — and hands the app what it minted.
+   */
+  private seedCredentials(): void {
+    const database = new DatabaseSync(this.databasePath);
+    try {
+      const insert = database.prepare(
+        'INSERT OR REPLACE INTO MattermostCredential (username, token, userId) VALUES (?, ?, ?)'
+      );
+      for (const bot of this.credentials) {
+        insert.run(bot.username, bot.token, bot.userId);
+      }
+    } finally {
+      database.close();
+    }
   }
 
   private async waitUntilHealthy(): Promise<void> {

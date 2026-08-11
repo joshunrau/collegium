@@ -9,7 +9,6 @@ import { ExchangeMailProvider } from '../providers/exchange.provider.ts';
 import { ImapMailProvider } from '../providers/imap.provider.ts';
 
 const agent = (username: string, mailbox: $MailboxDefinition | undefined): $AgentDefinition => ({
-  botToken: 'token_1',
   expertise: 'mail',
   ...(mailbox === undefined ? {} : { mailbox }),
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },

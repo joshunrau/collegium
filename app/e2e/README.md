@@ -12,7 +12,8 @@ also works on Linux. This is the one deployment where the address the app binds 
 it is reached at, so the harness sets `APP_PUBLIC_URL` to that name; approval callbacks and slash
 commands travel back over it.
 
-The Mattermost image is built by `e2e/support/cluster.ts` and tagged with the hash of its build
+The Mattermost image is built from `docker/mattermost` by `e2e/support/cluster.ts` — the same image the
+shipped stack runs — and tagged with the hash of its build
 context, so it is rebuilt only when that context changes.
 
 ## One-time setup

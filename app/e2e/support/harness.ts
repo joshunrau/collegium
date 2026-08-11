@@ -116,8 +116,9 @@ async function startHarness<const S extends Scenario>(scenario: S): Promise<Star
             inference: { apiKey: inference.apiKey, baseUrl: inference.baseUrl },
             mainChannel: mainChannel[1].name,
             scenario,
-            systemBotToken: workspace.systemBot.token
+            systemBotUsername: workspace.systemBot.username
           }),
+          credentials: [workspace.systemBot, ...workspace.agents.values()],
           mattermost: { teamName: cluster.teamName, url: cluster.url },
           port,
           publicHost: cluster.publicHost

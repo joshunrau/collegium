@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 
 import { MattermostChannelType } from '../mattermost.constants.ts';
-import { classifyAuthor, isSystemPost, toChatFailure, toObservedPost } from '../mattermost.utils.ts';
+import { createAuthorClassifier, isSystemPost, toChatFailure, toObservedPost } from '../mattermost.utils.ts';
 
 import type { $MattermostPostedEventMessage } from '../mattermost.schemas.ts';
 
@@ -30,11 +30,11 @@ const event = (
   event: 'posted'
 });
 
-describe('classifyAuthor', () => {
+describe('createAuthorClassifier', () => {
   it('should classify an agent, the system bot, and everyone else as human', () => {
-    expect(classifyAuthor('mira', IDENTITIES)).toBe('agent');
-    expect(classifyAuthor('collegium', IDENTITIES)).toBe('system');
-    expect(classifyAuthor('casey', IDENTITIES)).toBe('human');
+    expect(createAuthorClassifier(IDENTITIES)('mira')).toBe('agent');
+    expect(createAuthorClassifier(IDENTITIES)('collegium')).toBe('system');
+    expect(createAuthorClassifier(IDENTITIES)('casey')).toBe('human');
   });
 });
 
@@ -64,7 +64,7 @@ describe('toChatFailure', () => {
 
 describe('toObservedPost', () => {
   it('should carry the classified author kind and the post creation time', () => {
-    const observed = toObservedPost(event(), (username) => classifyAuthor(username, IDENTITIES));
+    const observed = toObservedPost(event(), createAuthorClassifier(IDENTITIES));
     expect(observed).toStrictEqual({
       authorKind: 'human',
       authorUsername: 'casey',

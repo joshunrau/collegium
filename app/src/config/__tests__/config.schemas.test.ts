@@ -13,7 +13,6 @@ import { $AgentDefinition, $Config, $MailboxDefinition } from '../config.schemas
 import type { Config } from '../config.schemas.ts';
 
 const definition = (tools: $AgentDefinition['tools']): $AgentDefinition => ({
-  botToken: 'token_1',
   expertise: 'programming',
   model: {
     name: 'deepseek-v4-flash',
@@ -27,7 +26,7 @@ const definition = (tools: $AgentDefinition['tools']): $AgentDefinition => ({
 
 const config: PartialDeep<Config> = {
   agents: [definition([])],
-  mattermost: { mainChannel: 'main', systemBotToken: 'token_2' },
+  mattermost: { mainChannel: 'main', systemBotUsername: 'orchestrator' },
   models: { deepseek: { apiKey: 'key_1' } }
 };
 

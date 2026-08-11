@@ -1,6 +1,5 @@
 import type { Result } from '@collegium/core/utils';
 import { removeTrailingSlash } from '@collegium/core/utils';
-import { Injectable } from '@nestjs/common';
 
 import type { Config } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
@@ -10,7 +9,7 @@ import { LoggerFactory } from '@/logging/logging.factory.ts';
 import { ChatGateway } from '../chat.gateway.ts';
 import { MattermostClient } from './mattermost.client.ts';
 import { MattermostTransport } from './mattermost.transport.ts';
-import { classifyAuthor, toChatResult } from './mattermost.utils.ts';
+import { createAuthorClassifier, toChatResult } from './mattermost.utils.ts';
 
 import type { ChatTransport } from '../chat.transport.ts';
 import type {
@@ -22,18 +21,17 @@ import type {
   SystemPostReceipt
 } from '../chat.types.ts';
 
-@Injectable()
 export class MattermostGateway extends ChatGateway {
   private readonly agentUsernames: ReadonlySet<string>;
   private readonly channelIds = new Map<string, Promise<string>>();
   private readonly config: Pick<Config, 'mattermost'>;
-  private systemBotUsername: Promise<string> | undefined;
   private readonly systemClient: MattermostClient;
   private teamId: Promise<string> | undefined;
   private readonly teamName: string;
   private readonly url: string;
 
   constructor(
+    options: { systemBotToken: string },
     configService: ConfigService,
     envService: EnvService,
     private readonly loggerFactory: LoggerFactory
@@ -43,18 +41,19 @@ export class MattermostGateway extends ChatGateway {
     this.config = { mattermost: configService.get('mattermost') };
     this.teamName = envService.get('MATTERMOST_TEAM');
     this.url = removeTrailingSlash(envService.get('MATTERMOST_URL'));
-    this.systemClient = new MattermostClient({ token: this.config.mattermost.systemBotToken, url: this.url });
+    this.systemClient = new MattermostClient({ token: options.systemBotToken, url: this.url });
   }
 
   async connect({ agent, botToken }: AgentConnection): Promise<ChatTransport> {
     const client = new MattermostClient({ token: botToken, url: this.url });
     const profile = await this.assertConfigured(client, agent.username);
-    const systemBotUsername = await this.resolveSystemBotUsername();
     return new MattermostTransport({
       agent,
       botToken,
-      classifyAuthor: (username) =>
-        classifyAuthor(username, { agentUsernames: this.agentUsernames, systemBotUsername }),
+      classifyAuthor: createAuthorClassifier({
+        agentUsernames: this.agentUsernames,
+        systemBotUsername: this.config.mattermost.systemBotUsername
+      }),
       client,
       logger: this.loggerFactory.createLogger(`${MattermostTransport.name} [${agent.username}]`),
       url: this.url,
@@ -105,7 +104,7 @@ export class MattermostGateway extends ChatGateway {
         message: content
       });
       return {
-        authorUsername: await this.resolveSystemBotUsername(),
+        authorUsername: this.config.mattermost.systemBotUsername,
         createdAt: new Date(created.createAt),
         postId: created.id
       };
@@ -164,12 +163,6 @@ export class MattermostGateway extends ChatGateway {
       throw new Error(`agent "${username}" is not a member of the main channel "${mainChannel}"`);
     }
     return profile;
-  }
-
-  /** resolved once and shared across connects — the system bot's username is not in config (§3.2) */
-  private resolveSystemBotUsername(): Promise<string> {
-    this.systemBotUsername ??= this.systemClient.getOwnProfile().then((profile) => profile.username.toLowerCase());
-    return this.systemBotUsername;
   }
 
   /** the team this deployment occupies: every channel handle resolves within it, and §8.4 commands belong to it */

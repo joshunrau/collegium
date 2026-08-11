@@ -18,7 +18,10 @@ const baseConfig = (): Config => ({
     memoryCaps: { ...CONFIG_DEFAULTS.app.memoryCaps }
   },
   channels: [],
-  mattermost: { mainChannel: CONFIG_DEFAULTS.mattermost.mainChannel, systemBotToken: 'token' },
+  mattermost: {
+    mainChannel: CONFIG_DEFAULTS.mattermost.mainChannel,
+    systemBotUsername: CONFIG_DEFAULTS.mattermost.systemBotUsername
+  },
   models: { deepseek: { apiKey: 'key', baseUrl: CONFIG_DEFAULTS.models.deepseek.baseUrl } }
 });
 

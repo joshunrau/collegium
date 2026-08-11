@@ -7,6 +7,7 @@ import { ChannelsModule } from '@/channels/channels.module.ts';
 import { ChatModule } from '@/chat/chat.module.ts';
 import { CommandsModule } from '@/commands/commands.module.ts';
 import { ConversationsModule } from '@/conversations/conversations.module.ts';
+import { CredentialsModule } from '@/credentials/credentials.module.ts';
 import { HaltModule } from '@/halt/halt.module.ts';
 import { MailModule } from '@/mail/mail.module.ts';
 import { NotificationsModule } from '@/notifications/notifications.module.ts';
@@ -29,6 +30,7 @@ import { RuntimeService } from './runtime.service.ts';
     ChatModule,
     CommandsModule,
     ConversationsModule,
+    CredentialsModule,
     HaltModule,
     MailModule,
     NotificationsModule,

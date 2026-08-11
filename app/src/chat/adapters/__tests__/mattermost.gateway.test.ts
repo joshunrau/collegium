@@ -90,8 +90,7 @@ vi.mock('@mattermost/client', () => ({
   WebSocketClient: vendor.WebSocketClient
 }));
 
-const definition = (username: string, botToken: string): $AgentDefinition => ({
-  botToken,
+const definition = (username: string): $AgentDefinition => ({
   expertise: 'code review',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: [],
@@ -149,19 +148,23 @@ describe('MattermostGateway', () => {
       ['tess-token', { id: 'tess-user-id', username: 'tess' }]
     ]);
     const configService = createConfigServiceMock({
-      agents: [definition('mira', 'mira-token'), definition('tess', 'tess-token')],
+      agents: [definition('mira'), definition('tess')],
       app: { logLevel: 'error' },
-      mattermost: { mainChannel: 'main-channel', systemBotToken: 'system-token' }
+      mattermost: { mainChannel: 'main-channel', systemBotUsername: 'collegium' }
     });
     const moduleRef = await Test.createTestingModule({
       providers: [
         LoggerFactory,
-        MattermostGateway,
         { provide: ConfigService, useValue: configService },
         { provide: EnvService, useValue: createEnvServiceMock({ MATTERMOST_URL: 'http://localhost:8065/' }) }
       ]
     }).compile();
-    mattermostGateway = moduleRef.get(MattermostGateway);
+    mattermostGateway = new MattermostGateway(
+      { systemBotToken: 'system-token' },
+      moduleRef.get(ConfigService),
+      moduleRef.get(EnvService),
+      moduleRef.get(LoggerFactory)
+    );
   });
 
   const settle = () => new Promise((resolve) => setImmediate(resolve));

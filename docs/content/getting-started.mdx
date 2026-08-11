@@ -3,32 +3,14 @@ title: Getting Started
 description: Bring up a deployment, provision one agent, and watch it stop for approval.
 ---
 
-Collegium runs as one container beside a Mattermost server you already administer. This page takes a
-workspace from nothing to a single agent that answers in a channel and stops for approval before it
-acts. The [specification](/docs/specification) is the authoritative description of everything below.
+Collegium runs as a Docker Compose stack: the framework, a Mattermost server, and the Postgres that
+serves it. This page takes a workspace from nothing to a single agent that answers in a channel and
+stops for approval before it acts. The [specification](/docs/specification) is the authoritative
+description of everything below.
 
-You need Docker on the same host as the Mattermost server, an administrator account on that server,
-and an API key for [OpenRouter](https://openrouter.ai/keys) or
-[DeepSeek](https://platform.deepseek.com/api_keys).
-
-## Provision in Mattermost
-
-The framework creates no accounts and no channels. Provisioning is an administrative act, and
-everything below is done before the app first starts.
-
-Under **Integrations → Bot Accounts**, create two bot accounts and mint a token for each — the token
-is shown once:
-
-- **The system bot.** It posts status notices and owns the slash-command surface, which it
-  reconciles against Mattermost at every boot. It must hold authority to manage the team's slash
-  commands (`manage_slash_commands` — team admin is enough); boot refuses without it.
-- **One bot per agent.** Its username is the agent's identity, a lowercase slug, and must equal the
-  `username` the agent is configured under.
-
-Add every bot to the team. Agents answer only when explicitly `@`-mentioned in the main channel,
-which is where the system bot posts status; that defaults to **Town Square**, which every team
-already has and every member belongs to automatically, so a first deployment creates no channel at
-all. Naming a different one means creating it and adding every bot to it.
+You need Docker and an API key for [OpenRouter](https://openrouter.ai/keys) or
+[DeepSeek](https://platform.deepseek.com/api_keys). You do not need a Mattermost server; the stack
+brings one up and provisions it.
 
 ## Configure
 
@@ -38,37 +20,32 @@ cd collegium
 cp .env.template .env
 ```
 
-`.env` states where the app binds and where its configuration lives; the rest of the template serves
-development alone.
+`.env` holds everything the deployment needs from you, and nothing that is a fact of the stack.
 
 ```sh
-APP_HOST=127.0.0.1
-APP_PORT=3000
-CONFIG_PATH=./config.json
-MATTERMOST_URL=https://mattermost.example.com
-MATTERMOST_TEAM=northgate
+MATTERMOST_ADMIN_EMAIL=you@example.com
+MATTERMOST_ADMIN_PASSWORD=a-password-you-choose
+MATTERMOST_ADMIN_USERNAME=you
+MATTERMOST_TEAM=collegium
+POSTGRES_PASSWORD=another-password
 ```
 
-The decision, command, and trigger endpoints trust the network, so bind the loopback or an interface
-only the Mattermost server can reach.
+That administrator is created on the first start — Mattermost grants system admin to the first user
+of a fresh install — and it is how you log in. Provisioning uses those credentials to create the
+team, the bot accounts, and their access tokens; the app itself never holds them, because the
+entrypoint drops them from the environment before starting it.
 
-`MATTERMOST_TEAM` is the team's handle — the name in its URL, not its display name. Every channel
-handle in `config.json` resolves within it, and the slash-command surface belongs to it.
-
-`config.json` is the whole deployment: every agent, every grant, every credential.
+`config.json` declares the deployment: every agent, every grant, every model key. It names no
+tokens and no channel ids — provisioning mints the one and resolves the other.
 
 ```json
 {
   "$schema": "./app/config.schema.json",
-  "mattermost": {
-    "systemBotToken": "…"
-  },
   "models": {
     "openrouter": { "apiKey": "…" }
   },
   "agents": [
     {
-      "botToken": "…",
       "expertise": "Billing questions and customer mail",
       "model": { "name": "anthropic/claude-sonnet-5", "provider": "openrouter" },
       "systemPrompt": "You are Jane, a support colleague at Northgate.",
@@ -79,8 +56,10 @@ handle in `config.json` resolves within it, and the slash-command surface belong
 }
 ```
 
-Every field is described in `app/config.schema.json`, which the `$schema` line points your editor
-at. Four things decide how a first deployment behaves:
+The `mattermost` block is absent because both of its fields default: the main channel to
+`town-square`, and the orchestrator's bot account to `orchestrator`. Every field is described in
+`app/config.schema.json`, which the `$schema` line points your editor at. Four things decide how a
+first deployment behaves:
 
 - **`tools`** is the agent's entire reach — `browser`, `load_skill`, `mail`, `read_memory`,
   `resolve_trigger`, `shell`, `write_file`, `write_memory`. A tool not listed cannot be called. The
@@ -103,12 +82,24 @@ at. Four things decide how a first deployment behaves:
 docker compose up -d
 ```
 
-That pulls `ghcr.io/joshunrau/collegium:latest`; pass `--build` to build the working tree instead.
+Postgres starts, then Mattermost, then the framework — each waiting for the one before it to report
+healthy. The first start takes a minute or two while Mattermost builds its schema.
 
-The container starts as root and does everything a host would otherwise be responsible for: it
+The app's container starts as root and does everything a host would otherwise be responsible for: it
 stages the configuration, claims the state directories under `./state`, creates one confined OS user
-per shell-granted agent, applies migrations, and drops privileges — irreversibly, once — before the
-app itself starts.
+per shell-granted agent, applies migrations, and drops privileges — irreversibly, once. It then runs
+provisioning as its own process, which signs in as your administrator and brings Mattermost into
+line with what `config.json` declares: the team, the channels, the orchestrator's bot account and
+one per agent, each with an access token kept in the framework's own store. Mattermost reveals a
+token once, so those rows in `./state/data` are the only copies; a backup that omits them costs you
+a round of re-provisioning, nothing more.
+
+Provisioning is safe to repeat and runs on every start, creating only what is missing. It is a
+separate process from the app on purpose: it converges Mattermost onto the declaration, and boot
+then refuses anything that does not already match. A boot that verified its own writes would verify
+nothing.
+
+Mattermost is at `http://localhost:8065`. Log in with the administrator from `.env`.
 
 Boot then refuses, loudly, on anything it cannot honour: configuration that does not validate, a
 granted tool or skill that does not exist, a channel whose membership contradicts what is

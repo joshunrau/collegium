@@ -19,6 +19,8 @@ import { SHELL_TOOL_NAME } from '@/shell/shell.constants.ts';
 import { deriveShellOsUser } from '@/shell/shell.utils.ts';
 
 const AGENT_GROUP = 'collegium-agents';
+// what provisioning authenticates with, and what the long-lived app process must never hold
+const ADMIN_ENV_PREFIX = 'MATTERMOST_ADMIN_';
 // the whole tree the image installs — the app package, the workspace packages it imports, and the
 // node_modules both resolve through. It tracks the Dockerfile, and a move that leaves this behind
 // confines a directory the app no longer lives in.
@@ -149,6 +151,16 @@ try {
   process.setuid(APP_UID);
 
   run('node_modules/.bin/prisma', ['migrate', 'deploy']);
+
+  // Provisioning converges Mattermost onto the configuration; boot then refuses anything that does
+  // not match. Separate processes because a verifier that validates its own writes verifies nothing
+  // — and because the administrator's credentials die here, before the app that runs for months.
+  run(process.execPath, ['dist/provision.js']);
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith(ADMIN_ENV_PREFIX)) {
+      delete process.env[key];
+    }
+  }
 
   const { bootstrap } = await import('./bootstrap.ts');
 

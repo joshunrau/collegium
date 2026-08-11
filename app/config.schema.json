@@ -9,7 +9,6 @@
       "items": {
         "type": "object",
         "properties": {
-          "botToken": { "type": "string", "minLength": 1, "description": "This agent's Mattermost bot token" },
           "contextBudgetTokens": {
             "description": "Overrides app.contextBudgetTokens for this agent. Absent means the app-wide value.",
             "type": "integer",
@@ -217,11 +216,12 @@
           },
           "username": {
             "type": "string",
+            "maxLength": 22,
             "pattern": "^[a-z][a-z0-9-]*$",
-            "description": "The agent's unique identity (a lowercase slug) — must equal the username of its Mattermost bot account"
+            "description": "The agent's unique identity (a lowercase slug). Provisioning creates the Mattermost bot account of this name if it is absent."
           }
         },
-        "required": ["botToken", "expertise", "model", "systemPrompt", "username"]
+        "required": ["expertise", "model", "systemPrompt", "username"]
       }
     },
     "app": {
@@ -352,6 +352,7 @@
       }
     },
     "mattermost": {
+      "default": {},
       "type": "object",
       "properties": {
         "mainChannel": {
@@ -361,13 +362,14 @@
           "maxLength": 64,
           "pattern": "^[a-z0-9][a-z0-9_-]*$"
         },
-        "systemBotToken": {
+        "systemBotUsername": {
+          "default": "orchestrator",
+          "description": "Username of the orchestrator's own bot account, which posts status notices and owns the slash-command surface. Not an agent, and separate from every agent. Provisioning creates it if it is absent and grants it authority to manage the team's slash commands (§8.4).",
           "type": "string",
-          "minLength": 1,
-          "description": "Mattermost token for the orchestrator's own bot account, which posts status notices and owns the slash-command surface. Not an agent, and separate from every agent's bot token. The account must hold authority to manage the team's slash commands (manage_slash_commands, e.g. team admin); boot refuses without it (§8.4)."
+          "maxLength": 22,
+          "pattern": "^[a-z][a-z0-9-]*$"
         }
-      },
-      "required": ["systemBotToken"]
+      }
     },
     "models": {
       "type": "object",
@@ -429,5 +431,5 @@
       }
     }
   },
-  "required": ["agents", "mattermost", "models"]
+  "required": ["agents", "models"]
 }

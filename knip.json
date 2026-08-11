@@ -7,7 +7,7 @@
       "project": []
     },
     "app": {
-      "entry": ["src/main.ts!", "src/entrypoint.ts!", "scripts/schema.ts"],
+      "entry": ["src/main.ts!", "src/entrypoint.ts!", "src/provision.ts!", "scripts/schema.ts"],
       "project": ["src/**/*.ts!"],
       "ignore": ["src/prisma/generated/**", "src/testing/**"],
       "ignoreDependencies": ["@prisma/client", "prisma"]

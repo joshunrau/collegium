@@ -216,3 +216,13 @@ model Episode {
 
   @@index([agentUsername, channelId, createdAt])
 }
+
+/// A Mattermost access token the provisioner minted, keyed by the account it belongs to. Mattermost
+/// reveals a token once and never again, so losing this row means minting a replacement and
+/// orphaning the last one.
+model MattermostCredential {
+  username  String   @id
+  createdAt DateTime @default(now())
+  token     String
+  userId    String
+}

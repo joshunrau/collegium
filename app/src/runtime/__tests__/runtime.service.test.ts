@@ -18,6 +18,7 @@ import { CommandReconcilerService } from '@/commands/registration/command-reconc
 import type { $AgentDefinition, Config } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ResyncService } from '@/conversations/resync/resync.service.ts';
+import { CredentialsService } from '@/credentials/credentials.service.ts';
 import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MailBootService } from '@/mail/boot/boot.service.ts';
@@ -34,7 +35,6 @@ import { BootService } from '../boot/boot.service.ts';
 import { RuntimeService } from '../runtime.service.ts';
 
 const DEFINITION: $AgentDefinition = {
-  botToken: 'mira-token',
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: [],
@@ -55,6 +55,7 @@ describe('RuntimeService', () => {
   let bootService: MockedInstance<BootService>;
   let chatGateway: MockedInstance<ChatGateway>;
   let commandReconcilerService: MockedInstance<CommandReconcilerService>;
+  let credentialsService: MockedInstance<CredentialsService>;
   let haltService: MockedInstance<HaltService>;
   let notificationsService: MockedInstance<NotificationsService>;
   let resyncService: MockedInstance<ResyncService>;
@@ -75,6 +76,7 @@ describe('RuntimeService', () => {
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: BootService, useValue: bootService },
         { provide: ChatGateway, useValue: chatGateway },
+        { provide: CredentialsService, useValue: credentialsService },
         { provide: CommandReconcilerService, useValue: commandReconcilerService },
         {
           provide: ConfigService,
@@ -121,6 +123,8 @@ describe('RuntimeService', () => {
     chatGateway = MockFactory.createMock(ChatGateway);
     chatGateway.connect.mockResolvedValue(transport);
     commandReconcilerService = MockFactory.createMock(CommandReconcilerService);
+    credentialsService = MockFactory.createMock(CredentialsService);
+    credentialsService.require.mockImplementation((username: string) => Promise.resolve(`${username}-token`));
     haltService = MockFactory.createMock(HaltService);
     notificationsService = MockFactory.createMock(NotificationsService);
     resyncService = MockFactory.createMock(ResyncService);

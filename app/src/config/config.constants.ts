@@ -18,7 +18,8 @@ export const CONFIG_DEFAULTS = {
     pollIntervalMs: 60_000
   },
   mattermost: {
-    mainChannel: 'town-square'
+    mainChannel: 'town-square',
+    systemBotUsername: 'orchestrator'
   },
   models: {
     deepseek: { baseUrl: 'https://api.deepseek.com' },
