@@ -7,14 +7,12 @@ import { z } from 'zod';
 
 import { CONTENT_DIR } from './content.constants.ts';
 
-const schema = z.object({
-  description: z.string(),
-  title: z.string()
-});
-
 const docs = defineCollection({
   loader: glob({ base: `./${CONTENT_DIR}`, pattern: '**/*.{md,mdx}' }),
-  schema
+  schema: z.object({
+    description: z.string(),
+    title: z.string()
+  })
 });
 
 /** Sidebar order, which is the only thing a folder's meta.json is used for here. */
@@ -55,12 +53,17 @@ const spec = defineCollection({
       await sync();
       context.watcher?.add(specPath);
       context.watcher?.on('change', (changed) => {
-        if (changed === specPath) void sync();
+        if (changed === specPath) {
+          void sync();
+        }
       });
     },
     name: 'spec'
   },
-  schema
+  schema: z.object({
+    description: z.string(),
+    title: z.string()
+  })
 });
 
 export const collections = {
