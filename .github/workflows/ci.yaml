@@ -36,8 +36,6 @@ jobs:
             return await determineReleaseVersion({ github });
   check:
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: 'file:/dev/null'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v5
@@ -83,8 +81,6 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      DATABASE_URL: 'file:/dev/null'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v5

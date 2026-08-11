@@ -11,7 +11,7 @@
     "build": "rm -rf dist && swc --config-file .swcrc src/ -d dist --strip-leading-paths --copy-files --ignore '**/__tests__/**,**/testing/**'",
     "build:schema": "node --conditions=source scripts/schema.ts build",
     "db:deploy": "prisma migrate deploy",
-    "db:generate": "prisma generate --no-hints",
+    "db:generate": "DATABASE_URL=file:/dev/null prisma generate --no-hints",
     "db:migrate:dev": "NODE_ENV=development prisma migrate dev",
     "db:reset:dev": "NODE_ENV=development prisma migrate reset",
     "format": "prettier --write src",
