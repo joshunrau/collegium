@@ -5,19 +5,21 @@ import { glob } from 'astro/loaders';
 import { defineCollection } from 'astro:content';
 import { z } from 'zod';
 
+import { CONTENT_DIR } from './content.constants.ts';
+
 const schema = z.object({
   description: z.string(),
   title: z.string()
 });
 
 const docs = defineCollection({
-  loader: glob({ base: './content/docs', pattern: '**/*.{md,mdx}' }),
+  loader: glob({ base: `./${CONTENT_DIR}`, pattern: '**/*.{md,mdx}' }),
   schema
 });
 
 /** Sidebar order, which is the only thing a folder's meta.json is used for here. */
 const meta = defineCollection({
-  loader: glob({ base: './content/docs', pattern: '**/*.json' }),
+  loader: glob({ base: `./${CONTENT_DIR}`, pattern: '**/*.json' }),
   schema: z.object({
     pages: z.array(z.string())
   })
@@ -29,7 +31,7 @@ const specPath = fileURLToPath(new URL('../../SPEC.md', import.meta.url));
  * The specification page is the repository's SPEC.md, loaded directly rather than copied into the
  * content tree: the site never holds its own copy of the spec, so it cannot drift. `renderMarkdown`
  * runs the project's markdown pipeline, so the fumadocs plugins supply heading ids and highlighting
- * exactly as they do for files under content/docs.
+ * exactly as they do for the written pages.
  */
 const spec = defineCollection({
   loader: {

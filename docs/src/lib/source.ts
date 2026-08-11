@@ -7,7 +7,9 @@ import type { StructuredData } from 'fumadocs-core/mdx-plugins';
 import { loader } from 'fumadocs-core/source';
 import type { StaticSource } from 'fumadocs-core/source';
 
-/** A renderable docs entry: a file under content/docs, or the spec loaded from SPEC.md. */
+import { CONTENT_DIR } from '@/content.constants.ts';
+
+/** A renderable docs entry: a written page under `content`, or the spec loaded from SPEC.md. */
 type DocEntry = CollectionEntry<'docs'> | CollectionEntry<'spec'>;
 
 /**
@@ -27,13 +29,13 @@ async function createSource() {
   for (const page of await getCollection('docs')) {
     out.files.push({
       data: { ...page.data, _raw: page },
-      path: path.relative('content/docs', page.filePath!),
+      path: path.relative(CONTENT_DIR, page.filePath!),
       type: 'page'
     });
   }
 
-  // The spec has no file under content/docs (content.config.ts loads it from SPEC.md), so its
-  // place in the tree is named here.
+  // The spec has no file under `content` (content.config.ts loads it from SPEC.md), so its place
+  // in the tree is named here.
   for (const page of await getCollection('spec')) {
     out.files.push({
       data: { ...page.data, _raw: page },
@@ -45,7 +47,7 @@ async function createSource() {
   for (const meta of await getCollection('meta')) {
     out.files.push({
       data: meta.data,
-      path: path.relative('content/docs', meta.filePath!),
+      path: path.relative(CONTENT_DIR, meta.filePath!),
       type: 'meta'
     });
   }
