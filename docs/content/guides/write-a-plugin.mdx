@@ -1,0 +1,176 @@
+---
+title: Write a Plugin
+description: 'Ship business logic as deterministic code: storage, an ungated read, a gated write, and settings.'
+---
+
+Key business logic should be deterministic code, not prompt text. A procedure in a prompt is a suggestion the model will eventually skip; a plugin is TypeScript the framework runs exactly as written, and it will not change under the operator. This guide builds `contacts`: a small address book agents can read freely and update only with approval.
+
+Prerequisites: a running deployment and a working Node.js checkout of the repository.
+
+## What a plugin is
+
+An operator-supplied workspace package, named in `config.json` and loaded once at boot. A plugin contributes exactly three kinds of thing: tools, skills, and durable records. It cannot change how agents activate, how turns are ordered, or how approvals resolve. Contributions appear under qualified names (`contacts__save`), and installing a plugin grants it to no one: agents opt in per capability, exactly as with framework tools.
+
+Plugins are trusted code. A plugin runs with framework privilege, so installing one is the same kind of act as editing the framework itself: review it the way deployed code is reviewed. A coding agent can write the first draft of a plugin; the operator's review and install are what make it live, and nothing lets a Collegium agent install, configure, or enable one.
+
+## 1. Scaffold the package
+
+```
+plugins/contacts/
+  package.json
+  src/
+    plugin.ts
+    index.ts
+    tools/
+      find.tool.ts
+      save.tool.ts
+```
+
+`package.json`:
+
+```json
+{
+  "name": "@collegium/plugin-contacts",
+  "type": "module",
+  "version": "0.0.0",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@collegium/sdk": "workspace:*" }
+}
+```
+
+The SDK is the plugin's only dependency and its only import. What the SDK does not export, a plugin cannot touch.
+
+## 2. Declare the contract
+
+`src/plugin.ts`:
+
+```ts
+import { declarePlugin, z } from '@collegium/sdk';
+
+export type $Contact = z.infer<typeof $Contact>;
+export const $Contact = z.object({
+  email: z.email(),
+  name: z.string().min(1)
+});
+
+export type $ContactsSettings = z.infer<typeof $ContactsSettings>;
+export const $ContactsSettings = z
+  .object({
+    maxContacts: z.number().int().positive().default(200)
+  })
+  .prefault({});
+
+export const plugin = declarePlugin({
+  collections: { contacts: $Contact },
+  name: 'contacts',
+  settings: $ContactsSettings
+});
+```
+
+The contract is declared once and everything derives from it. Tool handlers receive `settings` and `storage` typed from these schemas; records are validated against the collection schema on write and parsed against it on read, because rows may outlive the schema that wrote them.
+
+## 3. An ungated read
+
+`src/tools/find.tool.ts`:
+
+```ts
+import { ok, z } from '@collegium/sdk';
+
+import { plugin } from '../plugin.ts';
+
+export const FindTool = plugin.tool({
+  description: 'Find saved contacts by name.',
+  async execute(args, { storage }) {
+    const contacts = await storage.contacts.list();
+    const matches = contacts.filter(({ value }) => value.name.toLowerCase().includes(args.query.toLowerCase()));
+    if (matches.length === 0) return ok('no contacts matched');
+    return ok(matches.map(({ key, value }) => `- ${key}: ${value.name} <${value.email}>`).join('\n'));
+  },
+  name: 'find',
+  parameters: z.object({
+    query: z.string().min(1).describe('Name or fragment to search for')
+  }),
+  retryable: true
+});
+```
+
+No `approval` property, so the tool is ungated: it runs without blocking. Ungated is not unsupervised: every call still appears line by line in the status post and in the trace. The read is marked `retryable`; a mutation never is.
+
+## 4. A gated write
+
+`src/tools/save.tool.ts`:
+
+```ts
+import { ok, z } from '@collegium/sdk';
+
+import { plugin } from '../plugin.ts';
+
+export const SaveTool = plugin.tool({
+  approval: (args) => ({
+    body: `save contact "${args.id}": ${args.name} <${args.email}>`,
+    presentation: 'verbatim'
+  }),
+  description: 'Save or update a contact.',
+  async execute(args, { settings, storage }) {
+    const existing = await storage.contacts.list();
+    if (existing.length >= settings.maxContacts) {
+      return ok(`contact limit of ${settings.maxContacts} reached; delete one first`);
+    }
+    await storage.contacts.put(args.id, { email: args.email, name: args.name });
+    return ok(`contact ${args.id} saved`);
+  },
+  name: 'save',
+  parameters: z.object({
+    email: z.email().describe('Email address'),
+    id: z.string().min(1).describe('Short identifier to save under'),
+    name: z.string().min(1).describe('Full name')
+  }),
+  traceDetail: (args) => `${args.id}: ${args.name}`
+});
+```
+
+The `approval` property is what gates the tool, and it renders the payload a human decides on. Show everything the action will do; a payload nobody can read is a payload nobody is checking.
+
+## 5. Export the plugin
+
+`src/index.ts`:
+
+```ts
+import { plugin } from './plugin.ts';
+import { FindTool } from './tools/find.tool.ts';
+import { SaveTool } from './tools/save.tool.ts';
+
+export default plugin.create({
+  tools: [FindTool, SaveTool]
+});
+```
+
+A plugin may also contribute skills here; the in-repo `bookmark` plugin exercises that part of the contract.
+
+## 6. Load and grant
+
+In `config.json`, declare the plugin and grant its tools to Clara by their qualified names:
+
+```json
+"plugins": [
+  { "name": "contacts", "path": "./plugins/contacts", "settings": { "maxContacts": 500 } }
+]
+```
+
+```json
+"tools": ["browser", "write_file", "read_memory", "write_memory", "contacts__find", "contacts__save"]
+```
+
+Failures are startup failures. An entry that will not import, a manifest the schema rejects, settings the plugin's declared schema refuses, a grant nothing provides: each stops the process from starting and names the plugin. Nothing about a plugin is discovered mid-turn.
+
+## 7. Try it
+
+Restart the deployment, then:
+
+> @clara Save Elena Baptiste, elena@northshoresummit.co, as our Northshore Summit contact.
+
+The approval prompt shows exactly what will be written. Approve it, then:
+
+> @clara Who do we know at Northshore Summit?
+
+The find runs without a gate, and the answer comes back from the plugin's own records.

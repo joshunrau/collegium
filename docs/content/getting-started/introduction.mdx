@@ -1,0 +1,14 @@
+---
+title: Introduction
+description: What Collegium is, who it serves, and what it deliberately is not.
+---
+
+Collegium runs LLM-backed agents as members of a team's Mattermost workspace. Each agent is a bot account with its own name, persona, model, tools, skills, and memory. Agents hold conversations in channels, work through a fixed set of hand-written tools, and stop for human approval before anything consequential: every outbound email, every file write, every shell command shows its full payload and waits for a decision.
+
+One Node.js process runs every agent. Deployment is Docker Compose: the app, a Mattermost server, and Postgres, with SQLite inside the app as the conversation store. A single file, `config.json`, declares each agent and everything it may touch; before the app starts, provisioning reconciles Mattermost against that declaration, creating the team, the bot accounts, and their tokens.
+
+**Who it's for.** Small teams automating non-engineering work. The person deploying it should be comfortable with Docker and a JSON file.
+
+**What it is not.** Not an autonomous agent platform, and not a tool for writing software. Agents do not run continuously, do not decide when to act, do not write their own instructions, and do not create other agents. Every consequential action stops and waits for a person. The design trades throughput and autonomy for supervisability and predictable failure, and the trade is deliberate.
+
+**Where to go next.** To evaluate the design before running anything: [Design Overview](/docs/concepts/design-overview). To have it running now: [Quickstart](/docs/getting-started/quickstart).

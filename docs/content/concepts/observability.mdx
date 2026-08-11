@@ -1,0 +1,36 @@
+---
+title: Observability
+description: The status post, the trace, the authoritative store, and the command surface.
+---
+
+## The status post
+
+Each turn produces one status post, edited in place as the turn progresses. Tool calls are appended as they happen, and each line names the tool and what the call is doing: the URL being visited, the path being written, the search being run. By the end of a turn the post reads as a compact trace of what the agent did, and while the turn runs, connected clients watch it update live.
+
+One post rather than a stream is deliberate. A ten-call turn streamed as ten posts would bury one post of substance under ten of machinery, in the same channel where approval prompts live, and noise in the supervision channel degrades the gate.
+
+Two quieter signals round it out. A typing indicator shows while the model is generating (and only then: during tool execution and pending approvals, the status post and the prompt already account for the time). And a 👀 reaction acknowledges a message that queued behind a busy agent.
+
+Every memory write emits a disclosure line in the status post showing what was stored, and an eviction emits a line naming what it displaced.
+
+## The trace
+
+The status post is the summary; `/trace` is the whole record. Invoked on a turn, it returns every tool call with complete arguments and results. The response is ephemeral, visible only to the person who asked, because traces carry file contents and email bodies verbatim, and a channel where everyone can approve is not a channel where everyone needs every payload. Where a trace exceeds what one post can carry, it arrives as an attachment, still ephemeral.
+
+Traces are also the tuning instrument. Reading what agents actually do with their tools is how an operator discovers the grant that is never used, the tool that is too coarse, and the task that consistently burns budget.
+
+## One store, authoritative
+
+Conversation content lives authoritatively in SQLite, not in Mattermost. Context assembly reads only the store; the chat API is never on that path.
+
+The reason is what context actually is: posts interleaved with the agent's own tool calls, tool results, approval decisions, and per-turn metadata, in one order. None of that exists in Mattermost except as rendered text. Kept in two systems, every turn would begin with a merge across different clocks and identifier spaces; kept in one ordered store, assembly is a read.
+
+The store also imposes honesty about gaps. Posts made while the process was down are backfilled on boot, per channel and using each agent's own credentials, so no agent's store ever contains a channel it could not see. Three losses are accepted and documented rather than papered over: editing a post does not correct what an agent already read during uptime, deleting a post does not redact it from context, and an agent added to a channel has no history from before it joined.
+
+## Thinking is not stored
+
+A model's private reasoning is never posted, never included in an approval prompt, never written to the store, and never returned by `/trace`. At most, the framework records how many reasoning tokens a provider billed. What the system supervises is what agents do and say, and the record contains exactly that.
+
+## The command surface
+
+Supervision is operated through slash commands in the channel: `/trace` for the full record, `/queue` and `/triggers` for what is pending, `/forget` and `/reset` for context repair, `/stop`, `/kill`, and `/resume` for intervention, and memory review for pruning what an agent has retained. Repair happens in the channel rather than in a database console so that it stays visible and attributable.

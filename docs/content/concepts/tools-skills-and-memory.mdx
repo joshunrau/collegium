@@ -1,0 +1,36 @@
+---
+title: Tools, Skills, and Memory
+description: 'The capability surface: hand-written tools, honest browsing, admin-authored skills, and disclosed memory.'
+---
+
+## Tools
+
+Every capability an agent has is a hand-written TypeScript function exposed to the model with a schema. There is no dynamic tool creation: the tool set is fixed when the process boots, and each agent holds only the tools its configuration grants.
+
+Every tool declares two things about itself. Its gating variant states whether invocation blocks for human consent: `gated`, `ungated`, or `dynamic` for a tool whose actions differ (mail holds ungated reads beside gated sends and decides per call). Its retryability states whether a transport failure may be retried: reads yes, mutations never, because retrying a mutation that may have landed risks doing it twice. Reads are generally ungated (search, fetch, list, read mail); anything externally visible or irreversible gates.
+
+One rule sits above all of it: authority parameters are never model-supplied. Any argument that determines whose authority an action carries (the from address on outbound mail, credentials for an external service) is fixed in configuration. An agent may ask that mail be sent; it cannot choose who the mail is from.
+
+## Browsing, treated honestly
+
+The browser tool drives a real rendered browser in a session scoped to the turn: navigate, click, fill, each action returning the page as readable text. It can search, submit forms, and sign in where a task calls for it, because a browser that cannot do those things is a tool for reading front pages.
+
+It is ungated, and that makes it the widest ungated surface in the system. We name that plainly rather than hide it: an agent that browses can transmit information on its own authority, and a per-action approval would stall every autonomous step while approving only an entry URL, never the later action that mattered. The compensating controls are structural. Every action is traced live in the status post. Credentials are never disclosed: text typed into a login field is masked in the status post and the trace, and a page snapshot reports that a field holds text but never which text. Scope is enforced rather than requested: only public web addresses are reachable, never local files or the deployment's own network. Sessions are disposable: cookies and logins die with the turn.
+
+Which agents browse at all is the per-agent grant, and an agent whose role does not need the web simply does not have the tool.
+
+## Skills
+
+A skill is a procedure document: Markdown, authored by the operator, stored with the deployment. Each agent's context carries a skill manifest: the names of its assigned skills with one line of description each, with the full body loaded on demand. The manifest is what makes on-demand loading safe. An agent may misjudge when a procedure applies, which is an ordinary error; it can never be unaware that the procedure exists, which would be a structural blind spot.
+
+Agents cannot write skills. Skill authorship is an administrative act, like everything else that shapes an agent's instructions. And where a procedure's step ordering is load-bearing (check the ledger before drafting, log after sending), it does not belong in a skill at all: a procedure in prose is a suggestion, and the model will eventually skip the step that mattered. Encode it as a tool, or as a plugin, where the order is code.
+
+## Memory
+
+Each agent has a private memory: entries with a description and a body. Descriptions are loaded into the agent's context every turn; bodies are fetched on demand. Memory is bounded on every axis: entry count, description length, body length. An over-length write is refused rather than truncated, and a write at the entry cap evicts the oldest entry. Memory is never shared between agents.
+
+Memory writes are the one ungated write in the system. Gating them would park an entire turn on human latency for a triviality: an agent stalled for hours because it wanted to record a phone preference. Memory formation either happens at the moment or does not happen.
+
+The compensating control is disclosure. Every memory write emits a line in the status post showing the description and body it stored, and an eviction emits a line naming what was displaced. This is detection rather than prevention, and we say so: the write has already happened when the line appears. Anyone in the channel can review an agent's memory and prune it.
+
+One property is worth knowing: memory is the single path by which information crosses channels. Context is otherwise strictly channel-scoped, but something learned in one channel appears in the agent's memory descriptions everywhere. That is intentional (a colleague who forgot everything between rooms would be useless), and it is the reason memory gets a disclosure line while ordinary reads do not.

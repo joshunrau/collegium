@@ -1,0 +1,64 @@
+---
+title: Add an Agent
+description: Provision a second agent in a running deployment and let them collaborate.
+---
+
+Goal: a second agent, Theo, in the running Quickstart deployment. At the end, Clara hands research to Theo mid-task, and the deployment matches the picture on the landing page.
+
+Prerequisites: a running deployment (the [Quickstart](/docs/getting-started/quickstart) one works as-is).
+
+## 1. Declare Theo
+
+In `config.json`, add a second entry to `agents`, and give both agents the `handing-work-to-a-peer` skill:
+
+```json
+{
+  "username": "theo",
+  "expertise": "web research and fact-finding",
+  "systemPrompt": "You are Theo, a researcher. Answer with sources.",
+  "model": { "provider": "openrouter", "name": "anthropic/claude-sonnet-5" },
+  "tools": ["browser", "read_memory", "write_memory"],
+  "skills": ["handing-work-to-a-peer"]
+}
+```
+
+Three fields carry the design:
+
+- `username` is the identity. Provisioning creates a Mattermost bot account of this name, and `@theo` is how everyone, humans and agents alike, addresses him.
+- `expertise` is what other agents see. It appears in every peer's roster, and it is how Clara decides that a question about sources belongs to Theo.
+- `tools` is the entire reach. Theo browses and remembers; he cannot write files, run commands, or send mail, because nothing grants it.
+
+## 2. Restart
+
+```sh
+docker compose restart app
+```
+
+Provisioning runs before the app boots and converges Mattermost on the declaration: Theo's bot account and access token are created because they are absent, and everything that already matches is left untouched. Restarting abandons any in-flight turn (agents always boot idle) and the system bot posts one notice naming the downtime window. Queued work survives the restart and drains once channels go idle.
+
+## 3. Verify
+
+Theo appears in the team's member list. Mention him:
+
+> @theo What is the current Node.js LTS version?
+
+A status post appears, shows the browsing, and his answer follows.
+
+## 4. Let them collaborate
+
+Each agent now carries the other in its peer roster: name plus expertise, injected fresh every turn. Give Clara something research-shaped:
+
+> @clara Put together a short comparison of the last two Mattermost ESR releases. Theo can dig up the details.
+
+When Clara's reply mentions `@theo`, her turn ends and his begins; when his report mentions `@clara`, the work returns to her. Every handoff is an ordinary post in the channel, readable by anyone in it.
+
+Two rules keep this legible:
+
+- **One agent per message.** A post mentioning two agents starts nothing; the system bot answers with a mechanical correction. Chains stay chains, never trees.
+- **Delegation is bounded.** A chain of agent-to-agent handoffs stops at a fixed depth with a visible notice asking a person to pick the work up.
+
+## Notes for real deployments
+
+- **Channels.** Topology is declared, never chosen by agents. Per-channel triggering is set in `config.json` (`channels: [{ "handle": ..., "triggerMode": ... }]`): `mention-required` is the default everywhere; `respond-to-all` makes every human post start a turn and admits at most one agent in that channel. DMs behave as respond-to-all inherently.
+- **Mail.** An agent gains mail only with a configured mailbox: one address, fixed in configuration, with the mail tool granted alongside it. The full mailbox shape is declared in `config.schema.json`, which ships with the app.
+- **Shell.** A shell grant is per-agent and each command is approved individually. The agent runs as a dedicated OS user that owns its home directory and nothing else; the container entrypoint provisions that user, and boot refuses to start if it is missing.

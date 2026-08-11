@@ -36,7 +36,7 @@ export default defineConfig({
   output: 'static',
   // there is no page at the docs root; the section starts where a reader would start
   redirects: {
-    '/docs': '/docs/getting-started'
+    '/docs': '/docs/getting-started/introduction'
   },
   server: {
     port: 3000

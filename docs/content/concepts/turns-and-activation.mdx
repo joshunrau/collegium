@@ -1,0 +1,48 @@
+---
+title: Turns and Activation
+description: The turn as the unit of execution, the five activation paths, triggers, folding, and context.
+---
+
+## The turn
+
+The turn is the unit of execution: one activation of one agent in one channel. A turn assembles context, calls the model, executes tools, produces output, and terminates. Everything the framework does (locking, budgeting, tracing, failure handling) happens at the granularity of turns.
+
+Posting is the framework's job, not a tool the model calls. Text the model emits alongside a tool call becomes transient status; text emitted with no tool call is the turn's final output, and posting it ends the turn.
+
+## Five ways a turn starts
+
+Every activation is a Mattermost post. There are exactly five kinds:
+
+1. A human posts in a DM with the agent.
+2. A human posts in a respond-to-all channel.
+3. A human mentions the agent in a channel.
+4. Another agent mentions the agent.
+5. The system bot posts a trigger that mentions the agent.
+
+There is no sixth path. No scheduler reaches an agent directly, no API wakes one behind the scenes, and an agent cannot wake itself. If an agent is working, a post started it, and that post is in the channel.
+
+## Triggering modes
+
+How a channel treats human posts is declared per channel. The default is mention-required: the agent acts only when explicitly addressed. A channel can opt into respond-to-all, where every human post starts a turn; DMs behave that way inherently. A respond-to-all channel can hold at most one agent, because every human post would start a turn for each agent present, producing concurrent turns on the same task. The framework checks this at boot and on every membership change.
+
+## Triggers
+
+External events reach agents through triggers. Deterministic code (a mailbox poll, a webhook endpoint) records the event durably, and the system bot announces it in the target channel with a post that mentions the agent, starting an ordinary turn. The announcement carries the event's content in full; a preview that must be chased into another system would make the channel a notification feed rather than a record.
+
+Announcements are idle-gated: a trigger posts only when its channel has no turn running, no approval pending, and nothing about to start. A busy channel simply holds the trigger until it next goes idle. The agent marks the trigger handled through a tool, and where the source owns part of that resolution (mail marks the message read), completion runs there first. "Nothing to report" is decided by the deterministic code, never by waking an agent to consider it: there is no path where an agent thinks and stays silent.
+
+## Fragments fold into one turn
+
+People type in fragments, seconds apart. A short window before each turn absorbs further messages from the same person, so a mention followed by the actual request a beat later becomes one turn rather than a turn and a stranded message. A fragment arriving after the turn has started is absorbed too, while the turn is still on its first model call: the turn discards the completion that only saw half the request and re-reads the channel. Absorption ends at the first action, and only unaddressed posts are absorbed; a post that names the agent again is new work and queues as such.
+
+## One agent per mention
+
+A post mentioning two or more agents present in the channel starts no turn; the system bot answers with a mechanical correction to address one agent per message. Two agents given the same task produce two turns and two competing approval prompts for overlapping actions, and picking a winner arbitrarily would answer a question the post never decided.
+
+The rule matters beyond tidiness: it pins delegation width at one. An agent's turn can hand work to at most one colleague, so a chain of handoffs stays a chain. Combined with the depth limit on agent-to-agent chains, that bounds the total work a single request can fan out into. Width times depth is the arithmetic of runaway delegation, and the framework fixes both factors.
+
+## The context window
+
+Each turn assembles its context fresh: the agent's system prompt, its skill manifest, its memory descriptions, its peer roster, its tool definitions, and the channel window: recent posts from the current channel interleaved with the traces of this agent's own past turns there, walked backwards until a token budget is exhausted. An agent never sees a peer's trace; colleagues are read through their posts alone.
+
+Context is pure recency. There is no threading, so no structural marker separates one piece of work from the next; old work simply falls out of the window as the channel moves on. When a hard boundary is wanted, `/reset` marks an episode boundary that context never reaches past, giving any human in the channel a way to say: from here, fresh.
