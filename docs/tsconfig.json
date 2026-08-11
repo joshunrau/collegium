@@ -13,6 +13,6 @@
     "target": "ESNext",
     "types": ["node"]
   },
-  "include": [".astro/types.d.ts", "**/*"],
+  "include": [".astro/types.d.ts", "src/**/*", "astro.config.js"],
   "exclude": ["dist"]
 }

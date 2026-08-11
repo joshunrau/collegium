@@ -1,5 +1,3 @@
-// @ts-check
-
 import { unified } from '@astrojs/markdown-remark';
 import mdx from '@astrojs/mdx';
 import react from '@astrojs/react';
