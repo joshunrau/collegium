@@ -16,8 +16,8 @@ import { CONFIG_DEFAULTS } from './config.constants.ts';
 
 export type $ModelRef = z.infer<typeof $ModelRef>;
 export const $ModelRef = z.discriminatedUnion('provider', [
-  z.object({ name: z.enum(DEEPSEEK_MODELS), provider: z.literal('deepseek') }),
-  z.object({ name: z.enum(OPENROUTER_MODELS), provider: z.literal('openrouter') })
+  z.strictObject({ name: z.enum(DEEPSEEK_MODELS), provider: z.literal('deepseek') }),
+  z.strictObject({ name: z.enum(OPENROUTER_MODELS), provider: z.literal('openrouter') })
 ]);
 
 /**
@@ -41,7 +41,7 @@ export type $TriggerMode = z.infer<typeof $TriggerMode>;
 export const $TriggerMode = z.enum(['mention-required', 'respond-to-all']);
 
 export type $ChannelDefinition = z.infer<typeof $ChannelDefinition>;
-export const $ChannelDefinition = z.object({
+export const $ChannelDefinition = z.strictObject({
   handle: $ChannelHandle.describe("The channel's name in its URL, resolved against the configured team at boot"),
   triggerMode: $TriggerMode.describe(
     'mention-required: the agent acts only when explicitly @-mentioned. respond-to-all: every human post starts a turn, and the channel may hold at most one agent (§3.10).'
@@ -49,7 +49,7 @@ export const $ChannelDefinition = z.object({
 });
 
 export type $PluginRef = z.infer<typeof $PluginRef>;
-export const $PluginRef = z.object({
+export const $PluginRef = z.strictObject({
   name: z
     .string()
     .regex(PLUGIN_NAME_PATTERN)
@@ -61,7 +61,7 @@ export const $PluginRef = z.object({
 });
 
 export type $MemoryCaps = z.infer<typeof $MemoryCaps>;
-export const $MemoryCaps = z.object({
+export const $MemoryCaps = z.strictObject({
   maxBodyChars: z
     .number()
     .int()
@@ -85,7 +85,7 @@ export const $MemoryCaps = z.object({
 });
 
 export type $MailHost = z.infer<typeof $MailHost>;
-export const $MailHost = z.object({
+export const $MailHost = z.strictObject({
   host: z.string().min(1).describe('Hostname of the endpoint'),
   port: z.number().int().min(1).max(65535).describe('Port of the endpoint'),
   secure: z
@@ -96,7 +96,7 @@ export const $MailHost = z.object({
 });
 
 export type $ExchangeMailProvider = z.infer<typeof $ExchangeMailProvider>;
-export const $ExchangeMailProvider = z.object({
+export const $ExchangeMailProvider = z.strictObject({
   address: z
     .email()
     .describe(
@@ -117,7 +117,7 @@ export const $ExchangeMailProvider = z.object({
 });
 
 export type $ImapMailProvider = z.infer<typeof $ImapMailProvider>;
-export const $ImapMailProvider = z.object({
+export const $ImapMailProvider = z.strictObject({
   address: z
     .email()
     .describe(
@@ -131,7 +131,7 @@ export const $ImapMailProvider = z.object({
 });
 
 export type $MailboxDefinition = z.infer<typeof $MailboxDefinition>;
-export const $MailboxDefinition = z.object({
+export const $MailboxDefinition = z.strictObject({
   announcementChannel: $ChannelHandle.describe(
     'Channel where arriving mail is announced, by handle. Must not be a DM, and the agent must be a member — both refused at boot rather than discovered at runtime.'
   ),
@@ -151,7 +151,7 @@ export const $MailboxDefinition = z.object({
 });
 
 export type $AgentDefinition = z.infer<typeof $AgentDefinition>;
-export const $AgentDefinition = z.object({
+export const $AgentDefinition = z.strictObject({
   contextBudgetTokens: z
     .number()
     .int()
@@ -193,7 +193,7 @@ export const $AgentDefinition = z.object({
 });
 
 export type $InferenceRetryPolicy = z.infer<typeof $InferenceRetryPolicy>;
-export const $InferenceRetryPolicy = z.object({
+export const $InferenceRetryPolicy = z.strictObject({
   backoffMs: z
     .number()
     .int()
@@ -209,7 +209,7 @@ export const $InferenceRetryPolicy = z.object({
 });
 
 export type $DebouncePolicy = z.infer<typeof $DebouncePolicy>;
-export const $DebouncePolicy = z.object({
+export const $DebouncePolicy = z.strictObject({
   ceilingMs: z
     .number()
     .int()
@@ -227,7 +227,7 @@ export const $DebouncePolicy = z.object({
 });
 
 export type $AppConfig = z.infer<typeof $AppConfig>;
-export const $AppConfig = z.object({
+export const $AppConfig = z.strictObject({
   contextBudgetTokens: z
     .number()
     .int()
@@ -263,7 +263,7 @@ export const $AppConfig = z.object({
 });
 
 export type $MattermostConfig = z.infer<typeof $MattermostConfig>;
-export const $MattermostConfig = z.object({
+export const $MattermostConfig = z.strictObject({
   // the default holds without the operator provisioning anything: town-square is created with every
   // team, every member is added to it automatically, and it can be neither left nor archived
   mainChannel: $ChannelHandle
@@ -280,7 +280,7 @@ export const $MattermostConfig = z.object({
 
 export type $Config = z.infer<typeof $Config>;
 export const $Config = z
-  .object({
+  .strictObject({
     $schema: z.string().optional(),
     agents: z
       .array($AgentDefinition)
@@ -294,9 +294,9 @@ export const $Config = z
       .default([])
       .describe('Per-channel triggering mode. Any channel not listed here is mention-required.'),
     mattermost: $MattermostConfig.prefault({}),
-    models: z.object({
+    models: z.strictObject({
       deepseek: z
-        .object({
+        .strictObject({
           apiKey: z.string().min(1).describe('DeepSeek API key (https://platform.deepseek.com/api_keys)'),
           baseUrl: z
             .url()
@@ -305,7 +305,7 @@ export const $Config = z
         })
         .optional(),
       openrouter: z
-        .object({
+        .strictObject({
           apiKey: z.string().min(1).describe('OpenRouter API key (https://openrouter.ai/keys)'),
           baseUrl: z
             .url()

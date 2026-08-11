@@ -65,7 +65,8 @@
                         "description": "Entra tenant id the mailbox lives in"
                       }
                     },
-                    "required": ["address", "clientId", "clientSecret", "kind", "tenantId"]
+                    "required": ["address", "clientId", "clientSecret", "kind", "tenantId"],
+                    "additionalProperties": false
                   },
                   {
                     "type": "object",
@@ -92,6 +93,7 @@
                           }
                         },
                         "required": ["host", "port", "secure"],
+                        "additionalProperties": false,
                         "description": "The IMAP endpoint mail is read from"
                       },
                       "kind": { "type": "string", "const": "imap" },
@@ -112,6 +114,7 @@
                           }
                         },
                         "required": ["host", "port", "secure"],
+                        "additionalProperties": false,
                         "description": "The SMTP endpoint mail is sent through"
                       },
                       "username": {
@@ -120,13 +123,15 @@
                         "description": "Login username for both endpoints, where it differs from the address"
                       }
                     },
-                    "required": ["address", "imap", "kind", "password", "smtp", "username"]
+                    "required": ["address", "imap", "kind", "password", "smtp", "username"],
+                    "additionalProperties": false
                   }
                 ],
                 "description": "Which kind of provider serves this mailbox, with its credentials: Exchange Online, or generic IMAP/SMTP."
               }
             },
-            "required": ["announcementChannel", "provider"]
+            "required": ["announcementChannel", "provider"],
+            "additionalProperties": false
           },
           "memoryCaps": {
             "description": "Per-field overrides of app.memoryCaps for this agent. Unnamed fields keep the app-wide value.",
@@ -153,7 +158,8 @@
                 "exclusiveMinimum": 0,
                 "maximum": 9007199254740991
               }
-            }
+            },
+            "additionalProperties": false
           },
           "model": {
             "oneOf": [
@@ -163,7 +169,8 @@
                   "name": { "type": "string", "enum": ["deepseek-v4-flash", "deepseek-v4-pro"] },
                   "provider": { "type": "string", "const": "deepseek" }
                 },
-                "required": ["name", "provider"]
+                "required": ["name", "provider"],
+                "additionalProperties": false
               },
               {
                 "type": "object",
@@ -174,7 +181,8 @@
                   },
                   "provider": { "type": "string", "const": "openrouter" }
                 },
-                "required": ["name", "provider"]
+                "required": ["name", "provider"],
+                "additionalProperties": false
               }
             ],
             "description": "LLM model and provider for this agent"
@@ -221,7 +229,8 @@
             "description": "The agent's unique identity (a lowercase slug). Provisioning creates the Mattermost bot account of this name if it is absent."
           }
         },
-        "required": ["expertise", "model", "systemPrompt", "username"]
+        "required": ["expertise", "model", "systemPrompt", "username"],
+        "additionalProperties": false
       }
     },
     "app": {
@@ -254,7 +263,8 @@
               "exclusiveMinimum": 0,
               "maximum": 9007199254740991
             }
-          }
+          },
+          "additionalProperties": false
         },
         "enableLifecycleNotifications": { "default": true, "type": "boolean" },
         "inferenceRetry": {
@@ -276,7 +286,8 @@
               "exclusiveMinimum": 0,
               "maximum": 9007199254740991
             }
-          }
+          },
+          "additionalProperties": false
         },
         "inferenceTimeoutMs": {
           "default": 120000,
@@ -317,7 +328,8 @@
               "exclusiveMinimum": 0,
               "maximum": 9007199254740991
             }
-          }
+          },
+          "additionalProperties": false
         },
         "timezone": { "default": "UTC", "description": "The timezone to use when displaying dates", "type": "string" },
         "turnCeilingPerHour": {
@@ -327,7 +339,8 @@
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991
         }
-      }
+      },
+      "additionalProperties": false
     },
     "channels": {
       "default": [],
@@ -348,7 +361,8 @@
             "description": "mention-required: the agent acts only when explicitly @-mentioned. respond-to-all: every human post starts a turn, and the channel may hold at most one agent (§3.10)."
           }
         },
-        "required": ["handle", "triggerMode"]
+        "required": ["handle", "triggerMode"],
+        "additionalProperties": false
       }
     },
     "mattermost": {
@@ -369,7 +383,8 @@
           "maxLength": 22,
           "pattern": "^[a-z][a-z0-9-]*$"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "models": {
       "type": "object",
@@ -389,7 +404,8 @@
               "format": "uri"
             }
           },
-          "required": ["apiKey"]
+          "required": ["apiKey"],
+          "additionalProperties": false
         },
         "openrouter": {
           "type": "object",
@@ -406,9 +422,11 @@
               "format": "uri"
             }
           },
-          "required": ["apiKey"]
+          "required": ["apiKey"],
+          "additionalProperties": false
         }
-      }
+      },
+      "additionalProperties": false
     },
     "plugins": {
       "type": "array",
@@ -427,9 +445,11 @@
           },
           "settings": { "description": "This plugin's settings, validated against the schema the plugin declares" }
         },
-        "required": ["name", "path"]
+        "required": ["name", "path"],
+        "additionalProperties": false
       }
     }
   },
-  "required": ["agents", "models"]
+  "required": ["agents", "models"],
+  "additionalProperties": false
 }
