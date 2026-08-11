@@ -19,6 +19,10 @@ import { SHELL_TOOL_NAME } from '@/shell/shell.constants.ts';
 import { deriveShellOsUser } from '@/shell/shell.utils.ts';
 
 const AGENT_GROUP = 'collegium-agents';
+// the whole tree the image installs — the app package, the workspace packages it imports, and the
+// node_modules both resolve through. It tracks the Dockerfile, and a move that leaves this behind
+// confines a directory the app no longer lives in.
+const APP_ROOT = '/srv';
 const APP_USER = 'app';
 const HOME_DIR = '/home';
 const STAGED_CONFIG = '/run/collegium/config.json';
@@ -133,10 +137,10 @@ try {
     fs.writeFileSync(SUDOERS_FILE, `${APP_USER} ALL=(%${AGENT_GROUP}) NOPASSWD: ALL\n`, { mode: 0o440 });
   }
 
-  // §6.1: denying traversal of /app is the whole of the framework's confinement — nothing beneath it
-  // can be reached without the execute bit here
-  fs.chownSync('/app', 0, APP_GID);
-  fs.chmodSync('/app', 0o750);
+  // §6.1: denying traversal of the app root is the whole of the framework's confinement — nothing
+  // beneath it can be reached without the execute bit here
+  fs.chownSync(APP_ROOT, 0, APP_GID);
+  fs.chmodSync(APP_ROOT, 0o750);
 
   process.env.HOME = path.join(HOME_DIR, APP_USER);
   // root's supplementary groups survive setgid and setuid; the app belongs to nothing but its own
