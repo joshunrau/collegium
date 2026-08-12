@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/joshunrau/collegium">
-    <img src=".github/assets/logo.png" alt="Logo" width="100" >
+    <img src="https://raw.githubusercontent.com/joshunrau/collegium/refs/heads/main/.github/assets/logo.svg" alt="Logo" width="100" >
   </a>
   <h3 align="center">Collegium</h3>
   <p align="center">
