@@ -15,6 +15,11 @@ services:
       - APP_PUBLIC_URL=http://app:${APP_PORT:?}
       - CONFIG_PATH=/app/config.json
       - DATABASE_URL=file:///data/prod.db
+      # already delivered by env_file, restated so `:?` refuses an empty credential before anything starts
+      - MATTERMOST_ADMIN_EMAIL=${MATTERMOST_ADMIN_EMAIL:?}
+      - MATTERMOST_ADMIN_PASSWORD=${MATTERMOST_ADMIN_PASSWORD:?}
+      - MATTERMOST_ADMIN_USERNAME=${MATTERMOST_ADMIN_USERNAME:?}
+      - MATTERMOST_TEAM=${MATTERMOST_TEAM:?}
       - MATTERMOST_URL=http://mattermost:8065
       - WORKSPACE_ROOT=/workspaces
     image: ghcr.io/joshunrau/collegium:latest
