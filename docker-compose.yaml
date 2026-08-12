@@ -28,7 +28,7 @@ services:
     ports:
       # §6.4 — the decision, command, and trigger endpoints carry no authentication
       - '127.0.0.1:${APP_PORT:?}:${APP_PORT:?}'
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     stop_grace_period: 15s
     volumes:
