@@ -22,7 +22,7 @@ export class CredentialsService {
       select: { token: true, userId: true },
       where: { username: params.username }
     });
-    if (held && held.userId === params.userId) {
+    if (held?.userId === params.userId) {
       return held.token;
     }
     const token = await params.mint();

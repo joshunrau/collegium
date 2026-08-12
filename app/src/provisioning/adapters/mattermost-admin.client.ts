@@ -41,6 +41,14 @@ export class MattermostAdminClient {
   }
 
   /**
+   * Client4 types each create call over the fully hydrated resource, though the wire accepts just
+   * the fields a creation states. The one widening the vendor forces lives here, so no call site casts.
+   */
+  private static asHydrated<TResource>(creationFields: Partial<TResource>): TResource {
+    return creationFields as TResource;
+  }
+
+  /**
    * Logs the administrator in, creating the account when the server has none. Mattermost exempts the
    * first account of a fresh install from `EnableOpenServer` and grants it system admin, which is the
    * whole of how a bundled server bootstraps itself — so a failure here on a server that already has
@@ -150,14 +158,6 @@ export class MattermostAdminClient {
     throw new Error(`Mattermost did not answer its ping after ${params.attempts} attempts`);
   }
 
-  /**
-   * Client4 types each create call over the fully hydrated resource, though the wire accepts just
-   * the fields a creation states. The one widening the vendor forces lives here, so no call site casts.
-   */
-  private static asHydrated<TResource>(creationFields: Partial<TResource>): TResource {
-    return creationFields as TResource;
-  }
-
   /** absent is a 404 here and nowhere else: any other refusal is a real failure and must surface */
   private async absentOnNotFound<TValue>(operation: () => Promise<TValue>): Promise<TValue | undefined> {
     try {
@@ -170,14 +170,6 @@ export class MattermostAdminClient {
     }
   }
 
-  private async ensureIdentified(operations: {
-    create: () => Promise<unknown>;
-    lookup: () => Promise<unknown>;
-  }): Promise<string> {
-    const existing = await this.absentOnNotFound(operations.lookup);
-    return $MattermostIdentified.parse(existing ?? (await operations.create())).id;
-  }
-
   private async createBot(username: string): Promise<string> {
     const created = await this.sdk.createBot({
       description: BOT_DESCRIPTION,
@@ -185,6 +177,14 @@ export class MattermostAdminClient {
       username
     });
     return $MattermostBot.parse(created).user_id;
+  }
+
+  private async ensureIdentified(operations: {
+    create: () => Promise<unknown>;
+    lookup: () => Promise<unknown>;
+  }): Promise<string> {
+    const existing = await this.absentOnNotFound(operations.lookup);
+    return $MattermostIdentified.parse(existing ?? (await operations.create())).id;
   }
 
   private async findUser(username: string): Promise<$MattermostUser | undefined> {
