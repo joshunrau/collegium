@@ -94,17 +94,18 @@ export class MattermostAdminClient {
   }
 
   async ensureChannel(params: { handle: string; teamId: string }): Promise<string> {
-    const existing = await this.absentOnNotFound(() => this.sdk.getChannelByName(params.teamId, params.handle));
-    if (existing) {
-      return $MattermostIdentified.parse(existing).id;
-    }
-    const created = await this.sdk.createChannel({
-      display_name: params.handle,
-      name: params.handle,
-      team_id: params.teamId,
-      type: OPEN
+    return this.ensureIdentified({
+      create: () =>
+        this.sdk
+          .createChannel({ display_name: params.handle, name: params.handle, team_id: params.teamId, type: OPEN })
+          .catch((error: unknown) => {
+            throw new Error(
+              `could not create channel "${params.handle}" — an archived channel may already hold the name, which the lookup does not see`,
+              { cause: error }
+            );
+          }),
+      lookup: () => this.sdk.getChannelByName(params.teamId, params.handle)
     });
-    return $MattermostIdentified.parse(created).id;
   }
 
   async ensureChannelMember(params: { channelId: string; userId: string }): Promise<void> {
@@ -112,16 +113,15 @@ export class MattermostAdminClient {
   }
 
   async ensureTeam(handle: string): Promise<string> {
-    const existing = await this.absentOnNotFound(() => this.sdk.getTeamByName(handle));
-    if (existing) {
-      return $MattermostIdentified.parse(existing).id;
-    }
-    const created = await this.sdk.createTeam({
-      display_name: handle,
-      name: handle,
-      type: OPEN
-    } as Parameters<Client4['createTeam']>[0]);
-    return $MattermostIdentified.parse(created).id;
+    return this.ensureIdentified({
+      create: () =>
+        this.sdk.createTeam({
+          display_name: handle,
+          name: handle,
+          type: OPEN
+        } as Parameters<Client4['createTeam']>[0]),
+      lookup: () => this.sdk.getTeamByName(handle)
+    });
   }
 
   /** §8.4 — the system bot reconciles the team's slash commands, which takes manage_slash_commands */
@@ -159,6 +159,14 @@ export class MattermostAdminClient {
       }
       throw error;
     }
+  }
+
+  private async ensureIdentified(operations: {
+    create: () => Promise<unknown>;
+    lookup: () => Promise<unknown>;
+  }): Promise<string> {
+    const existing = await this.absentOnNotFound(operations.lookup);
+    return $MattermostIdentified.parse(existing ?? (await operations.create())).id;
   }
 
   private async createBot(username: string): Promise<string> {
