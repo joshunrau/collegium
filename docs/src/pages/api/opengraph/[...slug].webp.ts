@@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
 import { generate as DefaultImage } from 'fumadocs-ui/og/takumi';
 import { ImageResponse } from 'takumi-js/response';
 
-import { source } from '@/lib/source';
+import { source } from '@/content.source';
 
 export function getStaticPaths() {
   return source.getPages().map((page) => ({
