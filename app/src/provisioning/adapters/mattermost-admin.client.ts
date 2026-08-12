@@ -14,6 +14,9 @@ const NOT_FOUND = 404;
 
 const SYSTEM_ADMIN_ROLE = 'system_admin';
 
+type HydratedTeam = Parameters<Client4['createTeam']>[0];
+type HydratedUser = Parameters<Client4['createUser']>[0];
+
 // the wire value for an open channel, and for a team anyone on the server may join. Stated here
 // rather than borrowed from the chat adapter: each adapter owns its own mapping onto the vendor.
 const OPEN = 'O';
@@ -56,11 +59,11 @@ export class MattermostAdminClient {
     if (!loggedIn) {
       await this.sdk
         .createUser(
-          {
+          MattermostAdminClient.asHydrated<HydratedUser>({
             email: credentials.email,
             password: credentials.password,
             username: credentials.username
-          } as Parameters<Client4['createUser']>[0],
+          }),
           '',
           ''
         )
@@ -115,11 +118,9 @@ export class MattermostAdminClient {
   async ensureTeam(handle: string): Promise<string> {
     return this.ensureIdentified({
       create: () =>
-        this.sdk.createTeam({
-          display_name: handle,
-          name: handle,
-          type: OPEN
-        } as Parameters<Client4['createTeam']>[0]),
+        this.sdk.createTeam(
+          MattermostAdminClient.asHydrated<HydratedTeam>({ display_name: handle, name: handle, type: OPEN })
+        ),
       lookup: () => this.sdk.getTeamByName(handle)
     });
   }
@@ -147,6 +148,14 @@ export class MattermostAdminClient {
       await new Promise((resolve) => setTimeout(resolve, params.intervalMs));
     }
     throw new Error(`Mattermost did not answer its ping after ${params.attempts} attempts`);
+  }
+
+  /**
+   * Client4 types each create call over the fully hydrated resource, though the wire accepts just
+   * the fields a creation states. The one widening the vendor forces lives here, so no call site casts.
+   */
+  private static asHydrated<TResource>(creationFields: Partial<TResource>): TResource {
+    return creationFields as TResource;
   }
 
   /** absent is a 404 here and nowhere else: any other refusal is a real failure and must surface */
