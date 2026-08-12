@@ -12,17 +12,26 @@ import type { Model } from '@/prisma/prisma.types.ts';
 export class CredentialsService {
   constructor(@InjectModel('MattermostCredential') private readonly credentials: Model<'MattermostCredential'>) {}
 
-  /** the token an account already has, or one minted now and kept — minting is never repeated */
-  async ensure(params: { mint: () => Promise<{ token: string; userId: string }>; username: string }): Promise<string> {
-    const held = await this.find(params.username);
-    if (held !== undefined) {
-      return held;
-    }
-    const minted = await params.mint();
-    await this.credentials.create({
-      data: { token: minted.token, userId: minted.userId, username: params.username }
+  /**
+   * The token an account already has, or one minted now and kept. A held token is re-minted only
+   * when its userId no longer matches the account provisioning just ensured — a rebuilt Mattermost
+   * recreates the bots under new ids, and the old token authenticates nothing.
+   */
+  async ensure(params: { mint: () => Promise<string>; userId: string; username: string }): Promise<string> {
+    const held = await this.credentials.findUnique({
+      select: { token: true, userId: true },
+      where: { username: params.username }
     });
-    return minted.token;
+    if (held && held.userId === params.userId) {
+      return held.token;
+    }
+    const token = await params.mint();
+    await this.credentials.upsert({
+      create: { token, userId: params.userId, username: params.username },
+      update: { token, userId: params.userId },
+      where: { username: params.username }
+    });
+    return token;
   }
 
   /** the token for an account, or undefined where provisioning has not reached it yet */

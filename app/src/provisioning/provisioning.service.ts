@@ -70,14 +70,15 @@ export class ProvisioningService {
     }
   }
 
-  /** the account, its team membership, and the one token that will ever be revealed for it */
+  /** the account, its team membership, and the token bound to it */
   private async provisionBot(params: { teamId: string; username: string }): Promise<string> {
     const userId = await this.adminClient.ensureBot(params);
     await this.credentialsService.ensure({
-      mint: async () => {
+      mint: () => {
         this.loggingService.log(`minting an access token for "${params.username}"`);
-        return { token: await this.adminClient.mintAccessToken(userId), userId };
+        return this.adminClient.mintAccessToken(userId);
       },
+      userId,
       username: params.username
     });
     return userId;

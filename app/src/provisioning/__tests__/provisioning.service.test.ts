@@ -39,7 +39,7 @@ describe('ProvisioningService', () => {
     );
     adminClient.mintAccessToken.mockResolvedValue('minted');
     credentialsService = MockFactory.createMock(CredentialsService);
-    credentialsService.ensure.mockImplementation(async ({ mint }) => (await mint()).token);
+    credentialsService.ensure.mockImplementation(({ mint }) => mint());
 
     const moduleRef = await Test.createTestingModule({
       providers: [
