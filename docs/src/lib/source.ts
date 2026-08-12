@@ -124,8 +124,8 @@ const source = loader({
   source: await createSource()
 });
 
-function getPageImageUrl(page: (typeof source)['$inferPage']) {
-  return '/' + ['og', 'docs', ...page.slugs, 'image.webp'].join('/');
+function getPageImageUrl(slugs: string[]) {
+  return `/api/opengraph/${slugs.join('/')}.webp`;
 }
 
 function getStructuredData(entry: DocEntry): StructuredData {
