@@ -1,4 +1,7 @@
 <div align="center">
+  <a href="https://github.com/joshunrau/collegium">
+    <img src=".github/assets/logo.png" alt="Logo" width="100" >
+  </a>
   <h3 align="center">Collegium</h3>
   <p align="center">
     The agent framework for the work you can't git revert
