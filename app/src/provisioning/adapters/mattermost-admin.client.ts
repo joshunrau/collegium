@@ -1,6 +1,11 @@
 import { Client4, ClientError } from '@mattermost/client';
 
-import { $MattermostAccessToken, $MattermostBot, $MattermostIdentified } from './mattermost-admin.schemas.ts';
+import {
+  $MattermostAccessToken,
+  $MattermostBot,
+  $MattermostIdentified,
+  $MattermostUser
+} from './mattermost-admin.schemas.ts';
 
 import type { AdminCredentials } from '../provisioning.types.ts';
 
@@ -68,8 +73,13 @@ export class MattermostAdminClient {
   }
 
   async ensureBot(params: { teamId: string; username: string }): Promise<string> {
-    const existing = await this.findUserId(params.username);
-    const userId = existing ?? (await this.createBot(params.username));
+    const existing = await this.findUser(params.username);
+    if (existing && !existing.is_bot) {
+      throw new Error(
+        `a non-bot account already holds "${params.username}" — provisioning refuses to adopt it, because the framework would then post as that user`
+      );
+    }
+    const userId = existing?.id ?? (await this.createBot(params.username));
     // repeat membership blindly: Mattermost answers an already-member add with success
     await this.sdk.addToTeam(params.teamId, userId);
     return userId;
@@ -152,8 +162,8 @@ export class MattermostAdminClient {
     return $MattermostBot.parse(created).user_id;
   }
 
-  private async findUserId(username: string): Promise<string | undefined> {
+  private async findUser(username: string): Promise<$MattermostUser | undefined> {
     const existing = await this.absentOnNotFound(() => this.sdk.getUserByUsername(username));
-    return existing && $MattermostIdentified.parse(existing).id;
+    return existing && $MattermostUser.parse(existing);
   }
 }
