@@ -7,12 +7,15 @@ import { z } from 'zod';
 
 import { CONTENT_DIR } from './content.constants.ts';
 
+const $Frontmatter = z.object({
+  description: z.string(),
+  disabled: z.boolean().default(false),
+  title: z.string()
+});
+
 const docs = defineCollection({
   loader: glob({ base: `./${CONTENT_DIR}`, pattern: '**/*.{md,mdx}' }),
-  schema: z.object({
-    description: z.string(),
-    title: z.string()
-  })
+  schema: $Frontmatter
 });
 
 const specPath = fileURLToPath(new URL('../../SPEC.md', import.meta.url));
@@ -52,10 +55,7 @@ const spec = defineCollection({
     },
     name: 'spec'
   },
-  schema: z.object({
-    description: z.string(),
-    title: z.string()
-  })
+  schema: $Frontmatter
 });
 
 export const collections = {

@@ -1,6 +1,7 @@
 ---
 title: Write a Plugin
 description: 'Ship business logic as deterministic code: storage, an ungated read, a gated write, and settings.'
+disabled: true
 ---
 
 Key business logic should be deterministic code, not prompt text. A procedure in a prompt is a suggestion the model will eventually skip; a plugin is TypeScript the framework runs exactly as written, and it will not change under the operator. This guide builds `contacts`: a small address book agents can read freely and update only with approval.
