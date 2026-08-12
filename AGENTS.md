@@ -71,6 +71,7 @@ app/src/
   config/         config.json and env perimeters
   conversations/  the post store, the channel window, episodes, forget, backfill
   core/           shared schema/type primitives
+  credentials/    the Mattermost tokens provisioning minted, read by the app and written by nothing else
   formatting/     display formatting: the shared date formatter (fixed locale, operator timezone)
   halt/           the §7.4 circuit breaker: hourly turn ceiling and the global halt
   health/         liveness
@@ -81,6 +82,7 @@ app/src/
   notifications/  system-bot output — every string deterministic (§3.2)
   plugins/        boot-time plugin loading: entry resolution, settings validation, scoped storage, the contributions registry (§3.14)
   prisma/         the typed store client
+  provisioning/   the admin seam: reconciles Mattermost onto what config.json declares, before the app boots
   queue/          the per (agent, channel) pending pointer
   runtime/        boot orchestration, shutdown, crash handling
   shell/          the §A2 confinement seam: per-agent OS user derivation, sudo-scoped execution, boot probe

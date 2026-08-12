@@ -7,12 +7,12 @@ import { z } from 'zod';
 
 import type { ToolName } from '@/tools/tools.types.ts';
 
+import { toConfigJsonSchema } from '../../../scripts/schema.utils.ts';
 import { $AgentDefinition, $Config, $MailboxDefinition } from '../config.schemas.ts';
 
 import type { Config } from '../config.schemas.ts';
 
 const definition = (tools: $AgentDefinition['tools']): $AgentDefinition => ({
-  botToken: 'token_1',
   expertise: 'programming',
   model: {
     name: 'deepseek-v4-flash',
@@ -26,12 +26,12 @@ const definition = (tools: $AgentDefinition['tools']): $AgentDefinition => ({
 
 const config: PartialDeep<Config> = {
   agents: [definition([])],
-  mattermost: { mainChannelId: 'channel_1', systemBotToken: 'token_2', url: 'http://localhost:8065' },
+  mattermost: { mainChannel: 'main', systemBotUsername: 'orchestrator' },
   models: { deepseek: { apiKey: 'key_1' } }
 };
 
 const exchangeMailbox = (address: string, clientId: string): z.input<typeof $MailboxDefinition> => ({
-  announcementChannelId: 'channel_2',
+  announcementChannel: 'channel-2',
   provider: {
     address,
     clientId,
@@ -107,7 +107,7 @@ describe('$Config', () => {
   });
   it('should accept an IMAP/SMTP mailbox', () => {
     const mailbox: z.input<typeof $MailboxDefinition> = {
-      announcementChannelId: 'channel_2',
+      announcementChannel: 'channel-2',
       provider: {
         address: 'tess@example.org',
         imap: { host: 'imap.example.org', port: 993, secure: true },
@@ -165,6 +165,6 @@ describe('config.schema.json', () => {
   it('should match the schema generated from $Config (run `pnpm build:schema` if stale)', () => {
     const checkedInPath = path.resolve(import.meta.dirname, '../../../config.schema.json');
     const checkedIn: unknown = JSON.parse(fs.readFileSync(checkedInPath, 'utf-8'));
-    expect(checkedIn).toStrictEqual(z.toJSONSchema($Config, { target: 'draft-7' }));
+    expect(checkedIn).toStrictEqual(toConfigJsonSchema($Config));
   });
 });

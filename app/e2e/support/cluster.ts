@@ -28,7 +28,7 @@ const DOCKER_HOST_ALIAS = 'host.docker.internal';
 const LOCAL_MODE_SOCKET = '/var/tmp/mattermost_local.socket';
 
 const COMPOSE_FILE = path.resolve(import.meta.dirname, '../compose.yaml');
-const IMAGE_CONTEXT = path.resolve(import.meta.dirname, '../mattermost');
+const IMAGE_CONTEXT = path.resolve(import.meta.dirname, '../../../docker/mattermost');
 
 const MATTERMOST_PORT = Number(process.env.E2E_MATTERMOST_PORT ?? 8065);
 

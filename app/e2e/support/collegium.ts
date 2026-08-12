@@ -54,14 +54,19 @@ type CollegiumConfigOptions = {
   agents: ReadonlyMap<string, AgentBot>;
   channels: ReadonlyMap<string, WorkspaceChannel>;
   inference: { apiKey: string; baseUrl: string };
-  mainChannelId: string;
-  mattermostUrl: string;
+  mainChannel: string;
   scenario: Scenario;
-  systemBotToken: string;
+  systemBotUsername: string;
 };
 
 type CollegiumProcessOptions = {
   config: Config;
+  /** what the workspace minted: the app reads its tokens from the store provisioning writes */
+  credentials: readonly AgentBot[];
+  mattermost: {
+    teamName: string;
+    url: string;
+  };
   port: number;
   /** Mattermost runs in a container and reaches the app on the host only by this address */
   publicHost: string;
@@ -90,10 +95,9 @@ function buildCollegiumConfig({
   agents,
   channels,
   inference,
-  mainChannelId,
-  mattermostUrl,
+  mainChannel,
   scenario,
-  systemBotToken
+  systemBotUsername
 }: CollegiumConfigOptions): Config {
   return {
     agents: scenario.agents.map((agent) => {
@@ -128,16 +132,19 @@ function buildCollegiumConfig({
       if (!channel.triggerMode) {
         return [];
       }
+      // config names channels by handle, and a DM has none to name — it is respond-to-all by type (§3.10)
+      if (channel.type === 'direct') {
+        throw new Error(`direct channel "${channel.name}" cannot declare a trigger mode`);
+      }
       const provisioned = channels.get(channel.name);
       if (!provisioned) {
         throw new Error(`channel "${channel.name}" has no provisioned Mattermost channel`);
       }
-      return [{ id: provisioned.id, triggerMode: channel.triggerMode }];
+      return [{ handle: provisioned.name, triggerMode: channel.triggerMode }];
     }),
     mattermost: {
-      mainChannelId,
-      systemBotToken,
-      url: mattermostUrl
+      mainChannel,
+      systemBotUsername
     },
     models: {
       deepseek: {
@@ -167,8 +174,10 @@ class CollegiumProcess {
   private child: ChildProcessWithoutNullStreams | undefined;
   private readonly config: Config;
   private readonly configPath: string;
+  private readonly credentials: readonly AgentBot[];
   private readonly databasePath: string;
   private readonly databaseUrl: string;
+  private readonly mattermost: { teamName: string; url: string };
   private readonly port: number;
   private readonly publicUrl: string;
   private stderr = '';
@@ -176,7 +185,9 @@ class CollegiumProcess {
   private readonly tmpDir: string;
   private readonly workspaceRoot: string;
 
-  constructor({ config, port, publicHost }: CollegiumProcessOptions) {
+  constructor({ config, credentials, mattermost, port, publicHost }: CollegiumProcessOptions) {
+    this.credentials = credentials;
+    this.mattermost = mattermost;
     this.port = port;
     this.publicUrl = `http://${publicHost}:${port}`;
     this.tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `${E2E_RESOURCE_PREFIX}-`));
@@ -228,6 +239,7 @@ class CollegiumProcess {
     try {
       await fs.promises.writeFile(this.configPath, JSON.stringify(this.config), { mode: 0o600 });
       await this.migrate();
+      this.seedCredentials();
       this.child = spawn(process.execPath, ['src/main.ts'], {
         cwd: PROJECT_ROOT,
         env: {
@@ -237,6 +249,8 @@ class CollegiumProcess {
           APP_PUBLIC_URL: this.publicUrl,
           CONFIG_PATH: this.configPath,
           DATABASE_URL: this.databaseUrl,
+          MATTERMOST_TEAM: this.mattermost.teamName,
+          MATTERMOST_URL: this.mattermost.url,
           WORKSPACE_ROOT: this.workspaceRoot
         },
         stdio: ['pipe', 'pipe', 'pipe']
@@ -278,6 +292,24 @@ class CollegiumProcess {
     await exec('npx', ['prisma', 'migrate', 'deploy'], {
       env: { ...process.env, DATABASE_URL: this.databaseUrl }
     });
+  }
+
+  /**
+   * The rows provisioning would have written. This suite provisions its own workspace instead — one
+   * uniquely named bot set per run, so runs do not collide — and hands the app what it minted.
+   */
+  private seedCredentials(): void {
+    const database = new DatabaseSync(this.databasePath);
+    try {
+      const insert = database.prepare(
+        'INSERT OR REPLACE INTO MattermostCredential (username, token, userId) VALUES (?, ?, ?)'
+      );
+      for (const bot of this.credentials) {
+        insert.run(bot.username, bot.token, bot.userId);
+      }
+    } finally {
+      database.close();
+    }
   }
 
   private async waitUntilHealthy(): Promise<void> {

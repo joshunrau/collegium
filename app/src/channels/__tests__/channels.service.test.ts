@@ -1,26 +1,16 @@
-import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { ConfigService } from '@/config/config.service.ts';
-import { MockFactory } from '@/testing/factories/mock.factory.ts';
-import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
+import type { $TriggerMode } from '@/config/config.schemas.ts';
 
 import { ChannelsService } from '../channels.service.ts';
 
 describe('ChannelsService', () => {
-  let channelsService: ChannelsService;
-
-  beforeEach(async () => {
-    const configService: MockedInstance<ConfigService> = MockFactory.createMock(ConfigService);
-    configService.get.mockReturnValue([
-      { id: 'channel-all', triggerMode: 'respond-to-all' },
-      { id: 'channel-mention', triggerMode: 'mention-required' }
-    ]);
-    const moduleRef = await Test.createTestingModule({
-      providers: [ChannelsService, { provide: ConfigService, useValue: configService }]
-    }).compile();
-    channelsService = moduleRef.get(ChannelsService);
-  });
+  const channelsService = new ChannelsService(
+    new Map<string, $TriggerMode>([
+      ['channel-all', 'respond-to-all'],
+      ['channel-mention', 'mention-required']
+    ])
+  );
 
   it('should return the configured mode for a listed channel', () => {
     expect(channelsService.getTriggerMode({ channelId: 'channel-all', isDirectMessage: false })).toBe('respond-to-all');

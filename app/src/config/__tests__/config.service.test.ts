@@ -16,7 +16,6 @@ import type { Config } from '../config.schemas.ts';
 const config = {
   agents: [
     {
-      botToken: 'token_1',
       expertise: 'programming',
       model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
       skills: [],
@@ -37,7 +36,7 @@ const config = {
     turnCeilingPerHour: 250
   },
   channels: [],
-  mattermost: { mainChannelId: 'channel_1', systemBotToken: 'token_2', url: 'http://localhost:8065' },
+  mattermost: { mainChannel: 'main', systemBotUsername: 'orchestrator' },
   models: { deepseek: { apiKey: 'key_1', baseUrl: 'https://api.deepseek.com' } }
 } satisfies Config;
 

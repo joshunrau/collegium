@@ -7,7 +7,8 @@ RUN wget -qO- "https://releases.mattermost.com/${MATTERMOST_VERSION}/mattermost-
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+# curl serves the compose healthcheck, which gates the app's start on a Mattermost that answers
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 RUN groupadd -g 2000 mattermost
 RUN useradd -u 2000 -g mattermost -d /mattermost -s /usr/sbin/nologin mattermost
 

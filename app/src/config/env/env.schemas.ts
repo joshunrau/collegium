@@ -18,6 +18,9 @@ const $SqliteFileUrl = z
   );
 
 export type $Env = z.infer<typeof $Env>;
+// The env holds where the substrate is and which workspace within it this deployment occupies —
+// everything up to and including the team. What lives inside the team is config.json's: which
+// channel is the main one, which agents exist, what they may do.
 export const $Env = z
   .object({
     APP_HOST: z.string().min(1),
@@ -25,11 +28,14 @@ export const $Env = z
     APP_PUBLIC_URL: z.url().optional(),
     CONFIG_PATH: z.string().min(1),
     DATABASE_URL: $SqliteFileUrl,
+    MATTERMOST_TEAM: z.string().min(1),
+    // the websocket address is this one with its scheme rewritten, so anything but http(s) yields a
+    // transport that can never connect
+    MATTERMOST_URL: z.url({ protocol: /^https?$/ }),
     WORKSPACE_ROOT: z.string().min(1)
   })
-  // Mattermost runs on the same host, so the address the app binds is the address it is reached at
-  // and a deployment states it once. Set APP_PUBLIC_URL only where the two genuinely differ — the
-  // e2e suite, whose Mattermost is a container and reaches the host under another name.
+  // Where the app binds need not be where it is reached, and a deployment whose Mattermost is a
+  // container of its own states APP_PUBLIC_URL. The derivation serves the case where the two agree.
   .transform((env) => ({
     ...env,
     APP_PUBLIC_URL: env.APP_PUBLIC_URL ?? `http://${env.APP_HOST}:${env.APP_PORT}`

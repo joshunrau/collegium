@@ -13,6 +13,7 @@ import { CommandReconcilerService } from '@/commands/registration/command-reconc
 import type { $AgentDefinition } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ResyncService } from '@/conversations/resync/resync.service.ts';
+import { CredentialsService } from '@/credentials/credentials.service.ts';
 import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MailBootService } from '@/mail/boot/boot.service.ts';
@@ -40,6 +41,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     private readonly chatGateway: ChatGateway,
     private readonly commandReconcilerService: CommandReconcilerService,
     private readonly configService: ConfigService,
+    private readonly credentialsService: CredentialsService,
     private readonly haltService: HaltService,
     private readonly loggingService: LoggingService,
     private readonly mailBootService: MailBootService,
@@ -129,7 +131,8 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     if (!profile) {
       throw new Error(`no profile registered for agent "${definition.username}"`);
     }
-    const transport = await this.chatGateway.connect({ agent: profile, botToken: definition.botToken });
+    const botToken = await this.credentialsService.require(definition.username);
+    const transport = await this.chatGateway.connect({ agent: profile, botToken });
     this.transportRegistry.register(profile.username, transport);
     const running: RunningAgent = { profile, transport };
     transport.listen((event) => this.handleEvent(running, event));

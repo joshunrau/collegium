@@ -53,7 +53,7 @@ Every capability is a hand-written TypeScript function with a schema, reviewed a
 - Every command requires approval.
 - The agent runs as its own dedicated OS user, one per shell-holding agent.
 - That user owns its home directory and nothing else, mode `700`.
-- The framework lives in `/opt` and is unreadable by agent users.
+- The framework's own tree is unreadable by agent users.
 - Agent home directories are unreadable by other agent users.
 
 The capability surface of an agent is therefore fully enumerable by reading config.
@@ -86,7 +86,7 @@ Each agent is a **Mattermost bot account** with its own access token, addressabl
 
 Agents are persistent colleagues, not task-scoped job runners. There is one instance of each agent, continuously; conversations are episodes in an ongoing relationship rather than independent invocations.
 
-Provisioning is an administrative act — create account, mint token, create channel, set membership, and where applicable create the OS user. **There is no runtime agent spawning**: every worker has a durable identity and its output is in a channel.
+Provisioning is a deployment act, not a runtime one: before the app starts, a separate process reconciles Mattermost against the configuration — creating the team, the channels, one bot account per declared agent, and the access token each is addressed with. It converges; boot only refuses. Nothing the running framework does creates an account or a channel, and **there is no runtime agent spawning**: every worker has a durable identity and its output is in a channel.
 
 ### **3.2 System Bot**
 
@@ -196,7 +196,7 @@ DM context follows the same mechanism as any other channel.
 
 Each agent generally has a dedicated Mattermost channel containing that agent and its authorized humans.
 
-**All channel configuration is administrator-set. Agents have no input into topology.**
+**All channel configuration is declared in configuration. Agents have no input into topology.**
 
 ### **3.10 Triggering Mode**
 
@@ -392,7 +392,7 @@ For shell-holding agents it is enforced by OS permissions (A2), which is a stron
 
 **Shell confinement is OS permissions, not a path check.** The `shell` tool runs each command as a dedicated OS user — `collegium-<agent-username>`, derived so it cannot be shared — via non-interactive `sudo`, never as the app's own user. The deadline is enforced by `timeout(1)` running as that user, because the app cannot signal a process owned by another user. At boot the framework probes every shell-holding agent (`sudo -n -H -u <osUser> timeout 1 true`) and refuses to start if the OS user is not provisioned, so a misconfigured host fails loudly rather than on the first command; the probe carries the same `sudo` flags the real run does, or a host where one works and the other does not would pass boot and fail on the first command.
 
-**`sudo` is never asked for a login shell.** With `--login` and a command, `sudo` does not exec the argv: it joins every argument into one string, escaping all but `[A-Za-z0-9_-$]`, and hands that to the target's login shell — which would expand a `$TOKEN` the approver read as a literal and fold a two-line command into one, breaking §6.2's guarantee that the approved bytes are the executed bytes. The login environment is established the other way instead: `--set-home` for `$HOME`, `bash -l` for the profiles, and the command in an argv slot of its own that no intermediate shell parses. Provisioning those users is an ops act (§3.1), outside the process; the steps are in the README.
+**`sudo` is never asked for a login shell.** With `--login` and a command, `sudo` does not exec the argv: it joins every argument into one string, escaping all but `[A-Za-z0-9_-$]`, and hands that to the target's login shell — which would expand a `$TOKEN` the approver read as a literal and fold a two-line command into one, breaking §6.2's guarantee that the approved bytes are the executed bytes. The login environment is established the other way instead: `--set-home` for `$HOME`, `bash -l` for the profiles, and the command in an argv slot of its own that no intermediate shell parses. Those users are provisioned by the container entrypoint, as root, before it drops privileges.
 
 ### **6.2 Approval**
 
@@ -570,7 +570,7 @@ _Why not the URL:_ a command whose URL drifted is precisely the one needing corr
 
 _Accepted cost:_ ownership follows the account, so rotating the app's token to a different one orphans the whole command surface — every name in the list becomes a foreign collision and boot refuses. That is loud and fixable by deleting the orphans, but a token rotation carries a deploy step with it.
 
-_Why this is not left to provisioning, unlike §3.1:_ the target is the app's own callback URL, which only the app knows, and an administrator transcribing it once will drift silently on the first redeploy that moves the host or port. The failure is invisible in exactly the wrong direction — §7.5's intervention commands are unreachable at the moment someone reaches for them, and Mattermost surfaces it as an opaque client error rather than as an absence. This is the framework declaring its own entry points, not deciding topology; §3.9's rule that channel configuration is administrator-set is untouched.
+_Why this is not left to provisioning, unlike §3.1:_ the target is the app's own callback URL, which only the app knows, and an administrator transcribing it once will drift silently on the first redeploy that moves the host or port. The failure is invisible in exactly the wrong direction — §7.5's intervention commands are unreachable at the moment someone reaches for them, and Mattermost surfaces it as an opaque client error rather than as an absence. This is the framework declaring its own entry points, not deciding topology; §3.9's rule that channel topology is declared rather than chosen is untouched.
 
 Reconciliation requires authority to manage the team's slash commands. That authority is part of the app's declared configuration, and boot fails loudly if it is missing or reconciliation does not succeed. A framework that starts without its stop switch is worse than one that does not start.
 

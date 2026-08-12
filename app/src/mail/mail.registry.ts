@@ -1,6 +1,5 @@
-import { Injectable } from '@nestjs/common';
-
-import { ConfigService } from '@/config/config.service.ts';
+import { ChatGateway } from '@/chat/chat.gateway.ts';
+import type { $AgentDefinition } from '@/config/config.schemas.ts';
 
 import { ExchangeAuth } from './providers/exchange.auth.ts';
 import { ExchangeMailProvider } from './providers/exchange.provider.ts';
@@ -17,33 +16,38 @@ export type MailboxRuntime = {
 };
 
 /**
- * Providers are built once, from configuration, at construction — which mailbox an agent reaches
- * is decided here and nowhere downstream. An agent without a mailbox simply has no entry.
+ * Which mailbox an agent reaches is decided in `resolve` and nowhere downstream. An agent without a
+ * mailbox simply has no entry. The constructor is private because the announcement channel is named
+ * by handle, and only the substrate can turn one into the id every caller asks by — so an instance
+ * holding unresolved handles is not a state this can be in.
  */
-@Injectable()
 export class MailRegistry {
-  private readonly mailboxes: ReadonlyMap<string, MailboxRuntime>;
+  private constructor(private readonly mailboxes: ReadonlyMap<string, MailboxRuntime>) {}
 
-  constructor(configService: ConfigService) {
-    this.mailboxes = new Map(
-      configService
-        .get('agents')
-        .flatMap((definition) =>
-          definition.mailbox === undefined ? [] : ([[definition.username, definition.mailbox]] as const)
-        )
-        .map(([agentUsername, mailbox]) => [
+  static async resolve(
+    chatGateway: Pick<ChatGateway, 'resolveChannelId'>,
+    agents: readonly $AgentDefinition[]
+  ): Promise<MailRegistry> {
+    const declared = agents.flatMap((definition) =>
+      definition.mailbox === undefined ? [] : ([[definition.username, definition.mailbox]] as const)
+    );
+    const resolved = await Promise.all(
+      declared.map(async ([agentUsername, mailbox]) => {
+        return [
           agentUsername,
           {
             agentUsername,
-            announcementChannelId: mailbox.announcementChannelId,
+            announcementChannelId: await chatGateway.resolveChannelId(mailbox.announcementChannel),
             pollIntervalMs: mailbox.pollIntervalMs,
             provider:
               mailbox.provider.kind === 'exchange'
                 ? new ExchangeMailProvider(mailbox.provider.address, new ExchangeAuth(mailbox.provider))
                 : new ImapMailProvider(mailbox.provider)
           }
-        ])
+        ] as const;
+      })
     );
+    return new MailRegistry(new Map(resolved));
   }
 
   list(): readonly MailboxRuntime[] {

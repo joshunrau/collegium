@@ -2,7 +2,6 @@ import { Result, toErrorMessage } from '@collegium/core/utils';
 import { ClientError } from '@mattermost/client';
 
 import type { ObservedPost } from '@/conversations/conversations.types.ts';
-import type { AuthorKind } from '@/prisma/prisma.types.ts';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 
 import { MattermostChannelType } from './mattermost.constants.ts';
@@ -10,14 +9,17 @@ import { MattermostChannelType } from './mattermost.constants.ts';
 import type { AuthorClassifier, ChatFailure } from '../chat.types.ts';
 import type { $MattermostPostedEventMessage } from './mattermost.schemas.ts';
 
-export function classifyAuthor(
-  username: string,
-  identities: { agentUsernames: ReadonlySet<string>; systemBotUsername: string }
-): AuthorKind {
-  if (username === identities.systemBotUsername) {
-    return 'system';
-  }
-  return identities.agentUsernames.has(username) ? 'agent' : 'human';
+/** who a post's author is, judged against the accounts this deployment declares; everyone else is human */
+export function createAuthorClassifier(identities: {
+  agentUsernames: ReadonlySet<string>;
+  systemBotUsername: string;
+}): AuthorClassifier {
+  return (username) => {
+    if (username === identities.systemBotUsername) {
+      return 'system';
+    }
+    return identities.agentUsernames.has(username) ? 'agent' : 'human';
+  };
 }
 
 export function isSystemPost(post: { type: string }): boolean {

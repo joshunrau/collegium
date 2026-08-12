@@ -52,8 +52,9 @@ export class MattermostClient {
     await this.sdk.deleteCommand(commandId);
   }
 
-  async getChannelTeamId(channelId: string): Promise<string> {
-    return $MattermostChannel.parse(await this.sdk.getChannel(channelId)).team_id;
+  /** the id of a channel named by its handle, scoped to the team it lives in */
+  async getChannelIdByName(params: { handle: string; teamId: string }): Promise<string> {
+    return $MattermostChannel.parse(await this.sdk.getChannelByName(params.teamId, params.handle)).id;
   }
 
   async getChannelType(channelId: string): Promise<MattermostChannelType> {
@@ -91,6 +92,10 @@ export class MattermostClient {
     return this.toOrderedPosts(
       await this.sdk.getPostsAfter(params.channelId, params.afterPostId, params.page, params.perPage)
     );
+  }
+
+  async getTeamIdByName(name: string): Promise<string> {
+    return $MattermostTeam.parse(await this.sdk.getTeamByName(name)).id;
   }
 
   async getTeamSlashCommands(teamId: string): Promise<$MattermostSlashCommand[]> {

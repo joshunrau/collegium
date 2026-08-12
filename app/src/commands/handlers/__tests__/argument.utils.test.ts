@@ -11,7 +11,6 @@ import { createEnvServiceMock } from '@/testing/factories/env-service.factory.ts
 import { requireAgentName, requireAgentProfile, requirePostId } from '../argument.utils.ts';
 
 const MIRA: $AgentDefinition = {
-  botToken: 'mira-secret',
   expertise: 'code review',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: [],

@@ -32,5 +32,11 @@ export abstract class ChatGateway {
     content: string,
     files?: readonly PostFile[]
   ): Promise<Result<SystemPostReceipt, ChatFailure>>;
+  /**
+   * A channel handle — what config names a channel by — to the substrate's id for it. Rejects a
+   * handle the team does not hold, so a channel named in config that does not exist is a boot
+   * refusal rather than a channel that silently never triggers.
+   */
+  abstract resolveChannelId(handle: string): Promise<string>;
   abstract snapshotSlashCommandSurface(): Promise<SlashCommandSurface>;
 }

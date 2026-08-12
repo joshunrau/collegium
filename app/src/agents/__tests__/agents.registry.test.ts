@@ -13,7 +13,6 @@ import { AgentRegistry } from '../agents.registry.ts';
 import type { AgentProfile } from '../agents.types.ts';
 
 const MIRA: $AgentDefinition = {
-  botToken: 'mira-secret',
   expertise: 'code review',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: ['handing-work-to-a-peer'],
@@ -23,7 +22,6 @@ const MIRA: $AgentDefinition = {
 };
 
 const TESS: $AgentDefinition = {
-  botToken: 'tess-secret',
   expertise: 'scheduling',
   model: { name: 'deepseek-v4-pro', provider: 'deepseek' },
   skills: [],
