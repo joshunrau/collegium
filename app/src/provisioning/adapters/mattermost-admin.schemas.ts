@@ -22,3 +22,9 @@ export type $MattermostAccessToken = z.infer<typeof $MattermostAccessToken>;
 export const $MattermostAccessToken = z.object({
   token: z.string().min(1)
 });
+
+/** `roles` arrives as one space-separated string, e.g. `"system_user system_admin"` */
+export type $MattermostRoles = z.infer<typeof $MattermostRoles>;
+export const $MattermostRoles = z.object({
+  roles: z.string().transform((roles) => roles.split(' '))
+});

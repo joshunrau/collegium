@@ -4,12 +4,15 @@ import {
   $MattermostAccessToken,
   $MattermostBot,
   $MattermostIdentified,
+  $MattermostRoles,
   $MattermostUser
 } from './mattermost-admin.schemas.ts';
 
 import type { AdminCredentials } from '../provisioning.types.ts';
 
 const NOT_FOUND = 404;
+
+const SYSTEM_ADMIN_ROLE = 'system_admin';
 
 // the wire value for an open channel, and for a team anyone on the server may join. Stated here
 // rather than borrowed from the chat adapter: each adapter owns its own mapping onto the vendor.
@@ -50,26 +53,31 @@ export class MattermostAdminClient {
         }
         throw error;
       });
-    if (loggedIn) {
-      return;
+    if (!loggedIn) {
+      await this.sdk
+        .createUser(
+          {
+            email: credentials.email,
+            password: credentials.password,
+            username: credentials.username
+          } as Parameters<Client4['createUser']>[0],
+          '',
+          ''
+        )
+        .catch((error: unknown) => {
+          throw new Error(
+            `could not sign in as "${credentials.username}", and creating the account was refused — a Mattermost that already has users only accepts credentials it already holds`,
+            { cause: error }
+          );
+        });
+      await this.sdk.login(credentials.username, credentials.password);
     }
-    await this.sdk
-      .createUser(
-        {
-          email: credentials.email,
-          password: credentials.password,
-          username: credentials.username
-        } as Parameters<Client4['createUser']>[0],
-        '',
-        ''
-      )
-      .catch((error: unknown) => {
-        throw new Error(
-          `could not sign in as "${credentials.username}", and creating the account was refused — a Mattermost that already has users only accepts credentials it already holds`,
-          { cause: error }
-        );
-      });
-    await this.sdk.login(credentials.username, credentials.password);
+    const { roles } = $MattermostRoles.parse(await this.sdk.getMe());
+    if (!roles.includes(SYSTEM_ADMIN_ROLE)) {
+      throw new Error(
+        `"${credentials.username}" exists but is not a system administrator — creating bots and teams is system-level, so provisioning cannot proceed as this account`
+      );
+    }
   }
 
   async ensureBot(params: { teamId: string; username: string }): Promise<string> {
