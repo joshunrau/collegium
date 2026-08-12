@@ -8,6 +8,7 @@ import { Client4 } from '@mattermost/client';
 import { NestFactory } from '@nestjs/core';
 import { afterAll, beforeAll, inject } from 'vitest';
 
+import { CONFIG_DEFAULTS } from '@/config/config.constants.ts';
 import { ProvisionModule } from '@/provision.module.ts';
 import { ProvisioningService } from '@/provisioning/provisioning.service.ts';
 
@@ -17,9 +18,6 @@ import { createWorkspaceId } from './utils/naming.utils.ts';
 
 /** creating accounts and minting their tokens is several round trips per bot, once per run */
 const PROVISIONING_TIMEOUT = 120_000;
-
-/** the channel every Mattermost team has, and the default `mattermost.mainChannel` resolves to */
-const MAIN_CHANNEL = 'town-square';
 
 /** what the store holds for one account: the whole of what provisioning is trusted to keep */
 type ProvisionedCredential = {
@@ -127,7 +125,7 @@ export function setupProvisioning(options: { runs: number }): Provisioning {
     isMainChannelMember: async (username) => {
       const team = await adminClient.getTeamByName(cluster.teamName);
       const [channel, user] = await Promise.all([
-        adminClient.getChannelByName(team.id, MAIN_CHANNEL),
+        adminClient.getChannelByName(team.id, CONFIG_DEFAULTS.mattermost.mainChannel),
         adminClient.getUserByUsername(username)
       ]);
       return adminClient
