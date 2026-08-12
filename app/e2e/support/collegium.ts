@@ -106,7 +106,6 @@ function buildCollegiumConfig({
         throw new Error(`agent "${agent.username}" has no provisioned Mattermost bot`);
       }
       return {
-        botToken: bot.token,
         contextBudgetTokens: agent.contextBudgetTokens,
         expertise: agent.expertise,
         memoryCaps: agent.memoryCaps,
