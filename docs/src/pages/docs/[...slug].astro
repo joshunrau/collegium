@@ -1,7 +1,6 @@
 ---
 import { Docs } from '@/components/docs';
 import Layout from '@/components/layout.astro';
-import MaturityBanner from '@/components/maturity-banner.astro';
 import { type DocEntry, getPageImageUrl, source } from '@/content.source';
 import { render } from 'astro:content';
 import type { TOCItemType } from 'fumadocs-core/toc';
@@ -32,7 +31,12 @@ const toc: TOCItemType[] = headings.map((heading) => ({
 
 <Layout description={entry.data.description} image={getPageImageUrl(slugs)} title={entry.data.title}>
   <Docs client:load page={{ toc }} params={Astro.params} pathname={Astro.url.pathname} tree={source.getPageTree()}>
-    <MaturityBanner />
+    <aside class="border-fd-border bg-fd-card text-fd-muted-foreground mb-8 rounded-lg border px-4 py-3 text-sm">
+      Collegium is currently in a very early beta stage. While some functionality is already available, the project is
+      still undergoing rapid iteration and development. Future releases will change the configuration schema, plugin
+      architecture, or other core behavior without notice or backward-compatibility guarantees. We do not recommend
+      using Collegium in production environments at this time.
+    </aside>
     <h1 class="text-3xl font-semibold">{entry.data.title}</h1>
     <p class="text-fd-muted-foreground mb-8 text-lg">{entry.data.description}</p>
     <div class="prose flex-1">

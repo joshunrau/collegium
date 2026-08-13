@@ -1,5 +1,177 @@
 ---
-import LandingPage from '@/components/landing/page.astro';
+import type { ImageMetadata } from 'astro';
+
+import type { TranscriptAuthor } from '@/landing/transcript';
+
+import MessageCard from '@/components/landing/message-card.astro';
+import Layout from '@/components/layout.astro';
+
+import { POSTURES, REFUSALS } from '@/landing/argument';
+import { TRANSCRIPT } from '@/landing/transcript';
+
+import clara from '@/assets/clara.png';
+import orchestrator from '@/assets/orchestrator.png';
+import theo from '@/assets/theo.png';
+
+const AVATARS: { [K in TranscriptAuthor]: ImageMetadata } = { clara, orchestrator, theo };
+
+const description =
+  "Collegium runs LLM agents as members of your team's chat, handling email, research, and follow-through, with a human approving anything consequential.";
 ---
 
-<LandingPage />
+<Layout description={description} theme="user" title="Collegium">
+  <div class="landing flex flex-1 flex-col">
+    <header class="border-lp-border bg-lp-background/80 fixed inset-x-0 top-0 z-50 border-b backdrop-blur">
+      <div class="mx-auto flex h-14 w-full max-w-3xl items-center gap-6 px-6">
+        <a class="flex items-center gap-2.5 text-sm font-medium" href="/">
+          <svg aria-hidden="true" class="size-5" fill="none" viewBox="0 0 32 32">
+            <path d="M21.5 11.6a7 7 0 1 0 0 8.8" stroke="currentColor" stroke-linecap="round" stroke-width="3"></path>
+          </svg>
+          Collegium
+        </a>
+        <nav class="text-lp-muted ml-auto flex items-center gap-5 text-sm">
+          <a class="hover:text-lp-text transition-colors" href="/docs/getting-started/introduction">Docs</a>
+          <a
+            class="hover:text-lp-text transition-colors"
+            href="https://github.com/joshunrau/collegium"
+            rel="noreferrer"
+            target="_blank">GitHub</a
+          >
+          <button
+            aria-label="Toggle colour theme"
+            class="hover:text-lp-text hover:border-lp-border rounded-md border border-transparent p-1.5 transition-colors"
+            id="lp-theme-toggle"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              class="size-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              viewBox="0 0 24 24"
+            >
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor" stroke="none"></path>
+            </svg>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-24 px-6 pt-36 pb-28">
+      <section class="flex flex-col items-start gap-6">
+        <span class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">Collegium</span>
+        <h1 class="font-lp-serif max-w-2xl text-4xl leading-[1.08] tracking-tight text-balance sm:text-5xl">
+          The agent framework for the work you can't git revert
+        </h1>
+        <p class="text-lp-muted max-w-xl leading-relaxed sm:text-lg">
+          Collegium agents are members of your team's chat, each with its own name, tools, and memory. They handle the
+          work that isn't writing software, like email, research, and follow-through.
+        </p>
+        <div class="flex flex-wrap gap-3">
+          <a
+            class="bg-lp-text text-lp-background rounded-lg px-5 py-2.5 text-sm font-medium transition-opacity hover:opacity-90"
+            href="/docs/getting-started/quickstart"
+          >
+            Quickstart
+          </a>
+          <a
+            class="border-lp-border hover:bg-lp-surface rounded-lg border px-5 py-2.5 text-sm font-medium transition-colors"
+            href="https://github.com/joshunrau/collegium"
+            rel="noreferrer"
+            target="_blank"
+          >
+            GitHub
+          </a>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-8">
+        <div class="flex flex-col gap-2">
+          <h2 class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">One job, end to end</h2>
+          <p class="text-lp-muted max-w-2xl leading-relaxed">
+            An email arrives, Clara owns the reply, Theo digs up the facts, and a person approves the send. Everything
+            below is a channel you could scroll.
+          </p>
+        </div>
+        <div class="flex flex-col gap-3">
+          {TRANSCRIPT.map((turn) => <MessageCard avatar={AVATARS[turn.author]} turn={turn} />)}
+        </div>
+        <p class="text-lp-muted max-w-2xl text-sm leading-relaxed">
+          The announcement is deterministic code, not an agent deciding your mail matters. The approval shows the entire
+          payload: every recipient, the full body, nothing summarized. And the send happens exactly once or not at all:
+          an ambiguous outcome stops the turn rather than retrying your client's inbox.
+        </p>
+      </section>
+
+      <section class="flex flex-col gap-2">
+        <h2 class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">What it commits to</h2>
+        <ol class="flex flex-col">
+          {
+            POSTURES.map((posture, index) => (
+              <li class="border-lp-border grid gap-x-8 gap-y-2 border-t py-7 sm:grid-cols-[3rem_1fr]">
+                <span class="text-lp-muted font-lp-mono pt-1 text-xs">{String(index + 1).padStart(2, '0')}</span>
+                <div class="flex max-w-2xl flex-col gap-2">
+                  <h3 class="font-lp-serif text-xl tracking-tight">{posture.title}</h3>
+                  <p class="text-lp-muted text-sm leading-relaxed">{posture.body}</p>
+                </div>
+              </li>
+            ))
+          }
+        </ol>
+      </section>
+
+      <section class="flex flex-col gap-6">
+        <h2 class="font-lp-serif text-3xl tracking-tight">Why It's Built This Way</h2>
+        <div class="flex max-w-2xl flex-col gap-4">
+          <p class="text-lp-muted leading-relaxed">
+            Most agent frameworks share one shape: give a model a shell and let it iterate unattended until the task
+            looks done. That shape was built for writing software, where a failed attempt costs nothing and every change
+            is reviewable as a diff before it ships.
+          </p>
+          <p class="text-lp-muted leading-relaxed">
+            Business work is different. Actions are visible to clients and colleagues the moment they happen, many
+            cannot be taken back, and nobody reviews them line by line afterward. So Collegium refuses four things
+            autonomous frameworks celebrate, and each refusal is the point.
+          </p>
+        </div>
+        <ul class="flex flex-col">
+          {
+            REFUSALS.map((refusal) => (
+              <li class="border-lp-border grid gap-x-10 gap-y-5 border-t py-8 md:grid-cols-2">
+                <div class="flex flex-col gap-2">
+                  <h3 class="font-lp-serif text-xl tracking-tight">{refusal.title}</h3>
+                  <p class="text-lp-muted text-sm leading-relaxed">{refusal.what}</p>
+                </div>
+                <div class="border-lp-accent/50 flex flex-col gap-2 border-l pl-5">
+                  <span class="text-lp-accent font-lp-mono text-xs tracking-widest uppercase">The cost</span>
+                  <p class="text-sm leading-relaxed">{refusal.cost}</p>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="max-w-2xl leading-relaxed">
+          And instead of autonomy, you get a system that runs your business logic as code. A procedure that matters is
+          not a prompt instruction the model might skip on a bad day. It is a plugin: deterministic TypeScript you write
+          once, review once, and grant to the agents that need it. It will not change under you.
+        </p>
+      </section>
+    </main>
+  </div>
+</Layout>
+
+<script>
+  const bind = () => {
+    document.getElementById('lp-theme-toggle')?.addEventListener('click', () => {
+      const dark = !document.documentElement.classList.contains('dark');
+      document.documentElement.classList.toggle('dark', dark);
+      document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      localStorage.setItem('collegium-theme', dark ? 'dark' : 'light');
+    });
+  };
+
+  bind();
+  document.addEventListener('astro:after-swap', bind);
+</script>
