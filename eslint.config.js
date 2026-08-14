@@ -84,5 +84,23 @@ export default config(
         message: 'Tests use the harness surface, not its internals.'
       }
     )
+  },
+  {
+    files: ['docs/src/**/*.{ts,tsx,astro}'],
+    rules: {
+      // import/extensions cannot enforce this: it mistakes dotted basenames (content.source) for
+      // extensions, and this repo's <name>.<kind>.ts convention makes those the likeliest misses.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              message: 'Include the file extension in internal imports.',
+              regex: String.raw`^(@/|\.\.?/)(?!.*\.(astro|css|png|svg|ts|tsx)$)`
+            }
+          ]
+        }
+      ]
+    }
   }
 );

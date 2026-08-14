@@ -8,7 +8,7 @@ import { DocsPage } from 'fumadocs-ui/layouts/docs/page';
 import type { DocsPageProps } from 'fumadocs-ui/layouts/docs/page';
 import { RootProvider } from 'fumadocs-ui/provider/astro';
 
-import SearchDialog from './search';
+import SearchDialog from './search.tsx';
 
 type DocsProps = {
   children: ReactNode;

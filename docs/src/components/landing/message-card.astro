@@ -3,9 +3,9 @@ import type { ImageMetadata } from 'astro';
 
 import { Image } from 'astro:assets';
 
-import type { TranscriptTurn } from '@/landing/transcript';
+import type { TranscriptTurn } from '@/landing/transcript.ts';
 
-import { displayName, splitMentions } from '@/landing/transcript';
+import { displayName, splitMentions } from '@/landing/transcript.ts';
 
 interface Props {
   avatar: ImageMetadata;

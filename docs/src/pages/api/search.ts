@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createFromSource } from 'fumadocs-core/search/server';
 
-import { getStructuredData, source } from '@/content.source';
+import { getStructuredData, source } from '@/content.source.ts';
 
 const server = createFromSource(source, {
   buildIndex(page) {
