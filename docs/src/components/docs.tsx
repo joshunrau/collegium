@@ -29,9 +29,15 @@ export const Docs = ({ children, page, params, pathname, tree }: DocsProps) => {
       params={params}
       pathname={pathname}
       search={{ SearchDialog }}
-      theme={{ enabled: false }}
+      // `enableColorScheme` writes `color-scheme` as an inline style, which would take the property over from `global.css` on docs pages only. It is declared there for every route.
+      theme={{ enableColorScheme: false, storageKey: 'collegium-theme' }}
     >
-      <DocsLayout nav={{ title: 'Collegium' }} themeSwitch={{ enabled: false }} tree={tree}>
+      <DocsLayout
+        githubUrl="https://github.com/joshunrau/collegium"
+        nav={{ title: 'Collegium' }}
+        themeSwitch={{ mode: 'light-dark' }}
+        tree={tree}
+      >
         <DocsPage {...page}>{children}</DocsPage>
       </DocsLayout>
     </RootProvider>

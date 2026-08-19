@@ -27,6 +27,8 @@
 }
 
 :root {
+  color-scheme: light;
+
   --lp-accent: #b45309;
   --lp-accent-foreground: #ffffff;
   --lp-background: #fcfcfc;
@@ -38,6 +40,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --lp-accent: #f0b429;
   --lp-accent-foreground: #1a1206;
   --lp-background: #0a0a0a;
