@@ -8,7 +8,7 @@ import { DocsPage } from 'fumadocs-ui/layouts/docs/page';
 import type { DocsPageProps } from 'fumadocs-ui/layouts/docs/page';
 import { RootProvider } from 'fumadocs-ui/provider/astro';
 
-import { DefaultSearchDialog } from './search.tsx';
+import { DocsSearchDialog } from './DocsSearchDialog.tsx';
 
 type DocsProps = {
   children: ReactNode;
@@ -22,13 +22,13 @@ type DocsProps = {
  * The single React island the docs shell lives in. Route information cannot be inferred from the
  * browser here, so it is handed down from the `.astro` page that renders this.
  */
-export const Docs = ({ children, page, params, pathname, tree }: DocsProps) => {
+export const DocsRoot = ({ children, page, params, pathname, tree }: DocsProps) => {
   return (
     <RootProvider
       navigate={navigate}
       params={params}
       pathname={pathname}
-      search={{ SearchDialog: DefaultSearchDialog }}
+      search={{ SearchDialog: DocsSearchDialog }}
       // `enableColorScheme` writes `color-scheme` as an inline style, which would take the property over from the shell style in `Layout.astro` on docs pages only. It is declared there for every route.
       theme={{ enableColorScheme: false, storageKey: 'collegium-theme' }}
     >

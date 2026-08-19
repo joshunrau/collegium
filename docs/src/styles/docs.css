@@ -8,6 +8,7 @@
  * classes.
  */
 @source '../components/common';
+@source '../components/docs';
 @source '../pages/docs';
 
 .prose {

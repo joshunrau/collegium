@@ -13,7 +13,7 @@ import {
 import type { SharedProps } from 'fumadocs-ui/components/dialog/search';
 
 /** The index is a static asset, so search runs entirely in the browser against `/api/search`. */
-export const DefaultSearchDialog = (props: SharedProps) => {
+export const DocsSearchDialog = (props: SharedProps) => {
   const { query, search, setSearch } = useDocsSearch({ client: staticClient() });
 
   return (
