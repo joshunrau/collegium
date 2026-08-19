@@ -25,7 +25,7 @@ importers:
         version: 6.0.0(@typescript-eslint/parser@8.66.0(eslint@9.39.2(jiti@2.7.0))(typescript@6.0.3))(eslint@9.39.2(jiti@2.7.0))(typescript@6.0.3)
       '@douglasneuroinformatics/prettier-config':
         specifier: ^0.3.0
-        version: 0.3.0(husky@9.1.7)(prettier-plugin-astro@0.14.1)(prettier@3.9.6)
+        version: 0.3.0(husky@9.1.7)(prettier-plugin-astro@0.14.1)(prettier-plugin-tailwindcss@0.8.1(prettier-plugin-astro@0.14.1)(prettier@3.9.6))(prettier@3.9.6)
       '@douglasneuroinformatics/tsconfig':
         specifier: ^2.0.0
         version: 2.0.0(typescript@6.0.3)
@@ -56,6 +56,9 @@ importers:
       prettier-plugin-astro:
         specifier: ^0.14.1
         version: 0.14.1
+      prettier-plugin-tailwindcss:
+        specifier: ^0.8.1
+        version: 0.8.1(prettier-plugin-astro@0.14.1)(prettier@3.9.6)
       turbo:
         specifier: ^2.10.8
         version: 2.10.9
@@ -7071,6 +7074,62 @@ packages:
       { integrity: sha512-RiBETaaP9veVstE4vUwSIcdATj6dKmXljouXc/DDNwBSPTp8FRkLGDSGFClKsAFeeg+13SB0Z1JZvbD76bigJw== }
     engines: { node: ^14.15.0 || >=16.0.0 }
 
+  prettier-plugin-tailwindcss@0.8.1:
+    resolution:
+      { integrity: sha512-iaFMYqDsE4ffdDkn5qup0j5f2aCEBFZrdrZnvu9QKTlWx/iGPeQ4HHu7b7fCPMxeo9nwQBiOAh2nSypdFYWJkw== }
+    engines: { node: '>=20.19' }
+    peerDependencies:
+      '@ianvs/prettier-plugin-sort-imports': '*'
+      '@prettier/plugin-hermes': '*'
+      '@prettier/plugin-oxc': '*'
+      '@prettier/plugin-pug': '*'
+      '@shopify/prettier-plugin-liquid': '*'
+      '@trivago/prettier-plugin-sort-imports': '*'
+      '@zackad/prettier-plugin-twig': '*'
+      prettier: ^3.0
+      prettier-plugin-astro: '*'
+      prettier-plugin-css-order: '*'
+      prettier-plugin-jsdoc: '*'
+      prettier-plugin-marko: '*'
+      prettier-plugin-multiline-arrays: '*'
+      prettier-plugin-organize-attributes: '*'
+      prettier-plugin-organize-imports: '*'
+      prettier-plugin-sort-imports: '*'
+      prettier-plugin-svelte: '*'
+    peerDependenciesMeta:
+      '@ianvs/prettier-plugin-sort-imports':
+        optional: true
+      '@prettier/plugin-hermes':
+        optional: true
+      '@prettier/plugin-oxc':
+        optional: true
+      '@prettier/plugin-pug':
+        optional: true
+      '@shopify/prettier-plugin-liquid':
+        optional: true
+      '@trivago/prettier-plugin-sort-imports':
+        optional: true
+      '@zackad/prettier-plugin-twig':
+        optional: true
+      prettier-plugin-astro:
+        optional: true
+      prettier-plugin-css-order:
+        optional: true
+      prettier-plugin-jsdoc:
+        optional: true
+      prettier-plugin-marko:
+        optional: true
+      prettier-plugin-multiline-arrays:
+        optional: true
+      prettier-plugin-organize-attributes:
+        optional: true
+      prettier-plugin-organize-imports:
+        optional: true
+      prettier-plugin-sort-imports:
+        optional: true
+      prettier-plugin-svelte:
+        optional: true
+
   prettier@3.9.6:
     resolution:
       { integrity: sha512-OpN0zzVdiaiAhxpuuj5efpIS4sY9j7bY6uR5mnj5yPzGkdkjNKSJeUThPb60Jw29QuAZgA4o+/iB49kFiaBX6g== }
@@ -9160,12 +9219,13 @@ snapshots:
       - svelte
       - ts-node
 
-  '@douglasneuroinformatics/prettier-config@0.3.0(husky@9.1.7)(prettier-plugin-astro@0.14.1)(prettier@3.9.6)':
+  '@douglasneuroinformatics/prettier-config@0.3.0(husky@9.1.7)(prettier-plugin-astro@0.14.1)(prettier-plugin-tailwindcss@0.8.1(prettier-plugin-astro@0.14.1)(prettier@3.9.6))(prettier@3.9.6)':
     dependencies:
       prettier: 3.9.6
     optionalDependencies:
       husky: 9.1.7
       prettier-plugin-astro: 0.14.1
+      prettier-plugin-tailwindcss: 0.8.1(prettier-plugin-astro@0.14.1)(prettier@3.9.6)
 
   '@douglasneuroinformatics/tsconfig@2.0.0(typescript@6.0.3)':
     dependencies:
@@ -14826,6 +14886,12 @@ snapshots:
       '@astrojs/compiler': 2.13.1
       prettier: 3.9.6
       sass-formatter: 0.7.9
+
+  prettier-plugin-tailwindcss@0.8.1(prettier-plugin-astro@0.14.1)(prettier@3.9.6):
+    dependencies:
+      prettier: 3.9.6
+    optionalDependencies:
+      prettier-plugin-astro: 0.14.1
 
   prettier@3.9.6: {}
 
