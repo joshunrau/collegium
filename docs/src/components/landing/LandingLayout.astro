@@ -1,0 +1,73 @@
+---
+import '@/styles/landing.css';
+
+import { Font } from 'astro:assets';
+
+import Layout from '@/components/common/Layout.astro';
+
+import Logo from '@/assets/logo.svg';
+
+interface Props {
+  description: string;
+  title: string;
+}
+
+const { description, title } = Astro.props;
+---
+
+<Layout description={description} title={title}>
+  <Font cssVariable="--font-geist" preload slot="head" />
+  <Font cssVariable="--font-geist-mono" slot="head" />
+  <Font cssVariable="--font-newsreader" preload slot="head" />
+  <div class="landing flex flex-1 flex-col">
+    <header class="border-lp-border bg-lp-background/80 fixed inset-x-0 top-0 z-50 border-b backdrop-blur">
+      <div class="mx-auto flex h-14 w-full max-w-5xl items-center gap-6 px-6">
+        <a class="flex items-center gap-2.5 text-sm font-medium" href="/">
+          <Logo class="size-5" />
+          Collegium
+        </a>
+        <nav class="text-lp-muted ml-auto flex items-center gap-5 text-sm">
+          <a class="hover:text-lp-text transition-colors" href="/docs/getting-started/introduction">Docs</a>
+          <a
+            class="hover:text-lp-text transition-colors"
+            href="https://github.com/joshunrau/collegium"
+            rel="noreferrer"
+            target="_blank">GitHub</a
+          >
+          <button
+            aria-label="Toggle colour theme"
+            class="hover:text-lp-text hover:border-lp-border rounded-md border border-transparent p-1.5 transition-colors"
+            id="lp-theme-toggle"
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              class="size-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              viewBox="0 0 24 24"
+            >
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor" stroke="none"></path>
+            </svg>
+          </button>
+        </nav>
+      </div>
+    </header>
+    <main class="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-24 px-6 pt-14">
+      <slot />
+    </main>
+  </div>
+</Layout>
+<script>
+  const bind = () => {
+    document.getElementById('lp-theme-toggle')?.addEventListener('click', () => {
+      const isDarkMode = !document.documentElement.classList.contains('dark');
+      document.documentElement.classList.toggle('dark', isDarkMode);
+      localStorage.setItem('collegium-theme', isDarkMode ? 'dark' : 'light');
+    });
+  };
+  bind();
+  document.addEventListener('astro:after-swap', bind);
+</script>
