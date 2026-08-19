@@ -72,12 +72,12 @@ const REFUSALS: Refusal[] = [
     what: 'A denied action, a malformed response, an ambiguous outcome: each one ends the turn with a visible notice. In a coding agent, retrying a flaky call is helpful. When the flaky call was an email to your client, a retry is a duplicate email.'
   }
 ];
-
-const description =
-  "Collegium runs LLM agents as members of your team's chat, handling email, research, and follow-through, with a human approving anything consequential.";
 ---
 
-<Layout description={description} title="Collegium">
+<Layout
+  description="Collegium runs LLM agents as members of your team's chat, handling email, research, and follow-through, with a human approving anything consequential."
+  title="Collegium"
+>
   <Font cssVariable="--font-geist" preload slot="head" />
   <Font cssVariable="--font-geist-mono" slot="head" />
   <Font cssVariable="--font-newsreader" preload slot="head" />
