@@ -13,9 +13,11 @@ import Layout from '@/components/layout.astro';
 import { POSTURES, REFUSALS } from '@/landing/argument.ts';
 import { TRANSCRIPT } from '@/landing/transcript.ts';
 
-import clara from '@/assets/clara.png';
-import orchestrator from '@/assets/orchestrator.png';
-import theo from '@/assets/theo.png';
+import clara from '@/assets/headshots/clara.png';
+import orchestrator from '@/assets/headshots/orchestrator.png';
+import theo from '@/assets/headshots/theo.png';
+
+import Logo from '@/assets/logo.svg';
 
 const AVATARS: { [K in TranscriptAuthor]: ImageMetadata } = { clara, orchestrator, theo };
 
@@ -31,9 +33,7 @@ const description =
     <header class="border-lp-border bg-lp-background/80 fixed inset-x-0 top-0 z-50 border-b backdrop-blur">
       <div class="mx-auto flex h-14 w-full max-w-3xl items-center gap-6 px-6">
         <a class="flex items-center gap-2.5 text-sm font-medium" href="/">
-          <svg aria-hidden="true" class="size-5" fill="none" viewBox="0 0 32 32">
-            <path d="M21.5 11.6a7 7 0 1 0 0 8.8" stroke="currentColor" stroke-linecap="round" stroke-width="3"></path>
-          </svg>
+          <Logo class="size-5" />
           Collegium
         </a>
         <nav class="text-lp-muted ml-auto flex items-center gap-5 text-sm">
