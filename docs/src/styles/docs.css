@@ -7,7 +7,7 @@
  * inline()`, so only the shells this project writes are left to scan. MDX content carries no
  * classes.
  */
-@source '../components/layout.astro';
+@source '../components/Layout.astro';
 @source '../pages/docs';
 
 .prose {

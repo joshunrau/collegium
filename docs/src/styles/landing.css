@@ -5,7 +5,7 @@
  * into this bundle.
  */
 @source '../components/landing';
-@source '../components/layout.astro';
+@source '../components/Layout.astro';
 @source '../pages/index.astro';
 
 /*
