@@ -4,8 +4,8 @@
  * Scanned explicitly: the landing page owns its utilities, and nothing the docs shell uses may leak
  * into this bundle.
  */
+@source '../components/common';
 @source '../components/landing';
-@source '../components/Layout.astro';
 @source '../pages/index.astro';
 
 /*
