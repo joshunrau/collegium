@@ -1,6 +1,4 @@
 ---
-import '@/styles/globals.css';
-
 import { ClientRouter } from 'astro:transitions';
 
 interface Props {
@@ -29,19 +27,25 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta content={description} property="og:description" />
     {image && <meta content={new URL(image, Astro.site)} property="og:image" />}
     <slot name="head" />
+    <style is:global>
+      :root {
+        color-scheme: light;
+      }
+      .dark {
+        color-scheme: dark;
+      }
+    </style>
     <script is:inline>
-      // The chosen theme must reach `<html>` before first paint, and again after every client-side
-      // navigation: Astro's swap wipes every attribute off `<html>`, this class included.
-      (() => {
-        const apply = () => {
-          const stored = localStorage.getItem('collegium-theme');
-          const dark = stored === 'dark' || (stored !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-          document.documentElement.classList.toggle('dark', dark);
+      (function () {
+        const applyTheme = () => {
+          const storedTheme = localStorage.getItem('collegium-theme');
+          const isDarkMode = storedTheme ? storedTheme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.classList.toggle('dark', isDarkMode);
         };
-        apply();
+        applyTheme();
         if (!window.collegiumThemeListenerBound) {
           window.collegiumThemeListenerBound = true;
-          document.addEventListener('astro:after-swap', apply);
+          document.addEventListener('astro:after-swap', applyTheme);
         }
       })();
     </script>

@@ -1,0 +1,15 @@
+@import 'tailwindcss' source(none);
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/*
+ * Scanned explicitly: fumadocs declares the utilities its own components need via `@source
+ * inline()`, so only the shells this project writes are left to scan. MDX content carries no
+ * classes.
+ */
+@source '../components/layout.astro';
+@source '../pages/docs';
+
+.prose {
+  --tw-prose-size: calc(15 / 16);
+}

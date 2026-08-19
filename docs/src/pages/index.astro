@@ -1,4 +1,6 @@
 ---
+import '@/styles/landing.css';
+
 import type { ImageMetadata } from 'astro';
 
 import { Font } from 'astro:assets';
@@ -170,12 +172,11 @@ const description =
 <script>
   const bind = () => {
     document.getElementById('lp-theme-toggle')?.addEventListener('click', () => {
-      const dark = !document.documentElement.classList.contains('dark');
-      document.documentElement.classList.toggle('dark', dark);
-      localStorage.setItem('collegium-theme', dark ? 'dark' : 'light');
+      const isDarkMode = !document.documentElement.classList.contains('dark');
+      document.documentElement.classList.toggle('dark', isDarkMode);
+      localStorage.setItem('collegium-theme', isDarkMode ? 'dark' : 'light');
     });
   };
-
   bind();
   document.addEventListener('astro:after-swap', bind);
 </script>
