@@ -17,6 +17,7 @@ import { TriggersService } from '@/triggers/triggers.service.ts';
 
 import { MailInboundService } from '../inbound/inbound.service.ts';
 import { MailRegistry } from '../mail.registry.ts';
+import { MailOutageService } from '../outage/outage.service.ts';
 
 import type { MailboxRuntime } from '../mail.registry.ts';
 
@@ -94,6 +95,7 @@ describe('mail inbound, end to end through triggers', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         MailInboundService,
+        MailOutageService,
         TriggersService,
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ChatGateway, useValue: chatGateway },

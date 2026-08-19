@@ -77,7 +77,7 @@ app/src/
   health/         liveness
   inference/      model providers, tool calling, transport retry
   logging/        logging
-  mail/           the mail seam: Exchange and IMAP providers, inbound polling, outbound send (§3.13)
+  mail/           the mail seam: Exchange and IMAP providers, inbound polling, outbound send, outage notices (§3.13)
   memory/         the memories table, caps, per-agent lock
   notifications/  system-bot output — every string deterministic (§3.2)
   plugins/        boot-time plugin loading: entry resolution, settings validation, scoped storage, the contributions registry (§3.14)

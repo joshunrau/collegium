@@ -2,7 +2,6 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import type { OnApplicationShutdown } from '@nestjs/common';
 
-import { ChatGateway } from '@/chat/chat.gateway.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model } from '@/prisma/prisma.types.ts';
@@ -10,7 +9,8 @@ import { TriggersService } from '@/triggers/triggers.service.ts';
 import type { Trigger } from '@/triggers/triggers.types.ts';
 
 import { MailRegistry } from '../mail.registry.ts';
-import { INBOUND_OUTAGE_THRESHOLD, INBOUND_PAGE_SIZE } from './inbound.constants.ts';
+import { MailOutageService } from '../outage/outage.service.ts';
+import { INBOUND_PAGE_SIZE } from './inbound.constants.ts';
 
 import type { MailboxRuntime } from '../mail.registry.ts';
 import type { MailArrival } from '../mail.types.ts';
@@ -26,12 +26,11 @@ import type { MailArrival } from '../mail.types.ts';
  */
 @Injectable()
 export class MailInboundService implements OnApplicationShutdown {
-  private readonly failureCounts = new Map<string, number>();
   private readonly timers = new Map<string, NodeJS.Timeout>();
 
   constructor(
-    private readonly chatGateway: ChatGateway,
     private readonly loggingService: LoggingService,
+    private readonly mailOutageService: MailOutageService,
     private readonly mailRegistry: MailRegistry,
     private readonly triggersService: TriggersService,
     @InjectModel('MailCursor') private readonly cursors: Model<'MailCursor'>
@@ -63,7 +62,10 @@ export class MailInboundService implements OnApplicationShutdown {
     try {
       await this.poll(mailbox);
     } catch (error) {
-      await this.recordFailure(mailbox, error instanceof Error ? error.message : 'the poll failed');
+      await this.mailOutageService.recordFailedRead(
+        mailbox,
+        error instanceof Error ? error.message : 'the poll failed'
+      );
     }
   }
 
@@ -104,11 +106,11 @@ export class MailInboundService implements OnApplicationShutdown {
   private async initialize(mailbox: MailboxRuntime): Promise<void> {
     const initialized = await mailbox.provider.initializeCursor();
     if (!initialized.success) {
-      await this.recordFailure(mailbox, initialized.error.message);
+      await this.mailOutageService.recordFailedRead(mailbox, initialized.error.message);
       return;
     }
     await this.writeCursor(mailbox.agentUsername, initialized.value);
-    this.failureCounts.delete(mailbox.agentUsername);
+    await this.mailOutageService.recordSuccessfulRead(mailbox);
   }
 
   private async poll(mailbox: MailboxRuntime): Promise<void> {
@@ -126,31 +128,14 @@ export class MailInboundService implements OnApplicationShutdown {
         await this.initialize(mailbox);
         return;
       }
-      await this.recordFailure(mailbox, polled.error.message);
+      await this.mailOutageService.recordFailedRead(mailbox, polled.error.message);
       return;
     }
     for (const arrival of polled.value.messages) {
       await this.announce(mailbox, arrival);
     }
     await this.writeCursor(mailbox.agentUsername, polled.value.cursor);
-    this.failureCounts.delete(mailbox.agentUsername);
-  }
-
-  /**
-   * Polling continues through an outage — reads are safe to repeat — but the channel hears about
-   * it once per episode, not once per minute.
-   */
-  private async recordFailure(mailbox: MailboxRuntime, message: string): Promise<void> {
-    const count = (this.failureCounts.get(mailbox.agentUsername) ?? 0) + 1;
-    this.failureCounts.set(mailbox.agentUsername, count);
-    this.loggingService.error(new Error(`polling ${mailbox.provider.address} failed: ${message}`));
-    if (count !== INBOUND_OUTAGE_THRESHOLD) {
-      return;
-    }
-    await this.chatGateway.postAsSystemIn(
-      mailbox.announcementChannelId,
-      `📪 @${mailbox.agentUsername} — the mailbox ${mailbox.provider.address} cannot be read: ${message}. Polling continues; arriving mail will be announced once it recovers.`
-    );
+    await this.mailOutageService.recordSuccessfulRead(mailbox);
   }
 
   private async writeCursor(agentUsername: string, cursor: string): Promise<void> {

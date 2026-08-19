@@ -2,7 +2,6 @@ import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ChatGateway } from '@/chat/chat.gateway.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -12,6 +11,7 @@ import { TriggersService } from '@/triggers/triggers.service.ts';
 
 import { MailInboundService } from '../inbound/inbound.service.ts';
 import { MailRegistry } from '../mail.registry.ts';
+import { MailOutageService } from '../outage/outage.service.ts';
 
 import type { MailboxRuntime } from '../mail.registry.ts';
 
@@ -26,9 +26,9 @@ const ARRIVAL = {
 };
 
 describe('MailInboundService', () => {
-  let chatGateway: MockedInstance<ChatGateway>;
   let cursorRows: CursorRow[];
   let mailbox: MailboxRuntime;
+  let mailOutageService: MockedInstance<MailOutageService>;
   let provider: {
     initializeCursor: ReturnType<typeof vi.fn>;
     markRead: ReturnType<typeof vi.fn>;
@@ -51,10 +51,7 @@ describe('MailInboundService', () => {
     mailRegistry.providerFor.mockImplementation((agentUsername) =>
       agentUsername === 'tess' ? mailbox.provider : undefined
     );
-    chatGateway = MockFactory.createMock(ChatGateway);
-    chatGateway.postAsSystemIn.mockResolvedValue(
-      Result.ok({ authorUsername: 'collegium', createdAt: new Date(0), postId: 'post-1' })
-    );
+    mailOutageService = MockFactory.createMock(MailOutageService);
     triggersService = MockFactory.createMock(TriggersService);
     triggersService.record.mockResolvedValue(Result.ok({ id: 'trigger-1' } as never));
     const table = createModelTable<CursorRow>({
@@ -64,8 +61,8 @@ describe('MailInboundService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         MailInboundService,
-        { provide: ChatGateway, useValue: chatGateway },
         MockFactory.createForService(LoggingService),
+        { provide: MailOutageService, useValue: mailOutageService },
         { provide: MailRegistry, useValue: mailRegistry },
         { provide: TriggersService, useValue: triggersService },
         { provide: getModelToken('MailCursor'), useValue: table }
@@ -131,15 +128,18 @@ describe('MailInboundService', () => {
     expect(handled.error?.message).toContain('could not be marked read');
   });
 
-  it('should post one outage notice per episode, and keep polling', async () => {
+  it('should report a failed read to the outage service, and keep polling', async () => {
     cursorRows.push({ agentUsername: 'tess', cursor: 'cursor-1', id: 'row-1', updatedAt: new Date(0) });
     provider.pollNew.mockResolvedValue(Result.err({ kind: 'provider-unavailable', message: 'Exchange is down' }));
     await service.pollOnce(mailbox);
+    expect(mailOutageService.recordFailedRead).toHaveBeenCalledWith(mailbox, 'Exchange is down');
+    expect(mailOutageService.recordSuccessfulRead).not.toHaveBeenCalled();
+  });
+
+  it('should report a successful read to the outage service, ending any episode', async () => {
+    cursorRows.push({ agentUsername: 'tess', cursor: 'cursor-1', id: 'row-1', updatedAt: new Date(0) });
+    provider.pollNew.mockResolvedValue(Result.ok({ cursor: 'cursor-2', messages: [] }));
     await service.pollOnce(mailbox);
-    expect(chatGateway.postAsSystemIn).not.toHaveBeenCalled();
-    await service.pollOnce(mailbox);
-    await service.pollOnce(mailbox);
-    expect(chatGateway.postAsSystemIn).toHaveBeenCalledTimes(1);
-    expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith('channel-mail', expect.stringContaining('cannot be read'));
+    expect(mailOutageService.recordSuccessfulRead).toHaveBeenCalledWith(mailbox);
   });
 });

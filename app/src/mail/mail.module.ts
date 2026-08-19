@@ -9,6 +9,7 @@ import { TriggersModule } from '@/triggers/triggers.module.ts';
 import { MailBootService } from './boot/boot.service.ts';
 import { MailInboundService } from './inbound/inbound.service.ts';
 import { MailRegistry } from './mail.registry.ts';
+import { MailOutageService } from './outage/outage.service.ts';
 
 @Module({
   exports: [MailBootService, MailInboundService, MailRegistry],
@@ -16,6 +17,7 @@ import { MailRegistry } from './mail.registry.ts';
   providers: [
     MailBootService,
     MailInboundService,
+    MailOutageService,
     {
       inject: [ChatGateway, ConfigService],
       provide: MailRegistry,

@@ -4,30 +4,34 @@ import { RosterService } from '@/channels/roster/roster.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 
 import { MailRegistry } from '../mail.registry.ts';
+import { MailOutageService } from '../outage/outage.service.ts';
 
 import type { MailboxRuntime } from '../mail.registry.ts';
 
 /**
- * Every mailbox is proven usable before the system runs: the announcement channel is not a DM and
- * holds the agent, and the provider's credentials reach the one mailbox they claim. A failure here
- * is a boot refusal that names what is wrong, never a runtime surprise.
+ * Every mailbox is proven usable before the system runs. What configuration got wrong — an
+ * announcement channel that is a DM or that the agent is not in, credentials the provider refuses —
+ * is a boot refusal that names it, never a runtime surprise. A mailbox that is merely unreachable is
+ * not that: waiting fixes a network, so the announcement channel is told and the framework runs,
+ * exactly as it would for the same outage a minute after boot.
  */
 @Injectable()
 export class MailBootService {
   constructor(
+    private readonly mailOutageService: MailOutageService,
     private readonly mailRegistry: MailRegistry,
     private readonly rosterService: RosterService,
     private readonly transportRegistry: TransportRegistry
   ) {}
 
   /** call after transports are connected and the roster is reconciled — both checks read them */
-  async assertReady(): Promise<void> {
+  async assertReadyAndAnnounceOutages(): Promise<void> {
     for (const mailbox of this.mailRegistry.list()) {
-      await this.assertMailboxReady(mailbox);
+      await this.assertMailboxReadyAndAnnounceOutage(mailbox);
     }
   }
 
-  private async assertMailboxReady(mailbox: MailboxRuntime): Promise<void> {
+  private async assertMailboxReadyAndAnnounceOutage(mailbox: MailboxRuntime): Promise<void> {
     const where = `agent "${mailbox.agentUsername}" mailbox ${mailbox.provider.address}`;
     const isDirect = await this.transportRegistry
       .get(mailbox.agentUsername)
@@ -42,8 +46,12 @@ export class MailBootService {
       throw new Error(`${where}: the agent is not a member of the announcement channel`);
     }
     const probed = await mailbox.provider.probe();
-    if (!probed.success) {
-      throw new Error(`${where}: the mailbox probe failed (${probed.error.kind}): ${probed.error.message}`);
+    if (probed.success) {
+      return;
     }
+    if (probed.error.kind === 'auth') {
+      throw new Error(`${where}: the mailbox credentials were refused: ${probed.error.message}`);
+    }
+    await this.mailOutageService.announceUnreachable(mailbox, probed.error.message);
   }
 }

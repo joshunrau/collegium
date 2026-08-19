@@ -70,7 +70,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     const boot = await this.bootService.run();
     await this.drainBufferedEvents();
     // after boot: the DM check needs connected transports and the membership check a reconciled roster
-    await this.mailBootService.assertReady();
+    await this.mailBootService.assertReadyAndAnnounceOutages();
     this.mailInboundService.start();
     this.loggingService.log(`connected ${this.running.size} agent(s), listening for messages`);
     if (this.configService.get('app.enableLifecycleNotifications')) {
