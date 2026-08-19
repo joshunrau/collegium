@@ -29,7 +29,7 @@ export const Docs = ({ children, page, params, pathname, tree }: DocsProps) => {
       params={params}
       pathname={pathname}
       search={{ SearchDialog }}
-      // `enableColorScheme` writes `color-scheme` as an inline style, which would take the property over from `global.css` on docs pages only. It is declared there for every route.
+      // `enableColorScheme` writes `color-scheme` as an inline style, which would take the property over from `globals.css` on docs pages only. It is declared there for every route.
       theme={{ enableColorScheme: false, storageKey: 'collegium-theme' }}
     >
       <DocsLayout
