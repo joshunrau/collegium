@@ -88,6 +88,18 @@ export default config(
   {
     files: ['docs/src/**/*.{ts,tsx,astro}'],
     rules: {
+      'no-restricted-exports': [
+        'error',
+        {
+          restrictDefaultExports: {
+            direct: true,
+            named: true,
+            defaultFrom: true,
+            namedFrom: true,
+            namespaceFrom: true
+          }
+        }
+      ],
       // import/extensions cannot enforce this: it mistakes dotted basenames (content.source) for
       // extensions, and this repo's <name>.<kind>.ts convention makes those the likeliest misses.
       'no-restricted-imports': [
