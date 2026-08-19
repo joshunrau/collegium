@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { OUTPUT_CAP_CHARS } from '../shell.constants.ts';
-import { buildProbeArgv, buildRunArgv, deriveShellOsUser, toRunOutput } from '../shell.utils.ts';
+import { OUTPUT_CAP_CHARS, SHELL_OS_USER_ID_BASE, SHELL_OS_USER_ID_COUNT } from '../shell.constants.ts';
+import {
+  buildProbeArgv,
+  buildRunArgv,
+  deriveShellOsIdentities,
+  deriveShellOsUser,
+  toRunOutput
+} from '../shell.utils.ts';
 
 import type { CapturedProcess } from '../shell.types.ts';
 
@@ -16,6 +22,29 @@ const captured = (over: Partial<CapturedProcess>): CapturedProcess => ({
 describe('deriveShellOsUser', () => {
   it('should prefix the agent username so the OS user is one-per-agent and cannot collide', () => {
     expect(deriveShellOsUser('mira')).toBe('collegium-mira');
+  });
+});
+
+describe('deriveShellOsIdentities', () => {
+  it('should derive an id from the username alone, so it survives restarts and roster changes', () => {
+    expect(deriveShellOsIdentities(['mira'])).toStrictEqual([{ id: 646_747, osUser: 'collegium-mira' }]);
+  });
+
+  it('should place every id in the range reserved for agents', () => {
+    for (const { id } of deriveShellOsIdentities(['mira', 'kevin', 'tess'])) {
+      expect(id).toBeGreaterThanOrEqual(SHELL_OS_USER_ID_BASE);
+      expect(id).toBeLessThan(SHELL_OS_USER_ID_BASE + SHELL_OS_USER_ID_COUNT);
+    }
+  });
+
+  it('should not depend on the order the agents are listed in', () => {
+    const [mira] = deriveShellOsIdentities(['mira', 'kevin']);
+    const [, listedLast] = deriveShellOsIdentities(['kevin', 'mira']);
+    expect(listedLast).toStrictEqual(mira);
+  });
+
+  it('should refuse two usernames deriving one id rather than confine them together', () => {
+    expect(() => deriveShellOsIdentities(['aaml', 'aafn'])).toThrow('derive the same OS user id');
   });
 });
 

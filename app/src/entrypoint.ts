@@ -16,7 +16,8 @@ import { $Env } from '@/config/env/env.schemas.ts';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports
 import { JSONLogger } from '@/logging/adapters/json.logger.ts';
 import { SHELL_TOOL_NAME } from '@/shell/shell.constants.ts';
-import { deriveShellOsUser } from '@/shell/shell.utils.ts';
+import type { ShellOsIdentity } from '@/shell/shell.types.ts';
+import { deriveShellOsIdentities } from '@/shell/shell.utils.ts';
 
 const AGENT_GROUP = 'collegium-agents';
 // what provisioning authenticates with, and what the long-lived app process must never hold
@@ -52,7 +53,7 @@ function belongsToAgentGroup(osUser: string): boolean {
   return groups.trim().split(/\s+/).includes(AGENT_GROUP);
 }
 
-function provisionAgentOsUser(osUser: string): void {
+function provisionAgentOsUser({ id, osUser }: ShellOsIdentity): void {
   const home = path.join(HOME_DIR, osUser);
   if (succeeds('id', ['--user', osUser])) {
     // agent-group membership marks the account as an earlier start's own provisioning — a container
@@ -61,19 +62,21 @@ function provisionAgentOsUser(osUser: string): void {
       throw new Error(`"${osUser}" collides with an account the image already holds; rename the agent`);
     }
   } else {
-    const existing = fs.statSync(home, { throwIfNoEntry: false });
-    if (existing) {
-      // accounts live in the image and homes live in the volume, so an agent's ids are whatever its
-      // own home already carries: fresh numbers would hand it the home of whoever held them before
-      if (!succeeds('getent', ['group', String(existing.gid)])) {
-        run('groupadd', ['--gid', String(existing.gid), osUser]);
-      }
-      const ids = ['--uid', String(existing.uid), '--gid', String(existing.gid)];
-      run('useradd', [...ids, '--groups', AGENT_GROUP, '--shell', '/bin/bash', osUser]);
-    } else {
-      run('useradd', ['--create-home', '--user-group', '--groups', AGENT_GROUP, '--shell', '/bin/bash', osUser]);
+    if (succeeds('getent', ['passwd', String(id)])) {
+      throw new Error(`"${osUser}" derives id ${id}, which an account the image already holds; rename the agent`);
     }
+    if (!succeeds('getent', ['group', String(id)])) {
+      run('groupadd', ['--gid', String(id), osUser]);
+    }
+    const hasHome = fs.statSync(home, { throwIfNoEntry: false }) !== undefined;
+    const create = hasHome ? [] : ['--create-home'];
+    const ids = ['--uid', String(id), '--gid', String(id)];
+    run('useradd', [...create, ...ids, '--groups', AGENT_GROUP, '--shell', '/bin/bash', osUser]);
   }
+  // ownership is claimed from the derived id every start and never read back off the volume: a mount
+  // that synthesizes it — Docker Desktop reports whatever the caller is — would answer with a lie
+  fs.mkdirSync(home, { recursive: true });
+  run('chown', ['--recursive', `${id}:${id}`, home]);
   fs.chmodSync(home, 0o700);
 }
 
@@ -125,16 +128,16 @@ try {
     fs.chmodSync(stateDirectory, 0o700);
   }
 
-  const osUsers = config.agents
-    .filter((agent) => agent.tools.includes(SHELL_TOOL_NAME))
-    .map((agent) => deriveShellOsUser(agent.username));
+  const identities = deriveShellOsIdentities(
+    config.agents.filter((agent) => agent.tools.includes(SHELL_TOOL_NAME)).map((agent) => agent.username)
+  );
 
-  if (osUsers.length > 0) {
+  if (identities.length > 0) {
     if (!succeeds('getent', ['group', AGENT_GROUP])) {
       run('groupadd', [AGENT_GROUP]);
     }
-    for (const osUser of osUsers) {
-      provisionAgentOsUser(osUser);
+    for (const identity of identities) {
+      provisionAgentOsUser(identity);
     }
     fs.writeFileSync(SUDOERS_FILE, `${APP_USER} ALL=(%${AGENT_GROUP}) NOPASSWD: ALL\n`, { mode: 0o440 });
   }

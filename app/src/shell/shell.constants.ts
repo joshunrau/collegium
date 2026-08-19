@@ -14,6 +14,19 @@ export const OUTPUT_CAP_CHARS = 8_192;
 export const SHELL_OS_USER_PREFIX = 'collegium-';
 
 /**
+ * Where derived OS user ids start: above the system range (ends at 999), above the accounts the
+ * image itself holds, and above `nobody` (65534), so a derived id never lands on one that already
+ * means something.
+ */
+export const SHELL_OS_USER_ID_BASE = 100_000;
+
+/**
+ * How many ids the range spans — wide enough that two agent usernames deriving one id is a boot
+ * refusal nobody meets in practice, and far below where 32-bit id handling gets delicate.
+ */
+export const SHELL_OS_USER_ID_COUNT = 900_000;
+
+/**
  * Where `sudo` is launched from. The child inherits it, and the app's own working directory is
  * deliberately untraversable to agent users (§6.1) — a shell starting somewhere it cannot stat
  * prints a `getcwd` warning onto the model's stderr before it can reach the agent's home.

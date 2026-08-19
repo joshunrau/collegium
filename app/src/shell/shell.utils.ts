@@ -1,12 +1,16 @@
+import { createHash } from 'node:crypto';
+
 import {
   COMMAND_DEADLINE_SECONDS,
   DEADLINE_EXIT_CODE,
   DEADLINE_KILL_GRACE_SECONDS,
   OUTPUT_CAP_CHARS,
+  SHELL_OS_USER_ID_BASE,
+  SHELL_OS_USER_ID_COUNT,
   SHELL_OS_USER_PREFIX
 } from './shell.constants.ts';
 
-import type { CapturedProcess } from './shell.types.ts';
+import type { CapturedProcess, ShellOsIdentity } from './shell.types.ts';
 
 /**
  * `$0` for the inner shell, so a command that reports its own name says something legible rather
@@ -22,6 +26,11 @@ const SHELL_ARGV0 = 'collegium-shell';
  * pid `timeout(1)` is watching.
  */
 const RUN_FROM_HOME = 'cd -- "$HOME" || exit 1; exec bash -c "$1" "$0"';
+
+function deriveShellOsUserId(agentUsername: string): number {
+  const digest = createHash('sha256').update(agentUsername).digest();
+  return SHELL_OS_USER_ID_BASE + (digest.readUInt32BE(0) % SHELL_OS_USER_ID_COUNT);
+}
 
 function capStream(text: string): string {
   const trimmed = text.trim();
@@ -47,6 +56,35 @@ function describeExit(captured: CapturedProcess): string {
  */
 export function deriveShellOsUser(agentUsername: string): string {
   return `${SHELL_OS_USER_PREFIX}${agentUsername}`;
+}
+
+/**
+ * The OS identity of each shell-holding agent, both halves a function of the username alone. The
+ * number is derived rather than allocated or read back off the agent's home directory, because
+ * neither survives the ways a deployment changes: allocation depends on the order configuration
+ * lists agents in, so adding one agent can hand it the id an existing agent's files already carry,
+ * and a volume's ownership is not a fact everywhere — a Docker Desktop bind mount reports whatever
+ * the caller happens to be. Derived, an agent's files stay its own across restarts, image rebuilds,
+ * and configuration changes, and a departed agent's id is never reissued to anyone else.
+ *
+ * Two usernames deriving one id would put two agents in one confinement, so it is a refusal naming
+ * both rather than a silent merge.
+ */
+export function deriveShellOsIdentities(agentUsernames: readonly string[]): readonly ShellOsIdentity[] {
+  const identities = agentUsernames.map((agentUsername) => ({
+    id: deriveShellOsUserId(agentUsername),
+    osUser: deriveShellOsUser(agentUsername)
+  }));
+  const osUsersById = new Map<number, string[]>();
+  for (const { id, osUser } of identities) {
+    osUsersById.set(id, [...(osUsersById.get(id) ?? []), osUser]);
+  }
+  for (const [id, osUsers] of osUsersById) {
+    if (osUsers.length > 1) {
+      throw new Error(`${osUsers.join(' and ')} derive the same OS user id (${id}); rename one of these agents`);
+    }
+  }
+  return identities;
 }
 
 /**
