@@ -50,12 +50,6 @@
   --lp-text: #fafafa;
 }
 
-.landing {
-  background-color: var(--lp-background);
-  color: var(--lp-text);
-  font-family: var(--font-lp-sans);
-}
-
 button:not(:disabled),
 [role='button']:not(:disabled) {
   cursor: pointer;
