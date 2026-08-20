@@ -1,5 +1,5 @@
 ---
-name: grill-me
+name: interview
 description: A relentless interview to sharpen a plan or design.
 disable-model-invocation: true
 ---

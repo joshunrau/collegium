@@ -79,6 +79,12 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "bce096b49db40761adb1d5348f064c303fc152e4e50fc3fd81b79df8b6cf137f"
     },
+    "interview": {
+      "source": "joshunrau/skills",
+      "sourceType": "github",
+      "skillPath": "skills/interview/SKILL.md",
+      "computedHash": "95706d1390604f3c1fbdde6ef6afa895eef2af8eb3d4efcc9ba8e5e435155ad4"
+    },
     "launch": {
       "source": "coreyhaines31/marketingskills",
       "sourceType": "github",
