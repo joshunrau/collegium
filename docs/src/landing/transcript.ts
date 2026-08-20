@@ -1,16 +1,3 @@
-type TranscriptAuthor = 'clara' | 'orchestrator' | 'theo';
-
-type ToolLine = {
-  detail: string;
-  tool: string;
-};
-
-type MailPanel = {
-  body: string;
-  from: string;
-  subject: string;
-};
-
 type ApprovalPanel = {
   approvedAt: string;
   approvedBy: string;
@@ -19,15 +6,48 @@ type ApprovalPanel = {
   to: string;
 };
 
-type TranscriptTurn = (
-  | { approval: ApprovalPanel; kind: 'approval' }
-  | { kind: 'mail'; mail: MailPanel; text: string }
-  | { kind: 'text'; text: string }
-  | { kind: 'tools'; tools: ToolLine[] }
-) & {
-  at: string;
-  author: TranscriptAuthor;
+type ToolLine = {
+  detail: string;
+  tool: string;
 };
+
+type TranscriptAuthor = 'clara' | 'orchestrator' | 'theo';
+
+namespace TranscriptTurn {
+  interface Base {
+    at: string;
+    author: TranscriptAuthor;
+  }
+
+  export interface Approval extends Base {
+    approval: ApprovalPanel;
+    kind: 'approval';
+  }
+
+  export interface Mail extends Base {
+    kind: 'mail';
+    mail: {
+      body: string;
+      from: string;
+      subject: string;
+    };
+    text: string;
+  }
+
+  export interface Text extends Base {
+    kind: 'text';
+    text: string;
+  }
+
+  export interface Tools extends Base {
+    kind: 'tools';
+    tools: ToolLine[];
+  }
+
+  export type Any = Approval | Mail | Text | Tools;
+}
+
+type TranscriptTurn = TranscriptTurn.Any;
 
 const TRANSCRIPT: TranscriptTurn[] = [
   {
