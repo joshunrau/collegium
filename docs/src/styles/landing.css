@@ -54,3 +54,9 @@ button:not(:disabled),
 [role='button']:not(:disabled) {
   cursor: pointer;
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}

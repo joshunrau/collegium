@@ -3,16 +3,62 @@ import type { ImageMetadata } from 'astro';
 
 import { Image } from 'astro:assets';
 
-import type { TranscriptTurn } from '@/landing/transcript.ts';
+export type TranscriptAuthor = 'clara' | 'orchestrator' | 'theo';
 
-import { displayName, splitMentions } from '@/landing/transcript.ts';
+export type TranscriptAuthorProfile = {
+  avatar: ImageMetadata;
+  name: string;
+};
+
+type TranscriptTurnBase = {
+  at: string;
+  author: TranscriptAuthor;
+};
+
+export type TranscriptTurn =
+  | (TranscriptTurnBase & {
+      approval: {
+        approvedAt: string;
+        approvedBy: string;
+        paragraphs: string[];
+        subject: string;
+        to: string;
+      };
+      kind: 'approval';
+    })
+  | (TranscriptTurnBase & {
+      kind: 'mail';
+      mail: {
+        body: string;
+        from: string;
+        subject: string;
+      };
+      text: string;
+    })
+  | (TranscriptTurnBase & {
+      kind: 'text';
+      text: string;
+    })
+  | (TranscriptTurnBase & {
+      kind: 'tools';
+      tools: {
+        detail: string;
+        tool: string;
+      }[];
+    });
 
 interface Props {
-  avatar: ImageMetadata;
+  author: TranscriptAuthorProfile;
   turn: TranscriptTurn;
 }
 
-const { avatar, turn } = Astro.props;
+const { author, turn } = Astro.props;
+
+const splitMentions = (text: string): { isMention: boolean; value: string }[] =>
+  text
+    .split(/((?<=^|\s)@[a-z]+)/g)
+    .filter((value) => value.length > 0)
+    .map((value) => ({ isMention: value.startsWith('@'), value }));
 ---
 
 <article class="border-lp-border bg-lp-surface flex gap-3 rounded-xl border p-5">
@@ -21,12 +67,12 @@ const { avatar, turn } = Astro.props;
     class="size-8 shrink-0 rounded-md object-cover"
     densities={[1, 2]}
     height={32}
-    src={avatar}
+    src={author.avatar}
     width={32}
   />
   <div class="flex min-w-0 flex-1 flex-col gap-2">
     <p class="flex items-baseline gap-2">
-      <span class="text-sm font-medium">{displayName(turn.author)}</span>
+      <span class="text-sm font-medium">{author.name}</span>
       <span class="text-lp-muted font-lp-mono text-xs">{turn.at}</span>
     </p>
 

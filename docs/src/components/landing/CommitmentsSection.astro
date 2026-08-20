@@ -1,0 +1,30 @@
+---
+type Commitment = {
+  body: string;
+  title: string;
+};
+
+interface Props {
+  commitments: Commitment[];
+  kicker: string;
+}
+
+const { commitments, kicker } = Astro.props;
+---
+
+<section class="flex flex-col gap-2">
+  <h2 class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">{kicker}</h2>
+  <ol class="flex flex-col">
+    {
+      commitments.map((commitment, index) => (
+        <li class="border-lp-border grid gap-x-8 gap-y-2 border-t py-7 sm:grid-cols-[3rem_1fr]">
+          <span class="text-lp-muted font-lp-mono pt-1 text-xs">{String(index + 1).padStart(2, '0')}</span>
+          <div class="flex max-w-2xl flex-col gap-2">
+            <h3 class="font-lp-serif text-xl tracking-tight">{commitment.title}</h3>
+            <p class="text-lp-muted text-sm leading-relaxed">{commitment.body}</p>
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+</section>

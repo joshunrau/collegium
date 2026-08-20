@@ -1,183 +1,162 @@
 ---
-import '@/styles/landing.css';
+import type { ComponentProps } from 'astro/types';
 
-import type { ImageMetadata } from 'astro';
-
-import type { TranscriptAuthor } from '@/landing/transcript.ts';
-
+import CommitmentsSection from '@/components/landing/CommitmentsSection.astro';
+import HeroSection from '@/components/landing/HeroSection.astro';
 import LandingLayout from '@/components/landing/LandingLayout.astro';
-import MessageCard from '@/components/landing/MessageCard.astro';
-
-import { TRANSCRIPT } from '@/landing/transcript.ts';
+import RefusalsSection from '@/components/landing/RefusalsSection.astro';
+import TranscriptSection from '@/components/landing/TranscriptSection.astro';
 
 import clara from '@/assets/headshots/clara.png';
 import orchestrator from '@/assets/headshots/orchestrator.png';
 import theo from '@/assets/headshots/theo.png';
 
-type Posture = {
-  body: string;
-  title: string;
+const HERO: ComponentProps<typeof HeroSection> = {
+  body: "Collegium agents are members of your team's chat, each with its own name, tools, and memory. They handle the work that isn't writing software, like email, research, and follow-through.",
+  heading: "The agent framework for the work you can't git revert",
+  primaryCta: { href: '/docs/getting-started/quickstart', label: 'Quickstart' },
+  secondaryCta: { href: '#transcript', label: 'Learn More' }
 };
 
-type Refusal = {
-  cost: string;
-  title: string;
-  what: string;
+const TRANSCRIPT: ComponentProps<typeof TranscriptSection> = {
+  authors: {
+    clara: { avatar: clara, name: 'Clara' },
+    orchestrator: { avatar: orchestrator, name: 'Orchestrator' },
+    theo: { avatar: theo, name: 'Theo' }
+  },
+  id: 'transcript',
+  intro:
+    'An email arrives, Clara owns the reply, Theo digs up the facts, and a person approves the send. Everything below is a channel you could scroll.',
+  kicker: 'One job, end to end',
+  outro:
+    "The announcement is deterministic code, not an agent deciding your mail matters. The approval shows the entire payload: every recipient, the full body, nothing summarized. And the send happens exactly once or not at all: an ambiguous outcome stops the turn rather than retrying your client's inbox.",
+  turns: [
+    {
+      at: '10:02 AM',
+      author: 'orchestrator',
+      kind: 'mail',
+      mail: {
+        body: "Hi! Planning for next June has started, and we'd love to have you back as a sponsor. This year's tiers are up on our site. Any interest in returning?",
+        from: 'elena@northshoresummit.co',
+        subject: 'Sponsoring Northshore Summit 2027'
+      },
+      text: 'New mail for @clara'
+    },
+    {
+      at: '10:02 AM',
+      author: 'clara',
+      kind: 'tools',
+      tools: [
+        { detail: 'opened "Sponsoring Northshore Summit 2027" from elena@northshoresummit.co', tool: 'mail' },
+        { detail: 'northshore summit 2026: silver tier, booth skipped', tool: 'read_memory' }
+      ]
+    },
+    {
+      at: '10:03 AM',
+      author: 'clara',
+      kind: 'text',
+      text: "@theo can you pull the 2027 sponsor tiers from northshoresummit.co? I need silver's price and what it includes."
+    },
+    {
+      at: '10:03 AM',
+      author: 'theo',
+      kind: 'tools',
+      tools: [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', tool: 'browser' }]
+    },
+    {
+      at: '10:05 AM',
+      author: 'theo',
+      kind: 'text',
+      text: '@clara Silver is $4,000 for 2027: logo placement, two passes, and a careers-page listing. Gold is $8,500 and adds a booth. Silver is up $500 from last year.'
+    },
+    {
+      approval: {
+        approvedAt: '10:31 AM',
+        approvedBy: 'maya',
+        paragraphs: [
+          'Hi Elena,',
+          "Good to hear from you. We had a great experience last year and would like to return at silver. I see it is $4,000 for 2027; could you send the agreement over? One request: we'd like the careers-page listing live ahead of the conference this time.",
+          'Thanks,',
+          'Clara'
+        ],
+        subject: 'Re: Sponsoring Northshore Summit 2027',
+        to: 'elena@northshoresummit.co'
+      },
+      at: '10:06 AM',
+      author: 'clara',
+      kind: 'approval'
+    },
+    {
+      at: '10:31 AM',
+      author: 'clara',
+      kind: 'text',
+      text: "Sent. I noted the $500 increase for next year's budgeting."
+    }
+  ]
 };
 
-const AVATARS: { [K in TranscriptAuthor]: ImageMetadata } = { clara, orchestrator, theo };
+const COMMITMENTS: ComponentProps<typeof CommitmentsSection> = {
+  commitments: [
+    {
+      body: "Agents live in your team's channels. The work, the tool calls, the questions, and the results all land in the conversation. If work is happening, there is a post you can scroll to.",
+      title: 'Everything Happens in Your Chat'
+    },
+    {
+      body: 'Anything that leaves a mark stops and asks first: the exact email before it is sent, the exact file before it is written. You see the full payload, then approve it, deny it, or deny it with a reason the agent can act on.',
+      title: 'Consequential Actions Wait for You'
+    },
+    {
+      body: 'An agent holds exactly the tools its role requires and nothing more. There is no shell access by default, and no way for an agent to grow its own reach. What an agent can touch is a fact you can read in its configuration.',
+      title: 'Capabilities Are Granted, Never Ambient'
+    },
+    {
+      body: 'Agents act when a person addresses them, or when deterministic code you configured announces work. Never on their own initiative. And when anything goes wrong, they stop and say so: no silent retries, no improvised workarounds, no quietly degraded answers.',
+      title: 'Deterministic Starts, Clean Stops'
+    }
+  ],
+  kicker: 'What it commits to'
+};
 
-const POSTURES: Posture[] = [
-  {
-    body: "Agents live in your team's channels. The work, the tool calls, the questions, and the results all land in the conversation. If work is happening, there is a post you can scroll to.",
-    title: 'Everything Happens in Your Chat'
-  },
-  {
-    body: 'Anything that leaves a mark stops and asks first: the exact email before it is sent, the exact file before it is written. You see the full payload, then approve it, deny it, or deny it with a reason the agent can act on.',
-    title: 'Consequential Actions Wait for You'
-  },
-  {
-    body: 'An agent holds exactly the tools its role requires and nothing more. There is no shell access by default, and no way for an agent to grow its own reach. What an agent can touch is a fact you can read in its configuration.',
-    title: 'Capabilities Are Granted, Never Ambient'
-  },
-  {
-    body: 'Agents act when a person addresses them, or when deterministic code you configured announces work. Never on their own initiative. And when anything goes wrong, they stop and say so: no silent retries, no improvised workarounds, no quietly degraded answers.',
-    title: 'Deterministic Starts, Clean Stops'
-  }
-];
-
-const REFUSALS: Refusal[] = [
-  {
-    cost: 'Idle agents do nothing. That is the point. An agent with initiative and idle cycles finds work nobody asked for.',
-    title: "Agents Don't Schedule Themselves",
-    what: 'Nothing happens unless a person addresses an agent, or a trigger you configured announces work in the channel.'
-  },
-  {
-    cost: 'Improving an agent is your change to make, not something the system learns on its own. In return, the agent you reviewed yesterday is the agent running today.',
-    title: "Agents Don't Modify Themselves",
-    what: 'No agent can edit its own instructions, tools, or schedule.'
-  },
-  {
-    cost: 'Throughput. Big jobs proceed one visible conversation at a time, not as a swarm. In return, nothing is ever done by a worker that no longer exists to answer for it.',
-    title: "Agents Don't Spawn Workers",
-    what: 'Every actor has a durable name, and its work is in a channel.'
-  },
-  {
-    cost: 'We would rather interrupt you than be quietly wrong for six hours.',
-    title: 'Agents Stop Instead of Degrading',
-    what: 'A denied action, a malformed response, an ambiguous outcome: each one ends the turn with a visible notice. In a coding agent, retrying a flaky call is helpful. When the flaky call was an email to your client, a retry is a duplicate email.'
-  }
-];
+const REFUSALS: ComponentProps<typeof RefusalsSection> = {
+  costLabel: 'The cost',
+  heading: "Why It's Built This Way",
+  intro: [
+    'Most agent frameworks share one shape: give a model a shell and let it iterate unattended until the task looks done. That shape was built for writing software, where a failed attempt costs nothing and every change is reviewable as a diff before it ships.',
+    'Business work is different. Actions are visible to clients and colleagues the moment they happen, many cannot be taken back, and nobody reviews them line by line afterward. So Collegium refuses four things autonomous frameworks celebrate, and each refusal is the point.'
+  ],
+  outro:
+    'And instead of autonomy, you get a system that runs your business logic as code. A procedure that matters is not a prompt instruction the model might skip on a bad day. It is a plugin: deterministic TypeScript you write once, review once, and grant to the agents that need it. It will not change under you.',
+  refusals: [
+    {
+      cost: 'Idle agents do nothing. That is the point. An agent with initiative and idle cycles finds work nobody asked for.',
+      title: "Agents Don't Schedule Themselves",
+      what: 'Nothing happens unless a person addresses an agent, or a trigger you configured announces work in the channel.'
+    },
+    {
+      cost: 'Improving an agent is your change to make, not something the system learns on its own. In return, the agent you reviewed yesterday is the agent running today.',
+      title: "Agents Don't Modify Themselves",
+      what: 'No agent can edit its own instructions, tools, or schedule.'
+    },
+    {
+      cost: 'Throughput. Big jobs proceed one visible conversation at a time, not as a swarm. In return, nothing is ever done by a worker that no longer exists to answer for it.',
+      title: "Agents Don't Spawn Workers",
+      what: 'Every actor has a durable name, and its work is in a channel.'
+    },
+    {
+      cost: 'We would rather interrupt you than be quietly wrong for six hours.',
+      title: 'Agents Stop Instead of Degrading',
+      what: 'A denied action, a malformed response, an ambiguous outcome: each one ends the turn with a visible notice. In a coding agent, retrying a flaky call is helpful. When the flaky call was an email to your client, a retry is a duplicate email.'
+    }
+  ]
+};
 ---
 
 <LandingLayout
   description="Collegium runs LLM agents as members of your team's chat, handling email, research, and follow-through, with a human approving anything consequential."
   title="Collegium"
 >
-  <section class="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center">
-    <div class="flex flex-col gap-6">
-      <h1 class="font-lp-serif text-5xl leading-[1.08] tracking-tight text-balance sm:text-6xl">
-        The agent framework for the work you can't git revert
-      </h1>
-      <p class="text-lp-muted max-w-xl leading-relaxed sm:text-lg">
-        Collegium agents are members of your team's chat, each with its own name, tools, and memory. They handle the
-        work that isn't writing software, like email, research, and follow-through.
-      </p>
-      <div class="flex flex-wrap gap-3">
-        <a
-          class="bg-lp-text text-lp-background rounded-lg px-5 py-2.5 text-sm font-medium transition-opacity hover:opacity-90"
-          href="/docs/getting-started/quickstart"
-        >
-          Quickstart
-        </a>
-        <button
-          class="border-lp-border hover:bg-lp-surface rounded-lg border px-5 py-2.5 text-sm font-medium transition-colors"
-          id="learn-more-button"
-          type="button"
-        >
-          Learn More
-        </button>
-      </div>
-    </div>
-  </section>
-  <section class="flex flex-col gap-8" id="transcript-section">
-    <div class="flex flex-col gap-2">
-      <h2 class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">One job, end to end</h2>
-      <p class="text-lp-muted max-w-2xl leading-relaxed">
-        An email arrives, Clara owns the reply, Theo digs up the facts, and a person approves the send. Everything below
-        is a channel you could scroll.
-      </p>
-    </div>
-    <div class="flex flex-col gap-3">
-      {TRANSCRIPT.map((turn) => <MessageCard avatar={AVATARS[turn.author]} turn={turn} />)}
-    </div>
-    <p class="text-lp-muted max-w-2xl text-sm leading-relaxed">
-      The announcement is deterministic code, not an agent deciding your mail matters. The approval shows the entire
-      payload: every recipient, the full body, nothing summarized. And the send happens exactly once or not at all: an
-      ambiguous outcome stops the turn rather than retrying your client's inbox.
-    </p>
-  </section>
-
-  <section class="flex flex-col gap-2">
-    <h2 class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">What it commits to</h2>
-    <ol class="flex flex-col">
-      {
-        POSTURES.map((posture, index) => (
-          <li class="border-lp-border grid gap-x-8 gap-y-2 border-t py-7 sm:grid-cols-[3rem_1fr]">
-            <span class="text-lp-muted font-lp-mono pt-1 text-xs">{String(index + 1).padStart(2, '0')}</span>
-            <div class="flex max-w-2xl flex-col gap-2">
-              <h3 class="font-lp-serif text-xl tracking-tight">{posture.title}</h3>
-              <p class="text-lp-muted text-sm leading-relaxed">{posture.body}</p>
-            </div>
-          </li>
-        ))
-      }
-    </ol>
-  </section>
-
-  <section class="flex flex-col gap-6">
-    <h2 class="font-lp-serif text-3xl tracking-tight">Why It's Built This Way</h2>
-    <div class="flex max-w-2xl flex-col gap-4">
-      <p class="text-lp-muted leading-relaxed">
-        Most agent frameworks share one shape: give a model a shell and let it iterate unattended until the task looks
-        done. That shape was built for writing software, where a failed attempt costs nothing and every change is
-        reviewable as a diff before it ships.
-      </p>
-      <p class="text-lp-muted leading-relaxed">
-        Business work is different. Actions are visible to clients and colleagues the moment they happen, many cannot be
-        taken back, and nobody reviews them line by line afterward. So Collegium refuses four things autonomous
-        frameworks celebrate, and each refusal is the point.
-      </p>
-    </div>
-    <ul class="flex flex-col">
-      {
-        REFUSALS.map((refusal) => (
-          <li class="border-lp-border grid gap-x-10 gap-y-5 border-t py-8 md:grid-cols-2">
-            <div class="flex flex-col gap-2">
-              <h3 class="font-lp-serif text-xl tracking-tight">{refusal.title}</h3>
-              <p class="text-lp-muted text-sm leading-relaxed">{refusal.what}</p>
-            </div>
-            <div class="border-lp-accent/50 flex flex-col gap-2 border-l pl-5">
-              <span class="text-lp-accent font-lp-mono text-xs tracking-widest uppercase">The cost</span>
-              <p class="text-sm leading-relaxed">{refusal.cost}</p>
-            </div>
-          </li>
-        ))
-      }
-    </ul>
-    <p class="max-w-2xl leading-relaxed">
-      And instead of autonomy, you get a system that runs your business logic as code. A procedure that matters is not a
-      prompt instruction the model might skip on a bad day. It is a plugin: deterministic TypeScript you write once,
-      review once, and grant to the agents that need it. It will not change under you.
-    </p>
-  </section>
+  <HeroSection {...HERO} />
+  <TranscriptSection {...TRANSCRIPT} />
+  <CommitmentsSection {...COMMITMENTS} />
+  <RefusalsSection {...REFUSALS} />
 </LandingLayout>
-
-<script>
-  const learnMoreButton = document.getElementById('learn-more-button');
-  const transcriptSection = document.getElementById('transcript-section');
-
-  learnMoreButton?.addEventListener('click', () => {
-    transcriptSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-</script>

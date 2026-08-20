@@ -1,0 +1,41 @@
+---
+type Refusal = {
+  cost: string;
+  title: string;
+  what: string;
+};
+
+interface Props {
+  costLabel: string;
+  heading: string;
+  intro: string[];
+  outro: string;
+  refusals: Refusal[];
+}
+
+const { costLabel, heading, intro, outro, refusals } = Astro.props;
+---
+
+<section class="flex flex-col gap-6">
+  <h2 class="font-lp-serif text-3xl tracking-tight">{heading}</h2>
+  <div class="flex max-w-2xl flex-col gap-4">
+    {intro.map((paragraph) => <p class="text-lp-muted leading-relaxed">{paragraph}</p>)}
+  </div>
+  <ul class="flex flex-col">
+    {
+      refusals.map((refusal) => (
+        <li class="border-lp-border grid gap-x-10 gap-y-5 border-t py-8 md:grid-cols-2">
+          <div class="flex flex-col gap-2">
+            <h3 class="font-lp-serif text-xl tracking-tight">{refusal.title}</h3>
+            <p class="text-lp-muted text-sm leading-relaxed">{refusal.what}</p>
+          </div>
+          <div class="border-lp-accent/50 flex flex-col gap-2 border-l pl-5">
+            <span class="text-lp-accent font-lp-mono text-xs tracking-widest uppercase">{costLabel}</span>
+            <p class="text-sm leading-relaxed">{refusal.cost}</p>
+          </div>
+        </li>
+      ))
+    }
+  </ul>
+  <p class="max-w-2xl leading-relaxed">{outro}</p>
+</section>
