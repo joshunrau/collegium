@@ -15,11 +15,11 @@ interface Props {
 const { description, title } = Astro.props;
 ---
 
-<Layout description={description} title={title}>
+<Layout class="bg-lp-background text-lp-text font-lp-sans" description={description} title={title}>
   <Font cssVariable="--font-geist" preload slot="head" />
   <Font cssVariable="--font-geist-mono" slot="head" />
   <Font cssVariable="--font-newsreader" preload slot="head" />
-  <div class="bg-lp-background text-lp-text font-lp-sans flex flex-1 flex-col">
+  <div class="flex flex-1 flex-col">
     <header class="border-lp-border bg-lp-background/80 fixed inset-x-0 top-0 z-50 border-b backdrop-blur">
       <div class="mx-auto flex h-14 w-full max-w-5xl items-center gap-6 px-6">
         <a class="flex items-center gap-2.5 text-sm font-medium" href="/">
@@ -59,6 +59,22 @@ const { description, title } = Astro.props;
       <slot />
     </main>
   </div>
+  <footer class="border-lp-border border-t">
+    <div class="mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
+      <p class="text-sm font-medium">Collegium</p>
+      <nav class="text-lp-muted flex items-center gap-5 text-sm">
+        <a class="hover:text-lp-text transition-colors" href="/docs"> Docs </a>
+        <a
+          class="hover:text-lp-text transition-colors"
+          href="https://github.com/joshunrau/collegium"
+          rel="noreferrer"
+          target="_blank"
+        >
+          GitHub
+        </a>
+      </nav>
+    </div>
+  </footer>
 </Layout>
 <script>
   const bind = () => {

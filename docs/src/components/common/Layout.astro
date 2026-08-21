@@ -1,14 +1,16 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import { cn } from '@/utils/cn.ts';
 
 interface Props {
+  class?: string;
   description: string;
   /** Site-root-relative path to the OpenGraph image, if the page has one. */
   image?: string;
   title: string;
 }
 
-const { description, image, title } = Astro.props;
+const { class: className, description, image, title } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 ---
 
@@ -51,7 +53,12 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     </script>
     <ClientRouter />
   </head>
-  <body class="flex min-h-screen flex-col" transition:persist transition:animate="none" transition:name="page-layout">
+  <body
+    class={cn('flex min-h-screen flex-col', className)}
+    transition:persist
+    transition:animate="none"
+    transition:name="page-layout"
+  >
     <slot />
   </body>
 </html>
