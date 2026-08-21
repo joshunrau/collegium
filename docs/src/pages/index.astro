@@ -2,7 +2,6 @@
 import type { ComponentProps } from 'astro/types';
 
 import CommitmentsSection from '@/components/landing/CommitmentsSection.astro';
-import HeroSection from '@/components/landing/HeroSection.astro';
 import LandingLayout from '@/components/landing/LandingLayout.astro';
 import RefusalsSection from '@/components/landing/RefusalsSection.astro';
 import TranscriptSection from '@/components/landing/TranscriptSection.astro';
@@ -10,13 +9,7 @@ import TranscriptSection from '@/components/landing/TranscriptSection.astro';
 import clara from '@/assets/headshots/clara.png';
 import orchestrator from '@/assets/headshots/orchestrator.png';
 import theo from '@/assets/headshots/theo.png';
-
-const HERO: ComponentProps<typeof HeroSection> = {
-  body: "Collegium agents are members of your team's chat, each with its own name, tools, and memory. They handle the work that isn't writing software, like email, research, and follow-through.",
-  heading: "The agent framework for the work you can't git revert",
-  primaryCta: { href: '/docs/getting-started/quickstart', label: 'Quickstart' },
-  secondaryCta: { href: '#transcript', label: 'Learn More' }
-};
+import { LandingHero } from '@/components/landing/LandingHero.tsx';
 
 const TRANSCRIPT: ComponentProps<typeof TranscriptSection> = {
   authors: {
@@ -155,7 +148,7 @@ const REFUSALS: ComponentProps<typeof RefusalsSection> = {
   description="Collegium runs LLM agents as members of your team's chat, handling email, research, and follow-through, with a human approving anything consequential."
   title="Collegium"
 >
-  <HeroSection {...HERO} />
+  <LandingHero client:load />
   <TranscriptSection {...TRANSCRIPT} />
   <CommitmentsSection {...COMMITMENTS} />
   <RefusalsSection {...REFUSALS} />
