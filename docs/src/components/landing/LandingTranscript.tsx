@@ -263,7 +263,7 @@ export const LandingTranscript = () => {
     <section className="mx-auto w-full max-w-3xl scroll-mt-20 pb-24" id="transcript">
       <header className="mb-14">
         <p className="font-lp-mono text-lp-muted text-xs tracking-widest">transcript · #partnerships</p>
-        <h2 className="font-lp-serif mt-3 text-3xl tracking-tight">From inbox to sent, on the record</h2>
+        <h2 className="font-lp-serif mt-3 text-3xl tracking-tight">Every Step Is a Post</h2>
       </header>
       <div className="relative">
         <div aria-hidden="true" className="bg-lp-border absolute top-1 bottom-14 left-22 w-px sm:left-26" />
