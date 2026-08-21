@@ -116,7 +116,7 @@ const TRANSCRIPT: ComponentProps<typeof TranscriptSection> = {
 const COMMITMENTS: ComponentProps<typeof CommitmentsSection> = {
   commitments: [
     {
-      body: "Agents live in your team's channels. The work, the tool calls, the questions, and the results all land in the conversation. If work is happening, there is a post you can scroll to.",
+      body: 'Agents live in your team’s channels. The work, the tool calls, the questions, and the results all land in the conversation. If work is happening, there is a post you can scroll to.',
       title: 'Everything Happens in Your Chat'
     },
     {
@@ -132,12 +132,12 @@ const COMMITMENTS: ComponentProps<typeof CommitmentsSection> = {
       title: 'Deterministic Starts, Clean Stops'
     }
   ],
-  kicker: 'Design Principles'
+  heading: 'Design Principles'
 };
 
 const REFUSALS: ComponentProps<typeof RefusalsSection> = {
   costLabel: 'The Tradeoff',
-  heading: "Why It's Built This Way",
+  heading: 'Why It’s Built This Way',
   intro: [
     'Most agent frameworks share one shape: give a model a shell and let it iterate unattended until the task looks done. That shape was built for writing software, where a failed attempt costs nothing and every change is reviewable as a diff before it ships.',
     'Business work is different. Actions are visible to clients and colleagues the moment they happen, many cannot be taken back, and nobody reviews them line by line afterward. So Collegium refuses four things autonomous frameworks celebrate, and each refusal is the point.'
@@ -145,17 +145,17 @@ const REFUSALS: ComponentProps<typeof RefusalsSection> = {
   refusals: [
     {
       cost: 'Idle agents do nothing. That is the point. An agent with initiative and idle cycles finds work nobody asked for.',
-      title: "Agents Don't Schedule Themselves",
+      title: 'Agents Don’t Schedule Themselves',
       what: 'Nothing happens unless a person addresses an agent, or a trigger you configured announces work in the channel.'
     },
     {
       cost: 'Improving an agent is your change to make, not something the system learns on its own. In return, the agent you reviewed yesterday is the agent running today.',
-      title: "Agents Don't Modify Themselves",
+      title: 'Agents Don’t Modify Themselves',
       what: 'No agent can edit its own instructions, tools, or schedule.'
     },
     {
       cost: 'Throughput. Big jobs proceed one visible conversation at a time, not as a swarm. In return, nothing is ever done by a worker that no longer exists to answer for it.',
-      title: "Agents Don't Spawn Workers",
+      title: 'Agents Don’t Spawn Workers',
       what: 'Every actor has a durable name, and its work is in a channel.'
     },
     {

@@ -11,7 +11,7 @@
 /*
  * Landing-page tokens. Namespaced `lp-` and never applied to the docs shell, which keeps its
  * fumadocs preset untouched. Amber is the only hue on the page and it carries one meaning: held,
- * waiting for a human. It appears on the approval card, on mentions, and on the cost of a refusal.
+ * waiting for a human.
  */
 @theme {
   --font-lp-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -50,13 +50,58 @@
   --lp-text: #fafafa;
 }
 
+::selection {
+  background-color: color-mix(in oklab, var(--lp-accent) 30%, transparent);
+}
+
 button:not(:disabled),
 [role='button']:not(:disabled) {
   cursor: pointer;
 }
 
+.lp-hairline {
+  position: relative;
+}
+
+.lp-hairline::before {
+  background-color: var(--lp-border);
+  content: '';
+  height: 1px;
+  inset: 0 0 auto;
+  position: absolute;
+}
+
+/*
+ * Scroll reveals hide elements only under `.lp-io`, which the landing layout's observer script
+ * sets once it is running — without JavaScript, nothing on the page is ever hidden.
+ */
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;
+  }
+
+  .lp-io [data-reveal] {
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+      opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--lp-reveal-delay, 0ms);
+  }
+
+  .lp-io [data-reveal].lp-revealed {
+    opacity: 1;
+    transform: none;
+  }
+
+  .lp-io .lp-hairline::before {
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+    transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--lp-reveal-delay, 0ms);
+  }
+
+  .lp-io .lp-hairline.lp-revealed::before {
+    transform: scaleX(1);
   }
 }

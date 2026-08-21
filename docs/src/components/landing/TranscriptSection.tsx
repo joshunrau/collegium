@@ -144,7 +144,7 @@ const Row: React.FC<{ reduceMotion: boolean; turn: TranscriptTurn }> = ({ reduce
   ]);
   return (
     <motion.div
-      className="grid grid-cols-[4rem_1.5rem_minmax(0,1fr)] gap-x-3 sm:grid-cols-[4.5rem_1.5rem_minmax(0,1fr)] sm:gap-x-5"
+      className="grid grid-cols-[4rem_1.5rem_minmax(0,1fr)] gap-x-3 pb-14 last:pb-0 sm:grid-cols-[4.5rem_1.5rem_minmax(0,1fr)] sm:gap-x-5"
       ref={ref}
       style={reduceMotion ? undefined : { filter, opacity, scale }}
     >
@@ -159,7 +159,7 @@ const Row: React.FC<{ reduceMotion: boolean; turn: TranscriptTurn }> = ({ reduce
           />
         </div>
       </div>
-      <div className="flex flex-col gap-2.5 pb-14">
+      <div className="flex flex-col gap-2.5">
         <div className="flex items-center gap-2.5">
           <motion.img
             alt={turn.author.name}
@@ -180,13 +180,13 @@ const Row: React.FC<{ reduceMotion: boolean; turn: TranscriptTurn }> = ({ reduce
 export const TranscriptSection: React.FC<Props> = ({ heading, id, kicker, turns }) => {
   const reduceMotion = useReducedMotion() ?? false;
   return (
-    <section className="mx-auto w-full max-w-3xl scroll-mt-20 pb-24" id={id}>
+    <section className="mx-auto w-full max-w-3xl scroll-mt-20" id={id}>
       <header className="mb-14">
         <p className="font-lp-mono text-lp-muted text-xs tracking-widest">{kicker}</p>
         <h2 className="font-lp-serif mt-3 text-3xl tracking-tight">{heading}</h2>
       </header>
       <div className="relative">
-        <div aria-hidden="true" className="bg-lp-border absolute top-1 bottom-14 left-22 w-px sm:left-26" />
+        <div aria-hidden="true" className="bg-lp-border absolute top-1 bottom-0 left-22 w-px sm:left-26" />
         {turns.map((turn, index) => (
           <Row key={index} reduceMotion={reduceMotion} turn={turn} />
         ))}

@@ -6,22 +6,22 @@ type Commitment = {
 
 interface Props {
   commitments: Commitment[];
-  kicker: string;
+  heading: string;
 }
 
-const { commitments, kicker } = Astro.props;
+const { commitments, heading } = Astro.props;
 ---
 
-<section class="flex flex-col gap-2">
-  <h2 class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">{kicker}</h2>
-  <ol class="flex flex-col">
+<section class="flex flex-col">
+  <h2 class="font-lp-serif text-3xl tracking-tight text-balance" data-reveal>{heading}</h2>
+  <ol class="mt-14 flex flex-col">
     {
       commitments.map((commitment, index) => (
-        <li class="border-lp-border grid gap-x-8 gap-y-2 border-t py-7 sm:grid-cols-[3rem_1fr]">
+        <li class="lp-hairline grid gap-x-8 gap-y-2 py-8 last:pb-0 sm:grid-cols-[3rem_1fr]" data-reveal>
           <span class="text-lp-muted font-lp-mono pt-1 text-xs">{String(index + 1).padStart(2, '0')}</span>
           <div class="flex max-w-2xl flex-col gap-2">
-            <h3 class="font-lp-serif text-xl tracking-tight">{commitment.title}</h3>
-            <p class="text-lp-muted text-sm leading-relaxed">{commitment.body}</p>
+            <h3 class="font-lp-serif text-xl tracking-tight text-balance">{commitment.title}</h3>
+            <p class="text-lp-muted text-sm leading-relaxed text-pretty">{commitment.body}</p>
           </div>
         </li>
       ))

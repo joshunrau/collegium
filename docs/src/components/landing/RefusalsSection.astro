@@ -15,22 +15,28 @@ interface Props {
 const { costLabel, heading, intro, refusals } = Astro.props;
 ---
 
-<section class="flex flex-col gap-6">
-  <h2 class="font-lp-serif text-3xl tracking-tight">{heading}</h2>
-  <div class="flex max-w-2xl flex-col gap-4">
-    {intro.map((paragraph) => <p class="text-lp-muted leading-relaxed">{paragraph}</p>)}
+<section class="flex flex-col">
+  <h2 class="font-lp-serif text-3xl tracking-tight text-balance" data-reveal>{heading}</h2>
+  <div class="mt-6 flex max-w-2xl flex-col gap-4">
+    {
+      intro.map((paragraph) => (
+        <p class="text-lp-muted leading-relaxed text-pretty" data-reveal>
+          {paragraph}
+        </p>
+      ))
+    }
   </div>
-  <ul class="flex flex-col">
+  <ul class="mt-14 flex flex-col">
     {
       refusals.map((refusal) => (
-        <li class="border-lp-border grid gap-x-10 gap-y-5 border-t py-8 md:grid-cols-2">
+        <li class="lp-hairline grid gap-x-10 gap-y-5 py-8 last:pb-0 md:grid-cols-2" data-reveal>
           <div class="flex flex-col gap-2">
-            <h3 class="font-lp-serif text-xl tracking-tight">{refusal.title}</h3>
-            <p class="text-lp-muted text-sm leading-relaxed">{refusal.what}</p>
+            <h3 class="font-lp-serif text-xl tracking-tight text-balance">{refusal.title}</h3>
+            <p class="text-lp-muted text-sm leading-relaxed text-pretty">{refusal.what}</p>
           </div>
-          <div class="border-lp-accent/50 flex flex-col gap-2 border-l pl-5">
-            <span class="text-lp-accent font-lp-mono text-xs tracking-widest uppercase">{costLabel}</span>
-            <p class="text-sm leading-relaxed">{refusal.cost}</p>
+          <div class="border-lp-accent/40 flex flex-col gap-2 self-start border-l pl-5">
+            <span class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">{costLabel}</span>
+            <p class="font-lp-serif text-lp-muted leading-relaxed text-pretty italic">{refusal.cost}</p>
           </div>
         </li>
       ))
