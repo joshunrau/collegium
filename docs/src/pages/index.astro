@@ -4,9 +4,114 @@ import type { ComponentProps } from 'astro/types';
 import CommitmentsSection from '@/components/landing/CommitmentsSection.astro';
 import LandingLayout from '@/components/landing/LandingLayout.astro';
 import RefusalsSection from '@/components/landing/RefusalsSection.astro';
-import { LandingTranscript } from '@/components/landing/LandingTranscript.tsx';
+import { HeroSection } from '@/components/landing/HeroSection.tsx';
+import { TranscriptSection } from '@/components/landing/TranscriptSection.tsx';
 
-import { LandingHero } from '@/components/landing/LandingHero.tsx';
+import claraAvatar from '@/assets/headshots/clara.png';
+import orchestratorAvatar from '@/assets/headshots/orchestrator.png';
+import theoAvatar from '@/assets/headshots/theo.png';
+
+const LAYOUT: ComponentProps<typeof LandingLayout> = {
+  brand: 'Collegium',
+  description:
+    "Collegium runs LLM agents as members of your team's chat, handling email, research, and follow-through, with a human approving anything consequential.",
+  footerLinks: [
+    { href: '/docs', label: 'Docs' },
+    { external: true, href: 'https://github.com/joshunrau/collegium', label: 'GitHub' }
+  ],
+  headerLinks: [
+    { href: '/docs/getting-started/introduction', label: 'Docs' },
+    { external: true, href: 'https://github.com/joshunrau/collegium', label: 'GitHub' }
+  ],
+  title: 'Collegium'
+};
+
+const HERO: ComponentProps<typeof HeroSection> = {
+  headline: {
+    code: 'git revert',
+    lead: 'The agent framework for the work you can’t'
+  },
+  kicker: 'collegium (noun) — a body of colleagues',
+  primaryCta: { href: '/docs/getting-started/quickstart', label: 'Quickstart' },
+  scrollHint: { href: '#transcript', label: '↓ see it work' },
+  secondaryCta: { href: '/docs', label: 'Read the docs' },
+  subhead:
+    'Collegium agents are members of your team’s chat, each with its own name, tools, and memory. They handle the work that isn’t writing software, like email, research, and follow-through.'
+};
+
+const CLARA = { avatar: claraAvatar, name: 'Clara' };
+const ORCHESTRATOR = { avatar: orchestratorAvatar, name: 'Orchestrator', system: true };
+const THEO = { avatar: theoAvatar, name: 'Theo' };
+
+const TRANSCRIPT: ComponentProps<typeof TranscriptSection> = {
+  heading: 'Every Step Is a Post',
+  id: 'transcript',
+  kicker: 'transcript · #partnerships',
+  turns: [
+    {
+      at: '10:02 AM',
+      author: ORCHESTRATOR,
+      kind: 'mail',
+      mail: {
+        body: "Hi! Planning for next June has started, and we'd love to have you back as a sponsor. This year's tiers are up on our site. Any interest in returning?",
+        from: 'elena@northshoresummit.co',
+        subject: 'Sponsoring Northshore Summit 2027'
+      },
+      text: 'New mail for @clara'
+    },
+    {
+      at: '10:02 AM',
+      author: CLARA,
+      kind: 'tools',
+      tools: [
+        { detail: 'opened "Sponsoring Northshore Summit 2027" from elena@northshoresummit.co', tool: 'mail' },
+        { detail: 'northshore summit 2026: silver tier, booth skipped', tool: 'read_memory' }
+      ]
+    },
+    {
+      at: '10:03 AM',
+      author: CLARA,
+      kind: 'text',
+      text: "@theo can you pull the 2027 sponsor tiers from northshoresummit.co? I need silver's price and what it includes."
+    },
+    {
+      at: '10:03 AM',
+      author: THEO,
+      kind: 'tools',
+      tools: [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', tool: 'browser' }]
+    },
+    {
+      at: '10:05 AM',
+      author: THEO,
+      kind: 'text',
+      text: '@clara Silver is $4,000 for 2027: logo placement, two passes, and a careers-page listing. Gold is $8,500 and adds a booth. Silver is up $500 from last year.'
+    },
+    {
+      approval: {
+        action: 'send mail',
+        approvedAt: '10:31 AM',
+        approvedBy: 'Maya',
+        paragraphs: [
+          'Hi Elena,',
+          "Good to hear from you. We had a great experience last year and would like to return at silver. I see it is $4,000 for 2027; could you send the agreement over? One request: we'd like the careers-page listing live ahead of the conference this time.",
+          'Thanks,',
+          'Clara'
+        ],
+        subject: 'Re: Sponsoring Northshore Summit 2027',
+        to: 'elena@northshoresummit.co'
+      },
+      at: '10:06 AM',
+      author: CLARA,
+      kind: 'approval'
+    },
+    {
+      at: '10:31 AM',
+      author: CLARA,
+      kind: 'text',
+      text: "Sent. I noted the $500 increase for next year's budgeting."
+    }
+  ]
+};
 
 const COMMITMENTS: ComponentProps<typeof CommitmentsSection> = {
   commitments: [
@@ -62,12 +167,9 @@ const REFUSALS: ComponentProps<typeof RefusalsSection> = {
 };
 ---
 
-<LandingLayout
-  description="Collegium runs LLM agents as members of your team's chat, handling email, research, and follow-through, with a human approving anything consequential."
-  title="Collegium"
->
-  <LandingHero client:load />
-  <LandingTranscript client:load />
+<LandingLayout {...LAYOUT}>
+  <HeroSection client:load {...HERO} />
+  <TranscriptSection client:load {...TRANSCRIPT} />
   <CommitmentsSection {...COMMITMENTS} />
   <RefusalsSection {...REFUSALS} />
 </LandingLayout>

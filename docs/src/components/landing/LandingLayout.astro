@@ -7,12 +7,21 @@ import Layout from '@/components/common/Layout.astro';
 
 import Logo from '@/assets/logo.svg';
 
+type NavLink = {
+  external?: boolean;
+  href: string;
+  label: string;
+};
+
 interface Props {
+  brand: string;
   description: string;
+  footerLinks: NavLink[];
+  headerLinks: NavLink[];
   title: string;
 }
 
-const { description, title } = Astro.props;
+const { brand, description, footerLinks, headerLinks, title } = Astro.props;
 ---
 
 <Layout class="bg-lp-background text-lp-text font-lp-sans" description={description} title={title}>
@@ -24,16 +33,21 @@ const { description, title } = Astro.props;
       <div class="mx-auto flex h-14 w-full max-w-5xl items-center gap-6 px-6">
         <a class="flex items-center gap-2.5 text-sm font-medium" href="/">
           <Logo class="size-5" />
-          Collegium
+          {brand}
         </a>
         <nav class="text-lp-muted ml-auto flex items-center gap-5 text-sm">
-          <a class="hover:text-lp-text transition-colors" href="/docs/getting-started/introduction">Docs</a>
-          <a
-            class="hover:text-lp-text transition-colors"
-            href="https://github.com/joshunrau/collegium"
-            rel="noreferrer"
-            target="_blank">GitHub</a
-          >
+          {
+            headerLinks.map((link) => (
+              <a
+                class="hover:text-lp-text transition-colors"
+                href={link.href}
+                rel={link.external ? 'noreferrer' : undefined}
+                target={link.external ? '_blank' : undefined}
+              >
+                {link.label}
+              </a>
+            ))
+          }
           <button
             aria-label="Toggle colour theme"
             class="hover:text-lp-text hover:border-lp-border rounded-md border border-transparent p-1.5 transition-colors"
@@ -60,17 +74,20 @@ const { description, title } = Astro.props;
     </main>
     <footer class="border-lp-border border-t">
       <div class="mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
-        <p class="text-sm font-medium">Collegium</p>
+        <p class="text-sm font-medium">{brand}</p>
         <nav class="text-lp-muted flex items-center gap-5 text-sm">
-          <a class="hover:text-lp-text transition-colors" href="/docs"> Docs </a>
-          <a
-            class="hover:text-lp-text transition-colors"
-            href="https://github.com/joshunrau/collegium"
-            rel="noreferrer"
-            target="_blank"
-          >
-            GitHub
-          </a>
+          {
+            footerLinks.map((link) => (
+              <a
+                class="hover:text-lp-text transition-colors"
+                href={link.href}
+                rel={link.external ? 'noreferrer' : undefined}
+                target={link.external ? '_blank' : undefined}
+              >
+                {link.label}
+              </a>
+            ))
+          }
         </nav>
       </div>
     </footer>
