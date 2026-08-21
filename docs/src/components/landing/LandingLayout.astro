@@ -55,26 +55,26 @@ const { description, title } = Astro.props;
         </nav>
       </div>
     </header>
-    <main class="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-24 px-6 pt-14">
+    <main class="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-24 px-6 py-14">
       <slot />
     </main>
+    <footer class="border-lp-border border-t">
+      <div class="mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
+        <p class="text-sm font-medium">Collegium</p>
+        <nav class="text-lp-muted flex items-center gap-5 text-sm">
+          <a class="hover:text-lp-text transition-colors" href="/docs"> Docs </a>
+          <a
+            class="hover:text-lp-text transition-colors"
+            href="https://github.com/joshunrau/collegium"
+            rel="noreferrer"
+            target="_blank"
+          >
+            GitHub
+          </a>
+        </nav>
+      </div>
+    </footer>
   </div>
-  <footer class="border-lp-border border-t">
-    <div class="mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
-      <p class="text-sm font-medium">Collegium</p>
-      <nav class="text-lp-muted flex items-center gap-5 text-sm">
-        <a class="hover:text-lp-text transition-colors" href="/docs"> Docs </a>
-        <a
-          class="hover:text-lp-text transition-colors"
-          href="https://github.com/joshunrau/collegium"
-          rel="noreferrer"
-          target="_blank"
-        >
-          GitHub
-        </a>
-      </nav>
-    </div>
-  </footer>
 </Layout>
 <script>
   const bind = () => {

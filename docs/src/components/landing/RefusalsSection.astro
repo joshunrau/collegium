@@ -9,11 +9,10 @@ interface Props {
   costLabel: string;
   heading: string;
   intro: string[];
-  outro: string;
   refusals: Refusal[];
 }
 
-const { costLabel, heading, intro, outro, refusals } = Astro.props;
+const { costLabel, heading, intro, refusals } = Astro.props;
 ---
 
 <section class="flex flex-col gap-6">
@@ -37,5 +36,4 @@ const { costLabel, heading, intro, outro, refusals } = Astro.props;
       ))
     }
   </ul>
-  <p class="max-w-2xl leading-relaxed">{outro}</p>
 </section>

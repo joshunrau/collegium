@@ -27,18 +27,16 @@ const COMMITMENTS: ComponentProps<typeof CommitmentsSection> = {
       title: 'Deterministic Starts, Clean Stops'
     }
   ],
-  kicker: 'What it commits to'
+  kicker: 'Design Principles'
 };
 
 const REFUSALS: ComponentProps<typeof RefusalsSection> = {
-  costLabel: 'The cost',
+  costLabel: 'The Tradeoff',
   heading: "Why It's Built This Way",
   intro: [
     'Most agent frameworks share one shape: give a model a shell and let it iterate unattended until the task looks done. That shape was built for writing software, where a failed attempt costs nothing and every change is reviewable as a diff before it ships.',
     'Business work is different. Actions are visible to clients and colleagues the moment they happen, many cannot be taken back, and nobody reviews them line by line afterward. So Collegium refuses four things autonomous frameworks celebrate, and each refusal is the point.'
   ],
-  outro:
-    'And instead of autonomy, you get a system that runs your business logic as code. A procedure that matters is not a prompt instruction the model might skip on a bad day. It is a plugin: deterministic TypeScript you write once, review once, and grant to the agents that need it. It will not change under you.',
   refusals: [
     {
       cost: 'Idle agents do nothing. That is the point. An agent with initiative and idle cycles finds work nobody asked for.',
