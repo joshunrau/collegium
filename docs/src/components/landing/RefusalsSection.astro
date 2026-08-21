@@ -9,23 +9,27 @@ interface Props {
   costLabel: string;
   heading: string;
   intro: string[];
+  kicker: string;
   refusals: Refusal[];
 }
 
-const { costLabel, heading, intro, refusals } = Astro.props;
+const { costLabel, heading, intro, kicker, refusals } = Astro.props;
 ---
 
-<section class="flex flex-col">
-  <h2 class="font-lp-serif text-3xl tracking-tight text-balance" data-reveal>{heading}</h2>
-  <div class="mt-6 flex max-w-2xl flex-col gap-4">
-    {
-      intro.map((paragraph) => (
-        <p class="text-lp-muted leading-relaxed text-pretty" data-reveal>
-          {paragraph}
-        </p>
-      ))
-    }
-  </div>
+<section class="flex flex-col pt-16">
+  <header>
+    <p class="font-lp-mono text-lp-muted text-xs tracking-widest" data-reveal>{kicker}</p>
+    <h2 class="font-lp-serif mt-3 text-3xl tracking-tight text-balance" data-reveal>{heading}</h2>
+    <div class="mt-6 flex max-w-2xl flex-col gap-4">
+      {
+        intro.map((paragraph) => (
+          <p class="text-lp-muted leading-relaxed text-pretty" data-reveal>
+            {paragraph}
+          </p>
+        ))
+      }
+    </div>
+  </header>
   <ul class="mt-14 flex flex-col">
     {
       refusals.map((refusal) => (
@@ -34,7 +38,7 @@ const { costLabel, heading, intro, refusals } = Astro.props;
             <h3 class="font-lp-serif text-xl tracking-tight text-balance">{refusal.title}</h3>
             <p class="text-lp-muted text-sm leading-relaxed text-pretty">{refusal.what}</p>
           </div>
-          <div class="border-lp-accent/40 flex flex-col gap-2 self-start border-l pl-5">
+          <div class="lp-aside flex flex-col gap-2 self-start pl-5">
             <span class="text-lp-muted font-lp-mono text-xs tracking-widest uppercase">{costLabel}</span>
             <p class="font-lp-serif text-lp-muted leading-relaxed text-pretty italic">{refusal.cost}</p>
           </div>

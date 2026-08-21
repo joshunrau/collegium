@@ -69,7 +69,7 @@ const { brand, description, footerLinks, headerLinks, title } = Astro.props;
         </nav>
       </div>
     </header>
-    <main class="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-24 px-6 pt-14 pb-24">
+    <main class="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-24 px-6 pt-14 pb-32">
       <slot />
     </main>
     <footer class="border-lp-border border-t">
@@ -119,13 +119,13 @@ const { brand, description, footerLinks, headerLinks, title } = Astro.props;
           .sort((first, second) => first.boundingClientRect.top - second.boundingClientRect.top);
         revealable.forEach((entry, index) => {
           if (entry.target instanceof HTMLElement) {
-            entry.target.style.setProperty('--lp-reveal-delay', `${index * 80}ms`);
+            entry.target.style.setProperty('--lp-reveal-delay', `${Math.min(index, 4) * 80}ms`);
           }
           entry.target.classList.add('lp-revealed');
           observer.unobserve(entry.target);
         });
       },
-      { rootMargin: '0px 0px -10% 0px' }
+      { rootMargin: '0px 0px -15% 0px' }
     );
     revealObserver = observer;
     targets.forEach((target) => observer.observe(target));
