@@ -1,6 +1,7 @@
 ---
 import '@/styles/docs.css';
 
+import DocsCodeBlock from '@/components/docs/DocsCodeBlock.astro';
 import { DocsRoot } from '@/components/docs/DocsRoot.tsx';
 import Layout from '@/components/common/Layout.astro';
 import { type DocEntry, source } from '@/content.source.ts';
@@ -42,7 +43,7 @@ const toc: TOCItemType[] = headings.map((heading) => ({
     <h1 class="text-3xl font-semibold">{entry.data.title}</h1>
     <p class="text-fd-muted-foreground mb-8 text-lg">{entry.data.description}</p>
     <div class="prose flex-1">
-      <Content components={defaultMdxComponents} />
+      <Content components={{ ...defaultMdxComponents, pre: DocsCodeBlock }} />
     </div>
   </DocsRoot>
 </Layout>

@@ -1,0 +1,21 @@
+---
+import { CodeBlock, Pre } from 'fumadocs-ui/components/codeblock';
+import type { CodeBlockProps } from 'fumadocs-ui/components/codeblock';
+
+/**
+ * The `pre` element of a rendered page. The MDX body is static HTML outside the docs island, so
+ * fumadocs' `CodeBlock` must be an island of its own for its copy button to hydrate. The
+ * highlighted code is the one part of the block that carries no behaviour, so it is rendered
+ * once, here, and handed to the island as its static slot.
+ *
+ * Astro passes the highlighter's HTML attributes through as written, so `tabindex` arrives in
+ * its HTML spelling rather than as React's `tabIndex`. It made a bare `<pre>` focusable for
+ * keyboard scrolling; `CodeBlock` gives its own scroll region that role, so it is not forwarded.
+ */
+type Props = Omit<CodeBlockProps, 'children'> & { tabindex?: string };
+
+const { tabindex: _tabindex, ...props } = Astro.props;
+const code = await Astro.slots.render('default');
+---
+
+<CodeBlock client:load {...props}><Pre dangerouslySetInnerHTML={{ __html: code }} /></CodeBlock>
