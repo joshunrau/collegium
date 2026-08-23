@@ -39,7 +39,7 @@ const INSPECT_SCENARIO = defineScenario({
     {
       expertise: 'End-to-end testing',
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['write_memory'],
+      tools: ['memory'],
       username: 'mira'
     }
   ],
@@ -55,15 +55,15 @@ describe('Ephemeral commands', () => {
     const reply = `traced-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'remember' },
-      toolCallResponse('write_memory', { body: fact, description: 'a test fact' })
+      toolCallResponse('memory__write', { body: fact, description: 'a test fact' })
     );
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
     await channels.main.mention('mira', 'remember this');
     const finalPost = await channels.main.awaitReplyFrom('mira', { text: reply });
     await channels.main.runCommand(`/trace ${finalPost.id}`);
-    const trace = await channels.main.awaitEphemeral({ contains: 'write_memory' });
-    expect(trace.message).toContain(`called \`write_memory\``);
+    const trace = await channels.main.awaitEphemeral({ contains: 'memory::write' });
+    expect(trace.message).toContain(`called \`memory::write\``);
     expect(trace.message).toContain(fact);
     expect((await channels.main.posts()).some((post) => post.text.includes('Trace for turn'))).toBe(false);
   });

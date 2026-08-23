@@ -10,6 +10,7 @@ import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { ApprovalStatus, Model, ModelRow } from '@/prisma/prisma.types.ts';
 
 import { renderApprovalActions, renderApprovalPrompt, renderResolvedPrompt } from './approvals.renderer.ts';
+import { renderApprovalActionName } from './approvals.utils.ts';
 import { PendingRegistry } from './decisions/pending.registry.ts';
 
 import type {
@@ -116,6 +117,7 @@ export class ApprovalsService {
         payloadText: input.payloadText,
         status: 'pending',
         toolName: input.toolName,
+        toolNamespace: input.toolNamespace,
         turnId: input.turnId
       }
     });
@@ -132,7 +134,7 @@ export class ApprovalsService {
       approvalId,
       kind: 'approval_requested',
       payloadText: input.payloadText,
-      toolName: input.toolName
+      toolName: input.toolNamespace === null ? input.toolName : [input.toolNamespace, input.toolName]
     });
     const decision = await pendingDecision;
     if (decision.kind !== 'cancelled') {
@@ -165,7 +167,11 @@ export class ApprovalsService {
     if (!claimed) {
       return false;
     }
-    await this.rewritePrompt(row.turn.agentUsername, row.promptPostId, renderResolvedPrompt(row, decision));
+    await this.rewritePrompt(
+      row.turn.agentUsername,
+      row.promptPostId,
+      renderResolvedPrompt(this.toPromptInput(row), decision)
+    );
     this.pendingRegistry.take(row.id)?.resolve(decision);
     return true;
   }
@@ -229,7 +235,7 @@ export class ApprovalsService {
       // the submission carries no username, so the decider's identity rides the dialog state
       state: input.byUsername,
       submitLabel: 'Deny',
-      title: `Deny ${row.toolName} with a reason`,
+      title: `Deny ${renderApprovalActionName(row.toolNamespace, row.toolName)} with a reason`,
       triggerId: input.triggerId,
       url: `${this.decisionsUrl}/reason`
     });
@@ -243,7 +249,11 @@ export class ApprovalsService {
     input: ApprovalRequest,
     approvalId: string
   ): Promise<Result<{ postId: string }, ApprovalFailure.PromptUndeliverable>> {
-    const prompt = renderApprovalPrompt(input, input.payloadPresentation, await this.readPostLimit(input));
+    const prompt = renderApprovalPrompt(
+      this.toPromptInput(input),
+      input.payloadPresentation,
+      await this.readPostLimit(input)
+    );
     const sent = await this.transportRegistry.get(input.agentUsername).send({
       attachments: renderApprovalActions({ approvalId, decisionsUrl: this.decisionsUrl }),
       channelId: input.channelId,
@@ -261,7 +271,7 @@ export class ApprovalsService {
     const limit = await this.transportRegistry.get(input.agentUsername).maxPostSizeChars();
     if (!limit.success) {
       this.loggingService.warn(
-        `could not read MaxPostSize to bound a ${input.toolName} approval: ${limit.error.message}`
+        `could not read MaxPostSize to bound a ${renderApprovalActionName(input.toolNamespace, input.toolName)} approval: ${limit.error.message}`
       );
       return undefined;
     }
@@ -283,7 +293,7 @@ export class ApprovalsService {
     if (limit === undefined) {
       return undefined;
     }
-    const { text } = renderApprovalPrompt(input, input.payloadPresentation, limit);
+    const { text } = renderApprovalPrompt(this.toPromptInput(input), input.payloadPresentation, limit);
     if (text.length <= limit) {
       return undefined;
     }
@@ -333,7 +343,11 @@ export class ApprovalsService {
       return;
     }
     const decision = await pendingDecision;
-    await this.rewritePrompt(input.agentUsername, promptPostId, renderResolvedPrompt(input, decision));
+    await this.rewritePrompt(
+      input.agentUsername,
+      promptPostId,
+      renderResolvedPrompt(this.toPromptInput(input), decision)
+    );
   }
 
   private async rewritePrompt(agentUsername: string, promptPostId: null | string, text: string): Promise<void> {
@@ -346,5 +360,12 @@ export class ApprovalsService {
         new Error(`failed to rewrite approval prompt ${promptPostId}: ${updated.error.message}`)
       );
     }
+  }
+
+  private toPromptInput(source: { payloadText: string; toolName: string; toolNamespace: null | string }) {
+    return {
+      actionName: renderApprovalActionName(source.toolNamespace, source.toolName),
+      payloadText: source.payloadText
+    };
   }
 }

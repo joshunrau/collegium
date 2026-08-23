@@ -5,12 +5,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
-import type { ToolName } from '@/tools/tools.types.ts';
 
 import { ProcessRunner } from '../runners/process.runner.ts';
 import { ShellService } from '../shell.service.ts';
 
-const profile = (username: string, tools: readonly ToolName[]): AgentProfile => ({ tools, username }) as AgentProfile;
+const profile = (username: string, tools: readonly string[]): AgentProfile => ({ tools, username }) as AgentProfile;
 
 describe('ShellService', () => {
   let processRunner: MockedInstance<ProcessRunner>;

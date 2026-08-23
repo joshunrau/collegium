@@ -10,8 +10,8 @@ const INLINE_PREFIX_CHARS = 600;
 
 const ATTACHED_PAYLOAD_FILENAME = 'payload.md';
 
-function renderHeader(toolName: string): string {
-  return `🔐 **Approval required: \`${toolName}\`**`;
+function renderHeader(actionName: string): string {
+  return `🔐 **Approval required: \`${actionName}\`**`;
 }
 
 /** the resolved post is a historical record; the untruncated payload lives in the trace (§8.3) */
@@ -29,8 +29,9 @@ export type RenderedPrompt = {
 };
 
 export type PromptInput = {
+  /** already in display form: `ns::tool`, or a bare framework action like `extend_budget` */
+  readonly actionName: string;
   readonly payloadText: string;
-  readonly toolName: string;
 };
 
 /**
@@ -46,14 +47,14 @@ export function renderApprovalPrompt(
   presentation: ApprovalPayloadPresentation,
   maxPostSizeChars: number | undefined
 ): RenderedPrompt {
-  const inline = `${renderHeader(input.toolName)}\n\n${input.payloadText}`;
+  const inline = `${renderHeader(input.actionName)}\n\n${input.payloadText}`;
   if (presentation === 'verbatim' || maxPostSizeChars === undefined || inline.length <= maxPostSizeChars) {
     return { files: [], text: inline };
   }
   return {
     files: [{ content: input.payloadText, filename: ATTACHED_PAYLOAD_FILENAME }],
     text: [
-      renderHeader(input.toolName),
+      renderHeader(input.actionName),
       '',
       capPayload(input.payloadText),
       '',
@@ -83,7 +84,7 @@ export function renderResolvedPrompt(input: PromptInput, decision: ApprovalDecis
   // the resolved prompt is a struck-through historical record: the decision already happened with
   // the full payload visible, and the untruncated payload lives in the approval_requested trace, so
   // even a verbatim payload may be capped here without hiding anything from the approver (§6.2)
-  return `🔐 ~~Approval required: \`${input.toolName}\`~~\n\n${line}\n\n${capPayload(input.payloadText)}`;
+  return `🔐 ~~Approval required: \`${input.actionName}\`~~\n\n${line}\n\n${capPayload(input.payloadText)}`;
 }
 
 /**

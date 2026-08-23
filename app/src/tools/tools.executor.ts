@@ -1,4 +1,5 @@
-import type { Tool } from '@collegium/core/tools';
+import { DEFAULT_TOOL_TIMEOUT_MS } from '@collegium/core/tools';
+import type { ToolOutput, ToolResult, ToolTurnScope } from '@collegium/core/tools';
 import { Result, toErrorMessage, withTimeout } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
@@ -12,6 +13,7 @@ import type { TurnEventInput } from '@/turns/turns.types.ts';
 
 import { ToolRegistry } from './tools.registry.ts';
 
+import type { ResolvedTool } from './tools.registry.ts';
 import type { ToolAttempt } from './tools.types.ts';
 
 type ExecuteInput = {
@@ -19,7 +21,7 @@ type ExecuteInput = {
   readonly appendEvent: (event: TurnEventInput) => Promise<void>;
   readonly call: ToolCall;
   readonly profile: AgentProfile;
-  readonly turn: Tool.TurnScope;
+  readonly turn: ToolTurnScope;
 };
 
 /** the executor is where §5.4 lives: gating, denial semantics, and the failure taxonomy */
@@ -35,25 +37,25 @@ export class ToolExecutor {
     if (!resolved.success) {
       return { detail: resolved.error.message, kind: 'terminal', status: 'semantic_error' };
     }
-    const definition = resolved.value;
-    const args = definition.parameters.safeParse(input.call.arguments);
+    const tool = resolved.value;
+    const args = tool.definition.parameters.safeParse(input.call.arguments);
     if (!args.success) {
+      // fed back to the model, so the name is spelled as the model spelled it (§1)
       return {
         kind: 'continue',
-        output: `invalid arguments for ${definition.name}: ${z.prettifyError(args.error)}`
+        output: `invalid arguments for ${tool.wireName}: ${z.prettifyError(args.error)}`
       };
     }
-    // the gate is resolved only after a successful parse: malformed args never reach it (§7.2)
-    const requirements = definition.getApprovalRequirements(args.data);
-    if (requirements.kind === 'ungated') {
-      return this.runBody(definition, args.data, input.turn);
+    // the gate is declared by presence (§5), resolved only after a successful parse: malformed args never reach it
+    if (!tool.definition.approval) {
+      return this.runBody(tool, args.data, input);
     }
-    const decision = await this.requestApproval(input, definition, args.data, requirements.payload);
+    const decision = await this.requestApproval(input, tool, args.data, tool.definition.approval(args.data));
     if (!decision.success) {
       return this.toApprovalFailureAttempt(decision.error);
     }
     return match(decision.value)
-      .with({ kind: 'approved' }, () => this.runBody(definition, args.data, input.turn))
+      .with({ kind: 'approved' }, () => this.runBody(tool, args.data, input))
       .with({ kind: 'cancelled' }, ({ reason }): ToolAttempt => {
         const status = match(reason)
           .with('halt', () => 'halted' as const)
@@ -65,7 +67,7 @@ export class ToolExecutor {
         return { detail: `the pending approval was cancelled by ${reason}`, kind: 'terminal', status };
       })
       .with({ kind: 'denied' }, ({ byUsername }): ToolAttempt => ({
-        detail: `@${byUsername} denied ${definition.name}`,
+        detail: `@${byUsername} denied ${tool.displayName}`,
         kind: 'terminal',
         status: 'denied'
       }))
@@ -76,11 +78,22 @@ export class ToolExecutor {
       .exhaustive();
   }
 
+  /** §4 — what the toolset declared and nothing else: services and storage from boot, settings from the acting agent, the turn */
+  private assembleContext(tool: ResolvedTool, input: ExecuteInput): { readonly turn: ToolTurnScope } {
+    const { declaration, services, storage } = tool.toolset;
+    return {
+      ...services,
+      ...(declaration.settings && { settings: input.profile.toolSettings.get(declaration.name) }),
+      ...(declaration.storage && { storage }),
+      turn: input.turn
+    };
+  }
+
   private requestApproval(
     input: ExecuteInput,
-    definition: Tool.Any,
+    tool: ResolvedTool,
     args: unknown,
-    payload: Tool.GatedApprovalPayload
+    payload: { body: string; presentation: 'collapse' | 'verbatim' }
   ): Promise<Result<ApprovalDecision, ApprovalFailureRequest>> {
     return this.approvalsService.request({
       agentUsername: input.turn.agentUsername,
@@ -89,28 +102,30 @@ export class ToolExecutor {
       channelId: input.turn.channelId,
       payloadPresentation: payload.presentation,
       payloadText: payload.body,
-      toolName: definition.name,
+      toolName: tool.id[1],
+      toolNamespace: tool.id[0],
       turnId: input.turn.turnId
     });
   }
 
-  private async runBody(definition: Tool.Any, args: unknown, turn: Tool.TurnScope): Promise<ToolAttempt> {
-    let result: Result<Tool.Output, Tool.Failure>;
+  private async runBody(tool: ResolvedTool, args: unknown, input: ExecuteInput): Promise<ToolAttempt> {
+    const timeoutMs = tool.definition.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
+    let result: ToolResult;
     try {
       result = await withTimeout(
-        Promise.resolve(definition.execute(args, turn)),
-        definition.timeoutMs,
-        (): Result<Tool.Output, Tool.Failure> => Result.err({ kind: 'timeout', timeoutMs: definition.timeoutMs })
+        Promise.resolve(tool.definition.execute(args, this.assembleContext(tool, input))),
+        timeoutMs,
+        (): ToolResult => Result.err({ kind: 'timeout', timeoutMs })
       );
     } catch (error) {
       return {
-        detail: `${definition.name} threw: ${toErrorMessage(error)}`,
+        detail: `${tool.displayName} threw: ${toErrorMessage(error)}`,
         kind: 'terminal',
         status: 'semantic_error'
       };
     }
     if (result.success) {
-      return { kind: 'continue', output: result.value.text };
+      return this.toContinueAttempt(result.value);
     }
     return match(result.error)
       .with({ kind: 'exception' }, (failure): ToolAttempt => ({
@@ -119,7 +134,7 @@ export class ToolExecutor {
         status: 'semantic_error'
       }))
       .with({ kind: 'invalid-arguments' }, (failure): ToolAttempt => ({ kind: 'continue', output: failure.message }))
-      .with({ kind: 'timeout' }, (failure): ToolAttempt => this.toTimeoutAttempt(definition, args, failure.timeoutMs))
+      .with({ kind: 'timeout' }, (failure): ToolAttempt => this.toTimeoutAttempt(tool, failure.timeoutMs))
       .with({ kind: 'unresolved' }, (failure): ToolAttempt => ({
         detail: failure.message,
         kind: 'terminal',
@@ -152,18 +167,26 @@ export class ToolExecutor {
     };
   }
 
+  /** the model receives the text; a disclosure rides beside it for the turn to write out (§3) */
+  private toContinueAttempt(output: ToolOutput): ToolAttempt {
+    return {
+      kind: 'continue',
+      output: output.text,
+      ...(output.disclosure && { disclosure: output.disclosure })
+    };
+  }
+
   /**
    * A timed-out read simply failed, and the model may hear so; a timed-out mutation may have
    * landed, and §7.2 forbids continuing past an unconfirmed side effect — the tool is never
-   * re-executed on either branch. The call's own args decide which it was, since a 'dynamic'
-   * tool holds both kinds of action behind one name.
+   * re-executed on either branch.
    */
-  private toTimeoutAttempt(definition: Tool.Any, args: unknown, timeoutMs: number): ToolAttempt {
-    if (definition.isRetryable(args)) {
-      return { kind: 'continue', output: `${definition.name} timed out after ${timeoutMs}ms` };
+  private toTimeoutAttempt(tool: ResolvedTool, timeoutMs: number): ToolAttempt {
+    if (tool.definition.retryable === true) {
+      return { kind: 'continue', output: `${tool.wireName} timed out after ${timeoutMs}ms` };
     }
     return {
-      detail: `${definition.name} timed out after ${timeoutMs}ms and may or may not have taken effect`,
+      detail: `${tool.displayName} timed out after ${timeoutMs}ms and may or may not have taken effect`,
       kind: 'terminal',
       status: 'side_effect_ambiguous'
     };

@@ -27,37 +27,12 @@ describe('PluginLoader', () => {
     const result = await pluginLoader.load({ name: 'bookmark', path: 'plugins/bookmark' });
     expect(result.success).toBe(true);
     const loaded = result.unwrap();
-    expect(loaded.manifest.tools.map((tool) => tool.prototype.name)).toStrictEqual([
-      'bookmark__list',
-      'bookmark__save'
-    ]);
+    expect(loaded.toolset.name).toBe('bookmark');
+    expect(Object.keys(loaded.toolset.tools)).toStrictEqual(['list', 'save']);
     expect(Object.keys(loaded.skills)).toStrictEqual(['saving-bookmarks']);
   });
 
-  it('parses settings through the schema the plugin declares', async () => {
-    const result = await pluginLoader.load({
-      name: 'bookmark',
-      path: 'plugins/bookmark',
-      settings: { maxBookmarks: 5 }
-    });
-    expect(result.unwrap().settings).toStrictEqual({ maxBookmarks: 5 });
-  });
-
-  it('applies the settings schema defaults when config supplies none', async () => {
-    const result = await pluginLoader.load({ name: 'bookmark', path: 'plugins/bookmark' });
-    expect(result.unwrap().settings).toStrictEqual({ maxBookmarks: 100 });
-  });
-
-  it('rejects settings the declared schema refuses', async () => {
-    const result = await pluginLoader.load({
-      name: 'bookmark',
-      path: 'plugins/bookmark',
-      settings: { maxBookmarks: 'many' }
-    });
-    expect(result.error?.message).toContain('invalid settings');
-  });
-
-  it('rejects a ref whose name does not match the manifest', async () => {
+  it('rejects a ref whose name does not match the toolset', async () => {
     const result = await pluginLoader.load({ name: 'other', path: 'plugins/bookmark' });
     expect(result.error?.message).toContain(
       "expected plugin name 'bookmark' to match referenced name in config 'other'"

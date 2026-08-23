@@ -61,7 +61,7 @@ describe('Harness fixtures', () => {
     expect(await channels.main.posts()).not.toContainEqual(expect.objectContaining({ text: ephemeral.message }));
   });
 
-  it('records the tools an agent was offered', async () => {
+  it('records the tools an agent was offered — the core tools even when nothing is granted (§8)', async () => {
     const { channels, inference } = harness();
     inference.willReply({ agent: 'owen' }, textResponse('pong'));
 
@@ -69,6 +69,6 @@ describe('Harness fixtures', () => {
     await channels.main.awaitReplyFrom('owen', { text: 'pong' });
 
     const [request] = inference.requestsFor('owen').slice(-1);
-    expect(request?.toolNames).toEqual([]);
+    expect(request?.toolNames).toEqual(['skills__load', 'triggers__resolve']);
   });
 });

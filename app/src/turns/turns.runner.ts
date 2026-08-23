@@ -1,4 +1,4 @@
-import type { Tool } from '@collegium/core/tools';
+import type { ToolTurnScope } from '@collegium/core/tools';
 import type { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
@@ -39,12 +39,12 @@ import {
   renderDelegationLimitNotice,
   renderDenialNotice,
   renderExtensionPrompt,
-  renderMemoryEvictionLine,
-  renderMemoryWriteLine,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
+  renderRecordWriteLine,
   renderSemanticErrorNotice,
   renderSideEffectAmbiguityNotice,
+  renderSupersededLine,
   renderToolCallLine
 } from './status/status-post.renderer.ts';
 import { StatusPostService } from './status/status-post.service.ts';
@@ -206,7 +206,7 @@ export class TurnRunner {
   private async closeOnToolFailure(
     input: RunInput,
     state: TurnState,
-    call: ToolCall,
+    call: { displayName: string; id: string; recordedName: PrismaJson.RecordedToolName },
     attempt: ToolAttempt.Terminal
   ): Promise<TurnOutcome> {
     if (attempt.status === 'semantic_error' || attempt.status === 'side_effect_ambiguous') {
@@ -214,14 +214,14 @@ export class TurnRunner {
         callId: call.id,
         kind: 'tool_result',
         output: attempt.detail,
-        toolName: call.name
+        toolName: call.recordedName
       });
     }
     const notice = match(attempt.status)
       .with('denied', () => renderDenialNotice())
       .with('provider_outage', () => renderProviderOutageNotice())
       .with('semantic_error', () => renderSemanticErrorNotice(attempt.detail))
-      .with('side_effect_ambiguous', () => renderSideEffectAmbiguityNotice(call.name))
+      .with('side_effect_ambiguous', () => renderSideEffectAmbiguityNotice(call.displayName))
       // §7.5 — a cancellation posts no follow-up; the command or halt already spoke
       .with('halted', 'killed', 'stopped', () => undefined)
       .exhaustive();
@@ -281,26 +281,31 @@ export class TurnRunner {
     }
   }
 
-  private createTurnScope(input: RunInput, state: TurnState): Tool.TurnScope {
+  private createTurnScope(input: RunInput, state: TurnState): ToolTurnScope {
     return {
       agentUsername: input.profile.username,
       channelId: input.channelId,
-      discloseMemoryWrite: async (disclosure) => {
-        await this.turnsService.appendEvent(state.turn.id, {
-          body: disclosure.body,
-          description: disclosure.description,
-          kind: 'memory_written',
-          memoryId: disclosure.memoryId
-        });
-        await state.status.appendTrace(renderMemoryWriteLine(disclosure));
-        for (const evicted of disclosure.evictedDescriptions) {
-          await state.status.appendTrace(renderMemoryEvictionLine(evicted));
-        }
-      },
-      triggeringPostId: input.triggeringPostId ?? '',
-      turnId: state.turn.id,
-      workspaceDir: input.profile.workspaceDir
+      triggeringPostId: input.triggeringPostId ?? null,
+      turnId: state.turn.id
     };
+  }
+
+  /** §3 — the tool returned the disclosure; the turn owns writing the event and the trace lines */
+  private async discloseRecord(
+    state: TurnState,
+    disclosure: NonNullable<ToolAttempt.Continue['disclosure']>
+  ): Promise<void> {
+    await this.turnsService.appendEvent(state.turn.id, {
+      body: disclosure.body,
+      description: disclosure.description,
+      kind: 'record_written',
+      reference: disclosure.reference,
+      supersededDescriptions: [...(disclosure.supersededDescriptions ?? [])]
+    });
+    await state.status.appendTrace(renderRecordWriteLine(disclosure));
+    for (const superseded of disclosure.supersededDescriptions ?? []) {
+      await state.status.appendTrace(renderSupersededLine(superseded));
+    }
   }
 
   private async dispatchToolCalls(
@@ -308,10 +313,22 @@ export class TurnRunner {
     state: TurnState,
     completion: CompletionResult.ToolUse
   ): Promise<TurnOutcome | undefined> {
+    // resolved once per call: the structural name for the record, the display name for humans (§1)
+    const descriptions = new Map(
+      completion.toolCalls.map((call) => [
+        call.id,
+        this.toolRegistry.describeCall({ args: call.arguments, name: call.name, profile: input.profile })
+      ])
+    );
+    const recordedNameOf = (call: ToolCall) => descriptions.get(call.id)?.id ?? call.name;
     await this.turnsService.appendEvent(state.turn.id, {
       content: completion.content,
       kind: 'assistant_message',
-      toolCalls: completion.toolCalls.map((call) => ({ args: call.arguments, callId: call.id, toolName: call.name }))
+      toolCalls: completion.toolCalls.map((call) => ({
+        args: call.arguments,
+        callId: call.id,
+        toolName: recordedNameOf(call)
+      }))
     });
     state.messages.push({ content: completion.content, role: 'assistant', toolCalls: completion.toolCalls });
     if (completion.content !== '') {
@@ -323,7 +340,8 @@ export class TurnRunner {
       if (aborted) {
         return this.close(state, aborted);
       }
-      if (state.budget.trySpend(call.name) === 'exhausted') {
+      const isExempt = this.toolRegistry.isBudgetExempt(input.profile, call.name);
+      if (state.budget.trySpend(isExempt) === 'exhausted') {
         const exhaustion = await this.handleExhaustion(input, state);
         if (exhaustion.kind === 'ended') {
           return exhaustion.outcome;
@@ -335,19 +353,16 @@ export class TurnRunner {
             callId: call.id,
             kind: 'tool_result',
             output: exhaustion.text,
-            toolName: call.name
+            toolName: recordedNameOf(call)
           });
           state.messages.push({ content: exhaustion.text, role: 'tool', toolCallId: call.id });
           return undefined;
         }
-        state.budget.trySpend(call.name);
+        state.budget.trySpend(isExempt);
       }
-      const detail = this.toolRegistry.describeCall({
-        args: call.arguments,
-        name: call.name,
-        profile: input.profile
-      });
-      await state.status.appendTrace(renderToolCallLine(call.name, detail));
+      const description = descriptions.get(call.id);
+      const displayName = description?.displayName ?? call.name;
+      await state.status.appendTrace(renderToolCallLine(displayName, description?.detail));
       const attempt = await Promise.race([
         this.toolExecutor.execute({
           appendEvent: (event) => this.turnsService.appendEvent(state.turn.id, event),
@@ -361,15 +376,23 @@ export class TurnRunner {
         return this.close(state, 'killed');
       }
       if (attempt.kind === 'terminal') {
-        return this.closeOnToolFailure(input, state, call, attempt);
+        return this.closeOnToolFailure(
+          input,
+          state,
+          { displayName, id: call.id, recordedName: recordedNameOf(call) },
+          attempt
+        );
       }
       await this.turnsService.appendEvent(state.turn.id, {
         callId: call.id,
         kind: 'tool_result',
         output: attempt.output,
-        toolName: call.name
+        toolName: recordedNameOf(call)
       });
       state.messages.push({ content: attempt.output, role: 'tool', toolCallId: call.id });
+      if (attempt.disclosure) {
+        await this.discloseRecord(state, attempt.disclosure);
+      }
     }
     return undefined;
   }
@@ -417,6 +440,7 @@ export class TurnRunner {
       payloadPresentation: 'collapse',
       payloadText: renderExtensionPrompt({ attemptsSoFar: state.budget.spentCount, extensionNumber }),
       toolName: 'extend_budget',
+      toolNamespace: null,
       turnId: state.turn.id
     });
     if (!decision.success) {

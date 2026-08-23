@@ -108,22 +108,22 @@ function buildCollegiumConfig({
       return {
         contextBudgetTokens: agent.contextBudgetTokens,
         expertise: agent.expertise,
-        memoryCaps: agent.memoryCaps,
         model: COLLEGIUM_FIXTURE.model,
         skills: Array.from(agent.skills ?? []),
         systemPrompt: agent.systemPrompt,
         tools: [...(agent.tools ?? [])],
+        toolSettings: { ...agent.toolSettings },
         username: bot.username
       };
     }),
     app: {
       contextBudgetTokens: CONFIG_DEFAULTS.app.contextBudgetTokens,
       debounce: scenario.debounce ?? COLLEGIUM_FIXTURE.debounce,
+      defaultToolSettings: {},
       enableLifecycleNotifications: true,
       inferenceRetry: COLLEGIUM_FIXTURE.inferenceRetry,
       inferenceTimeoutMs: COLLEGIUM_FIXTURE.inferenceTimeoutMs,
       logLevel: 'error',
-      memoryCaps: CONFIG_DEFAULTS.app.memoryCaps,
       timezone: CONFIG_DEFAULTS.app.timezone,
       turnCeilingPerHour: scenario.turnCeilingPerHour ?? CONFIG_DEFAULTS.app.turnCeilingPerHour
     },

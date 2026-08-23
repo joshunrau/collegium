@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { $AgentDefinition } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
+import { MEMORY_TOOLSET } from '@/memory/memory.toolset.ts';
+import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { createEnvServiceMock } from '@/testing/factories/env-service.factory.ts';
 import { createObservedPost } from '@/testing/factories/observed-post.factory.ts';
@@ -17,7 +19,8 @@ const MIRA: $AgentDefinition = {
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: ['handing-work-to-a-peer'],
   systemPrompt: 'You are Mira',
-  tools: ['load_skill'],
+  tools: ['memory'],
+  toolSettings: { memory: { maxEntries: 5 } },
   username: 'mira'
 };
 
@@ -27,6 +30,7 @@ const TESS: $AgentDefinition = {
   skills: [],
   systemPrompt: 'You are Tess',
   tools: [],
+  toolSettings: {},
   username: 'tess'
 };
 
@@ -42,7 +46,8 @@ describe('AgentRegistry', () => {
       providers: [
         AgentRegistry,
         { provide: ConfigService, useValue: configService },
-        { provide: EnvService, useValue: createEnvServiceMock() }
+        { provide: EnvService, useValue: createEnvServiceMock() },
+        { provide: PluginsRegistry, useValue: new PluginsRegistry([]) }
       ]
     }).compile();
     agentRegistry = moduleRef.get(AgentRegistry);
@@ -55,6 +60,15 @@ describe('AgentRegistry', () => {
 
   it('should not carry the bot token onto the profile', () => {
     expect(mira).not.toHaveProperty('botToken');
+  });
+
+  it('should resolve effective tool settings per granted toolset, typed by its schema (§8)', () => {
+    expect(agentRegistry.settingsFor(MEMORY_TOOLSET, 'mira')).toStrictEqual({
+      maxBodyChars: 4000,
+      maxDescriptionChars: 200,
+      maxEntries: 5
+    });
+    expect(agentRegistry.settingsFor(MEMORY_TOOLSET, 'tess')).toBeUndefined();
   });
 
   it('should report an unknown username as absent', () => {

@@ -40,6 +40,7 @@ const DEFINITION: $AgentDefinition = {
   skills: [],
   systemPrompt: 'You are Mira.',
   tools: [],
+  toolSettings: {},
   username: 'mira'
 };
 
@@ -102,11 +103,11 @@ describe('RuntimeService', () => {
     mira = {
       contextBudgetTokens: 1000,
       expertise: 'testing',
-      memoryCaps: { maxBodyChars: 4000, maxDescriptionChars: 200, maxEntries: 50 },
       model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
       skills: [],
       systemPrompt: 'You are Mira.',
       tools: [],
+      toolSettings: new Map(),
       username: 'mira',
       workspaceDir: path.join(workspaceRoot, 'mira')
     };

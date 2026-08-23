@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { isToolsetGranted } from '@/tools/tools.settings.ts';
+
 import {
   COMMAND_DEADLINE_SECONDS,
   DEADLINE_EXIT_CODE,
@@ -9,6 +11,7 @@ import {
   SHELL_OS_USER_ID_COUNT,
   SHELL_OS_USER_PREFIX
 } from './shell.constants.ts';
+import { SHELL_TOOLSET } from './shell.toolset.ts';
 
 import type { CapturedProcess, ShellOsIdentity } from './shell.types.ts';
 
@@ -139,4 +142,9 @@ export function toRunOutput(captured: CapturedProcess): string {
     .join('\n\n');
   const header = describeExit(captured);
   return body === '' ? header : `${header}\n\n${body}`;
+}
+
+/** whether a grant list holds shell at all — what decides an agent gets a dedicated OS user (§A2) */
+export function holdsShellGrant(grants: readonly string[]): boolean {
+  return isToolsetGranted(SHELL_TOOLSET, new Set(grants));
 }

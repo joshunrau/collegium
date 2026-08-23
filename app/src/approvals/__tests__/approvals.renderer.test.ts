@@ -9,13 +9,13 @@ import {
 
 import type { ApprovalCancellationReason, ApprovalFailureDecision } from '../approvals.types.ts';
 
-const INPUT = { payloadText: 'write notes.md with 12 words', toolName: 'write_file' };
+const INPUT = { actionName: 'workspace::write', payloadText: 'write notes.md with 12 words' };
 
 describe('renderApprovalPrompt', () => {
   it('should show the whole payload inline when a post can carry it (§6.2)', () => {
     expect(renderApprovalPrompt(INPUT, 'collapse', 16_383)).toStrictEqual({
       files: [],
-      text: '🔐 **Approval required: `write_file`**\n\nwrite notes.md with 12 words'
+      text: '🔐 **Approval required: `workspace::write`**\n\nwrite notes.md with 12 words'
     });
   });
 
@@ -31,9 +31,9 @@ describe('renderApprovalPrompt', () => {
 
   it('should never attach a verbatim payload, so a shell command is shown in full or not at all (§6.2)', () => {
     const payloadText = 'x'.repeat(20_000);
-    expect(renderApprovalPrompt({ payloadText, toolName: 'shell' }, 'verbatim', 16_383)).toStrictEqual({
+    expect(renderApprovalPrompt({ actionName: 'shell::run', payloadText }, 'verbatim', 16_383)).toStrictEqual({
       files: [],
-      text: `🔐 **Approval required: \`shell\`**\n\n${payloadText}`
+      text: `🔐 **Approval required: \`shell::run\`**\n\n${payloadText}`
     });
   });
 
@@ -46,7 +46,7 @@ describe('renderApprovalPrompt', () => {
 describe('renderResolvedPrompt', () => {
   it('should strike the heading and name the approver (§3.7)', () => {
     expect(renderResolvedPrompt(INPUT, { byUsername: 'casey', kind: 'approved' })).toBe(
-      '🔐 ~~Approval required: `write_file`~~\n\n✅ **Approved** by @casey\n\nwrite notes.md with 12 words'
+      '🔐 ~~Approval required: `workspace::write`~~\n\n✅ **Approved** by @casey\n\nwrite notes.md with 12 words'
     );
   });
 
@@ -66,7 +66,7 @@ describe('renderResolvedPrompt', () => {
     ];
     for (const [reason, line] of lines) {
       expect(renderResolvedPrompt(INPUT, { kind: 'cancelled', reason })).toBe(
-        `🔐 ~~Approval required: \`write_file\`~~\n\n${line}\n\nwrite notes.md with 12 words`
+        `🔐 ~~Approval required: \`workspace::write\`~~\n\n${line}\n\nwrite notes.md with 12 words`
       );
     }
   });

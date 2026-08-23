@@ -64,8 +64,8 @@ const TRANSCRIPT: ComponentProps<typeof TranscriptSection> = {
       author: CLARA,
       kind: 'tools',
       tools: [
-        { detail: 'opened "Sponsoring Northshore Summit 2027" from elena@northshoresummit.co', tool: 'mail' },
-        { detail: 'northshore summit 2026: silver tier, booth skipped', tool: 'read_memory' }
+        { detail: 'opened "Sponsoring Northshore Summit 2027" from elena@northshoresummit.co', tool: 'mail::open' },
+        { detail: 'northshore summit 2026: silver tier, booth skipped', tool: 'memory::read' }
       ]
     },
     {
@@ -78,7 +78,7 @@ const TRANSCRIPT: ComponentProps<typeof TranscriptSection> = {
       at: '10:03 AM',
       author: THEO,
       kind: 'tools',
-      tools: [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', tool: 'browser' }]
+      tools: [{ detail: 'northshoresummit.co → Sponsors → 2027 tiers', tool: 'web::navigate' }]
     },
     {
       at: '10:05 AM',

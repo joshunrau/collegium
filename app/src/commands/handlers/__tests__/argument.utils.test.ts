@@ -5,6 +5,7 @@ import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { $AgentDefinition } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
+import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { createEnvServiceMock } from '@/testing/factories/env-service.factory.ts';
 
@@ -16,6 +17,7 @@ const MIRA: $AgentDefinition = {
   skills: [],
   systemPrompt: 'You are Mira',
   tools: [],
+  toolSettings: {},
   username: 'mira'
 };
 
@@ -27,7 +29,8 @@ describe('requireAgentName', () => {
       providers: [
         AgentRegistry,
         { provide: ConfigService, useValue: createConfigServiceMock({ agents: [MIRA] }) },
-        { provide: EnvService, useValue: createEnvServiceMock() }
+        { provide: EnvService, useValue: createEnvServiceMock() },
+        { provide: PluginsRegistry, useValue: new PluginsRegistry([]) }
       ]
     }).compile();
     agentRegistry = moduleRef.get(AgentRegistry);

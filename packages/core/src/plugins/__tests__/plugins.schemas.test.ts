@@ -1,73 +1,63 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { Tool } from '../../tools.ts';
 import { Result } from '../../utils.ts';
-import { $Plugin } from '../plugins.schemas.ts';
+import { $PluginToolset } from '../plugins.schemas.ts';
 
-function buildTool(name: string) {
-  return class extends Tool({
+import type { ToolResult } from '../../tools.ts';
+
+function buildTool() {
+  return {
     description: 'Saves a bookmark for later retrieval.',
-    name,
-    parameters: z.object({}),
-    timeoutMs: 1000,
-    variant: 'ungated'
-  }) {
-    execute(): Tool.Result {
-      return Result.ok({ text: 'saved' });
-    }
-
-    getApprovalRequirements(): Tool.ApprovalRequirements.Ungated {
-      return { kind: 'ungated' };
-    }
-
-    isRetryable(): boolean {
-      return true;
-    }
-
-    renderTraceDetail(): string {
-      return name;
-    }
+    execute: (): ToolResult => Result.ok({ text: 'saved' }),
+    parameters: z.object({})
   };
 }
 
-describe('$Plugin', () => {
-  it('accepts a plugin with a qualified tool, a collection, settings, and a skill', () => {
-    const plugin = {
-      collections: { bookmarks: z.object({ url: z.string() }) },
+describe('$PluginToolset', () => {
+  it('accepts a toolset with tools, settings, storage, and a skill', () => {
+    const toolset = {
       name: 'bookmark',
       settings: z.object({}),
       skills: ['saving-bookmarks'],
-      tools: [buildTool('bookmark__save')]
+      storage: { bookmarks: z.object({ url: z.string() }) },
+      tools: { save: buildTool() }
     };
-    expect($Plugin.safeParse(plugin).success).toBe(true);
+    expect($PluginToolset.safeParse(toolset).success).toBe(true);
   });
 
-  it('rejects a value that is not a tool constructor', () => {
-    expect($Plugin.safeParse({ name: 'bookmark', tools: [() => null] }).success).toBe(false);
+  it('rejects a namespace outside the segment grammar', () => {
+    expect($PluginToolset.safeParse({ name: 'book__mark', tools: {} }).success).toBe(false);
   });
 
-  it('rejects a tool not qualified by this plugin', () => {
-    expect($Plugin.safeParse({ name: 'bookmark', tools: [buildTool('other__save')] }).success).toBe(false);
-    expect($Plugin.safeParse({ name: 'bookmark', tools: [buildTool('save')] }).success).toBe(false);
+  it('rejects a tool name outside the segment grammar', () => {
+    expect($PluginToolset.safeParse({ name: 'bookmark', tools: { 'save-it': buildTool() } }).success).toBe(false);
   });
 
-  it('rejects duplicate tool names', () => {
-    const tools = [buildTool('bookmark__save'), buildTool('bookmark__save')];
-    expect($Plugin.safeParse({ name: 'bookmark', tools }).success).toBe(false);
+  it('rejects a tool without an execute function', () => {
+    const { execute: _execute, ...rest } = buildTool();
+    expect($PluginToolset.safeParse({ name: 'bookmark', tools: { save: rest } }).success).toBe(false);
   });
 
-  it('rejects a qualified tool name longer than the provider limit', () => {
-    expect($Plugin.safeParse({ name: 'bookmark', tools: [buildTool(`bookmark__${'a'.repeat(60)}`)] }).success).toBe(
-      false
-    );
+  it('rejects a wire name over the provider limit', () => {
+    const tools = { ['a'.repeat(60)]: buildTool() };
+    expect($PluginToolset.safeParse({ name: 'bookmark', tools }).success).toBe(false);
+  });
+
+  it('rejects budgetExempt on a tool', () => {
+    const tools = { save: { ...buildTool(), budgetExempt: true } };
+    expect($PluginToolset.safeParse({ name: 'bookmark', tools }).success).toBe(false);
+  });
+
+  it('rejects services on the toolset', () => {
+    expect($PluginToolset.safeParse({ name: 'bookmark', services: {}, tools: {} }).success).toBe(false);
   });
 
   it('rejects duplicate skill names', () => {
-    expect($Plugin.safeParse({ name: 'bookmark', skills: ['a', 'a'], tools: [] }).success).toBe(false);
+    expect($PluginToolset.safeParse({ name: 'bookmark', skills: ['a', 'a'], tools: {} }).success).toBe(false);
   });
 
-  it('rejects a collection whose schema is not a Zod type', () => {
-    expect($Plugin.safeParse({ collections: { bookmarks: {} }, name: 'bookmark', tools: [] }).success).toBe(false);
+  it('rejects a storage schema that is not a Zod type', () => {
+    expect($PluginToolset.safeParse({ name: 'bookmark', storage: { bookmarks: {} }, tools: {} }).success).toBe(false);
   });
 });

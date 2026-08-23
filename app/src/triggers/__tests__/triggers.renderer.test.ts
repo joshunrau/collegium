@@ -27,7 +27,7 @@ describe('renderTriggerPost', () => {
       MAX_POST_SIZE
     );
     expect(rendered.message).toBe(
-      '🔔 @mira — webhook: invoice overdue · from billing@acme.com · ref msg-7. Handle it, then mark it done with resolve_trigger("trigger-1").'
+      '🔔 @mira — webhook: invoice overdue · from billing@acme.com · ref msg-7. Handle it, then mark it done with triggers__resolve("trigger-1").'
     );
     expect(rendered.files).toStrictEqual([]);
   });

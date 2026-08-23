@@ -1,34 +1,28 @@
-import { toQualifiedName } from '@collegium/core/plugins';
-import type { PluginContext } from '@collegium/core/plugins';
+import { renderQualifiedSkillName } from '@collegium/core/skills';
 import type { Skill } from '@collegium/core/skills';
-import type { Tool } from '@collegium/core/tools';
+import type { AnyToolset } from '@collegium/core/tools';
+
+import { FRAMEWORK_TOOLSETS } from '@/tools/tools.toolsets.ts';
 
 import type { LoadedPlugin } from './plugins.types.ts';
-import type { PluginStorageService } from './storage/plugin-storage.service.ts';
 
 export class PluginsRegistry {
-  /** keyed by qualified `<plugin>__<skill>` name */
+  /** keyed by qualified `<namespace>::<skill>` name (§9) */
   readonly skills: ReadonlyMap<string, Skill>;
-  readonly tools: readonly Tool.Any[];
+  readonly toolsets: readonly AnyToolset[];
 
-  constructor(plugins: readonly LoadedPlugin[], storageService: Pick<PluginStorageService, 'collection'>) {
-    this.tools = plugins.flatMap((plugin) => {
-      const { collections = {}, name } = plugin.manifest;
-      const context: PluginContext = {
-        settings: plugin.settings,
-        storage: Object.fromEntries(
-          Object.entries(collections).map(([collection, schema]) => [
-            collection,
-            storageService.collection(name, collection, schema)
-          ])
-        )
-      };
-      return plugin.manifest.tools.map((PluginTool) => new PluginTool(context));
-    });
+  constructor(plugins: readonly LoadedPlugin[]) {
+    const reserved = new Set<string>(FRAMEWORK_TOOLSETS.map((toolset) => toolset.name));
+    for (const plugin of plugins) {
+      if (reserved.has(plugin.toolset.name)) {
+        throw new Error(`plugin namespace "${plugin.toolset.name}" is reserved by the framework (§1)`);
+      }
+    }
+    this.toolsets = plugins.map((plugin) => plugin.toolset);
     this.skills = new Map(
       plugins.flatMap((plugin) =>
         Object.entries(plugin.skills).map(
-          ([name, skill]) => [toQualifiedName(plugin.manifest.name, name), skill] as const
+          ([name, skill]) => [renderQualifiedSkillName(plugin.toolset.name, name), skill] as const
         )
       )
     );

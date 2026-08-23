@@ -1,12 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { AgentRegistry } from '@/agents/agents.registry.ts';
-import type { AgentProfile } from '@/agents/agents.types.ts';
 import type { ModelRow } from '@/prisma/prisma.types.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
-import { MockFactory } from '@/testing/factories/mock.factory.ts';
-import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { createModelTable } from '@/testing/factories/model-table.factory.ts';
 
 import { MemoryLockService } from '../locks/memory-lock.service.ts';
@@ -31,28 +27,20 @@ const createMemoryTable = () =>
   });
 
 describe('MemoryService', () => {
-  let agentRegistry: MockedInstance<AgentRegistry>;
   let memoryService: MemoryService;
   let table: ReturnType<typeof createMemoryTable>;
 
   beforeEach(async () => {
     table = createMemoryTable();
-    agentRegistry = MockFactory.createMock(AgentRegistry);
-    agentRegistry.get.mockReturnValue({ memoryCaps: CAPS, username: 'mira' } as AgentProfile);
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        MemoryLockService,
-        MemoryService,
-        { provide: AgentRegistry, useValue: agentRegistry },
-        { provide: getModelToken('Memory'), useValue: table }
-      ]
+      providers: [MemoryLockService, MemoryService, { provide: getModelToken('Memory'), useValue: table }]
     }).compile();
     memoryService = moduleRef.get(MemoryService);
   });
 
   const write = (overrides: Partial<ModelRow<'Memory'>> = {}) => {
     const { agentUsername, body, description, originPostId } = entry(overrides);
-    return memoryService.write({ agentUsername, body, description, originPostId });
+    return memoryService.write({ agentUsername, body, description, originPostId }, CAPS);
   };
 
   it('should record written-at and the originating post id on every entry', async () => {
@@ -86,11 +74,6 @@ describe('MemoryService', () => {
       await write();
       await Promise.all([write(), write()]);
       expect(table.rows).toHaveLength(CAPS.maxEntries);
-    });
-
-    it('should refuse to write for an agent no profile is registered for', async () => {
-      agentRegistry.get.mockReturnValue(undefined);
-      await expect(write({ agentUsername: 'ghost' })).rejects.toThrow('no agent is registered as "ghost"');
     });
   });
 

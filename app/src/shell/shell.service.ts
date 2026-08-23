@@ -4,8 +4,8 @@ import { Injectable } from '@nestjs/common';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 
 import { ProcessRunner } from './runners/process.runner.ts';
-import { SHELL_TOOL_NAME, SPAWN_WORKING_DIRECTORY } from './shell.constants.ts';
-import { buildProbeArgv, buildRunArgv, deriveShellOsUser, toRunOutput } from './shell.utils.ts';
+import { SPAWN_WORKING_DIRECTORY } from './shell.constants.ts';
+import { buildProbeArgv, buildRunArgv, deriveShellOsUser, holdsShellGrant, toRunOutput } from './shell.utils.ts';
 
 import type { ShellRunFailure, ShellRunOutput } from './shell.types.ts';
 
@@ -25,7 +25,7 @@ export class ShellService {
    */
   async assertProvisioned(profiles: readonly AgentProfile[]): Promise<void> {
     for (const profile of profiles) {
-      if (!profile.tools.includes(SHELL_TOOL_NAME)) {
+      if (!holdsShellGrant(profile.tools)) {
         continue;
       }
       const osUser = deriveShellOsUser(profile.username);
@@ -34,12 +34,12 @@ export class ShellService {
       });
       if (!probe.success) {
         throw new Error(
-          `agent "${profile.username}" holds ${SHELL_TOOL_NAME} but its dedicated user is unusable: ${probe.error.message}`
+          `agent "${profile.username}" holds shell but its dedicated user is unusable: ${probe.error.message}`
         );
       }
       if (probe.value.code !== 0) {
         throw new Error(
-          `agent "${profile.username}" holds ${SHELL_TOOL_NAME} but OS user "${osUser}" cannot be assumed via sudo ` +
+          `agent "${profile.username}" holds shell but OS user "${osUser}" cannot be assumed via sudo ` +
             `(exit ${probe.value.code}): ${probe.value.stderr.trim()}`
         );
       }

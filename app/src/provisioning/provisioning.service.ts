@@ -4,6 +4,8 @@ import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import { CredentialsService } from '@/credentials/credentials.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { MAIL_TOOLSET } from '@/mail/mail.toolset.ts';
+import { resolveGrantedToolsetSettings } from '@/tools/tools.settings.ts';
 
 import { MattermostAdminClient } from './adapters/mattermost-admin.client.ts';
 import { PROVISIONING_PING } from './provisioning.constants.ts';
@@ -46,9 +48,11 @@ export class ProvisioningService {
     for (const channel of this.configService.get('channels')) {
       declaredChannels.set(channel.handle, await this.adminClient.ensureChannel({ handle: channel.handle, teamId }));
     }
+    const defaultToolSettings = this.configService.get('app.defaultToolSettings');
     for (const agent of agents) {
-      if (agent.mailbox) {
-        const handle = agent.mailbox.announcementChannel;
+      const mailSettings = resolveGrantedToolsetSettings(MAIL_TOOLSET, { agent, defaults: defaultToolSettings });
+      if (mailSettings) {
+        const handle = mailSettings.announcementChannel;
         declaredChannels.set(handle, await this.adminClient.ensureChannel({ handle, teamId }));
       }
     }

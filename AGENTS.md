@@ -63,7 +63,7 @@ Each principle applies where its problem exists; machinery without its justifyin
 ```
 app/src/
   activation/     decides WHEN a turn starts: addressing, debounce, lock acquisition, drain, trigger flush
-  agents/         identity and policy — a passive profile registry, no execution
+  agents/         identity and policy — a passive profile registry holding grants and effective tool settings, no execution
   approvals/      approval lifecycle, pending-decision registry, prompt rendering
   channels/       triggering mode, the channel lock, the peer roster cache, the multi-mention policy
   chat/           the Mattermost seam
@@ -78,9 +78,9 @@ app/src/
   inference/      model providers, tool calling, transport retry
   logging/        logging
   mail/           the mail seam: Exchange and IMAP providers, inbound polling, outbound send, outage notices (§3.13)
-  memory/         the memories table, caps, per-agent lock
+  memory/         the memories table and per-agent lock, and the memory toolset
   notifications/  system-bot output — every string deterministic (§3.2)
-  plugins/        boot-time plugin loading: entry resolution, settings validation, scoped storage, the contributions registry (§3.14)
+  plugins/        boot-time plugin loading: entry resolution, the toolset perimeter, the contributions registry (§3.14)
   prisma/         the typed store client
   provisioning/   the admin seam: reconciles Mattermost onto what config.json declares, before the app boots
   queue/          the per (agent, channel) pending pointer
@@ -88,11 +88,12 @@ app/src/
   shell/          the §A2 confinement seam: per-agent OS user derivation, sudo-scoped execution, boot probe
   skills/         the skill library and manifest
   testing/        test-only factories and mocks, excluded from the build
-  tools/          registry, definitions, executor
+  tools/          the machinery alone: registry, executor, settings resolution, toolset storage — toolsets live in their owning modules
   triggers/       the trigger table, webhook intake, idle-gated posting
   turns/          the engine: context assembly, model loop, budget, status post, failure taxonomy, turn control, fragment folding
   utils/
   web/            the browser: turn-scoped Camoufox sessions, ref-stamped snapshots, page-to-markdown
+  workspace/      the workspace directory and its confinement check, and the workspace::write toolset
 ```
 
 ## Conventions
@@ -115,8 +116,8 @@ for data actually parsed at a perimeter; everything else is a plain type.
 
 The perimeters in this system are: the Mattermost websocket, the Mattermost REST API, HTTP request
 bodies, LLM output, `config.json`, skill files on disk, `process.env`, and plugin packages (their
-`package.json`, entry-module default export, and each plugin's settings against the schema it
-declares). **SQLite is not a perimeter** — it is our own store, written only through a strictly
+`package.json`, entry-module default export, and each granted toolset's merged settings against
+the schema it declares). **SQLite is not a perimeter** — it is our own store, written only through a strictly
 typed client, so a read from it is interior data and is trusted. Plugin storage reads are the one
 qualified case: parsed against the declaring plugin's collection schema, because rows may outlive
 the schema that wrote them.

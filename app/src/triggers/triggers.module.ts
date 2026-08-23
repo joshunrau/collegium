@@ -7,11 +7,12 @@ import { ConversationsModule } from '@/conversations/conversations.module.ts';
 
 import { TriggersController } from './triggers.controller.ts';
 import { TriggersService } from './triggers.service.ts';
+import { TRIGGERS_SERVICE_TOKEN } from './triggers.tokens.ts';
 
 @Module({
   controllers: [TriggersController],
-  exports: [TriggersService],
+  exports: [TriggersService, TRIGGERS_SERVICE_TOKEN],
   imports: [AgentsModule, ChannelsModule, ChatModule, ConversationsModule],
-  providers: [TriggersService]
+  providers: [TriggersService, { provide: TRIGGERS_SERVICE_TOKEN, useExisting: TriggersService }]
 })
 export class TriggersModule {}

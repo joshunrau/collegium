@@ -1,9 +1,4 @@
-import type { ToolName } from '@/tools/tools.types.ts';
-
 const ATTEMPT_LIMIT = 10;
-
-/** §5.3 — not counted: transport retries, load_skill, memory body loads, and framework posting */
-const EXEMPT_TOOL_NAMES: ReadonlySet<string> = new Set(['load_skill', 'read_memory'] satisfies ToolName[]);
 
 /** ten action attempts per turn, extendable by ten per approval, unbounded in number (§5.3) */
 export class ActionBudget {
@@ -50,9 +45,13 @@ export class ActionBudget {
     this.extensionsRefused = true;
   }
 
-  /** an attempt is one model-emitted invocation, including one denied before execution (§5.3) */
-  trySpend(toolName: string): 'exempt' | 'exhausted' | 'spent' {
-    if (EXEMPT_TOOL_NAMES.has(toolName)) {
+  /**
+   * An attempt is one model-emitted invocation, including one denied before execution (§5.3).
+   * Exemption is the tool's own declaration (§6), asked of the registry by the caller — an unknown
+   * name is never exempt.
+   */
+  trySpend(isExempt: boolean): 'exempt' | 'exhausted' | 'spent' {
+    if (isExempt) {
       return 'exempt';
     }
     return this.trySpendOnRejectedPost();

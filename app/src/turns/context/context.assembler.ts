@@ -59,7 +59,7 @@ export class ContextAssembler {
       memories: await this.memoryService.listDescriptions(profile.username),
       peers: this.rosterService.getPeers(channelId, profile.username),
       profile,
-      skillManifest: this.skillsService.renderManifest(profile.skills)
+      skillManifest: this.skillsService.renderManifest(profile)
     });
   }
 }

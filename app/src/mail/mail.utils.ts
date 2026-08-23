@@ -1,4 +1,4 @@
-import type { MailMessage, MailParty, MailSummary } from './mail.types.ts';
+import type { MailMessage, MailParty, MailSummary, OutboundMail } from './mail.types.ts';
 
 function renderMailSummary(summary: MailSummary): string {
   const marker = summary.isRead ? '' : ' · unread';
@@ -42,5 +42,24 @@ export function renderMailMessage(message: MailMessage): string {
     ...attachments,
     '',
     message.body
+  ].join('\n');
+}
+
+/** exactly what leaves, with any extra argument fields dropped — the provider owns threading */
+export function toOutboundMail(args: OutboundMail): OutboundMail {
+  return { body: args.body, cc: args.cc, subject: args.subject, to: args.to };
+}
+
+/** what leaves, in full: every recipient the approver must see, the subject, and the whole body (§6.3) */
+export function renderOutboundPayload(intent: string, args: OutboundMail): string {
+  const mail = toOutboundMail(args);
+  return [
+    `${intent}:`,
+    '',
+    `To: ${mail.to.join(', ')}`,
+    ...(mail.cc.length === 0 ? [] : [`Cc: ${mail.cc.join(', ')}`]),
+    `Subject: ${mail.subject}`,
+    '',
+    mail.body
   ].join('\n');
 }

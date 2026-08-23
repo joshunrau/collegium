@@ -12,9 +12,8 @@ const SCENARIO = defineScenario({
   agents: [
     {
       expertise: 'End-to-end testing',
-      skills: ['handing-work-to-a-peer'],
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['load_skill', 'read_memory', 'write_file', 'write_memory'],
+      tools: ['memory', 'workspace'],
       username: 'mira'
     }
   ],
@@ -37,7 +36,7 @@ describe('Approval prompts', () => {
     const content = `meeting notes ${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'payload check' },
-      toolCallResponse('write_file', { content, path: 'payload-check.md' })
+      toolCallResponse('workspace__write', { content, path: 'payload-check.md' })
     );
 
     await channels.main.mention('mira', 'payload check');
@@ -57,7 +56,7 @@ describe('Approval prompts', () => {
     const reply = `read-only-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'read something' },
-      toolCallResponse('load_skill', { name: 'handing-work-to-a-peer' })
+      toolCallResponse('skills__load', { name: 'handing-work-to-a-peer' })
     );
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
@@ -76,7 +75,7 @@ describe('Approval prompts', () => {
     const marker = `patient-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'be patient' },
-      toolCallResponse('write_file', { content: marker, path: 'patient.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'patient.md' })
     );
 
     await channels.main.mention('mira', 'be patient');
@@ -100,7 +99,7 @@ describe('Approval prompts', () => {
     const reply = `anyone-done-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'ask anyone' },
-      toolCallResponse('write_file', { content: marker, path: 'anyone.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'anyone.md' })
     );
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
@@ -128,7 +127,7 @@ describe('Approval resolution', () => {
     const reply = `approved-done-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'write it' },
-      toolCallResponse('write_file', { content, path: 'approved.md' })
+      toolCallResponse('workspace__write', { content, path: 'approved.md' })
     );
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
@@ -147,7 +146,7 @@ describe('Approval resolution', () => {
     const marker = `outsider content ${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'ask an outsider' },
-      toolCallResponse('write_file', { content: marker, path: 'outsider.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'outsider.md' })
     );
 
     await channels.main.mention('mira', 'ask an outsider');
@@ -172,7 +171,7 @@ describe('Approval resolution', () => {
     const marker = `denied content ${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'try something' },
-      toolCallResponse('write_file', { content: marker, path: 'denied.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'denied.md' })
     );
 
     await channels.main.mention('mira', 'try something');
@@ -192,7 +191,7 @@ describe('Approval resolution', () => {
     const reply = `reasoned-done-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'reason with me' },
-      toolCallResponse('write_file', { content: marker, path: 'reasoned.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'reasoned.md' })
     );
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
@@ -216,12 +215,12 @@ describe('Approval resolution', () => {
       toolCallsResponse([
         ...Array.from({ length: 9 }, (_, index) => ({
           arguments: { body: `note ${index}`, description: `budget filler ${index}` },
-          name: 'write_memory'
+          name: 'memory__write'
         })),
-        { arguments: { content: marker, path: 'budgeted.md' }, name: 'write_file' }
+        { arguments: { content: marker, path: 'budgeted.md' }, name: 'workspace__write' }
       ])
     );
-    inference.willReply({ agent: 'mira' }, toolCallResponse('write_file', { content: marker, path: 'retry.md' }));
+    inference.willReply({ agent: 'mira' }, toolCallResponse('workspace__write', { content: marker, path: 'retry.md' }));
 
     await channels.main.mention('mira', 'burn the budget');
     const prompt = await awaitPrompt(marker);
@@ -250,7 +249,7 @@ describe('Action budget', () => {
     toolCallsResponse(
       Array.from({ length: 11 }, (_, index) => ({
         arguments: { body: `note ${index} ${marker}`, description: `filler ${index}` },
-        name: 'write_memory'
+        name: 'memory__write'
       }))
     );
 
@@ -329,7 +328,7 @@ describe('Approver identity', () => {
     const reply = `byline-done-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'check the byline' },
-      toolCallResponse('write_file', { content: marker, path: 'byline.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'byline.md' })
     );
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
@@ -358,7 +357,7 @@ describe('Approver identity', () => {
     const marker = `bot content ${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'let a bot decide' },
-      toolCallResponse('write_file', { content: marker, path: 'bot-decided.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'bot-decided.md' })
     );
 
     await channels.main.mention('mira', 'let a bot decide');

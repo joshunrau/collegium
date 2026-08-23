@@ -15,9 +15,8 @@ import { $Env } from '@/config/env/env.schemas.ts';
 // the root prologue predates DI, so it reaches for the adapter itself; a boot failure must still land as JSON
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports
 import { JSONLogger } from '@/logging/adapters/json.logger.ts';
-import { SHELL_TOOL_NAME } from '@/shell/shell.constants.ts';
 import type { ShellOsIdentity } from '@/shell/shell.types.ts';
-import { deriveShellOsIdentities } from '@/shell/shell.utils.ts';
+import { deriveShellOsIdentities, holdsShellGrant } from '@/shell/shell.utils.ts';
 
 const AGENT_GROUP = 'collegium-agents';
 // what provisioning authenticates with, and what the long-lived app process must never hold
@@ -129,7 +128,7 @@ try {
   }
 
   const identities = deriveShellOsIdentities(
-    config.agents.filter((agent) => agent.tools.includes(SHELL_TOOL_NAME)).map((agent) => agent.username)
+    config.agents.filter((agent) => holdsShellGrant(agent.tools)).map((agent) => agent.username)
   );
 
   if (identities.length > 0) {

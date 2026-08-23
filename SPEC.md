@@ -112,32 +112,45 @@ A turn is created by exactly one of:
 
 ### **3.4 Tool**
 
-A hand-written TypeScript function exposed to the model with a schema. Tool definitions declare, alongside their parameters:
+A hand-written TypeScript function exposed to the model with a schema. **One tool per action** — there are no tools whose behaviour branches on an `action` argument; a tool that would is two tools.
 
-- **`variant`** — whether invocation blocks for human consent: `gated`, `ungated`, or `dynamic`
-- **retryability** — whether transport-level failures may be retried (§7.2)
+**A tool's identity is two segments, `[namespace, tool]`,** held structurally everywhere and rendered per audience: operators, approvers, config, traces, and errors see `mail::send`; the model sees `mail__send`. Each segment is lowercase snake_case with single underscores, which is what makes `__` an unambiguous join; the wire form is produced at request assembly — applied to the tool schemas and the replayed call history together, so the model never sees two spellings of one tool — and retained nowhere downstream of the provider response. Segments are rendered, never parsed, except at the config perimeter.
 
-Reads are generally ungated: search, fetch, list files, read mail. Writes, shell commands, and anything externally visible are gated.
+**A toolset is a namespace and everything that belongs to it**: its tools, the services they may reach, the settings they are configured by, the storage collections they own, the skills they ship. A toolset lives in the module that owns the capability — `mail/`, `memory/`, `web/`, `workspace/` — never in a central tool directory, and a framework toolset's namespace equals its module directory name. Toolset declarations are inert data: a tool body names services by injection token and imports only their types, so the config perimeter derives the grant grammar from the declarations themselves and names survive into the type as a literal union (`'mail::send' | 'memory::read' | …`).
 
-**Both are answered per call, and both are declared.** A tool holding actions that differ — mail reads beside mail sends — declares `dynamic` and decides per invocation; the declared value binds the answer at compile time otherwise, so a `gated` tool that produced no approval payload would not compile. `dynamic` is therefore the one case a reviewer must read a tool body to enumerate the gate, and naming it is what keeps that visible.
+Each tool declares, alongside its description and parameters:
 
-**Authority parameters are never model-supplied.** Any argument determining _whose authority an action carries_ is fixed in tool configuration — the `from` address on outbound mail, credentials for external services. The model may request that mail be sent; it cannot choose who it appears to be from — the mailbox and its credentials are fixed in the agent's configuration and boot refuses a mail-holding agent without them (§3.13).
+- **`approval`** — present means the tool **always** gates (§3.7): the function renders the payload the approver reads and cannot decline. Whether a granted tool can act without a human is therefore answerable from config alone; a tool whose gate would depend on its arguments splits into two tools.
+- **`retryable`** — whether a timed-out call may be reported to the model as a plain failure (§7.2); false, the default, ends the turn as an unconfirmable side effect.
+- **`budgetExempt`** — never billed against the action budget (§5.3). Framework toolsets only; the plugin perimeter rejects it.
 
-**Filesystem scope.** `write_file` and shell are confined to the agent's home directory, enforced by OS permissions rather than by the tool body. Purpose-built tools may write to real systems (e.g., the application database) by their own internal logic; those are individually reviewed and their write targets are fixed in code, never chosen by the model.
+Execution receives exactly the context its toolset declared: each declared service under its own name, `settings` (per turn, from the acting agent, §8-style resolution below), `storage` collections, and always `turn` — four facts: the acting agent, the channel, the triggering post (honestly nullable), and the turn id. Reaching anything undeclared is a compile error. A tool that creates a durable record returns its disclosure — body, description, reference, anything superseded — and the turn writes the event and the trace lines (§3.6).
 
-**Browsing.** The `browser` tool drives a real rendered browser (Camoufox) in a turn-scoped session: navigate, click, and fill against element refs from the latest snapshot, each action returning the page as markdown. **It may submit forms and sign in where the task calls for it** — a great deal of the open web is unreachable otherwise, and a tool that could not search or authenticate would be a tool for reading front pages.
+Reads are generally ungated: search, fetch, read mail. Writes, shell commands, and anything externally visible carry `approval`.
+
+**Authority parameters are never model-supplied.** Any argument determining _whose authority an action carries_ is fixed in tool settings — the `from` address on outbound mail, credentials for external services. The model may request that mail be sent; it cannot choose who it appears to be from — the mailbox and its credentials are fixed in the agent's mail settings and boot refuses a mail-granted agent without them (§3.13).
+
+**Filesystem scope.** `workspace::write` and `shell::run` are confined to the agent's own directories — the former by the workspace module's path confinement, the latter by OS permissions (§A2). Purpose-built tools may write to real systems (e.g., the application database) by their own internal logic; those are individually reviewed and their write targets are fixed in code, never chosen by the model.
+
+**Browsing.** The `web` toolset drives a real rendered browser (Camoufox) in a turn-scoped session: `web::navigate`, `web::click`, and `web::fill` act against element refs from the latest snapshot, each action returning the page as markdown. **It may submit forms and sign in where the task calls for it** — a great deal of the open web is unreachable otherwise, and a tool that could not search or authenticate would be a tool for reading front pages.
 
 It is ungated all the same. The per-agent grant decides who may browse at all, the status post traces every action live, and a per-action or per-session approval would stall autonomous turns while approving only an entry URL — never the later actions that could transmit. This is the widest ungated surface in the system and is named as such rather than hidden: an agent that browses can transmit on its own authority.
 
-Two compensating controls follow from that. **Credentials are never disclosed**: fill text is masked in the status post and in the trace, and a snapshot reports whether an input holds text but never which text, so a password the model types is neither broadcast to the channel nor read back into its own context. **Scope is enforced, not requested**: only `http(s)` URLs are opened, and only on the public internet — a `file://` URL, or a host naming this machine or its own network, is a typed refusal, because the browser runs as the orchestrator's OS user rather than inside the §A2 confinement that governs `shell`.
+Two compensating controls follow from that. **Credentials are never disclosed**: fill text is masked in the status post and in the trace, and a snapshot reports whether an input holds text but never which text, so a password the model types is neither broadcast to the channel nor read back into its own context. **Scope is enforced, not requested**: only `http(s)` URLs are opened, and only on the public internet — a `file://` URL, or a host naming this machine or its own network, is a typed refusal, because the browser runs as the orchestrator's OS user rather than inside the §A2 confinement that governs `shell::run`.
 
 Sessions are fresh anonymous contexts disposed at turn end — no cookies persist and no login outlives the turn that made it. robots.txt is not consulted: these are agent-driven reads at human pace, not crawling. Non-HTML resources (PDFs) are a typed refusal.
+
+**Grants and settings are one config mechanism.** `agents[].tools` lists namespaces or single `ns::tool` refs; a namespace grant covers tools added to that namespace later, so a plugin update can widen an existing grant with no config change — accepted deliberately, since installing a plugin is already a trust decision. Effective settings per toolset are `app.defaultToolSettings[ns]` merged shallowly with `agents[].toolSettings[ns]`, then parsed against that toolset's own schema. Two generic rules replace every toolset-specific config refinement: settings for an ungranted toolset is an error, and a granted toolset whose merged settings fail its schema is an error — "mail requires a mailbox" is what the mail settings schema says, not a rule anyone maintains, and no toolset is named anywhere in the config module.
+
+**Core tools are framework machinery, not grantable capability.** `skills::load` and `triggers::resolve` are in every agent's tool set — loading a skill the agent was already assigned, clearing a trigger the framework itself raised — and naming one in config is an error; their namespaces never appear in config at all. A plugin cannot contribute one.
 
 ### **3.5 Skill**
 
 A procedure document stored in the repository: Markdown in `app/src/skills/library/`, one per name in `SKILL_NAMES`, with `description`/`title` frontmatter. A disk perimeter — parsed and Zod-validated at boot.
 
-Each agent's system prompt carries a **skill manifest**: the names of its assigned skills plus one line of description each. The full body is pulled into context on demand via `load_skill(name)`.
+Each agent's system prompt carries a **skill manifest**: the names of its assigned skills plus one line of description each. The full body is pulled into context on demand via `skills::load`.
+
+**A skill shipped by a toolset is namespaced like a tool** — `bookmark::saving-bookmarks` — and granted the same way; any toolset may ship skills, framework or plugin. Skill names keep the dashed convention of skill files, since a skill never reaches a provider as a tool name. Framework skills belonging to no capability keep bare names — `handing-work-to-a-peer` — which cannot collide, because every other skill carries a namespace. Granting a namespace's tools does not grant its skills, or the reverse. Core skills — `handing-work-to-a-peer` — are in every agent's manifest, are not grantable, and naming one in config is an error.
 
 **Agents cannot write skills.** Skill authorship is an administrative act. The manifest is what makes on-demand loading safe: an agent may fail to judge _when_ a procedure applies (an ordinary error) but can never be unaware that it _exists_ (a structural blind spot).
 
@@ -149,13 +162,13 @@ A `memories` table in SQLite, accessible to agents only through a tool, never th
 
 - **Descriptions are loaded into the system prompt on every turn.** Bodies are loaded on demand.
 - **Writes are ungated** — the single exception to A5.
-- Entry count, description size, and body size are all capped. An over-length description or body is refused, never truncated; a write at the entry cap evicts the oldest entry.
+- Entry count, description size, and body size are all capped, by the memory toolset's settings (§3.4). An over-length description or body is refused, never truncated; a write at the entry cap evicts the oldest entry.
 - Every entry carries provenance: written-at timestamp and originating post ID.
 - Memory is per-agent and never shared between agents.
 
 _Why ungated:_ gating a memory write would block an entire turn on a triviality — an agent stalling for hours because it wanted to record a phone preference. Memory formation cannot sit behind human latency or it will not happen.
 
-_Compensating control:_ every memory write emits a disclosure line in the status post showing description and body, and an eviction emits one naming the entry it displaced. This is **detection, not prevention** — the write has already happened.
+_Compensating control:_ the write tool returns a disclosure — description, body, the record's reference, anything superseded — and the turn writes it into the trace and a status-post line. This is **detection, not prevention** — the write has already happened.
 
 Because turns are per-channel (§5.1), an agent may have concurrent turns writing memory. Memory writes therefore take a **per-agent lock**, since the entry cap is a read-modify-write.
 
@@ -230,13 +243,13 @@ Where a model provider reports reasoning-token usage or similar accounting metad
 
 ### **3.13 Mail**
 
-An agent may act as **at most one email address**, fixed in configuration and resolved from the agent's identity. Which agents can send mail is therefore answerable by reading config alone. The mailbox boundary is enforced by the provider — an Exchange app registration scoped to that one mailbox, or an IMAP account that is that one mailbox — never by the framework asking politely.
+An agent may act as **at most one email address**, fixed in its mail settings (§3.4) and resolved from the agent's identity. Which agents can send mail is therefore answerable by reading config alone. The mailbox boundary is enforced by the provider — an Exchange app registration scoped to that one mailbox, or an IMAP account that is that one mailbox — never by the framework asking politely.
 
 **Two provider families sit behind one seam:** Microsoft Exchange Online, and generic IMAP/SMTP with password authentication. Domain code speaks only the seam; replacing a vendor rewrites only its adapter.
 
 **Inbound is deterministic code, not an agent noticing.** A poll reads the mailbox on a configured interval and records one trigger row per arrival (§4.2); the system bot announces it when the channel is idle. On first connection the mailbox is read to its head and nothing is announced — existing mail is not news. After that nothing is missed, across restarts and extended downtime: every arrival is recorded durably _before_ the read cursor advances, so a crash in between re-reads the same page and a stable dedupe key makes the repeat a no-op. Backlog drains at a bounded rate — one page per poll, one announcement per idle moment — rather than all at once.
 
-**Handling an announcement marks the message read**, so the same item is not worked twice by a human and an agent. This rides the ordinary `resolve_trigger` path.
+**Handling an announcement marks the message read**, so the same item is not worked twice by a human and an agent. This rides the ordinary `triggers::resolve` path.
 
 **Reading is ungated; sending is gated.** Listing, searching, and gathering a conversation return sender, subject, receipt time, and a short preview — only opening one message returns a body, and a body is never truncated. Bodies are presented as readable text whatever the sender's formatting. Attachments are described — name, type, size — and never opened; a request for their content is a typed refusal.
 
@@ -252,15 +265,15 @@ Mail is optional: a deployment with no mailbox configured runs exactly as it did
 
 A unit of operator-supplied capability living outside the framework: a TypeScript workspace package under `plugins/*`, named in `config.json`, loaded once when the process boots. The framework performs orchestration and carries no business domain — a deployment's own concerns belong in plugins, so the framework upgrades without ever occupying the same files as what a deployment added.
 
-**A plugin may contribute tools, skills, and durable records. That is the whole surface.** It does not alter how the framework activates agents, orders turns, budgets actions, or resolves approvals — those remain the framework's, identically for every deployment. Contributions appear under qualified names — `<plugin>__<tool>`, `<plugin>__<skill>` — and agents opt in per capability exactly as with framework capability: installing a plugin grants it to no one.
+**A plugin is a toolset (§3.4).** Its entry module default-exports one, declared by the same function under the same name as a framework toolset — narrowed to refuse `services` and `budgetExempt`. The plugin's name is its namespace, its storage scope, and its skills' qualifier: one identity, stated once. It does not alter how the framework activates agents, orders turns, budgets actions, or resolves approvals — those remain the framework's, identically for every deployment. Contributions appear under the namespace — `bookmark::save`, `bookmark::saving-bookmarks` — and agents opt in per grant exactly as with framework capability: installing a plugin grants it to no one. Framework namespaces are reserved; `plugins[]` in config reduces to what to load — name and path — and the plugin's settings live in the same `toolSettings` mechanism every toolset uses.
 
-**Declared, never discovered; failures are startup failures.** What is loaded is stated in one file. A plugin that is missing, malformed, or inconsistent with what it declares — an entry that will not import, a manifest the schema rejects, settings the plugin's own declared schema refuses, a named skill document that does not parse, a configured grant nothing provides — stops the process from starting, naming the plugin. Nothing about a plugin is discovered mid-turn.
+**Declared, never discovered; failures are startup failures.** What is loaded is stated in one file. A plugin that is missing, malformed, or inconsistent with what it declares — an entry that will not import, a toolset the schema rejects, settings a granted agent supplies that the plugin's own declared schema refuses, a named skill document that does not parse, a configured grant nothing provides — stops the process from starting, naming the plugin. Nothing about a plugin is discovered mid-turn.
 
-**Plugins are fully trusted; agents are not.** A plugin is operator-written code running with framework privilege — installing one is not different in kind from editing the framework, and the safety model constrains what an _agent_ may reach, not what an _operator_ may install. What a plugin decides is whether its tools gate (§3.7); what it does not decide is whether its actions are seen — every plugin tool call is disclosed in the status post and recorded in the trace exactly as a framework tool's is (A5).
+**Plugins are fully trusted; agents are not.** A plugin is operator-written code running with framework privilege — installing one is not different in kind from editing the framework, and the safety model constrains what an _agent_ may reach, not what an _operator_ may install. What a plugin decides is whether its tools gate (§3.7), by declaring `approval`; what it does not decide is whether its actions are seen — every plugin tool call is disclosed in the status post and recorded in the trace exactly as a framework tool's is (A5) — or how the framework budgets actions, which is why `budgetExempt` is absent from the plugin-facing type and rejected at the perimeter.
 
-**The boundary is structural.** A plugin's sole import is `@collegium/sdk`: it declares a contract once — name, storage collections, a settings schema — and its tools derive their typing from that contract, reaching the framework only through the context the framework hands them. What the SDK does not export, a plugin cannot touch; the framework refactors freely behind it.
+**The boundary is structural.** A plugin's sole import is `@collegium/sdk`: its tools are typed by the toolset they sit in — settings, storage, and the turn arrive as the declared context — and they reach the framework only through what that context hands them. What the SDK does not export, a plugin cannot touch; the framework refactors freely behind it.
 
-**Storage without schema ownership.** A plugin persists durable records in the framework's own store, scoped to its name, validated against its declared collection schemas on write and parsed on read. It owns no tables, no migrations, and no database client — adding a plugin adds no migration step, and a plugin cannot reach the framework's tables (or another plugin's rows) through its handle.
+**Storage without schema ownership.** A plugin persists durable records in the framework's own store, scoped to its namespace, validated against its declared collection schemas on write and parsed on read — the one qualified read perimeter, because rows may outlive the schema that wrote them. It owns no tables, no migrations, and no database client — adding a plugin adds no migration step, and a plugin cannot reach the framework's tables (or another toolset's rows) through its handle. A storage write, like any durable record, can disclose itself by returning a disclosure (§3.4).
 
 The example plugin (`plugins/bookmark`) exercises the entire contract — a gated tool, an ungated tool, settings, a collection, a skill — and is kept working by the test suite, so the contract cannot quietly rot.
 
@@ -364,7 +377,7 @@ An unaddressed fragment the running turn absorbs (§4.4) is neither queued nor a
 
 ### **5.3 Action Budget**
 
-**Ten action attempts per turn.** An action attempt is one model-emitted tool invocation, _including invocations denied before execution._ Not counted: framework transport retries, `load_skill`, memory body loads, and framework posting.
+**Ten action attempts per turn.** An action attempt is one model-emitted tool invocation, _including invocations denied before execution._ Not counted: framework transport retries, framework posting, and the tools declared budget-exempt (§3.4) — `skills::load` and `memory::read`, the exemption being for loading context the framework already holds. A plugin cannot declare one.
 
 On exhaustion the agent posts what it has and requests approval to extend. Approving grants a further ten attempts and preserves accumulated context. Extensions are unbounded in number, but each prompt carries the running count — _extension 4; 40 attempts so far_ — because the human in the loop is the control, and the control needs the number.
 
@@ -392,7 +405,7 @@ For tool-only agents, confinement is enforced inside hand-written tool bodies �
 
 For shell-holding agents it is enforced by OS permissions (A2), which is a stronger boundary because it does not depend on our code being correct.
 
-**Shell confinement is OS permissions, not a path check.** The `shell` tool runs each command as a dedicated OS user — `collegium-<agent-username>`, derived so it cannot be shared — via non-interactive `sudo`, never as the app's own user. Its numeric id is derived from the same username, never allocated on the fly and never read back off the agent's home: allocation depends on the order agents appear in configuration, so adding one agent could hand it the id an existing agent's files already carry, and a volume's ownership is not a fact every host preserves. Two usernames deriving one id would confine two agents together, which boot refuses by name. The deadline is enforced by `timeout(1)` running as that user, because the app cannot signal a process owned by another user. At boot the framework probes every shell-holding agent (`sudo -n -H -u <osUser> timeout 1 true`) and refuses to start if the OS user is not provisioned, so a misconfigured host fails loudly rather than on the first command; the probe carries the same `sudo` flags the real run does, or a host where one works and the other does not would pass boot and fail on the first command.
+**Shell confinement is OS permissions, not a path check.** `shell::run` runs each command as a dedicated OS user — `collegium-<agent-username>`, derived so it cannot be shared — via non-interactive `sudo`, never as the app's own user. Its numeric id is derived from the same username, never allocated on the fly and never read back off the agent's home: allocation depends on the order agents appear in configuration, so adding one agent could hand it the id an existing agent's files already carry, and a volume's ownership is not a fact every host preserves. Two usernames deriving one id would confine two agents together, which boot refuses by name. The deadline is enforced by `timeout(1)` running as that user, because the app cannot signal a process owned by another user. At boot the framework probes every shell-holding agent (`sudo -n -H -u <osUser> timeout 1 true`) and refuses to start if the OS user is not provisioned, so a misconfigured host fails loudly rather than on the first command; the probe carries the same `sudo` flags the real run does, or a host where one works and the other does not would pass boot and fail on the first command.
 
 **`sudo` is never asked for a login shell.** With `--login` and a command, `sudo` does not exec the argv: it joins every argument into one string, escaping all but `[A-Za-z0-9_-$]`, and hands that to the target's login shell — which would expand a `$TOKEN` the approver read as a literal and fold a two-line command into one, breaking §6.2's guarantee that the approved bytes are the executed bytes. The login environment is established the other way instead: `--set-home` for `$HOME`, `bash -l` for the profiles, and the command in an argv slot of its own that no intermediate shell parses. Those users are provisioned by the container entrypoint, as root, before it drops privileges.
 
@@ -400,7 +413,7 @@ For shell-holding agents it is enforced by OS permissions (A2), which is a stron
 
 The residual: irreversible, externally-visible, or shell actions block for consent (§3.7).
 
-**Known limitation: approval verifies the call, not the content.** `write_file("notes.md", <900 words of confident nonsense>)` is a well-formed, in-bounds, correctly-scoped invocation. The tool has no opinion about whether the prose is true.
+**Known limitation: approval verifies the call, not the content.** `workspace::write("notes.md", <900 words of confident nonsense>)` is a well-formed, in-bounds, correctly-scoped invocation. The tool has no opinion about whether the prose is true.
 
 Two conditions therefore hold, or the gate becomes theatre:
 
@@ -413,7 +426,7 @@ Shell commands are never attached, hidden, or truncated. They are presented inli
 
 ### **6.3 Reversibility**
 
-There is no undo. `write_file` and `shell` act only inside confinement that holds nothing of independent value — `write_file` within the agent's workspace directory, `shell` as a dedicated OS user in its own home — so nothing there can be destroyed. Purpose-built tools that write to real systems are individually reviewed with fixed write targets; recovery on those paths is the underlying system's problem, not the framework's.
+There is no undo. `workspace::write` and `shell::run` act only inside confinement that holds nothing of independent value — the former within the agent's workspace directory, the latter as a dedicated OS user in its own home — so nothing there can be destroyed. Purpose-built tools that write to real systems are individually reviewed with fixed write targets; recovery on those paths is the underlying system's problem, not the framework's.
 
 ### **6.4 Callback Endpoints Trust The Network**
 
@@ -452,7 +465,7 @@ Semantic errors (malformed tool JSON, unknown tool, tool exception) terminate im
 
 **A refusal never enumerates the accepted values.** The agent already holds its manifest, its caps and its tool schemas. Echoing the valid set back on failure converts something it was given into something it can guess at, which is the improvisation above arriving by a slower road.
 
-**Never retry a call that may have committed a side effect.** If `send_email` times out, we do not know whether the mail went. Retrying risks a duplicate; not retrying risks a silent drop. The turn terminates and posts the ambiguity explicitly. This is why `retryable` is a per-tool declaration: reads yes, mutations no.
+**Never retry a call that may have committed a side effect.** If `mail::send` times out, we do not know whether the mail went. Retrying risks a duplicate; not retrying risks a silent drop. The turn terminates and posts the ambiguity explicitly. This is why `retryable` is a per-tool declaration: reads yes, mutations no.
 
 ### **7.3 Restart**
 
@@ -534,7 +547,7 @@ _Why this and not an eagerly-created status post:_ a turn that calls no tool sho
 
 _Why a second copy at all:_ an agent's context is posts **interleaved with** tool calls, tool results, approval requests and decisions, and model metadata — its own turns' trace, never a peer's: tool results carry per-agent authority (§3.4), and raw traces are need-to-know even among humans (§8.3). None of that exists in Mattermost except as rendered text. Split across two stores, every context assembly becomes a merge-join across different clocks and ID spaces on every turn. One ordered store is a material simplification.
 
-Stored: every observed post, every tool call and result, every approval request and decision, the trigger table, the queue state, and per-turn metadata (depth, action count, model, token usage).
+Stored: every observed post, every tool call and result, every approval request and decision, the trigger table, the queue state, and per-turn metadata (depth, action count, model, token usage). Tool identities are stored structurally (§3.4) — two columns where a scalar once held the name, the segment array inside JSON payloads — with a bare string reserved for what resolves to no tool: unresolvable model output, or a framework action like the budget extension.
 
 Run in WAL mode with a busy timeout, since per-channel concurrency means concurrent writers.
 

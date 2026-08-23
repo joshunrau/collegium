@@ -2,8 +2,8 @@ export type MemoryWrite = {
   readonly agentUsername: string;
   readonly body: string;
   readonly description: string;
-  /** provenance: the post the agent was reading when it decided to remember this (§3.6) */
-  readonly originPostId: string;
+  /** provenance: the post the agent was reading when it decided to remember this (§3.6); null on a turn no post triggered */
+  readonly originPostId: null | string;
 };
 
 /** what a write reports back, so the eviction it caused can be disclosed beside it (§3.6) */

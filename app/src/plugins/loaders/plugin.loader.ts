@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { $Plugin } from '@collegium/core/plugins';
+import { $PluginToolset } from '@collegium/core/plugins';
 import { loadSkillLibrary } from '@collegium/core/skills';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
@@ -51,29 +51,24 @@ export class PluginLoader {
       return Result.err({ message: `module '${entry.value}' is missing required default export` });
     }
 
-    const parsed = await $Plugin.safeParseAsync(module.default);
+    const parsed = await $PluginToolset.safeParseAsync(module.default);
     if (!parsed.success) {
-      return Result.err({ cause: parsed.error, message: `invalid structure for plugin from module '${entry.value}'` });
+      return Result.err({ cause: parsed.error, message: `invalid toolset from module '${entry.value}'` });
     }
 
-    const manifest = parsed.data;
-    if (manifest.name !== ref.name) {
+    const toolset = parsed.data;
+    if (toolset.name !== ref.name) {
       return Result.err({
-        message: `expected plugin name '${manifest.name}' to match referenced name in config '${ref.name}'`
+        message: `expected plugin name '${toolset.name}' to match referenced name in config '${ref.name}'`
       });
     }
 
-    const settings = this.parseSettings(manifest, ref);
-    if (!settings.success) {
-      return Result.err(settings.error);
-    }
-
-    const skills = this.loadSkills(path.dirname(entry.value), manifest.skills);
+    const skills = this.loadSkills(path.dirname(entry.value), toolset.skills);
     if (!skills.success) {
       return Result.err(skills.error);
     }
 
-    return Result.ok({ manifest, settings: settings.value, skills: skills.value });
+    return Result.ok({ skills: skills.value, toolset });
   }
 
   /** skill documents are assets of the module, so they resolve beside the entry, not the package root */
@@ -86,19 +81,6 @@ export class PluginLoader {
     } catch (error) {
       return Result.err({ cause: error, message: 'failed to load a declared skill document' });
     }
-  }
-
-  private parseSettings(manifest: $Plugin, ref: $PluginRef): Result<unknown, PluginLoadError> {
-    if (!manifest.settings) {
-      return ref.settings === undefined
-        ? Result.ok(undefined)
-        : Result.err({ message: 'config supplies settings, but the plugin declares no settings schema' });
-    }
-    const parsed = manifest.settings.safeParse(ref.settings);
-    if (!parsed.success) {
-      return Result.err({ cause: parsed.error, message: 'invalid settings for the schema the plugin declares' });
-    }
-    return Result.ok(parsed.data);
   }
 
   private resolveEntry(packageRoot: string): Result<string, PluginLoadError> {

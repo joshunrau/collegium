@@ -1,87 +1,57 @@
 import { isFunction } from 'es-toolkit';
 import { z } from 'zod';
 
-import { TOOL_CONSTRUCTOR_SYMBOL } from '../tools.ts';
+import { SKILL_NAME_PATTERN } from '../skills.ts';
+import { MAX_WIRE_NAME_LENGTH, renderToolWireName, TOOL_SEGMENT_PATTERN } from '../tools.ts';
 import { isUnique } from '../utils.ts';
-import {
-  MAX_TOOL_NAME_LENGTH,
-  PLUGIN_NAME_PATTERN,
-  PLUGIN_NAME_SEPARATOR,
-  PLUGIN_SKILL_NAME_PATTERN,
-  PLUGIN_TOOL_NAME_PATTERN,
-  QUALIFIED_SKILL_NAME_PATTERN,
-  QUALIFIED_TOOL_NAME_PATTERN
-} from './plugins.constants.ts';
 
-import type { PluginQualifiedName, PluginToolConstructor } from './plugins.types.ts';
-
-const $ToolConstructor = z.custom<PluginToolConstructor>((arg) => {
-  if (!isFunction(arg)) {
-    return false;
-  }
-  return Reflect.get(arg, TOOL_CONSTRUCTOR_SYMBOL) === true;
-});
+import type { AnyTool } from '../tools.ts';
 
 const $ZodSchema = z.custom<z.ZodType>((arg) => arg instanceof z.ZodType);
 
-export type $QualifiedToolName = z.infer<typeof $QualifiedToolName>;
-/** a type-only narrowing: the runtime schema is the plain regex-checked string, presented as the qualified template type */
-export const $QualifiedToolName = z.string().regex(QUALIFIED_TOOL_NAME_PATTERN) as unknown as z.ZodType<
-  PluginQualifiedName<string, string>,
-  PluginQualifiedName<string, string>
->;
+/**
+ * One tool of a plugin toolset, structurally. Strict, deliberately: `budgetExempt` is absent from
+ * the plugin-facing type, and the unrecognized-key refusal here is what makes that structural —
+ * a plugin does not alter how the framework budgets actions (§6).
+ */
+const $PluginToolDefinition = z.strictObject({
+  approval: z.custom<NonNullable<AnyTool['approval']>>(isFunction).optional(),
+  description: z.string().min(1),
+  execute: z.custom<AnyTool['execute']>(isFunction),
+  parameters: $ZodSchema,
+  retryable: z.boolean().optional(),
+  timeoutMs: z.number().int().positive().optional(),
+  traceDetail: z.custom<NonNullable<AnyTool['traceDetail']>>(isFunction).optional()
+});
 
-export type $QualifiedSkillName = z.infer<typeof $QualifiedSkillName>;
-export const $QualifiedSkillName = z.string().regex(QUALIFIED_SKILL_NAME_PATTERN) as unknown as z.ZodType<
-  PluginQualifiedName<string, string>,
-  PluginQualifiedName<string, string>
->;
-
-export type $Plugin = z.infer<typeof $Plugin>;
-export const $Plugin = z
-  .object({
-    collections: z.record(z.string().regex(PLUGIN_NAME_PATTERN), $ZodSchema).optional(),
-    name: z.string().min(1).regex(PLUGIN_NAME_PATTERN),
+/**
+ * The plugin perimeter (§7): what an entry module's default export must be. Strict at both levels,
+ * so `services` on the toolset is refused the same way `budgetExempt` on a tool is. Tool names are
+ * unique by construction — the name is the record key.
+ */
+export type $PluginToolset = z.infer<typeof $PluginToolset>;
+export const $PluginToolset = z
+  .strictObject({
+    name: z.string().regex(TOOL_SEGMENT_PATTERN),
     settings: $ZodSchema.optional(),
-    skills: z.array(z.string().regex(PLUGIN_SKILL_NAME_PATTERN)).default([]),
-    tools: z.array($ToolConstructor).default([])
+    skills: z.array(z.string().regex(SKILL_NAME_PATTERN)).default([]),
+    storage: z.record(z.string().regex(TOOL_SEGMENT_PATTERN), $ZodSchema).optional(),
+    tools: z.record(z.string().regex(TOOL_SEGMENT_PATTERN), $PluginToolDefinition)
   })
   .check((ctx) => {
     const { name, skills, tools } = ctx.value;
-
     if (!isUnique(skills)) {
       ctx.issues.push({ code: 'custom', input: skills, message: 'skill names must be unique', path: ['skills'] });
     }
-
-    const qualifiedPrefix = `${name}${PLUGIN_NAME_SEPARATOR}`;
-    const uniqueToolNames = new Set<string>();
-    for (const [index, tool] of tools.entries()) {
-      const toolName = tool.prototype.name;
-      const bareName = toolName.slice(qualifiedPrefix.length);
-      if (!toolName.startsWith(qualifiedPrefix) || !PLUGIN_TOOL_NAME_PATTERN.test(bareName)) {
+    for (const toolName of Object.keys(tools)) {
+      const wireName = renderToolWireName([name, toolName]);
+      if (wireName.length > MAX_WIRE_NAME_LENGTH) {
         ctx.issues.push({
           code: 'custom',
           input: toolName,
-          message: `tool name must be "${qualifiedPrefix}<tool>" with the bare name in the tool name grammar — a tool declared through another plugin's factory is not this plugin's to export`,
-          path: ['tools', index, 'config', 'name']
+          message: `the wire name "${wireName}" exceeds the ${MAX_WIRE_NAME_LENGTH}-character provider limit`,
+          path: ['tools', toolName]
         });
       }
-      if (uniqueToolNames.has(toolName)) {
-        ctx.issues.push({
-          code: 'custom',
-          input: toolName,
-          message: 'tool names must be unique',
-          path: ['tools', index, 'config', 'name']
-        });
-      }
-      if (toolName.length > MAX_TOOL_NAME_LENGTH) {
-        ctx.issues.push({
-          code: 'custom',
-          input: toolName,
-          message: `tool names (including qualifier) must not exceed ${MAX_TOOL_NAME_LENGTH} characters`,
-          path: ['tools', index, 'config', 'name']
-        });
-      }
-      uniqueToolNames.add(toolName);
     }
   });

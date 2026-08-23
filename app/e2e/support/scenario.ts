@@ -2,9 +2,9 @@ import type { $AgentDefinition, $PluginRef, $TriggerMode, Config } from '@/confi
 
 type AgentSpec = Pick<$AgentDefinition, 'expertise' | 'systemPrompt'> & {
   contextBudgetTokens?: $AgentDefinition['contextBudgetTokens'];
-  memoryCaps?: $AgentDefinition['memoryCaps'];
   skills?: $AgentDefinition['skills'];
   tools?: $AgentDefinition['tools'];
+  toolSettings?: $AgentDefinition['toolSettings'];
   username: string;
 };
 

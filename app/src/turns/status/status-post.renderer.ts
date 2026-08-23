@@ -73,17 +73,17 @@ export function renderDenialNotice(): string {
 }
 
 /** §3.6 — the line may elide a long body; the TurnEvent behind it must not */
-export function renderMemoryWriteLine(input: { body: string; description: string }): string {
+export function renderRecordWriteLine(input: { body: string; description: string }): string {
   const body =
     input.body.length > DISCLOSURE_BODY_LIMIT_CHARS
       ? `${input.body.slice(0, DISCLOSURE_BODY_LIMIT_CHARS)}…`
       : input.body;
-  return `📝 _saved memory: ${input.description} — ${body}_`;
+  return `📝 _recorded: ${input.description} — ${body}_`;
 }
 
-/** §3.6 — an eviction is disclosed beside the write that displaced the entry */
-export function renderMemoryEvictionLine(description: string): string {
-  return `♻️ _evicted the oldest memory to make room: ${description}_`;
+/** §3.6 — a superseded record is disclosed beside the write that displaced it */
+export function renderSupersededLine(description: string): string {
+  return `♻️ _superseded: ${description}_`;
 }
 
 export function renderProviderOutageNotice(): string {

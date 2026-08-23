@@ -6,8 +6,6 @@ import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer/index.js';
 
-import type { $ImapMailProvider } from '@/config/config.schemas.ts';
-
 import { MailProvider } from '../mail.provider.ts';
 import {
   classifySmtpFailure,
@@ -21,6 +19,7 @@ import {
   toSenderPartyFromParsed
 } from './imap.utils.ts';
 
+import type { $ImapMailProvider } from '../mail.schemas.ts';
 import type {
   MailArrival,
   MailFailure,

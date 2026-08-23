@@ -1,19 +1,17 @@
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
-import { AgentRegistry } from '@/agents/agents.registry.ts';
-import type { $MemoryCaps } from '@/config/config.schemas.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
 
 import { MemoryLockService } from './locks/memory-lock.service.ts';
 
+import type { $MemorySettings } from './memory.schemas.ts';
 import type { MemoryFailure, MemoryWrite, MemoryWriteReceipt } from './memory.types.ts';
 
 @Injectable()
 export class MemoryService {
   constructor(
-    private readonly agentRegistry: AgentRegistry,
     private readonly locks: MemoryLockService,
     @InjectModel('Memory') private readonly memories: Model<'Memory'>
   ) {}
@@ -50,8 +48,10 @@ export class MemoryService {
   }
 
   /** ungated, the single exception to A5 (§3.6). Takes the per-agent lock, since the cap is a read-modify-write */
-  async write(input: MemoryWrite): Promise<Result<MemoryWriteReceipt<ModelRow<'Memory'>>, MemoryFailure.TooLong>> {
-    const caps = this.capsFor(input.agentUsername);
+  async write(
+    input: MemoryWrite,
+    caps: $MemorySettings
+  ): Promise<Result<MemoryWriteReceipt<ModelRow<'Memory'>>, MemoryFailure.TooLong>> {
     if (input.description.length > caps.maxDescriptionChars) {
       return Result.err({
         field: 'description',
@@ -67,14 +67,6 @@ export class MemoryService {
       const evictedDescriptions = await this.evictBeyond(input.agentUsername, caps.maxEntries);
       return Result.ok({ entry: await this.memories.create({ data: input }), evictedDescriptions });
     });
-  }
-
-  private capsFor(agentUsername: string): $MemoryCaps {
-    const profile = this.agentRegistry.get(agentUsername);
-    if (!profile) {
-      throw new Error(`no agent is registered as "${agentUsername}"`);
-    }
-    return profile.memoryCaps;
   }
 
   /** leaves room for one more entry by dropping the oldest, so a write at the cap never fails */

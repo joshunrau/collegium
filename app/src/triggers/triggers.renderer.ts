@@ -20,7 +20,7 @@ function summarize(reference: PrismaJson.TriggerReference): string {
 }
 
 function renderHeader(trigger: Trigger): string {
-  return `🔔 @${trigger.targetAgentUsername} — ${trigger.source}: ${summarize(trigger.reference)}. Handle it, then mark it done with resolve_trigger("${trigger.id}").`;
+  return `🔔 @${trigger.targetAgentUsername} — ${trigger.source}: ${summarize(trigger.reference)}. Handle it, then mark it done with triggers__resolve("${trigger.id}").`;
 }
 
 /**

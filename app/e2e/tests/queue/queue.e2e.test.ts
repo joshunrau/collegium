@@ -15,7 +15,7 @@ const SCENARIO = defineScenario({
     {
       expertise: 'End-to-end testing',
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['write_file'],
+      tools: ['workspace'],
       username: 'mira'
     }
   ],
@@ -168,7 +168,7 @@ describe('Channel concurrency', () => {
     const drainReply = `drained-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'gated work' },
-      toolCallResponse('write_file', { content: marker, path: 'single.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'single.md' })
     );
 
     await channels.main.mention('mira', 'gated work');

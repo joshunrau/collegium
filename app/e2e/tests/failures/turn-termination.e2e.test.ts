@@ -11,7 +11,7 @@ const SCENARIO = defineScenario({
     {
       expertise: 'End-to-end testing',
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['load_skill', 'read_memory', 'write_memory'],
+      tools: ['memory'],
       username: 'mira'
     }
   ],
@@ -84,7 +84,7 @@ const HALT_SCENARIO = defineScenario({
     {
       expertise: 'End-to-end testing',
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['write_file'],
+      tools: ['workspace'],
       username: 'mira'
     },
     {
@@ -243,9 +243,8 @@ const TRANSIENT_SCENARIO = defineScenario({
   agents: [
     {
       expertise: 'End-to-end testing',
-      skills: ['handing-work-to-a-peer'],
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['load_skill'],
+      tools: [],
       username: 'mira'
     },
     {
@@ -267,7 +266,7 @@ describe('Delegation width', () => {
     const done = `done-${marker}`;
     inference.willReply(
       { agent: 'mira', contains: marker },
-      toolCallsResponse([{ arguments: { name: 'handing-work-to-a-peer' }, name: 'load_skill' }], {
+      toolCallsResponse([{ arguments: { name: 'handing-work-to-a-peer' }, name: 'skills__load' }], {
         content: `Sure, hello @${agents.owen.username}.`
       })
     );
@@ -290,7 +289,7 @@ describe('Global halt', () => {
     const marker = `gated ${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'write something' },
-      toolCallResponse('write_file', { content: marker, path: 'halted.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'halted.md' })
     );
 
     await channels.main.mention('mira', 'write something');

@@ -16,11 +16,11 @@ import { ContextAssembler } from '../context.assembler.ts';
 const PROFILE: AgentProfile = {
   contextBudgetTokens: 1000,
   expertise: 'testing',
-  memoryCaps: { maxBodyChars: 4000, maxDescriptionChars: 200, maxEntries: 50 },
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: ['handing-work-to-a-peer'],
   systemPrompt: 'You are Mira.',
   tools: ['load_skill'],
+  toolSettings: new Map(),
   username: 'mira',
   workspaceDir: '/tmp/workspaces/mira'
 };

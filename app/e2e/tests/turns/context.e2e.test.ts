@@ -10,9 +10,8 @@ const SCENARIO = defineScenario({
   agents: [
     {
       expertise: 'End-to-end testing',
-      skills: ['handing-work-to-a-peer'],
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['load_skill', 'read_memory', 'write_memory'],
+      tools: ['memory'],
       username: 'mira'
     },
     {
@@ -47,7 +46,7 @@ describe('Context assembly', () => {
     const firstReply = `saved-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'remember' },
-      toolCallResponse('write_memory', { body: 'bullet points, always', description })
+      toolCallResponse('memory__write', { body: 'bullet points, always', description })
     );
     inference.willReply({ agent: 'mira' }, textResponse(firstReply));
     await channels.main.mention('mira', 'remember my preference');

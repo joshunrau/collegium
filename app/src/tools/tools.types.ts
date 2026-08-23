@@ -1,12 +1,14 @@
+import type { ToolDisclosure } from '@collegium/core/tools';
+
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 
-import type { TOOL_NAMES } from './tools.constants.ts';
-
-export type ToolName = (typeof TOOL_NAMES)[number];
+export type { ToolGrant } from './tools.toolsets.ts';
 
 export declare namespace ToolAttempt {
   /** the model receives this as the tool result and the turn continues */
   type Continue = {
+    /** a durable record the call created, for the turn to write into the event trail and trace (§3) */
+    disclosure?: ToolDisclosure;
     kind: 'continue';
     output: string;
   };

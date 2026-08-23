@@ -96,6 +96,7 @@ const definition = (username: string): $AgentDefinition => ({
   skills: [],
   systemPrompt: `You are ${username}`,
   tools: [],
+  toolSettings: {},
   username
 });
 

@@ -11,7 +11,7 @@ const SCENARIO = defineScenario({
     {
       expertise: 'End-to-end testing',
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['resolve_trigger', 'write_file'],
+      tools: ['workspace'],
       username: 'mira'
     },
     {
@@ -126,7 +126,7 @@ describe('Idle gating', () => {
     const reply = `approved-then-trigger-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'write with permission' },
-      toolCallResponse('write_file', { content: marker, path: 'held.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'held.md' })
     );
 
     await channels.main.mention('mira', 'write with permission');
@@ -172,7 +172,7 @@ describe('Trigger lifecycle', () => {
     const later = `later-${randomUUID()}`;
 
     const { id } = await intake(subject);
-    inference.willReply({ agent: 'mira', contains: subject }, toolCallResponse('resolve_trigger', { id }));
+    inference.willReply({ agent: 'mira', contains: subject }, toolCallResponse('triggers__resolve', { id }));
     inference.willReply({ agent: 'mira' }, textResponse(reply));
     await channels.main.awaitReplyFrom('mira', { text: reply });
 

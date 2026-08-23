@@ -14,8 +14,8 @@ const baseConfig = (): Config => ({
   app: {
     ...CONFIG_DEFAULTS.app,
     debounce: { ...CONFIG_DEFAULTS.app.debounce },
-    inferenceRetry: { ...CONFIG_DEFAULTS.app.inferenceRetry },
-    memoryCaps: { ...CONFIG_DEFAULTS.app.memoryCaps }
+    defaultToolSettings: {},
+    inferenceRetry: { ...CONFIG_DEFAULTS.app.inferenceRetry }
   },
   channels: [],
   mattermost: {

@@ -43,7 +43,7 @@ enum TurnEventKind {
   approval_decided
   approval_requested
   assistant_message
-  memory_written
+  record_written
   tool_result
 }
 
@@ -136,7 +136,10 @@ model Approval {
   promptPostId      String?
   reason            String?
   status            ApprovalStatus
+  // the two segments of a tool identity, stored structurally (§10); a null namespace is a
+  // framework action that is not a tool, e.g. the budget extension
   toolName          String
+  toolNamespace     String?
   turnId            String
   turn              Turn           @relation(fields: [turnId], references: [id], onDelete: Cascade)
 
@@ -183,17 +186,17 @@ model QueueEntry {
   @@unique([agentUsername, channelId])
 }
 
-model PluginRecord {
+model ToolsetRecord {
   id         String   @id @default(uuid())
   collection String
   createdAt  DateTime @default(now())
   key        String
-  /// [PluginRecordPayload]
+  namespace  String
+  /// [ToolsetRecordPayload]
   payload    Json
-  pluginName String
   updatedAt  DateTime @updatedAt
 
-  @@unique([pluginName, collection, key])
+  @@unique([namespace, collection, key])
 }
 
 model Memory {
@@ -202,7 +205,7 @@ model Memory {
   body          String
   createdAt     DateTime @default(now())
   description   String
-  originPostId  String
+  originPostId  String?
 
   @@index([agentUsername, createdAt])
 }

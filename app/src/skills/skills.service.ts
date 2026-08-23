@@ -1,24 +1,38 @@
 import * as path from 'node:path';
 
-import { loadSkillLibrary } from '@collegium/core/skills';
+import { loadSkillLibrary, renderQualifiedSkillName } from '@collegium/core/skills';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
+import { FRAMEWORK_TOOLSETS } from '@/tools/tools.toolsets.ts';
 
-import { SKILL_NAMES } from './skills.constants.ts';
+import { CORE_SKILL_NAMES, SKILL_NAMES } from './skills.constants.ts';
 
 import type { Skill } from './skills.types.ts';
 
 @Injectable()
 export class SkillsService {
-  /** the framework library plus every plugin's contributions under their qualified names */
+  /** the framework library, every toolset's shipped skills under `ns::skill` names, and the plugins' */
   private readonly skills: ReadonlyMap<string, Skill>;
 
-  constructor(pluginsRegistry: PluginsRegistry) {
+  constructor(agentRegistry: AgentRegistry, pluginsRegistry: PluginsRegistry) {
     const frameworkSkills = loadSkillLibrary(path.resolve(import.meta.dirname, 'library'), SKILL_NAMES);
-    this.skills = new Map([...Object.entries(frameworkSkills), ...pluginsRegistry.skills]);
+    // a framework namespace equals its module directory (§2), which is what makes this resolvable
+    const toolsetSkills = FRAMEWORK_TOOLSETS.flatMap((toolset) => {
+      const names = toolset.skills ?? [];
+      if (names.length === 0) {
+        return [];
+      }
+      const documents = loadSkillLibrary(path.resolve(import.meta.dirname, '..', toolset.name, 'skills'), names);
+      return Object.entries(documents).map(
+        ([name, skill]) => [renderQualifiedSkillName(toolset.name, name), skill] as const
+      );
+    });
+    this.skills = new Map([...Object.entries(frameworkSkills), ...toolsetSkills, ...pluginsRegistry.skills]);
+    this.verifyGrants(agentRegistry.list());
   }
 
   /** the document under its title, pulled on demand (§3.5); the name is model output, so absence is the model's recoverable mistake */
@@ -30,22 +44,11 @@ export class SkillsService {
     return Result.ok(`# ${skill.title}\n\n${skill.body}`);
   }
 
-  /** the manifest injected into the system prompt every turn: names plus one-line descriptions (§3.5) */
-  renderManifest(names: readonly string[]): string {
-    return names.map((name) => `- ${name}: ${this.require(name).description}`).join('\n');
-  }
-
-  /** boot-time integrity: every configured grant names a skill in the merged library, so nothing about a plugin is discovered mid-turn */
-  verifyGrants(profiles: readonly AgentProfile[]): void {
-    for (const profile of profiles) {
-      for (const name of profile.skills) {
-        if (!this.skills.has(name)) {
-          throw new Error(
-            `agent "${profile.username}" is configured with "${name}", which no skill in the library declares`
-          );
-        }
-      }
-    }
+  /** the manifest injected into the system prompt every turn: core skills always, then the agent's grants (§3.5, §9) */
+  renderManifest(profile: AgentProfile): string {
+    return [...CORE_SKILL_NAMES, ...profile.skills]
+      .map((name) => `- ${name}: ${this.require(name).description}`)
+      .join('\n');
   }
 
   private require(name: string): Skill {
@@ -54,5 +57,24 @@ export class SkillsService {
       throw new Error(`no skill named "${name}" exists in the library`);
     }
     return skill;
+  }
+
+  /** §9 — every grant names a skill in the merged library, and never a core one; refused at boot, not mid-turn */
+  private verifyGrants(profiles: readonly AgentProfile[]): void {
+    const coreNames = new Set<string>(CORE_SKILL_NAMES);
+    for (const profile of profiles) {
+      for (const name of profile.skills) {
+        if (coreNames.has(name)) {
+          throw new Error(
+            `agent "${profile.username}" is configured with "${name}", which is a core skill — always assigned and never granted`
+          );
+        }
+        if (!this.skills.has(name)) {
+          throw new Error(
+            `agent "${profile.username}" is configured with "${name}", which no skill in the library declares`
+          );
+        }
+      }
+    }
   }
 }

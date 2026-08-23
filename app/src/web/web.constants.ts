@@ -47,5 +47,3 @@ export const DOM_SETTLE_TIMEOUT_MS = 3_000;
  * blocked queue inside a turn is a stall the model cannot see.
  */
 export const MAX_LIVE_SESSIONS = 4;
-
-export const BROWSER_TOOL_NAME = 'browser';

@@ -32,6 +32,3 @@ export const SHELL_OS_USER_ID_COUNT = 900_000;
  * prints a `getcwd` warning onto the model's stderr before it can reach the agent's home.
  */
 export const SPAWN_WORKING_DIRECTORY = '/';
-
-/** The model-facing name of the shell tool, and the grant marker an agent's `tools` list carries. */
-export const SHELL_TOOL_NAME = 'shell';

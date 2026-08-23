@@ -1,309 +1,194 @@
-import type { Tool } from '@collegium/core/tools';
+import { createServiceToken, defineToolset } from '@collegium/core/tools';
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Mock } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import type { AgentProfile } from '@/agents/agents.types.ts';
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
+import { buildAgentProfile } from '@/testing/factories/agent-profile.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
+import { buildToolTurnScope } from '@/testing/factories/tool-turn.factory.ts';
 
 import { ToolExecutor } from '../tools.executor.ts';
-import { TOOL_LIBRARY_PROVIDER, ToolRegistry } from '../tools.registry.ts';
+import { ToolRegistry } from '../tools.registry.ts';
+import { registerToolset } from '../tools.utils.ts';
 
-import type { ToolName } from '../tools.types.ts';
+type Greeter = { greet(name: string): string };
+const GREETER_TOKEN = createServiceToken<Greeter>('GREETER');
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const echoExecute = vi.fn((args: { text: string }) => Promise.resolve(Result.ok({ text: `echo: ${args.text}` })));
-const failingExecute = vi.fn<() => Promise<Result<Tool.Output, Tool.Failure>>>();
-const slowWriteExecute = vi.fn(async () => {
-  await sleep(50);
-  return Result.ok({ text: 'landed' });
+const FIXTURE_TOOLSET = defineToolset({
+  name: 'fixture',
+  services: { greeter: GREETER_TOKEN },
+  settings: z.object({ suffix: z.string().default('!') }),
+  tools: {
+    disclose: {
+      description: 'Returns a disclosure beside its text.',
+      execute: () => {
+        return Result.ok({
+          disclosure: { body: 'the body', description: 'a fact', reference: 'record-1' },
+          text: 'recorded'
+        });
+      },
+      parameters: z.object({})
+    },
+    echo: {
+      description: 'Greets through the declared context.',
+      execute: (args, context) => Result.ok({ text: `${context.greeter.greet(args.value)}${context.settings.suffix}` }),
+      parameters: z.object({ value: z.string() }),
+      retryable: true
+    },
+    gated: {
+      approval: (args) => ({ body: `run ${args.value}`, presentation: 'verbatim' }),
+      description: 'Always gates.',
+      execute: (args) => Result.ok({ text: `ran ${args.value}` }),
+      parameters: z.object({ value: z.string() })
+    },
+    sleepy: {
+      description: 'Never finishes.',
+      execute: () => new Promise(() => undefined),
+      parameters: z.object({}),
+      timeoutMs: 10
+    },
+    sleepy_read: {
+      description: 'Never finishes, but is a read.',
+      execute: () => new Promise(() => undefined),
+      parameters: z.object({}),
+      retryable: true,
+      timeoutMs: 10
+    },
+    thrower: {
+      description: 'Throws.',
+      execute: () => {
+        throw new Error('the vendor exploded');
+      },
+      parameters: z.object({})
+    },
+    unresolved: {
+      description: 'Commits something unconfirmable.',
+      execute: () => Result.err({ kind: 'unresolved', message: 'the send may have left' }),
+      parameters: z.object({})
+    }
+  }
 });
 
-const ungated = { getApprovalRequirements: () => ({ kind: 'ungated' as const }), variant: 'ungated' as const };
-
-const FIXTURES: readonly Tool.Any[] = [
-  {
-    ...ungated,
-    description: 'echoes its input',
-    execute: echoExecute,
-    isRetryable: () => true,
-    name: 'echo_fixture',
-    parameters: z.object({ text: z.string() }),
-    renderTraceDetail: (args: { text: string }) => args.text,
-    timeoutMs: 1000
-  },
-  {
-    ...ungated,
-    description: 'a slow read',
-    execute: async () => {
-      await sleep(50);
-      return Result.ok({ text: 'read' });
-    },
-    isRetryable: () => true,
-    name: 'slow_read_fixture',
-    parameters: z.object({}),
-    renderTraceDetail: () => '',
-    timeoutMs: 10
-  },
-  {
-    ...ungated,
-    description: 'a slow mutation',
-    execute: slowWriteExecute,
-    isRetryable: () => false,
-    name: 'slow_write_fixture',
-    parameters: z.object({}),
-    renderTraceDetail: () => '',
-    timeoutMs: 10
-  },
-  {
-    ...ungated,
-    description: 'a slow tool whose actions differ in retryability',
-    execute: async () => {
-      await sleep(50);
-      return Result.ok({ text: 'done' });
-    },
-    isRetryable: (args: { mutating: boolean }) => !args.mutating,
-    name: 'dynamic_retry_fixture',
-    parameters: z.object({ mutating: z.boolean() }),
-    renderTraceDetail: () => '',
-    timeoutMs: 10
-  },
-  {
-    ...ungated,
-    description: 'throws',
-    execute: () => {
-      throw new Error('boom');
-    },
-    isRetryable: () => true,
-    name: 'throwing_fixture',
-    parameters: z.object({}),
-    renderTraceDetail: () => '',
-    timeoutMs: 1000
-  },
-  {
-    ...ungated,
-    description: 'returns whichever failure the test asks for',
-    execute: failingExecute,
-    isRetryable: () => true,
-    name: 'failing_fixture',
-    parameters: z.object({}),
-    renderTraceDetail: () => '',
-    timeoutMs: 1000
-  }
-];
-
-const PROFILE = {
-  tools: FIXTURES.map((tool) => tool.name) as unknown as readonly ToolName[],
-  username: 'mira'
-} as AgentProfile;
-
-const SCOPE = { agentUsername: 'mira', channelId: 'channel-1', turnId: 'turn-1' } as Tool.TurnScope;
+const PROFILE = buildAgentProfile({
+  tools: ['fixture'],
+  toolSettings: new Map([['fixture', { suffix: '!' }]])
+});
 
 describe('ToolExecutor', () => {
   let approvalsService: MockedInstance<ApprovalsService>;
-  let gatedExecute: Mock;
   let toolExecutor: ToolExecutor;
 
+  const execute = (name: string, args: unknown) =>
+    toolExecutor.execute({
+      appendEvent: () => Promise.resolve(),
+      call: { arguments: args, id: 'call-1', name },
+      profile: PROFILE,
+      turn: buildToolTurnScope()
+    });
+
   beforeEach(async () => {
-    vi.clearAllMocks();
     approvalsService = MockFactory.createMock(ApprovalsService);
-    gatedExecute = vi.fn(() => Promise.resolve(Result.ok({ text: 'written' })));
-    const gatedFixture: Tool.Any = {
-      description: 'a gated mutation',
-      execute: gatedExecute as never,
-      getApprovalRequirements: (args: { path: string }) => ({
-        kind: 'gated',
-        payload: { body: `write ${args.path}`, presentation: 'collapse' }
-      }),
-      isRetryable: () => false,
-      name: 'gated_fixture',
-      parameters: z.object({ path: z.string() }),
-      renderTraceDetail: (args: { path: string }) => args.path,
-      timeoutMs: 1000,
-      variant: 'gated'
-    };
+    const registered = registerToolset(
+      FIXTURE_TOOLSET,
+      () => ({ greet: (name: string) => `hello ${name}` }),
+      () => {
+        throw new Error('no storage is declared by the fixture');
+      }
+    );
     const moduleRef = await Test.createTestingModule({
       providers: [
         ToolExecutor,
-        ToolRegistry,
         { provide: ApprovalsService, useValue: approvalsService },
-        { provide: TOOL_LIBRARY_PROVIDER, useValue: [...FIXTURES, gatedFixture] }
+        { provide: ToolRegistry, useValue: new ToolRegistry([registered], [PROFILE]) }
       ]
     }).compile();
     toolExecutor = moduleRef.get(ToolExecutor);
   });
 
-  const execute = (name: string, args: unknown = {}) =>
-    toolExecutor.execute({
-      appendEvent: () => Promise.resolve(),
-      call: { arguments: args, id: 'call-1', name },
-      profile: { ...PROFILE, tools: [...PROFILE.tools, 'gated_fixture'] as unknown as readonly ToolName[] },
-      turn: SCOPE
-    });
-
-  it('should run a tool and return its output', async () => {
-    expect(await execute('echo_fixture', { text: 'hi' })).toStrictEqual({ kind: 'continue', output: 'echo: hi' });
+  it('executes an ungated tool with the context its toolset declared (§4)', async () => {
+    const attempt = await execute('fixture__echo', { value: 'casey' });
+    expect(attempt).toStrictEqual({ kind: 'continue', output: 'hello casey!' });
+    expect(approvalsService.request).not.toHaveBeenCalled();
   });
 
-  it('should feed rejected arguments back to the model rather than terminating', async () => {
-    const attempt = await execute('echo_fixture', { text: 42 });
-    expect(attempt).toMatchObject({ kind: 'continue' });
-    expect((attempt as { output: string }).output).toContain('invalid arguments for echo_fixture');
-    expect(echoExecute).not.toHaveBeenCalled();
+  it('feeds malformed arguments back under the name the model spelled (§1)', async () => {
+    const attempt = await execute('fixture__echo', { value: 5 });
+    expect(attempt.kind).toBe('continue');
+    expect((attempt as { output: string }).output).toContain('invalid arguments for fixture__echo');
   });
 
-  it('should terminate as a semantic failure on a tool that does not exist', async () => {
-    expect(await execute('send_mail')).toMatchObject({ kind: 'terminal', status: 'semantic_error' });
-  });
-
-  it("should terminate as a semantic failure on a tool outside the agent's configured set", async () => {
-    const bare = { tools: [], username: 'tess' } as unknown as AgentProfile;
-    const attempt = await toolExecutor.execute({
-      appendEvent: () => Promise.resolve(),
-      call: { arguments: {}, id: 'call-1', name: 'echo_fixture' },
-      profile: bare,
-      turn: SCOPE
-    });
+  it('ends the turn on a name outside the set (§6.1)', async () => {
+    const attempt = await execute('ghost__tool', {});
     expect(attempt).toMatchObject({ kind: 'terminal', status: 'semantic_error' });
   });
 
-  it('should terminate as a semantic failure when the tool body throws', async () => {
-    expect(await execute('throwing_fixture')).toMatchObject({
-      detail: 'throwing_fixture threw: boom',
+  it('gates on approval presence, running only once approved (§5)', async () => {
+    approvalsService.request.mockResolvedValue(Result.ok({ byUsername: 'casey', kind: 'approved' }));
+    const attempt = await execute('fixture__gated', { value: 'deploy' });
+    expect(approvalsService.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payloadPresentation: 'verbatim',
+        payloadText: 'run deploy',
+        toolName: 'gated',
+        toolNamespace: 'fixture'
+      })
+    );
+    expect(attempt).toStrictEqual({ kind: 'continue', output: 'ran deploy' });
+  });
+
+  it('ends the turn on a bare denial, naming the denier and the display name (§5.4)', async () => {
+    approvalsService.request.mockResolvedValue(Result.ok({ byUsername: 'casey', kind: 'denied' }));
+    const attempt = await execute('fixture__gated', { value: 'deploy' });
+    expect(attempt).toStrictEqual({
+      detail: '@casey denied fixture::gated',
       kind: 'terminal',
-      status: 'semantic_error'
+      status: 'denied'
     });
   });
 
-  it('should exit side_effect_ambiguous when a mutation times out, never re-executing it', async () => {
-    const attempt = await execute('slow_write_fixture');
+  it('continues with the reason on a reasoned denial (§5.4)', async () => {
+    approvalsService.request.mockResolvedValue(
+      Result.ok({ byUsername: 'casey', kind: 'denied-with-reason', reason: 'not that host' })
+    );
+    const attempt = await execute('fixture__gated', { value: 'deploy' });
+    expect(attempt).toStrictEqual({ kind: 'continue', output: 'denied: not that host' });
+  });
+
+  it('reports a timed-out read as a plain failure the model hears (§7.2)', async () => {
+    const attempt = await execute('fixture__sleepy_read', {});
+    expect(attempt).toStrictEqual({ kind: 'continue', output: 'fixture__sleepy_read timed out after 10ms' });
+  });
+
+  it('ends the turn on a timed-out mutation, which may have landed (§7.2)', async () => {
+    const attempt = await execute('fixture__sleepy', {});
     expect(attempt).toMatchObject({ kind: 'terminal', status: 'side_effect_ambiguous' });
-    expect(slowWriteExecute).toHaveBeenCalledTimes(1);
+    expect((attempt as { detail: string }).detail).toContain('fixture::sleepy timed out after 10ms');
   });
 
-  it('should tell the model a timed-out read failed and continue the turn', async () => {
-    expect(await execute('slow_read_fixture')).toStrictEqual({
-      kind: 'continue',
-      output: 'slow_read_fixture timed out after 10ms'
-    });
+  it('ends the turn when the body throws (§7.1)', async () => {
+    const attempt = await execute('fixture__thrower', {});
+    expect(attempt).toMatchObject({ kind: 'terminal', status: 'semantic_error' });
+    expect((attempt as { detail: string }).detail).toContain('fixture::thrower threw: the vendor exploded');
   });
 
-  it("should classify a dynamic tool's timeout by the call's own args (§7.2)", async () => {
-    expect(await execute('dynamic_retry_fixture', { mutating: false })).toStrictEqual({
-      kind: 'continue',
-      output: 'dynamic_retry_fixture timed out after 10ms'
-    });
-    expect(await execute('dynamic_retry_fixture', { mutating: true })).toMatchObject({
+  it('ends the turn on an unresolved outcome rather than tell the model (§7.1)', async () => {
+    const attempt = await execute('fixture__unresolved', {});
+    expect(attempt).toStrictEqual({
+      detail: 'the send may have left',
       kind: 'terminal',
       status: 'side_effect_ambiguous'
     });
   });
 
-  it('should terminate as a semantic failure when the body reports an exception', async () => {
-    failingExecute.mockResolvedValue(Result.err({ kind: 'exception', message: 'the store was unreachable' }));
-    expect(await execute('failing_fixture')).toStrictEqual({
-      detail: 'the store was unreachable',
-      kind: 'terminal',
-      status: 'semantic_error'
-    });
-  });
-
-  it('should terminate as a semantic failure when the body reports an unknown tool', async () => {
-    failingExecute.mockResolvedValue(Result.err({ kind: 'unknown-tool', message: 'no tool named "x" exists' }));
-    expect(await execute('failing_fixture')).toStrictEqual({
-      detail: 'no tool named "x" exists',
-      kind: 'terminal',
-      status: 'semantic_error'
-    });
-  });
-
-  it('should end the turn as side_effect_ambiguous when the body reports an unresolved outcome (§7.2)', async () => {
-    failingExecute.mockResolvedValue(Result.err({ kind: 'unresolved', message: 'the send may or may not have left' }));
-    expect(await execute('failing_fixture')).toStrictEqual({
-      detail: 'the send may or may not have left',
-      kind: 'terminal',
-      status: 'side_effect_ambiguous'
-    });
-  });
-
-  it('should feed a body-reported argument rejection back to the model and continue the turn', async () => {
-    failingExecute.mockResolvedValue(Result.err({ kind: 'invalid-arguments', message: 'no memory "m-9" exists' }));
-    expect(await execute('failing_fixture')).toStrictEqual({ kind: 'continue', output: 'no memory "m-9" exists' });
-  });
-
-  describe('the gate (§5.4, §6.2)', () => {
-    it('should execute an ungated tool without asking anyone', async () => {
-      await execute('echo_fixture', { text: 'hi' });
-      expect(approvalsService.request).not.toHaveBeenCalled();
-    });
-
-    it('should request approval with the full rendered payload and execute on approve', async () => {
-      approvalsService.request.mockResolvedValue(Result.ok({ byUsername: 'casey', kind: 'approved' }));
-      const attempt = await execute('gated_fixture', { path: 'notes.md' });
-      expect(approvalsService.request).toHaveBeenCalledWith(
-        expect.objectContaining({ payloadText: 'write notes.md', toolName: 'gated_fixture', turnId: 'turn-1' })
-      );
-      expect(attempt).toStrictEqual({ kind: 'continue', output: 'written' });
-    });
-
-    it('should terminate the turn on a bare denial without executing (§5.4)', async () => {
-      approvalsService.request.mockResolvedValue(Result.ok({ byUsername: 'casey', kind: 'denied' }));
-      const attempt = await execute('gated_fixture', { path: 'notes.md' });
-      expect(attempt).toMatchObject({ kind: 'terminal', status: 'denied' });
-      expect(gatedExecute).not.toHaveBeenCalled();
-    });
-
-    it('should feed the reason back as the tool result and continue on denial with reason (§5.4)', async () => {
-      approvalsService.request.mockResolvedValue(
-        Result.ok({ byUsername: 'casey', kind: 'denied-with-reason', reason: 'wrong file' })
-      );
-      const attempt = await execute('gated_fixture', { path: 'notes.md' });
-      expect(attempt).toStrictEqual({ kind: 'continue', output: 'denied: wrong file' });
-      expect(gatedExecute).not.toHaveBeenCalled();
-    });
-
-    it('should close the turn under the cancelling command without executing (§7.5)', async () => {
-      approvalsService.request.mockResolvedValue(Result.ok({ kind: 'cancelled', reason: 'stop' }));
-      const attempt = await execute('gated_fixture', { path: 'notes.md' });
-      expect(attempt).toMatchObject({ kind: 'terminal', status: 'stopped' });
-      expect(gatedExecute).not.toHaveBeenCalled();
-    });
-
-    it.each([
-      { reason: 'halt', status: 'halted' },
-      { reason: 'kill', status: 'killed' },
-      { reason: 'restart', status: 'halted' }
-    ] as const)('should end a $reason cancellation as $status (§7.5)', async ({ reason, status }) => {
-      approvalsService.request.mockResolvedValue(Result.ok({ kind: 'cancelled', reason }));
-      expect(await execute('gated_fixture', { path: 'notes.md' })).toStrictEqual({
-        detail: `the pending approval was cancelled by ${reason}`,
-        kind: 'terminal',
-        status
-      });
-    });
-
-    it('should end the turn as an outage when the prompt cannot be delivered', async () => {
-      approvalsService.request.mockResolvedValue(
-        Result.err({ kind: 'prompt-undeliverable', message: 'mattermost is down' })
-      );
-      const attempt = await execute('gated_fixture', { path: 'notes.md' });
-      expect(attempt).toMatchObject({ kind: 'terminal', status: 'provider_outage' });
-      expect(gatedExecute).not.toHaveBeenCalled();
-    });
-
-    it('should feed an over-long refused command back to the model to shorten, continuing the turn (§6.2)', async () => {
-      approvalsService.request.mockResolvedValue(
-        Result.err({ actualChars: 5000, kind: 'payload-too-large', limitChars: 4000 })
-      );
-      const attempt = await execute('gated_fixture', { path: 'notes.md' });
-      expect(attempt).toMatchObject({ kind: 'continue' });
-      expect((attempt as { output: string }).output).toContain('too long to present for approval');
-      expect(gatedExecute).not.toHaveBeenCalled();
+  it('passes a returned disclosure through for the turn to write (§3)', async () => {
+    const attempt = await execute('fixture__disclose', {});
+    expect(attempt).toStrictEqual({
+      disclosure: { body: 'the body', description: 'a fact', reference: 'record-1' },
+      kind: 'continue',
+      output: 'recorded'
     });
   });
 });

@@ -33,11 +33,11 @@ import type { Turn } from '../turns.types.ts';
 const PROFILE = {
   contextBudgetTokens: 1000,
   expertise: 'testing',
-  memoryCaps: { maxBodyChars: 4000, maxDescriptionChars: 200, maxEntries: 50 },
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: [],
   systemPrompt: 'You are Mira.',
   tools: [],
+  toolSettings: new Map(),
   username: 'mira',
   workspaceDir: '/tmp/workspaces/mira'
 } as AgentProfile;
@@ -269,21 +269,26 @@ describe('TurnRunner', () => {
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'completed', expect.objectContaining({ actionCount: 1 }));
   });
 
-  it('should trace a call with the detail the tool renders from its arguments', async () => {
-    toolRegistry.describeCall.mockReturnValue('navigate https://northmoor.example/');
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+  it('should trace a call by its display name with the detail the tool renders', async () => {
+    toolRegistry.describeCall.mockReturnValue({
+      detail: 'https://northmoor.example/',
+      displayName: 'web::navigate',
+      id: ['web', 'navigate']
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__navigate'])));
     complete.mockResolvedValueOnce(Result.ok(text('found it')));
     await run();
     expect(toolRegistry.describeCall).toHaveBeenCalledWith({
       args: {},
-      name: 'lookup_fixture',
+      name: 'web__navigate',
       profile: PROFILE
     });
-    expect(statusHandle.appendTrace).toHaveBeenCalledWith('→ `lookup_fixture navigate https://northmoor.example/`');
+    expect(statusHandle.appendTrace).toHaveBeenCalledWith('→ `web::navigate https://northmoor.example/`');
   });
 
-  it('should not count load_skill, a memory body load, or framework posting against the budget', async () => {
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['load_skill', 'read_memory', 'lookup_fixture'])));
+  it('should not count a budget-exempt call against the budget (§5.3)', async () => {
+    toolRegistry.isBudgetExempt.mockImplementation((_profile, name: string) => name !== 'lookup_fixture');
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['skills__load', 'memory__read', 'lookup_fixture'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'completed', expect.objectContaining({ actionCount: 1 }));
@@ -533,27 +538,26 @@ describe('TurnRunner', () => {
     expect(sends.at(-1)?.text).toContain('Failed to reach the model provider');
   });
 
-  it('should disclose a memory write and its eviction in the trace and the turn events (§3.6)', async () => {
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['write_memory'])));
+  it('should write a returned disclosure into the trace and the turn events (§3.6)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['memory__write'])));
     complete.mockResolvedValueOnce(Result.ok(text('saved')));
-    toolExecutor.execute.mockImplementationOnce(async ({ turn }) => {
-      await turn.discloseMemoryWrite({
+    toolExecutor.execute.mockResolvedValueOnce({
+      disclosure: {
         body: 'casey prefers pnpm',
         description: 'tooling preference',
-        evictedDescriptions: ['an ancient note'],
-        memoryId: 'memory-1'
-      });
-      return { kind: 'continue', output: 'ok' };
+        reference: 'memory-1',
+        supersededDescriptions: ['an ancient note']
+      },
+      kind: 'continue',
+      output: 'ok'
     });
     await run();
     expect(turnsService.appendEvent).toHaveBeenCalledWith(
       'turn-1',
-      expect.objectContaining({ kind: 'memory_written', memoryId: 'memory-1' })
+      expect.objectContaining({ kind: 'record_written', reference: 'memory-1' })
     );
-    expect(statusHandle.appendTrace).toHaveBeenCalledWith('📝 _saved memory: tooling preference — casey prefers pnpm_');
-    expect(statusHandle.appendTrace).toHaveBeenCalledWith(
-      '♻️ _evicted the oldest memory to make room: an ancient note_'
-    );
+    expect(statusHandle.appendTrace).toHaveBeenCalledWith('📝 _recorded: tooling preference — casey prefers pnpm_');
+    expect(statusHandle.appendTrace).toHaveBeenCalledWith('♻️ _superseded: an ancient note_');
   });
 
   it('should thread the turn’s own event appender into tool execution and approval requests', async () => {

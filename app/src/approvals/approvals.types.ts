@@ -87,5 +87,7 @@ export type ApprovalRequest = {
   readonly payloadPresentation: ApprovalPayloadPresentation;
   readonly payloadText: string;
   readonly toolName: string;
+  /** the tool's namespace, or null for a framework action that is not a tool (the budget extension) */
+  readonly toolNamespace: null | string;
   readonly turnId: string;
 };

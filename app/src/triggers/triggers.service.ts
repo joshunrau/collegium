@@ -169,7 +169,7 @@ export class TriggersService {
   }
 
   /**
-   * Marked handled by the agent through resolve_trigger, and idempotent — a re-mark is a no-op
+   * Marked handled by the agent through triggers::resolve, and idempotent — a re-mark is a no-op
    * (§4.2). A source that must finish something in the world first does it here (§4.6 marks mail
    * read), and a failure there leaves the row outstanding rather than claiming the work is done.
    */

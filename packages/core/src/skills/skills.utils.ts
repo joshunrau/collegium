@@ -44,6 +44,11 @@ function readSkill(filepath: string): Skill {
   }
 }
 
+/** the qualified name a toolset-shipped skill is granted and loaded by (§9) */
+export function renderQualifiedSkillName(namespace: string, skillName: string): string {
+  return `${namespace}::${skillName}`;
+}
+
 /**
  * Read the document declared for each name. Throws on a document that is missing or unreadable: a
  * half-loaded library is worse than a refusal to start. Total by construction — every declared name

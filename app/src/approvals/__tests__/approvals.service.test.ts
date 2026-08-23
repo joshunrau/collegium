@@ -82,7 +82,8 @@ describe('ApprovalsService', () => {
     channelId: 'channel-1',
     payloadPresentation: 'collapse' as const,
     payloadText: 'write notes.md with 12 words',
-    toolName: 'write_file',
+    toolName: 'write',
+    toolNamespace: 'workspace',
     turnId: 'turn-1'
   });
 
@@ -333,7 +334,8 @@ describe('ApprovalsService', () => {
       ...requestInput(),
       payloadPresentation: 'verbatim' as const,
       payloadText,
-      toolName: 'shell'
+      toolName: 'run',
+      toolNamespace: 'shell'
     });
 
     it('should refuse a verbatim command too long to fit a post, before posting anything', async () => {

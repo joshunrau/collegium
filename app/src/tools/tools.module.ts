@@ -1,6 +1,8 @@
-import type { Tool } from '@collegium/core/tools';
+import type { ServiceToken } from '@collegium/core/tools';
 import { Module } from '@nestjs/common';
 
+import { AgentsModule } from '@/agents/agents.module.ts';
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { ApprovalsModule } from '@/approvals/approvals.module.ts';
 import { MailModule } from '@/mail/mail.module.ts';
 import { MemoryModule } from '@/memory/memory.module.ts';
@@ -11,38 +13,22 @@ import { SkillsModule } from '@/skills/skills.module.ts';
 import { TriggersModule } from '@/triggers/triggers.module.ts';
 import { WebModule } from '@/web/web.module.ts';
 
-import { BrowserTool } from './library/browser.tool.ts';
-import { LoadSkillTool } from './library/load-skill.tool.ts';
-import { MailTool } from './library/mail.tool.ts';
-import { ReadMemoryTool } from './library/read-memory.tool.ts';
-import { ResolveTriggerTool } from './library/resolve-trigger.tool.ts';
-import { ShellTool } from './library/shell.tool.ts';
-import { WriteFileTool } from './library/write-file.tool.ts';
-import { WriteMemoryTool } from './library/write-memory.tool.ts';
-import { TOOL_NAMES } from './tools.constants.ts';
+import { ToolsetStorageService } from './storage/toolset-storage.service.ts';
 import { ToolExecutor } from './tools.executor.ts';
-import { TOOL_LIBRARY_PROVIDER, ToolRegistry } from './tools.registry.ts';
+import { ToolRegistry } from './tools.registry.ts';
+import { FRAMEWORK_TOOLSETS } from './tools.toolsets.ts';
+import { registerToolset } from './tools.utils.ts';
 
-type ToolClassTuple<TNames extends readonly string[]> = {
-  [I in keyof TNames]: new (...args: never[]) => Tool.Any & { readonly name: TNames[I] };
-};
+/** every service token any framework toolset declares — the factory's explicit dependencies, so boot order is Nest's problem */
+const SERVICE_TOKENS: readonly ServiceToken<unknown>[] = FRAMEWORK_TOOLSETS.flatMap((toolset) =>
+  Object.values<ServiceToken<unknown>>(toolset.services ?? {})
+);
 
-/** positionally pinned to `TOOL_NAMES`, so a name whose implementing class is missing cannot compile */
-export const TOOL_CLASSES: ToolClassTuple<typeof TOOL_NAMES> = [
-  BrowserTool,
-  LoadSkillTool,
-  MailTool,
-  ReadMemoryTool,
-  ResolveTriggerTool,
-  ShellTool,
-  WriteFileTool,
-  WriteMemoryTool
-];
-
-/** the tools' service modules are imported here, where the tools live — never forwarded by the turn */
+/** the toolsets' service modules are imported here, where their tokens resolve — never forwarded by the turn */
 @Module({
   exports: [ToolExecutor, ToolRegistry],
   imports: [
+    AgentsModule,
     ApprovalsModule,
     MailModule,
     MemoryModule,
@@ -53,13 +39,32 @@ export const TOOL_CLASSES: ToolClassTuple<typeof TOOL_NAMES> = [
     WebModule
   ],
   providers: [
-    ...TOOL_CLASSES,
     ToolExecutor,
-    ToolRegistry,
+    ToolsetStorageService,
     {
-      inject: [PluginsRegistry, ...TOOL_CLASSES],
-      provide: TOOL_LIBRARY_PROVIDER,
-      useFactory: (pluginsRegistry: PluginsRegistry, ...tools: Tool.Any[]) => [...tools, ...pluginsRegistry.tools]
+      inject: [AgentRegistry, PluginsRegistry, ToolsetStorageService, ...SERVICE_TOKENS],
+      provide: ToolRegistry,
+      useFactory: (
+        agentRegistry: AgentRegistry,
+        pluginsRegistry: PluginsRegistry,
+        storageService: ToolsetStorageService,
+        ...services: unknown[]
+      ) => {
+        const serviceByToken = new Map(SERVICE_TOKENS.map((token, index) => [token, services[index]]));
+        const toolsets = [...FRAMEWORK_TOOLSETS, ...pluginsRegistry.toolsets].map((declaration) =>
+          registerToolset(
+            declaration,
+            (token) => {
+              if (!serviceByToken.has(token)) {
+                throw new Error(`toolset "${declaration.name}" declares a service token this module does not provide`);
+              }
+              return serviceByToken.get(token);
+            },
+            (namespace, collection, schema) => storageService.collection(namespace, collection, schema)
+          )
+        );
+        return new ToolRegistry(toolsets, agentRegistry.list());
+      }
     }
   ]
 })

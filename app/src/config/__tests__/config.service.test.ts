@@ -21,17 +21,18 @@ const config = {
       skills: [],
       systemPrompt: 'You are Mira Turner',
       tools: [],
+      toolSettings: {},
       username: 'mira'
     }
   ],
   app: {
     contextBudgetTokens: 8000,
     debounce: { ceilingMs: 15_000, windowMs: 3000 },
+    defaultToolSettings: {},
     enableLifecycleNotifications: true,
     inferenceRetry: { backoffMs: 250, maxAttempts: 3 },
     inferenceTimeoutMs: 120_000,
     logLevel: 'error',
-    memoryCaps: { maxBodyChars: 4000, maxDescriptionChars: 200, maxEntries: 50 },
     timezone: 'America/Toronto',
     turnCeilingPerHour: 250
   },

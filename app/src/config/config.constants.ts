@@ -10,12 +10,8 @@ export const CONFIG_DEFAULTS = {
     inferenceRetry: { backoffMs: 250, maxAttempts: 3 },
     inferenceTimeoutMs: 120_000,
     logLevel: 'info',
-    memoryCaps: { maxBodyChars: 4000, maxDescriptionChars: 200, maxEntries: 50 },
     timezone: 'UTC',
     turnCeilingPerHour: 250
-  },
-  mailbox: {
-    pollIntervalMs: 60_000
   },
   mattermost: {
     mainChannel: 'town-square',

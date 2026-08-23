@@ -1,3 +1,5 @@
+import type { ToolId } from '@collegium/core/tools';
+
 import type { Prisma, PrismaClient } from './generated/client.ts';
 import type { ApprovalStatus, TurnEventKind } from './generated/enums.ts';
 
@@ -6,7 +8,7 @@ type ApprovalDecisionStatus = Exclude<ApprovalStatus, 'invalidated' | 'pending'>
 type RecordedToolCall = {
   args: unknown;
   callId: string;
-  toolName: string;
+  toolName: PrismaJson.RecordedToolName;
 };
 
 type TurnEventPayloadByKind = {
@@ -19,21 +21,22 @@ type TurnEventPayloadByKind = {
   approval_requested: {
     approvalId: string;
     payloadText: string;
-    toolName: string;
+    toolName: PrismaJson.RecordedToolName;
   };
   assistant_message: {
     content: string;
     toolCalls: RecordedToolCall[];
   };
-  memory_written: {
+  record_written: {
     body: string;
     description: string;
-    memoryId: string;
+    reference: string;
+    supersededDescriptions: string[];
   };
   tool_result: {
     callId: string;
     output: string;
-    toolName: string;
+    toolName: PrismaJson.RecordedToolName;
   };
 };
 
@@ -41,8 +44,14 @@ declare global {
   namespace PrismaJson {
     type ApprovalArgs = unknown;
 
+    /**
+     * The segments of a library tool, structurally (§10); a bare string is a name that resolved to
+     * no tool — unresolvable model output, or a framework action like the budget extension.
+     */
+    type RecordedToolName = string | ToolId;
+
     /** the wrapper keeps the stored value off the column's top level, where a bare JSON null would collide with Prisma's null sentinels */
-    type PluginRecordPayload = {
+    type ToolsetRecordPayload = {
       value: unknown;
     };
 

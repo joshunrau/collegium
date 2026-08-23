@@ -10,9 +10,8 @@ const SCENARIO = defineScenario({
   agents: [
     {
       expertise: 'End-to-end testing',
-      skills: ['handing-work-to-a-peer'],
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['load_skill', 'read_memory', 'write_memory'],
+      tools: ['memory'],
       username: 'mira'
     }
   ],
@@ -25,7 +24,7 @@ describe('Status post', () => {
   it('posts exactly one status post per turn (§8.1)', async () => {
     const { channels, inference } = harness();
     const reply = `done-${randomUUID()}`;
-    inference.willReply({ agent: 'mira' }, toolCallResponse('load_skill', { name: 'handing-work-to-a-peer' }));
+    inference.willReply({ agent: 'mira' }, toolCallResponse('skills__load', { name: 'handing-work-to-a-peer' }));
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
     await channels.main.mention('mira', 'use your skill');
@@ -38,22 +37,22 @@ describe('Status post', () => {
   it('appends each tool call to the same status post rather than posting again (§8.1)', async () => {
     const { agents, channels, inference } = harness();
     const reply = `appended-${randomUUID()}`;
-    inference.willReply({ agent: 'mira' }, toolCallResponse('load_skill', { name: 'handing-work-to-a-peer' }));
-    inference.willReply({ agent: 'mira' }, toolCallResponse('read_memory', { id: 'no-such-memory' }));
+    inference.willReply({ agent: 'mira' }, toolCallResponse('skills__load', { name: 'handing-work-to-a-peer' }));
+    inference.willReply({ agent: 'mira' }, toolCallResponse('memory__read', { id: 'no-such-memory' }));
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
     await channels.main.mention('mira', 'two tools please');
     const statusPost = await channels.main.awaitPost({
       description: 'the status post carrying the first tool call',
       match: (post) =>
-        post.authorId === agents.mira.userId && post.text.includes('→ `load_skill handing-work-to-a-peer`')
+        post.authorId === agents.mira.userId && post.text.includes('→ `skills::load handing-work-to-a-peer`')
     });
-    const updated = statusPost.text.includes('→ `read_memory no-such-memory`')
+    const updated = statusPost.text.includes('→ `memory::read no-such-memory`')
       ? statusPost
-      : await channels.main.awaitPostUpdate(statusPost, { contains: '→ `read_memory no-such-memory`' });
+      : await channels.main.awaitPostUpdate(statusPost, { contains: '→ `memory::read no-such-memory`' });
 
     expect(updated.id).toBe(statusPost.id);
-    expect(updated.text).toContain('→ `load_skill handing-work-to-a-peer`');
+    expect(updated.text).toContain('→ `skills::load handing-work-to-a-peer`');
     await channels.main.awaitReplyFrom('mira', { text: reply });
   });
 
@@ -63,7 +62,7 @@ describe('Status post', () => {
     const reply = `remembered-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'remember that' },
-      toolCallResponse('write_memory', { body: 'short answers, always', description })
+      toolCallResponse('memory__write', { body: 'short answers, always', description })
     );
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
@@ -74,7 +73,7 @@ describe('Status post', () => {
       description: 'the memory disclosure line in the status post',
       match: (post) =>
         post.authorId === agents.mira.userId &&
-        post.text.includes(`saved memory: ${description}`) &&
+        post.text.includes(`recorded: ${description}`) &&
         post.text.includes('short answers, always')
     });
   });
@@ -89,7 +88,7 @@ describe('Turn output', () => {
     const reply = `checked-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira' },
-      toolCallsResponse([{ arguments: { name: 'handing-work-to-a-peer' }, name: 'load_skill' }], {
+      toolCallsResponse([{ arguments: { name: 'handing-work-to-a-peer' }, name: 'skills__load' }], {
         content: transient
       })
     );
@@ -122,7 +121,7 @@ describe('Turn output', () => {
       toolCallsResponse(
         Array.from({ length: 10 }, (_, index) => ({
           arguments: { body: `body ${index}`, description: `note ${index}` },
-          name: 'write_memory'
+          name: 'memory__write'
         }))
       )
     );

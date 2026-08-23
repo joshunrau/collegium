@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  renderMemoryEvictionLine,
-  renderMemoryWriteLine,
   renderProviderRejectionNotice,
+  renderRecordWriteLine,
   renderStatusPost,
+  renderSupersededLine,
   renderToolCallLine
 } from '../status-post.renderer.ts';
 
@@ -51,25 +51,23 @@ describe('renderToolCallLine', () => {
   });
 });
 
-describe('renderMemoryWriteLine', () => {
+describe('renderRecordWriteLine', () => {
   it('should disclose the description and body of a memory write', () => {
-    expect(renderMemoryWriteLine({ body: 'bullet points, never prose', description: 'casey on formatting' })).toBe(
-      '📝 _saved memory: casey on formatting — bullet points, never prose_'
+    expect(renderRecordWriteLine({ body: 'bullet points, never prose', description: 'casey on formatting' })).toBe(
+      '📝 _recorded: casey on formatting — bullet points, never prose_'
     );
   });
 
   it('should elide a body past the disclosure limit', () => {
-    expect(renderMemoryWriteLine({ body: 'x'.repeat(121), description: 'a long one' })).toBe(
-      `📝 _saved memory: a long one — ${'x'.repeat(120)}…_`
+    expect(renderRecordWriteLine({ body: 'x'.repeat(121), description: 'a long one' })).toBe(
+      `📝 _recorded: a long one — ${'x'.repeat(120)}…_`
     );
   });
 });
 
-describe('renderMemoryEvictionLine', () => {
+describe('renderSupersededLine', () => {
   it('should name the entry the write displaced', () => {
-    expect(renderMemoryEvictionLine('casey on formatting')).toBe(
-      '♻️ _evicted the oldest memory to make room: casey on formatting_'
-    );
+    expect(renderSupersededLine('casey on formatting')).toBe('♻️ _superseded: casey on formatting_');
   });
 });
 

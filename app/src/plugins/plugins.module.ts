@@ -4,21 +4,15 @@ import { ConfigService } from '@/config/config.service.ts';
 
 import { PluginLoader } from './loaders/plugin.loader.ts';
 import { PluginsRegistry } from './plugins.registry.ts';
-import { PluginStorageService } from './storage/plugin-storage.service.ts';
 
 @Module({
   exports: [PluginsRegistry],
   providers: [
     PluginLoader,
-    PluginStorageService,
     {
-      inject: [ConfigService, PluginLoader, PluginStorageService],
+      inject: [ConfigService, PluginLoader],
       provide: PluginsRegistry,
-      useFactory: async (
-        configService: ConfigService,
-        pluginLoader: PluginLoader,
-        storageService: PluginStorageService
-      ) => {
+      useFactory: async (configService: ConfigService, pluginLoader: PluginLoader) => {
         const pluginRefs = configService.get('plugins') ?? [];
         const loaded = await Promise.all(
           pluginRefs.map(async (ref) => ({ ref, result: await pluginLoader.load(ref) }))
@@ -34,10 +28,7 @@ import { PluginStorageService } from './storage/plugin-storage.service.ts';
           throw new AggregateError(failures, `failed to load ${failures.length} of ${pluginRefs.length} plugins`);
         }
 
-        return new PluginsRegistry(
-          loaded.map(({ result }) => result.unwrap()),
-          storageService
-        );
+        return new PluginsRegistry(loaded.map(({ result }) => result.unwrap()));
       }
     }
   ]

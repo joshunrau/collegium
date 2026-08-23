@@ -6,15 +6,17 @@ disabled: false
 
 ## Tools
 
-Every capability an agent has is a hand-written TypeScript function exposed to the model with a schema. There is no dynamic tool creation: the tool set is fixed when the process boots, and each agent holds only the tools its configuration grants.
+Every capability an agent has is a hand-written TypeScript function exposed to the model with a schema — one tool per action. There is no dynamic tool creation: the tool set is fixed when the process boots, and each agent holds only what its configuration grants.
 
-Every tool declares two things about itself. Its gating variant states whether invocation blocks for human consent: `gated`, `ungated`, or `dynamic` for a tool whose actions differ (mail holds ungated reads beside gated sends and decides per call). Its retryability states whether a transport failure may be retried: reads yes, mutations never, because retrying a mutation that may have landed risks doing it twice. Reads are generally ungated (search, fetch, list, read mail); anything externally visible or irreversible gates.
+Tools come in toolsets: a namespace and everything that belongs to it — its tools, the services they reach, the settings that configure them, the skills they ship. A tool's name is its namespace plus its action: `mail::send`, `memory::read`, `web::navigate`. A grant is a namespace (`"mail"` grants every mail tool) or a single tool (`"mail::list"`); each toolset's settings live under the same namespace in configuration, validated against the schema the toolset itself declares — granting mail without a mailbox is refused at boot because the mail settings schema says so, not because anyone maintains that rule.
 
-One rule sits above all of it: authority parameters are never model-supplied. Any argument that determines whose authority an action carries (the from address on outbound mail, credentials for an external service) is fixed in configuration. An agent may ask that mail be sent; it cannot choose who the mail is from.
+Every tool declares two things about itself. Whether it gates is the presence of its approval payload: a tool that carries one always blocks for human consent, so whether a granted tool can act without a human is answerable from configuration alone, without reading code. Its retryability states whether a timed-out call may be reported as a plain failure: reads yes, mutations never, because retrying a mutation that may have landed risks doing it twice. Reads are generally ungated (search, fetch, list, read mail); anything externally visible or irreversible gates. Two tools are core and always available — `skills::load` and `triggers::resolve` — framework machinery rather than capability anyone grants.
+
+One rule sits above all of it: authority parameters are never model-supplied. Any argument that determines whose authority an action carries (the from address on outbound mail, credentials for an external service) is fixed in the toolset's settings. An agent may ask that mail be sent; it cannot choose who the mail is from.
 
 ## Browsing, treated honestly
 
-The browser tool drives a real rendered browser in a session scoped to the turn: navigate, click, fill, each action returning the page as readable text. It can search, submit forms, and sign in where a task calls for it, because a browser that cannot do those things is a tool for reading front pages.
+The web toolset drives a real rendered browser in a session scoped to the turn: `web::navigate`, `web::click`, `web::fill`, each action returning the page as readable text. It can search, submit forms, and sign in where a task calls for it, because a browser that cannot do those things is a tool for reading front pages.
 
 It is ungated, and that makes it the widest ungated surface in the system. We name that plainly rather than hide it: an agent that browses can transmit information on its own authority, and a per-action approval would stall every autonomous step while approving only an entry URL, never the later action that mattered. The compensating controls are structural. Every action is traced live in the status post. Credentials are never disclosed: text typed into a login field is masked in the status post and the trace, and a page snapshot reports that a field holds text but never which text. Scope is enforced rather than requested: only public web addresses are reachable, never local files or the deployment's own network. Sessions are disposable: cookies and logins die with the turn.
 
@@ -22,13 +24,13 @@ Which agents browse at all is the per-agent grant, and an agent whose role does 
 
 ## Skills
 
-A skill is a procedure document: Markdown, authored by the operator, stored with the deployment. Each agent's context carries a skill manifest: the names of its assigned skills with one line of description each, with the full body loaded on demand. The manifest is what makes on-demand loading safe. An agent may misjudge when a procedure applies, which is an ordinary error; it can never be unaware that the procedure exists, which would be a structural blind spot.
+A skill is a procedure document: Markdown, authored by the operator, stored with the deployment. A toolset may ship skills of its own, granted under its namespace (`bookmark::saving-bookmarks`); framework skills that belong to no capability keep bare names, and the core ones are in every agent's manifest without being granted. Each agent's context carries a skill manifest: the names of its assigned skills with one line of description each, with the full body loaded on demand. The manifest is what makes on-demand loading safe. An agent may misjudge when a procedure applies, which is an ordinary error; it can never be unaware that the procedure exists, which would be a structural blind spot.
 
 Agents cannot write skills. Skill authorship is an administrative act, like everything else that shapes an agent's instructions. And where a procedure's step ordering is load-bearing (check the ledger before drafting, log after sending), it does not belong in a skill at all: a procedure in prose is a suggestion, and the model will eventually skip the step that mattered. Encode it as a tool, or as a plugin, where the order is code.
 
 ## Memory
 
-Each agent has a private memory: entries with a description and a body. Descriptions are loaded into the agent's context every turn; bodies are fetched on demand. Memory is bounded on every axis: entry count, description length, body length. An over-length write is refused rather than truncated, and a write at the entry cap evicts the oldest entry. Memory is never shared between agents.
+Each agent has a private memory: entries with a description and a body. Descriptions are loaded into the agent's context every turn; bodies are fetched on demand. Memory is bounded on every axis by the memory toolset's settings: entry count, description length, body length. An over-length write is refused rather than truncated, and a write at the entry cap evicts the oldest entry. Memory is never shared between agents.
 
 Memory writes are the one ungated write in the system. Gating them would park an entire turn on human latency for a triviality: an agent stalled for hours because it wanted to record a phone preference. Memory formation either happens at the moment or does not happen.
 

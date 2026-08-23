@@ -10,14 +10,15 @@ const SCENARIO = defineScenario({
   agents: [
     {
       expertise: 'End-to-end testing',
-      skills: ['bookmark__saving-bookmarks'],
+      skills: ['bookmark::saving-bookmarks'],
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['bookmark__list', 'bookmark__save', 'load_skill'],
+      tools: ['bookmark'],
+      toolSettings: { bookmark: { maxBookmarks: 5 } },
       username: 'mira'
     }
   ],
   channels: [{ name: 'main' }],
-  plugins: [{ name: 'bookmark', path: 'plugins/bookmark', settings: { maxBookmarks: 5 } }]
+  plugins: [{ name: 'bookmark', path: 'plugins/bookmark' }]
 });
 
 describe('Plugin capability', () => {
@@ -47,12 +48,12 @@ describe('Plugin capability', () => {
     await channels.main.awaitReplyFrom('mira', { text: listed });
   });
 
-  it('serves a plugin skill through load_skill under its qualified name', async () => {
+  it('serves a plugin skill through skills::load under its qualified name', async () => {
     const { channels, inference } = harness();
     const reply = `skill-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'consult your skill' },
-      toolCallResponse('load_skill', { name: 'bookmark__saving-bookmarks' })
+      toolCallResponse('skills__load', { name: 'bookmark::saving-bookmarks' })
     );
     inference.willReply({ agent: 'mira', contains: 'Saving bookmarks' }, textResponse(reply));
 

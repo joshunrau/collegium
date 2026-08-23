@@ -10,6 +10,7 @@ import { toConfigJsonSchema } from './schema.utils.ts';
 module.register('@swc-node/register/esm', import.meta.url);
 
 const { $Config } = await import('@/config/config.schemas.ts');
+const { GRANTABLE_TOOLSETS } = await import('@/tools/tools.toolsets.ts');
 
 const OUTPUT_PATH = path.resolve(import.meta.dirname, '../config.schema.json');
 
@@ -30,7 +31,7 @@ program
   .summary('write the config JSON Schema to disk')
   .description('Convert the config Zod schema to draft-7 JSON Schema, format it with prettier, and overwrite the file.')
   .action(async () => {
-    const schema = toConfigJsonSchema($Config);
+    const schema = toConfigJsonSchema($Config, GRANTABLE_TOOLSETS);
     await fs.writeFile(OUTPUT_PATH, await formatAsProject(JSON.stringify(schema), OUTPUT_PATH));
   });
 

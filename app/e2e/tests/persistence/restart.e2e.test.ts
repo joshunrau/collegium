@@ -13,7 +13,7 @@ const SCENARIO = defineScenario({
     {
       expertise: 'End-to-end testing',
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['write_file'],
+      tools: ['workspace'],
       username: 'mira'
     },
     {
@@ -33,7 +33,7 @@ describe('Restart', () => {
     const marker = `doomed content ${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'start something' },
-      toolCallResponse('write_file', { content: marker, path: 'doomed.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'doomed.md' })
     );
 
     await channels.main.mention('mira', 'start something');
@@ -66,7 +66,7 @@ describe('Restart', () => {
     const drainReply = `drained-after-restart-${randomUUID()}`;
     inference.willReply(
       { agent: 'mira', contains: 'park yourself' },
-      toolCallResponse('write_file', { content: marker, path: 'parked.md' })
+      toolCallResponse('workspace__write', { content: marker, path: 'parked.md' })
     );
 
     await channels.main.mention('mira', 'park yourself');

@@ -39,7 +39,12 @@ describe('toCompletionMessages', () => {
 
   it('should replay approval events, carrying a denial reason when there is one', () => {
     const entries = [
-      event({ approvalId: 'a1', kind: 'approval_requested', payloadText: 'write notes.md', toolName: 'write_file' }),
+      event({
+        approvalId: 'a1',
+        kind: 'approval_requested',
+        payloadText: 'write notes.md',
+        toolName: ['workspace', 'write']
+      }),
       event({ approvalId: 'a1', byUsername: 'casey', decision: 'denied', kind: 'approval_decided' }),
       event({
         approvalId: 'a2',
@@ -51,24 +56,25 @@ describe('toCompletionMessages', () => {
     ];
 
     expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
-      { content: '[approval requested: write_file]', role: 'user' },
+      { content: '[approval requested: workspace__write]', role: 'user' },
       { content: '[approval denied]', role: 'user' },
       { content: '[approval denied_with_reason: not that file]', role: 'user' }
     ]);
   });
 
-  it('should replay a memory write as a user message', () => {
+  it('should replay a written record as a user message', () => {
     const entries = [
       event({
         body: 'bullet points, never prose',
         description: 'casey on formatting',
-        kind: 'memory_written',
-        memoryId: 'memory-1'
+        kind: 'record_written',
+        reference: 'memory-1',
+        supersededDescriptions: []
       })
     ];
 
     expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
-      { content: '[memory saved: casey on formatting]', role: 'user' }
+      { content: '[recorded: casey on formatting]', role: 'user' }
     ]);
   });
 
@@ -77,13 +83,13 @@ describe('toCompletionMessages', () => {
       event({
         content: 'checking',
         kind: 'assistant_message',
-        toolCalls: [{ args: { name: 'handing-work-to-a-peer' }, callId: 'c1', toolName: 'load_skill' }]
+        toolCalls: [{ args: { name: 'handing-work-to-a-peer' }, callId: 'c1', toolName: ['skills', 'load'] }]
       }),
       event({ content: '', kind: 'assistant_message', toolCalls: [] })
     ];
 
     expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
-      { content: 'checking\n[called load_skill({"name":"handing-work-to-a-peer"})]', role: 'assistant' }
+      { content: 'checking\n[called skills__load({"name":"handing-work-to-a-peer"})]', role: 'assistant' }
     ]);
   });
 });
@@ -106,13 +112,13 @@ describe('renderSystemPrompt', () => {
 
 ## Skills
 
-Procedures you can pull into context with load_skill when they apply:
+Procedures you can pull into context with skills__load when they apply:
 
 - handing-work-to-a-peer: How to hand work over.
 
 ## Memories
 
-Your saved memories; read a full body with read_memory when it matters:
+Your saved memories; read a full body with memory__read when it matters:
 
 - [memory-1] casey prefers bullet points
 

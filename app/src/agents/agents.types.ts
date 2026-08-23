@@ -1,8 +1,8 @@
-import type { $QualifiedSkillName, $QualifiedToolName } from '@collegium/core/plugins';
+import type { LiteralUnion } from 'type-fest';
 
-import type { $MemoryCaps, $ModelRef } from '@/config/config.schemas.ts';
+import type { $ModelRef } from '@/config/config.schemas.ts';
 import type { SkillName } from '@/skills/skills.types.ts';
-import type { ToolName } from '@/tools/tools.types.ts';
+import type { ToolGrant } from '@/tools/tools.types.ts';
 
 export type AgentIdentity = {
   username: string;
@@ -15,11 +15,13 @@ export type AgentIdentity = {
 export type AgentProfile = {
   readonly contextBudgetTokens: number;
   readonly expertise: string;
-  readonly memoryCaps: $MemoryCaps;
   readonly model: $ModelRef;
-  readonly skills: readonly ($QualifiedSkillName | SkillName)[];
+  readonly skills: readonly LiteralUnion<SkillName, string>[];
   readonly systemPrompt: string;
-  readonly tools: readonly ($QualifiedToolName | ToolName)[];
+  /** grants exactly as config states them: namespaces and `ns::tool` refs, expanded by the registry (§8) */
+  readonly tools: readonly LiteralUnion<ToolGrant, string>[];
+  /** namespace → effective settings, parsed at boot against each granted toolset's own schema (§8) */
+  readonly toolSettings: ReadonlyMap<string, unknown>;
   readonly username: string;
   /** {workspaceRoot}/{username} — derived, never configurable per agent (§6.1) */
   readonly workspaceDir: string;

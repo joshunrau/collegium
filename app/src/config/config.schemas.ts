@@ -1,12 +1,14 @@
-import { $QualifiedSkillName, $QualifiedToolName, PLUGIN_NAME_PATTERN } from '@collegium/core/plugins';
+import { QUALIFIED_SKILL_NAME_PATTERN } from '@collegium/core/skills';
+import { TOOL_SEGMENT_PATTERN } from '@collegium/core/tools';
 import { isUnique } from '@collegium/core/utils';
+import type { LiteralUnion } from 'type-fest';
 import { z } from 'zod';
 
 import { DEEPSEEK_MODELS, OPENROUTER_MODELS } from '@/core/core.constants.ts';
-import { $LogLevel } from '@/core/core.schemas.ts';
-import { MAIL_TOOL_NAME } from '@/mail/mail.constants.ts';
-import { SKILL_NAMES } from '@/skills/skills.constants.ts';
-import { TOOL_NAMES } from '@/tools/tools.constants.ts';
+import { $ChannelHandle, $LogLevel } from '@/core/core.schemas.ts';
+import { CORE_SKILL_NAMES, GRANTABLE_SKILL_NAMES } from '@/skills/skills.constants.ts';
+import { CORE_TOOLSETS, TOOL_GRANT_VALUES } from '@/tools/tools.toolsets.ts';
+import type { ToolGrant } from '@/tools/tools.toolsets.ts';
 
 import { CONFIG_DEFAULTS } from './config.constants.ts';
 
@@ -14,21 +16,23 @@ import { CONFIG_DEFAULTS } from './config.constants.ts';
 // config.schema.json is stale) and update config.json to match. The e2e mirrors
 // (`buildCollegiumConfig`, `Scenario`) are typed from `Config` and stop compiling on their own.
 
+/** plugin grants keep the same two shapes as framework grants; existence is verified at boot, after plugins load (§8) */
+const PLUGIN_GRANT_PATTERN = /^[a-z](?:_?[a-z0-9])*(?:::[a-z](?:_?[a-z0-9])*)?$/;
+
+const CORE_NAMESPACE_SET = new Set<string>(CORE_TOOLSETS.map((toolset) => toolset.name));
+
+const GRANTABLE_SKILL_NAME_SET = new Set<string>(GRANTABLE_SKILL_NAMES);
+
+const CORE_SKILL_NAME_SET = new Set<string>(CORE_SKILL_NAMES);
+
+/** per-namespace settings, validated generically at boot against the schema each toolset declares (§8) */
+const $ToolSettings = z.record(z.string().regex(TOOL_SEGMENT_PATTERN), z.unknown());
+
 export type $ModelRef = z.infer<typeof $ModelRef>;
 export const $ModelRef = z.discriminatedUnion('provider', [
   z.strictObject({ name: z.enum(DEEPSEEK_MODELS), provider: z.literal('deepseek') }),
   z.strictObject({ name: z.enum(OPENROUTER_MODELS), provider: z.literal('openrouter') })
 ]);
-
-/**
- * A channel's name in its URL, not its display name and not its id — the one handle for a channel
- * an operator can state before the channel exists. Mattermost's own rule for the field.
- */
-export type $ChannelHandle = z.infer<typeof $ChannelHandle>;
-export const $ChannelHandle = z
-  .string()
-  .regex(/^[a-z0-9][a-z0-9_-]*$/)
-  .max(64);
 
 /** a Mattermost account name: the slug an agent is addressed by, and its bot account's own handle */
 export type $Username = z.infer<typeof $Username>;
@@ -52,102 +56,62 @@ export type $PluginRef = z.infer<typeof $PluginRef>;
 export const $PluginRef = z.strictObject({
   name: z
     .string()
-    .regex(PLUGIN_NAME_PATTERN)
+    .regex(TOOL_SEGMENT_PATTERN)
     .describe(
-      "The plugin's identity: it qualifies the plugin's tools and skills (\"<name>__<capability>\") and scopes its stored records. Must equal the name the plugin's own manifest declares."
+      "The plugin's identity: its namespace, its storage scope, and its skills' qualifier. Must equal the name the plugin's own toolset declares."
     ),
-  path: z.string().min(1).describe("Path to the plugin's package root, resolved relative to config.json"),
-  settings: z.unknown().optional().describe("This plugin's settings, validated against the schema the plugin declares")
+  path: z.string().min(1).describe("Path to the plugin's package root, resolved relative to config.json")
 });
 
-export type $MemoryCaps = z.infer<typeof $MemoryCaps>;
-export const $MemoryCaps = z.strictObject({
-  maxBodyChars: z
-    .number()
-    .int()
-    .positive()
-    .default(CONFIG_DEFAULTS.app.memoryCaps.maxBodyChars)
-    .describe('Longest body one entry may hold. A longer write is refused rather than truncated.'),
-  maxDescriptionChars: z
-    .number()
-    .int()
-    .positive()
-    .default(CONFIG_DEFAULTS.app.memoryCaps.maxDescriptionChars)
-    .describe(
-      'Longest description one entry may hold. Descriptions enter the system prompt every turn, so this bounds that cost.'
-    ),
-  maxEntries: z
-    .number()
-    .int()
-    .positive()
-    .default(CONFIG_DEFAULTS.app.memoryCaps.maxEntries)
-    .describe('How many entries one agent may hold. Writing beyond it evicts the oldest entry.')
-});
+/**
+ * One grant: a namespace covering every tool it holds (present and future), or a single tool by
+ * its `ns::tool` ref. This is the one place a rendered name is parsed back into segments (§1). The
+ * annotation is a type-only presentation: framework grants are the derived literal union, plugin
+ * grants are boot-verified strings.
+ */
+export type $ToolGrant = z.infer<typeof $ToolGrant>;
+export const $ToolGrant = z
+  .string()
+  .check((ctx) => {
+    const namespace = ctx.value.split('::')[0] ?? ctx.value;
+    if (CORE_NAMESPACE_SET.has(namespace)) {
+      ctx.issues.push({
+        code: 'custom',
+        input: ctx.value,
+        message: `"${ctx.value}" is core — always enabled and never granted`
+      });
+      return;
+    }
+    if (!PLUGIN_GRANT_PATTERN.test(ctx.value)) {
+      ctx.issues.push({
+        code: 'custom',
+        input: ctx.value,
+        message: `"${ctx.value}" is not a namespace or a "namespace::tool" ref`
+      });
+    }
+  })
+  .describe(
+    `A toolset namespace, or one tool by its "namespace::tool" ref. Framework values: ${TOOL_GRANT_VALUES.join(', ')}. Plugin grants use the plugin's namespace the same way.`
+  ) as unknown as z.ZodType<LiteralUnion<ToolGrant, string>, LiteralUnion<ToolGrant, string>>;
 
-export type $MailHost = z.infer<typeof $MailHost>;
-export const $MailHost = z.strictObject({
-  host: z.string().min(1).describe('Hostname of the endpoint'),
-  port: z.number().int().min(1).max(65535).describe('Port of the endpoint'),
-  secure: z
-    .boolean()
-    .describe(
-      'true for implicit TLS from the first byte (typically ports 993/465); false to connect plain and upgrade via STARTTLS where the server offers it (typically ports 143/587)'
-    )
-});
-
-export type $ExchangeMailProvider = z.infer<typeof $ExchangeMailProvider>;
-export const $ExchangeMailProvider = z.strictObject({
-  address: z
-    .email()
-    .describe(
-      'The mailbox address this agent acts as. Fixed here and never model-supplied: the from on everything the agent sends.'
-    ),
-  clientId: z
-    .string()
-    .min(1)
-    .describe(
-      "Client id of this agent's Entra app registration. One registration per agent mailbox — scoped by Exchange App RBAC — so the provider itself enforces that an agent reaches no mailbox but its own."
-    ),
-  clientSecret: z
-    .string()
-    .min(1)
-    .describe('Client secret of the app registration. It expires on a tenant schedule, and mail stops when it does.'),
-  kind: z.literal('exchange'),
-  tenantId: z.string().min(1).describe('Entra tenant id the mailbox lives in')
-});
-
-export type $ImapMailProvider = z.infer<typeof $ImapMailProvider>;
-export const $ImapMailProvider = z.strictObject({
-  address: z
-    .email()
-    .describe(
-      'The mailbox address this agent acts as. Fixed here and never model-supplied: the from on everything the agent sends.'
-    ),
-  imap: $MailHost.describe('The IMAP endpoint mail is read from'),
-  kind: z.literal('imap'),
-  password: z.string().min(1).describe('Password for both endpoints'),
-  smtp: $MailHost.describe('The SMTP endpoint mail is sent through'),
-  username: z.string().min(1).describe('Login username for both endpoints, where it differs from the address')
-});
-
-export type $MailboxDefinition = z.infer<typeof $MailboxDefinition>;
-export const $MailboxDefinition = z.strictObject({
-  announcementChannel: $ChannelHandle.describe(
-    'Channel where arriving mail is announced, by handle. Must not be a DM, and the agent must be a member — both refused at boot rather than discovered at runtime.'
-  ),
-  pollIntervalMs: z
-    .number()
-    .int()
-    .positive()
-    .default(CONFIG_DEFAULTS.mailbox.pollIntervalMs)
-    .describe(
-      'How often the mailbox is polled for new arrivals, each poll advancing the durable cursor. Announcement latency is bounded by this plus idle-gating.'
-    ),
-  provider: z
-    .discriminatedUnion('kind', [$ExchangeMailProvider, $ImapMailProvider])
-    .describe(
-      'Which kind of provider serves this mailbox, with its credentials: Exchange Online, or generic IMAP/SMTP.'
-    )
+/** a framework library skill by bare name, or a toolset-shipped skill by its `ns::skill` name (§9) */
+export type $SkillGrant = z.infer<typeof $SkillGrant>;
+export const $SkillGrant = z.string().check((ctx) => {
+  if (CORE_SKILL_NAME_SET.has(ctx.value)) {
+    ctx.issues.push({
+      code: 'custom',
+      input: ctx.value,
+      message: `"${ctx.value}" is a core skill — always assigned and never granted`
+    });
+    return;
+  }
+  if (!GRANTABLE_SKILL_NAME_SET.has(ctx.value) && !QUALIFIED_SKILL_NAME_PATTERN.test(ctx.value)) {
+    ctx.issues.push({
+      code: 'custom',
+      input: ctx.value,
+      message: `"${ctx.value}" is neither a framework skill nor a "namespace::skill" name`
+    });
+  }
 });
 
 export type $AgentDefinition = z.infer<typeof $AgentDefinition>;
@@ -164,28 +128,24 @@ export const $AgentDefinition = z.strictObject({
     .describe(
       'What this agent should be contacted about, in a few words. Shown to every other agent so they know when to hand work over.'
     ),
-  mailbox: $MailboxDefinition
-    .optional()
-    .describe(
-      'The one email address this agent acts as. Absent means the agent has no mail capability, and a deployment with no mailbox anywhere runs exactly as it does today.'
-    ),
-  memoryCaps: $MemoryCaps
-    .partial()
-    .optional()
-    .describe('Per-field overrides of app.memoryCaps for this agent. Unnamed fields keep the app-wide value.'),
   model: $ModelRef.describe('LLM model and provider for this agent'),
   skills: z
-    .array(z.union([z.enum(SKILL_NAMES), $QualifiedSkillName]))
+    .array($SkillGrant)
     .default([])
     .describe(
-      'Names of the skills this agent is assigned: framework skills by bare name, plugin skills by their qualified "<plugin>__<skill>" name'
+      'Skills assigned to this agent: framework skills by bare name, toolset-shipped skills as "namespace::skill". Core skills are always assigned.'
     ),
   systemPrompt: z.string().min(1).describe("The agent's system prompt"),
   tools: z
-    .array(z.union([z.enum(TOOL_NAMES), $QualifiedToolName]))
+    .array($ToolGrant)
     .default([])
     .describe(
-      'Names of the tools this agent may call: framework tools by bare name, plugin tools by their qualified "<plugin>__<tool>" name'
+      'Toolsets and tools this agent may call: a namespace grants every tool it holds, "namespace::tool" grants one. Core tools are always available and never named here.'
+    ),
+  toolSettings: $ToolSettings
+    .default({})
+    .describe(
+      'Per-namespace settings for this agent, merged shallowly over app.defaultToolSettings and validated against the schema the toolset declares. Settings for an ungranted toolset are refused at boot.'
     ),
   username: $Username.describe(
     "The agent's unique identity (a lowercase slug). Provisioning creates the Mattermost bot account of this name if it is absent."
@@ -237,6 +197,11 @@ export const $AppConfig = z.strictObject({
       'How many estimated tokens of channel history one turn may assemble (§3.8), overridable per agent. The estimate is a character ratio, not a tokenizer.'
     ),
   debounce: $DebouncePolicy.prefault({}).describe('How message fragments are folded into one turn (§4.4)'),
+  defaultToolSettings: $ToolSettings
+    .default({})
+    .describe(
+      'App-wide per-namespace settings, merged shallowly under each agent’s own toolSettings. Shallow: an agent overriding a field replaces it whole.'
+    ),
   enableLifecycleNotifications: z.boolean().default(CONFIG_DEFAULTS.app.enableLifecycleNotifications),
   inferenceRetry: $InferenceRetryPolicy
     .prefault({})
@@ -250,7 +215,6 @@ export const $AppConfig = z.strictObject({
       'How long one completion attempt may run before it is aborted and classified as a retryable transport failure. Bounds a provider that accepts the connection and never responds.'
     ),
   logLevel: $LogLevel.default(CONFIG_DEFAULTS.app.logLevel).describe('Minimum severity the app logs'),
-  memoryCaps: $MemoryCaps.prefault({}).describe('The default bounds on every agent’s memory, overridable per agent'),
   timezone: z.string().default(CONFIG_DEFAULTS.app.timezone).describe('The timezone to use when displaying dates'),
   turnCeilingPerHour: z
     .number()
@@ -327,33 +291,6 @@ export const $Config = z
   // one account cannot be both the mechanical voice (§3.2) and an agent that thinks
   .refine((config) => config.agents.every((agent) => agent.username !== config.mattermost.systemBotUsername), {
     message: 'the system bot username must not be an agent username'
-  })
-  .refine(
-    (config) => {
-      const addresses = config.agents.flatMap((agent) => (agent.mailbox ? [agent.mailbox.provider.address] : []));
-      return new Set(addresses).size === addresses.length;
-    },
-    { message: 'mailbox addresses must be unique across agents' }
-  )
-  .refine(
-    (config) => {
-      const clientIds = config.agents.flatMap((agent) =>
-        agent.mailbox?.provider.kind === 'exchange' ? [agent.mailbox.provider.clientId] : []
-      );
-      return new Set(clientIds).size === clientIds.length;
-    },
-    {
-      message:
-        'Exchange client ids must be unique across agents: one app registration per mailbox is what lets the provider enforce the mailbox boundary'
-    }
-  )
-  .refine(
-    (config) => config.agents.every((agent) => !agent.tools.includes(MAIL_TOOL_NAME) || agent.mailbox !== undefined),
-    { message: 'the mail tool requires a configured mailbox' }
-  )
-  .refine(
-    (config) => config.agents.every((agent) => agent.mailbox === undefined || agent.tools.includes(MAIL_TOOL_NAME)),
-    { message: 'a configured mailbox requires the mail tool' }
-  );
+  });
 
 export type Config = Omit<$Config, '$schema'>;
