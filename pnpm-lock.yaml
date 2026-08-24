@@ -265,6 +265,10 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.4.3
+    devDependencies:
+      type-fest:
+        specifier: 'catalog:'
+        version: 5.8.0
 
   packages/core:
     dependencies:

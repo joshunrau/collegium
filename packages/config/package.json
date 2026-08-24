@@ -21,5 +21,8 @@
   "dependencies": {
     "@collegium/core": "workspace:*",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "type-fest": "catalog:"
   }
 }
