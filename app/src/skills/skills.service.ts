@@ -1,6 +1,12 @@
 import * as path from 'node:path';
 
-import { loadSkillLibrary, renderQualifiedSkillName } from '@collegium/core/skills';
+import {
+  BUILTIN_CORE_SKILL_NAMES,
+  BUILTIN_SKILL_NAMES,
+  loadSkillLibrary,
+  renderQualifiedSkillName
+} from '@collegium/core/skills';
+import type { Skill } from '@collegium/core/skills';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
@@ -9,17 +15,13 @@ import type { AgentProfile } from '@/agents/agents.types.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
 import { FRAMEWORK_TOOLSETS } from '@/tools/tools.toolsets.ts';
 
-import { CORE_SKILL_NAMES, SKILL_NAMES } from './skills.constants.ts';
-
-import type { Skill } from './skills.types.ts';
-
 @Injectable()
 export class SkillsService {
   /** the framework library, every toolset's shipped skills under `ns::skill` names, and the plugins' */
   private readonly skills: ReadonlyMap<string, Skill>;
 
   constructor(agentRegistry: AgentRegistry, pluginsRegistry: PluginsRegistry) {
-    const frameworkSkills = loadSkillLibrary(path.resolve(import.meta.dirname, 'library'), SKILL_NAMES);
+    const frameworkSkills = loadSkillLibrary(path.resolve(import.meta.dirname, 'library'), BUILTIN_SKILL_NAMES);
     // a framework namespace equals its module directory (§2), which is what makes this resolvable
     const toolsetSkills = FRAMEWORK_TOOLSETS.flatMap((toolset) => {
       const names = toolset.skills ?? [];
@@ -46,7 +48,7 @@ export class SkillsService {
 
   /** the manifest injected into the system prompt every turn: core skills always, then the agent's grants (§3.5, §9) */
   renderManifest(profile: AgentProfile): string {
-    return [...CORE_SKILL_NAMES, ...profile.skills]
+    return [...BUILTIN_CORE_SKILL_NAMES, ...profile.skills]
       .map((name) => `- ${name}: ${this.require(name).description}`)
       .join('\n');
   }
@@ -61,7 +63,7 @@ export class SkillsService {
 
   /** §9 — every grant names a skill in the merged library, and never a core one; refused at boot, not mid-turn */
   private verifyGrants(profiles: readonly AgentProfile[]): void {
-    const coreNames = new Set<string>(CORE_SKILL_NAMES);
+    const coreNames = new Set<string>(BUILTIN_CORE_SKILL_NAMES);
     for (const profile of profiles) {
       for (const name of profile.skills) {
         if (coreNames.has(name)) {

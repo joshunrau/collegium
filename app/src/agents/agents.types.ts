@@ -1,7 +1,7 @@
+import type { BuiltinSkillName } from '@collegium/core/skills';
 import type { LiteralUnion } from 'type-fest';
 
 import type { $ModelRef } from '@/config/config.schemas.ts';
-import type { SkillName } from '@/skills/skills.types.ts';
 import type { ToolGrant } from '@/tools/tools.types.ts';
 
 export type AgentIdentity = {
@@ -16,7 +16,7 @@ export type AgentProfile = {
   readonly contextBudgetTokens: number;
   readonly expertise: string;
   readonly model: $ModelRef;
-  readonly skills: readonly LiteralUnion<SkillName, string>[];
+  readonly skills: readonly LiteralUnion<BuiltinSkillName, string>[];
   readonly systemPrompt: string;
   /** grants exactly as config states them: namespaces and `ns::tool` refs, expanded by the registry (§8) */
   readonly tools: readonly LiteralUnion<ToolGrant, string>[];

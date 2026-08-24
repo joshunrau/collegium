@@ -1,4 +1,8 @@
-import { QUALIFIED_SKILL_NAME_PATTERN } from '@collegium/core/skills';
+import {
+  BUILTIN_CORE_SKILL_NAMES,
+  BUILTIN_GRANTABLE_SKILL_NAMES,
+  QUALIFIED_SKILL_NAME_PATTERN
+} from '@collegium/core/skills';
 import { TOOL_SEGMENT_PATTERN } from '@collegium/core/tools';
 import { isUnique } from '@collegium/core/utils';
 import type { LiteralUnion } from 'type-fest';
@@ -6,7 +10,6 @@ import { z } from 'zod';
 
 import { DEEPSEEK_MODELS, OPENROUTER_MODELS } from '@/core/core.constants.ts';
 import { $ChannelHandle, $LogLevel } from '@/core/core.schemas.ts';
-import { CORE_SKILL_NAMES, GRANTABLE_SKILL_NAMES } from '@/skills/skills.constants.ts';
 import { CORE_TOOLSETS, TOOL_GRANT_VALUES } from '@/tools/tools.toolsets.ts';
 import type { ToolGrant } from '@/tools/tools.toolsets.ts';
 
@@ -21,9 +24,9 @@ const PLUGIN_GRANT_PATTERN = /^[a-z](?:_?[a-z0-9])*(?:::[a-z](?:_?[a-z0-9])*)?$/
 
 const CORE_NAMESPACE_SET = new Set<string>(CORE_TOOLSETS.map((toolset) => toolset.name));
 
-const GRANTABLE_SKILL_NAME_SET = new Set<string>(GRANTABLE_SKILL_NAMES);
+const GRANTABLE_SKILL_NAME_SET = new Set<string>(BUILTIN_GRANTABLE_SKILL_NAMES);
 
-const CORE_SKILL_NAME_SET = new Set<string>(CORE_SKILL_NAMES);
+const CORE_SKILL_NAME_SET = new Set<string>(BUILTIN_CORE_SKILL_NAMES);
 
 /** per-namespace settings, validated generically at boot against the schema each toolset declares (§8) */
 const $ToolSettings = z.record(z.string().regex(TOOL_SEGMENT_PATTERN), z.unknown());

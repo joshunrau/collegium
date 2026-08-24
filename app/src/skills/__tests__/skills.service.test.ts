@@ -1,3 +1,4 @@
+import { BUILTIN_SKILL_NAMES } from '@collegium/core/skills';
 import { Test } from '@nestjs/testing';
 import { describe, expect, it } from 'vitest';
 
@@ -7,7 +8,6 @@ import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
 import { buildAgentProfile } from '@/testing/factories/agent-profile.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 
-import { SKILL_NAMES } from '../skills.constants.ts';
 import { SkillsService } from '../skills.service.ts';
 
 const pluginSkill = { body: 'The body.', description: 'How to bookmark.', title: 'Saving bookmarks' };
@@ -29,7 +29,7 @@ async function buildService(profiles: AgentProfile[]): Promise<SkillsService> {
 describe('SkillsService', () => {
   it('should load a document for every declared skill', async () => {
     const skillsService = await buildService([]);
-    for (const name of SKILL_NAMES) {
+    for (const name of BUILTIN_SKILL_NAMES) {
       expect(skillsService.getDocument(name).success).toBe(true);
     }
   });
