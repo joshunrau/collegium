@@ -1,4 +1,4 @@
-import { $LogLevel, DEEPSEEK_MODELS, OPENROUTER_MODELS } from '@collegium/core/common';
+import { $ChannelHandle, $LogLevel, DEEPSEEK_MODELS, OPENROUTER_MODELS } from '@collegium/core/common';
 import {
   BUILTIN_CORE_SKILL_NAMES,
   BUILTIN_GRANTABLE_SKILL_NAMES,
@@ -9,7 +9,6 @@ import { isUnique } from '@collegium/core/utils';
 import type { LiteralUnion } from 'type-fest';
 import { z } from 'zod';
 
-import { $ChannelHandle } from '@/core/core.schemas.ts';
 import { CORE_TOOLSETS, TOOL_GRANT_VALUES } from '@/tools/tools.toolsets.ts';
 import type { ToolGrant } from '@/tools/tools.toolsets.ts';
 
