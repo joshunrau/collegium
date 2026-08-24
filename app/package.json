@@ -19,6 +19,7 @@
     "postinstall": "CAMOUFOX_PATH=$(camoufox-js path); [ -f \"$CAMOUFOX_PATH/version.json\" ] || camoufox-js fetch"
   },
   "dependencies": {
+    "@collegium/config": "workspace:*",
     "@collegium/core": "workspace:*",
     "@mattermost/client": "^11.8.0",
     "@nestjs/common": "^11.1.28",

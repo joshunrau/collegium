@@ -1,4 +1,3 @@
-import { isNumberLike, parseNumber } from '@collegium/core/utils';
 import { toCamelCaseKeys } from 'es-toolkit';
 import { isObjectLike } from 'es-toolkit/compat';
 import { z } from 'zod';
@@ -27,13 +26,6 @@ export const $$JSONEncoded = <TSchema extends z.ZodType>(schema: TSchema) => {
     })
     .pipe(schema);
 };
-
-export const $NumberLike: z.ZodType<number> = z.preprocess((arg) => {
-  if (isNumberLike(arg)) {
-    return parseNumber(arg);
-  }
-  return arg;
-}, z.number());
 
 export type $LogLevel = z.infer<typeof $LogLevel>;
 export const $LogLevel = z.enum(LOG_LEVELS);

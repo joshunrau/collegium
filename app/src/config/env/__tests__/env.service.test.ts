@@ -1,8 +1,7 @@
+import type { $Env } from '@collegium/config';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EnvService } from '../env.service.ts';
-
-import type { $Env } from '../env.schemas.ts';
 
 /** the raw strings the process is handed, before `$Env` coerces them */
 const mockEnv: Omit<{ [K in keyof $Env]: string }, 'APP_PUBLIC_URL'> = {

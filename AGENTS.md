@@ -9,9 +9,11 @@ framework is outlined in `SPEC.md`.
 
 Package manager is pnpm (>=11). Node version: see `.nvmrc`. The repository is a pnpm workspace —
 `@collegium/app` (the framework, in `app/`), `@collegium/core` (shared primitives, in
-`packages/core/`), `@collegium/sdk` (the sole import surface for plugins, in `packages/sdk/`), and
+`packages/core/`), `@collegium/config` (the deployment's declared inputs, in `packages/config/` —
+schemas the app parses at boot and the docs site generates its reference from),
+`@collegium/sdk` (the sole import surface for plugins, in `packages/sdk/`), and
 one `@collegium/plugin-*` package per plugin under `plugins/*`. Dependencies point one way:
-plugins → sdk → core ← app; the app never imports a plugin statically. The root scripts below run
+plugins → sdk → core ← config ← app; the app never imports a plugin statically. The root scripts below run
 across the workspace via turbo, so everything runs from the repo root. Instance files (`.env`,
 `config.json`, `docker-compose.yaml`) live at the workspace root, beside the packages rather than
 in them.

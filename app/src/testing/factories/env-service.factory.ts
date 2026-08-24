@@ -1,4 +1,5 @@
-import type { $Env } from '@/config/env/env.schemas.ts';
+import type { $Env } from '@collegium/config';
+
 import { EnvService } from '@/config/env/env.service.ts';
 
 import { MockFactory } from './mock.factory.ts';

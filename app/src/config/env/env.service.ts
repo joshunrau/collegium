@@ -1,6 +1,5 @@
+import { $Env } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
-
-import { $Env } from './env.schemas.ts';
 
 @Injectable()
 export class EnvService {

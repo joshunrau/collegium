@@ -10,6 +10,11 @@
       "source": "./src/approvals.ts",
       "default": "./dist/approvals.js"
     },
+    "./common": {
+      "types": "./src/common.ts",
+      "source": "./src/common.ts",
+      "default": "./dist/common.js"
+    },
     "./plugins": {
       "types": "./src/plugins.ts",
       "source": "./src/plugins.ts",
