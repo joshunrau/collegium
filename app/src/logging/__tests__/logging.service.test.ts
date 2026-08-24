@@ -1,3 +1,4 @@
+import type { $LogLevel } from '@collegium/core/common';
 import { Injectable } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
@@ -5,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 
 import { ConfigService } from '@/config/config.service.ts';
-import type { $LogLevel } from '@/core/core.schemas.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 
 import { LoggingService } from '../logging.service.ts';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { $$CamelCased, $$JSONEncoded, $LogLevel } from '../core.schemas.ts';
+import { $$CamelCased, $$JSONEncoded } from '../core.schemas.ts';
 
 describe('$$CamelCased', () => {
   it('should camel-case object keys before validation', () => {
@@ -29,15 +29,5 @@ describe('$$JSONEncoded', () => {
 
   it('should reject decoded data that fails the target schema', () => {
     expect(schema.safeParse('{"enabled":"yes"}').success).toBe(false);
-  });
-});
-
-describe('$LogLevel', () => {
-  it('should accept a declared log level', () => {
-    expect($LogLevel.safeParse('info').success).toBe(true);
-  });
-
-  it('should reject an undeclared log level', () => {
-    expect($LogLevel.safeParse('verbose').success).toBe(false);
   });
 });

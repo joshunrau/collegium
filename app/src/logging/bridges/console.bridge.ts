@@ -3,12 +3,11 @@
 import { Console } from 'node:console';
 import { Writable } from 'node:stream';
 
+import type { $LogLevel } from '@collegium/core/common';
 import { Injectable } from '@nestjs/common';
 import type { OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { match } from 'ts-pattern';
 import type { Simplify } from 'type-fest';
-
-import type { $LogLevel } from '@/core/core.schemas.ts';
 
 import { LoggingService } from '../logging.service.ts';
 

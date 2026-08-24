@@ -1,10 +1,9 @@
+import { LOG_LEVELS } from '@collegium/core/common';
+import type { $LogLevel } from '@collegium/core/common';
 import { errorToJSON } from '@collegium/core/utils';
 import type { LoggerService } from '@nestjs/common';
 import { gray, green, red, yellow } from 'colorette';
 import { isErrorLike } from 'serialize-error';
-
-import { LOG_LEVELS } from '@/core/core.constants.ts';
-import type { $LogLevel } from '@/core/core.schemas.ts';
 
 type LevelStyle = {
   color: (text: string) => string;

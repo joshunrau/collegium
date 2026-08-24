@@ -2,8 +2,6 @@ import { toCamelCaseKeys } from 'es-toolkit';
 import { isObjectLike } from 'es-toolkit/compat';
 import { z } from 'zod';
 
-import { LOG_LEVELS } from './core.constants.ts';
-
 export const $$CamelCased = <TSchema extends z.ZodType>(schema: TSchema) => {
   return z.preprocess((arg) => {
     if (isObjectLike(arg)) {
@@ -26,9 +24,6 @@ export const $$JSONEncoded = <TSchema extends z.ZodType>(schema: TSchema) => {
     })
     .pipe(schema);
 };
-
-export type $LogLevel = z.infer<typeof $LogLevel>;
-export const $LogLevel = z.enum(LOG_LEVELS);
 
 /**
  * A channel's name in its URL, not its display name and not its id — the one handle for a channel
