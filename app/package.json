@@ -9,7 +9,6 @@
   },
   "scripts": {
     "build": "rm -rf dist && swc --config-file .swcrc src/ -d dist --strip-leading-paths --copy-files --ignore '**/__tests__/**,**/testing/**'",
-    "build:schema": "node --conditions=source scripts/schema.ts build",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "DATABASE_URL=file:/dev/null prisma generate --no-hints",
     "db:migrate:dev": "NODE_ENV=development prisma migrate dev",
@@ -51,7 +50,6 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/mailparser": "^3.4.6",
     "@types/nodemailer": "^8.0.1",
-    "commander": "^15.0.0",
     "prisma-json-types-generator": "^5.1.1",
     "type-fest": "catalog:"
   }

@@ -15,7 +15,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/build-schema.ts",
     "lint": "tsc && eslint --fix ."
   },
   "dependencies": {

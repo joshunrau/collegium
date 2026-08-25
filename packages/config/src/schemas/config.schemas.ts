@@ -13,9 +13,9 @@ import { z } from 'zod';
 
 import { CONFIG_DEFAULTS } from '../constants.ts';
 
-// After any change here: run `pnpm build:schema` (a test fails while the checked-in
-// config.schema.json is stale) and update config.json to match. The e2e mirrors
-// (`buildCollegiumConfig`, `Scenario`) are typed from `Config` and stop compiling on their own.
+// After any change here, update the root config.json to match; `pnpm build` regenerates
+// dist/config.schema.json. The e2e mirrors (`buildCollegiumConfig`, `Scenario`) are typed from
+// `Config` and stop compiling on their own.
 
 /** plugin grants keep the same two shapes as framework grants; existence is verified at boot, after plugins load (§8) */
 const PLUGIN_GRANT_PATTERN = /^[a-z](?:_?[a-z0-9])*(?:::[a-z](?:_?[a-z0-9])*)?$/;

@@ -10,7 +10,6 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "build:schema": "turbo run build:schema",
     "clean": "find . -type d '(' -name '.turbo' -o -name 'dist' -o -name 'node_modules' ')' -prune -exec rm -rf {} \\;",
     "db:generate": "turbo run db:generate",
     "format": "prettier --write .",

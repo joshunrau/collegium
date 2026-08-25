@@ -1,5 +1,8 @@
-import type { AnyToolset } from '@collegium/core/toolsets';
+import { GRANTABLE_TOOLSET_DEFS } from '@collegium/core/toolsets';
+import type { ToolsetDef } from '@collegium/core/toolsets';
 import { z } from 'zod';
+
+import { $Config } from './schemas/config.schemas.ts';
 
 type JsonSchema = { [key: string]: unknown };
 
@@ -15,7 +18,7 @@ function requireObject(value: unknown, where: string): JsonSchema {
  * merge (§8) makes top-level keys the merge unit, so each source may legitimately be partial —
  * the boot parse of the merged value is what enforces the whole.
  */
-function toSettingsProperties(toolsets: readonly AnyToolset[]): JsonSchema {
+function toSettingsProperties(toolsets: readonly ToolsetDef[]): JsonSchema {
   return Object.fromEntries(
     toolsets.flatMap((toolset) => {
       if (!toolset.settings) {
@@ -27,14 +30,14 @@ function toSettingsProperties(toolsets: readonly AnyToolset[]): JsonSchema {
   );
 }
 
-function embedSettingsProperties(record: unknown, toolsets: readonly AnyToolset[], where: string): void {
+function embedSettingsProperties(record: unknown, toolsets: readonly ToolsetDef[], where: string): void {
   const node = requireObject(record, where);
   node.properties = toSettingsProperties(toolsets);
 }
 
 /**
- * How config.schema.json is generated, stated once so the checked-in file and the test guarding it
- * cannot disagree about the options and report staleness that regenerating would not fix.
+ * How config.schema.json is generated, stated once so the build artifact and the docs site's copy
+ * cannot disagree about the options.
  *
  * The input side, because this schema answers for the file an operator writes: a field carrying a
  * default is one they may omit. The output side would demand every default be stated.
@@ -42,7 +45,7 @@ function embedSettingsProperties(record: unknown, toolsets: readonly AnyToolset[
  * The two settings records get each framework toolset's own settings schema embedded, so an editor
  * completes mail or memory settings; plugin namespaces stay open, validated at boot instead.
  */
-export function toConfigJsonSchema(config: z.ZodType, toolsets: readonly AnyToolset[]) {
+export function toConfigJsonSchema(config: z.ZodType, toolsets: readonly ToolsetDef[]): JsonSchema {
   const schema = z.toJSONSchema(config, { io: 'input', target: 'draft-7' });
   const root = requireObject(schema, '$');
   const properties = requireObject(root.properties, '$.properties');
@@ -63,3 +66,10 @@ export function toConfigJsonSchema(config: z.ZodType, toolsets: readonly AnyTool
   );
   return schema;
 }
+
+/** the artifact itself: $Config with every framework settings schema embedded — the build, the docs site and its endpoint all emit this */
+export function buildConfigJsonSchema(): JsonSchema {
+  return toConfigJsonSchema($Config, GRANTABLE_TOOLSET_DEFS);
+}
+
+export type { JsonSchema };

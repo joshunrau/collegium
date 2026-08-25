@@ -7,7 +7,7 @@
       "project": []
     },
     "app": {
-      "entry": ["src/main.ts!", "src/entrypoint.ts!", "src/provision.ts!", "scripts/schema.ts"],
+      "entry": ["src/main.ts!", "src/entrypoint.ts!", "src/provision.ts!"],
       "project": ["src/**/*.ts!"],
       "ignore": ["src/prisma/generated/**", "src/testing/**"],
       "ignoreDependencies": ["@prisma/client", "prisma"]
@@ -17,7 +17,7 @@
       "project": ["src/**/*.{ts,tsx,js,astro}"]
     },
     "packages/config": {
-      "entry": ["src/index.ts!"],
+      "entry": ["src/index.ts!", "scripts/build-schema.ts"],
       "project": ["src/**/*.ts!"]
     },
     "packages/core": {

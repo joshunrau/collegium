@@ -5,5 +5,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["e2e/**/*", "scripts/**/*", "src/**/*", "prisma.config.ts"]
+  "include": ["e2e/**/*", "src/**/*", "prisma.config.ts"]
 }
