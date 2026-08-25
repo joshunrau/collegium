@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { Result } from '../../utils.ts';
-import { defineToolset } from '../toolsets.definition.ts';
+import { defineToolset, implementToolset } from '../toolsets.utils.ts';
 
-import type { ToolResult } from '../toolsets.definition.ts';
+import type { ToolResult } from '../../tools.ts';
+import type { ToolsetDef } from '../toolsets.types.ts';
 
 function buildTool() {
   return {
@@ -42,5 +43,33 @@ describe('defineToolset', () => {
 
   it('rejects a skill name outside the dashed grammar', () => {
     expect(() => defineToolset({ name: 'fake', skills: ['bad_name'], tools: {} })).toThrow('skill name');
+  });
+});
+
+describe('implementToolset', () => {
+  const FAKE_DEF = {
+    name: 'fake',
+    settings: z.object({ limit: z.number() }),
+    tools: ['noop']
+  } as const satisfies ToolsetDef;
+
+  it('joins the def and the implementation into one declaration', () => {
+    const toolset = implementToolset(FAKE_DEF, { tools: { noop: buildTool() } });
+    expect(toolset.name).toBe('fake');
+    expect(toolset.settings).toBe(FAKE_DEF.settings);
+    expect(Object.keys(toolset.tools)).toStrictEqual(['noop']);
+  });
+
+  it('runs the declaration grammar over the def', () => {
+    const badNamespace = { name: 'Fake', tools: ['noop'] } as const satisfies ToolsetDef;
+    expect(() => implementToolset(badNamespace, { tools: { noop: buildTool() } })).toThrow('toolset namespace');
+    const badTool = { name: 'fake', tools: ['no-op'] } as const satisfies ToolsetDef;
+    expect(() => implementToolset(badTool, { tools: { 'no-op': buildTool() } })).toThrow('tool name');
+  });
+
+  it('runs the declaration grammar over the storage it is handed', () => {
+    expect(() =>
+      implementToolset(FAKE_DEF, { storage: { 'bad-name': z.object({}) }, tools: { noop: buildTool() } })
+    ).toThrow('storage collection name');
   });
 });

@@ -1,4 +1,4 @@
-import type { ServiceToken } from '@collegium/core/tools';
+import type { ServiceToken } from '@collegium/core/utils';
 import { Module } from '@nestjs/common';
 
 import { AgentsModule } from '@/agents/agents.module.ts';

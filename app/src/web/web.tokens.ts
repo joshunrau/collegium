@@ -1,4 +1,4 @@
-import { createServiceToken } from '@collegium/core/tools';
+import { createServiceToken } from '@collegium/core/utils';
 
 import type { WebService } from './web.service.ts';
 

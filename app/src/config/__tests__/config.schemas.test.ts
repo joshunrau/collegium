@@ -1,12 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import { toConfigJsonSchema } from '@collegium/config';
 import type { PartialDeep } from 'type-fest';
 import { describe, expect, it } from 'vitest';
 
 import { GRANTABLE_TOOLSETS } from '@/tools/tools.toolsets.ts';
 
-import { toConfigJsonSchema } from '../../../scripts/schema.utils.ts';
 import { $AgentDefinition, $Config } from '../config.schemas.ts';
 
 import type { Config } from '../config.schemas.ts';

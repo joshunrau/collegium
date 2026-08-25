@@ -1,5 +1,5 @@
 import { renderToolDisplayName } from '@collegium/core/tools';
-import type { ToolRefsOf } from '@collegium/core/tools';
+import type { ToolRefsOf } from '@collegium/core/toolsets';
 
 import { MAIL_TOOLSET } from '@/mail/mail.toolset.ts';
 import { MEMORY_TOOLSET } from '@/memory/memory.toolset.ts';

@@ -1,5 +1,5 @@
-import { createServiceToken, defineToolset } from '@collegium/core/tools';
-import { Result } from '@collegium/core/utils';
+import { defineToolset } from '@collegium/core/toolsets';
+import { createServiceToken, Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';

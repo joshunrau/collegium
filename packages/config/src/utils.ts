@@ -1,4 +1,4 @@
-import type { AnyToolset } from '@collegium/core/tools';
+import type { AnyToolset } from '@collegium/core/toolsets';
 import { z } from 'zod';
 
 type JsonSchema = { [key: string]: unknown };

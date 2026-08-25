@@ -3,6 +3,7 @@ import * as path from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
+import { SKILL_NAME_PATTERN } from './skills.constants.ts';
 import { $SkillFrontmatter } from './skills.schemas.ts';
 
 import type { Skill } from './skills.types.ts';
@@ -41,6 +42,12 @@ function readSkill(filepath: string): Skill {
     return parseSkill(fs.readFileSync(filepath, 'utf-8'));
   } catch (error) {
     throw new Error(`invalid skill document at "${filepath}"`, { cause: error });
+  }
+}
+
+export function assertSkillName(value: string): void {
+  if (!SKILL_NAME_PATTERN.test(value)) {
+    throw new Error(`skill name "${value}" is not in the dashed skill-name grammar`);
   }
 }
 

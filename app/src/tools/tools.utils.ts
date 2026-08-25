@@ -1,4 +1,5 @@
-import type { AnyTool, AnyToolset, ServiceToken, ToolsetCollection } from '@collegium/core/tools';
+import type { AnyTool, AnyToolset, ToolsetCollection } from '@collegium/core/toolsets';
+import type { ServiceToken } from '@collegium/core/utils';
 import { z } from 'zod';
 
 import type { ToolSchema } from '@/core/core.types.ts';

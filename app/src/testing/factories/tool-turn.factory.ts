@@ -1,4 +1,5 @@
-import type { AnyTool, ToolResult, ToolTurnScope } from '@collegium/core/tools';
+import type { ToolResult, ToolTurnScope } from '@collegium/core/tools';
+import type { AnyTool } from '@collegium/core/toolsets';
 
 export function buildToolTurnScope(overrides: Partial<ToolTurnScope> = {}): ToolTurnScope {
   return {

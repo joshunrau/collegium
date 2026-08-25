@@ -1,5 +1,5 @@
-import { defineToolset } from '@collegium/core/tools';
-import type { AnyToolset } from '@collegium/core/tools';
+import { defineToolset } from '@collegium/core/toolsets';
+import type { AnyToolset } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';

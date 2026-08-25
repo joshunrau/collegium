@@ -1,5 +1,6 @@
 import { renderToolDisplayName, renderToolWireName } from '@collegium/core/tools';
-import type { AnyTool, AnyToolset, ToolFailure, ToolId, ToolsetCollection } from '@collegium/core/tools';
+import type { ToolFailure, ToolId } from '@collegium/core/tools';
+import type { AnyTool, AnyToolset, ToolsetCollection } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';

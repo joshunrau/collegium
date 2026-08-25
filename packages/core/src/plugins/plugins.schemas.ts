@@ -5,7 +5,7 @@ import { SKILL_NAME_PATTERN } from '../skills.ts';
 import { MAX_WIRE_NAME_LENGTH, renderToolWireName, TOOL_SEGMENT_PATTERN } from '../tools.ts';
 import { isUnique } from '../utils.ts';
 
-import type { AnyTool } from '../tools.ts';
+import type { AnyTool } from '../toolsets.ts';
 
 const $ZodSchema = z.custom<z.ZodType>((arg) => arg instanceof z.ZodType);
 

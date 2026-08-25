@@ -1,5 +1,5 @@
 import { renderToolDisplayName } from '@collegium/core/tools';
-import type { AnyToolset } from '@collegium/core/tools';
+import type { AnyToolset } from '@collegium/core/toolsets';
 import { isPlainObject } from 'es-toolkit';
 import { z } from 'zod';
 

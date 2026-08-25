@@ -30,6 +30,11 @@
       "source": "./src/tools.ts",
       "default": "./dist/tools.js"
     },
+    "./toolsets": {
+      "types": "./src/toolsets.ts",
+      "source": "./src/toolsets.ts",
+      "default": "./dist/toolsets.js"
+    },
     "./utils": {
       "types": "./src/utils.ts",
       "source": "./src/utils.ts",

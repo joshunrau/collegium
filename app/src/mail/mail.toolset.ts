@@ -1,5 +1,5 @@
-import { defineToolset } from '@collegium/core/tools';
 import type { ToolFailure, ToolResult, ToolTurnScope } from '@collegium/core/tools';
+import { defineToolset } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { match } from 'ts-pattern';
 import { z } from 'zod';

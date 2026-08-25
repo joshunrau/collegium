@@ -1,6 +1,6 @@
 import { renderQualifiedSkillName } from '@collegium/core/skills';
 import type { Skill } from '@collegium/core/skills';
-import type { AnyToolset } from '@collegium/core/tools';
+import type { AnyToolset } from '@collegium/core/toolsets';
 
 import { FRAMEWORK_TOOLSETS } from '@/tools/tools.toolsets.ts';
 

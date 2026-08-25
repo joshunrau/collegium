@@ -1,5 +1,5 @@
-import { defineToolset as frameworkDefineToolset } from '@collegium/core/tools';
-import type { DefinePluginToolset } from '@collegium/core/tools';
+import { defineToolset as frameworkDefineToolset } from '@collegium/core/toolsets';
+import type { DefinePluginToolset } from '@collegium/core/toolsets';
 
 /**
  * The same function the framework declares toolsets with (§7), narrowed to the plugin surface: no

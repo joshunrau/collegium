@@ -1,4 +1,4 @@
-import type { ToolsetCollection } from '@collegium/core/tools';
+import type { ToolsetCollection } from '@collegium/core/toolsets';
 import { Injectable } from '@nestjs/common';
 import type { z } from 'zod';
 
