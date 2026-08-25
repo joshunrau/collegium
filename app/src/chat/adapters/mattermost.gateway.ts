@@ -1,7 +1,7 @@
+import type { Config } from '@collegium/config';
 import type { Result } from '@collegium/core/utils';
 import { removeTrailingSlash } from '@collegium/core/utils';
 
-import type { Config } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import { LoggerFactory } from '@/logging/logging.factory.ts';

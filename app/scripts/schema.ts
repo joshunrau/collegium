@@ -7,8 +7,7 @@ import prettier from 'prettier';
 
 module.register('@swc-node/register/esm', import.meta.url);
 
-const { toConfigJsonSchema } = await import('@collegium/config');
-const { $Config } = await import('@/config/config.schemas.ts');
+const { $Config, toConfigJsonSchema } = await import('@collegium/config');
 const { GRANTABLE_TOOLSETS } = await import('@/tools/tools.toolsets.ts');
 
 const OUTPUT_PATH = path.resolve(import.meta.dirname, '../config.schema.json');

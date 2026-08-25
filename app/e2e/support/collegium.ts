@@ -7,10 +7,9 @@ import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 
+import { CONFIG_DEFAULTS } from '@collegium/config';
+import type { Config } from '@collegium/config';
 import { withTimeout } from '@collegium/core/utils';
-
-import { CONFIG_DEFAULTS } from '@/config/config.constants.ts';
-import type { Config } from '@/config/config.schemas.ts';
 
 import { E2E_RESOURCE_PREFIX, PROJECT_ROOT } from './constants.ts';
 import { InferenceStub, textResponse } from './inference.ts';

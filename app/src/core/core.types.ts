@@ -1,6 +1,5 @@
+import type { $ModelRef } from '@collegium/config';
 import type { LiteralUnion } from 'type-fest';
-
-import type { $ModelRef } from '@/config/config.schemas.ts';
 
 export type ProviderName = $ModelRef['provider'];
 

@@ -1,5 +1,6 @@
 import * as fs from 'node:fs/promises';
 
+import type { $AgentDefinition } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 import type { OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 
@@ -10,7 +11,6 @@ import { ChatGateway } from '@/chat/chat.gateway.ts';
 import type { ChatEvent } from '@/chat/chat.types.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { CommandReconcilerService } from '@/commands/registration/command-reconciler.service.ts';
-import type { $AgentDefinition } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ResyncService } from '@/conversations/resync/resync.service.ts';
 import { CredentialsService } from '@/credentials/credentials.service.ts';

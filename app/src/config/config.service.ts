@@ -1,13 +1,12 @@
 import * as fs from 'node:fs';
 
+import { $Config } from '@collegium/config';
+import type { Config } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 import { get } from 'es-toolkit/compat';
 import type { Get, Paths } from 'type-fest';
 
-import { $Config } from './config.schemas.ts';
 import { EnvService } from './env/env.service.ts';
-
-import type { Config } from './config.schemas.ts';
 
 @Injectable()
 export class ConfigService {

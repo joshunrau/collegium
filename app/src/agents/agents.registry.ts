@@ -1,9 +1,9 @@
 import * as path from 'node:path';
 
+import type { $AgentDefinition, $TriggerMode } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 import type { z } from 'zod';
 
-import type { $AgentDefinition, $TriggerMode } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import type { ObservedPost } from '@/conversations/conversations.types.ts';

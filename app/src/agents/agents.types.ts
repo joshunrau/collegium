@@ -1,8 +1,7 @@
+import type { $ModelRef } from '@collegium/config';
 import type { BuiltinSkillName } from '@collegium/core/skills';
 import type { ToolGrant } from '@collegium/core/toolsets';
 import type { LiteralUnion } from 'type-fest';
-
-import type { $ModelRef } from '@/config/config.schemas.ts';
 
 export type AgentIdentity = {
   username: string;

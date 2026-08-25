@@ -1,7 +1,6 @@
+import type { $InferenceRetryPolicy } from '@collegium/config';
 import type { Result } from '@collegium/core/utils';
 import { delay } from 'es-toolkit';
-
-import type { $InferenceRetryPolicy } from '@/config/config.schemas.ts';
 
 import { InferenceClient } from '../inference.client.ts';
 

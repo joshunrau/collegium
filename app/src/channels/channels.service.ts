@@ -1,4 +1,4 @@
-import type { $TriggerMode } from '@/config/config.schemas.ts';
+import type { $TriggerMode } from '@collegium/config';
 
 /**
  * Built by the module's factory from handles already resolved to ids, so an unresolved instance is

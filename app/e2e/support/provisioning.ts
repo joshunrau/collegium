@@ -4,11 +4,11 @@ import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 
+import { CONFIG_DEFAULTS } from '@collegium/config';
 import { Client4 } from '@mattermost/client';
 import { NestFactory } from '@nestjs/core';
 import { afterAll, beforeAll, inject } from 'vitest';
 
-import { CONFIG_DEFAULTS } from '@/config/config.constants.ts';
 import { ProvisionModule } from '@/provision.module.ts';
 import { ProvisioningService } from '@/provisioning/provisioning.service.ts';
 

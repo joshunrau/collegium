@@ -1,8 +1,8 @@
+import type { $AgentDefinition } from '@collegium/config';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
-import type { $AgentDefinition } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';

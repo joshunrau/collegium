@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import type { Config } from '@collegium/config';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -10,8 +11,6 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 
 import { ConfigService } from '../config.service.ts';
 import { EnvService } from '../env/env.service.ts';
-
-import type { Config } from '../config.schemas.ts';
 
 const config = {
   agents: [

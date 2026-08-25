@@ -10,9 +10,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { $Env } from '@collegium/config';
+import { $Config, $Env } from '@collegium/config';
 
-import { $Config } from '@/config/config.schemas.ts';
 // the root prologue predates DI, so it reaches for the adapter itself; a boot failure must still land as JSON
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports
 import { JSONLogger } from '@/logging/adapters/json.logger.ts';

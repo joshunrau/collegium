@@ -1,8 +1,8 @@
+import type { Config } from '@collegium/config';
 import { Test } from '@nestjs/testing';
 import type { PartialDeep } from 'type-fest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { Config } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 

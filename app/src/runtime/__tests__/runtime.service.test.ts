@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import type { $AgentDefinition, Config } from '@collegium/config';
 import { Test } from '@nestjs/testing';
 import type { PartialDeep } from 'type-fest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,7 +16,6 @@ import { ChatTransport } from '@/chat/chat.transport.ts';
 import type { ChatEvent, ChatEventHandler } from '@/chat/chat.types.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { CommandReconcilerService } from '@/commands/registration/command-reconciler.service.ts';
-import type { $AgentDefinition, Config } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ResyncService } from '@/conversations/resync/resync.service.ts';
 import { CredentialsService } from '@/credentials/credentials.service.ts';

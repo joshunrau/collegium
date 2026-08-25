@@ -1,6 +1,5 @@
+import type { $TriggerMode } from '@collegium/config';
 import { describe, expect, it } from 'vitest';
-
-import type { $TriggerMode } from '@/config/config.schemas.ts';
 
 import { ChannelsService } from '../channels.service.ts';
 

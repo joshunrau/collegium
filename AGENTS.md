@@ -70,7 +70,7 @@ app/src/
   channels/       triggering mode, the channel lock, the peer roster cache, the multi-mention policy
   chat/           the Mattermost seam
   commands/       the slash-command entry layer and its handlers
-  config/         config.json and env perimeters
+  config/         the ConfigService and EnvService: config.json and process.env read and parsed against @collegium/config
   conversations/  the post store, the channel window, episodes, forget, backfill
   core/           shared schema/type primitives
   credentials/    the Mattermost tokens provisioning minted, read by the app and written by nothing else

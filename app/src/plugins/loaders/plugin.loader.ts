@@ -1,12 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import type { $PluginRef } from '@collegium/config';
 import { $PluginToolset } from '@collegium/core/plugins';
 import { loadSkillLibrary } from '@collegium/core/skills';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
-import type { $PluginRef } from '@/config/config.schemas.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 
 import { $PluginPackageManifest } from '../plugins.schemas.ts';

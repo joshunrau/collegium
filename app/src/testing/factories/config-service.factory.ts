@@ -1,8 +1,8 @@
+import { CONFIG_DEFAULTS } from '@collegium/config';
+import type { Config } from '@collegium/config';
 import { get, merge } from 'es-toolkit/compat';
 import type { PartialDeep } from 'type-fest';
 
-import { CONFIG_DEFAULTS } from '@/config/config.constants.ts';
-import type { Config } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 
 import { MockFactory } from './mock.factory.ts';

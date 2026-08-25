@@ -1,6 +1,6 @@
+import type { $ModelRef } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 
-import type { $ModelRef } from '@/config/config.schemas.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import type { ProviderName } from '@/core/core.types.ts';
 

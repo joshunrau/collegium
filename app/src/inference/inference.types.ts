@@ -1,4 +1,5 @@
-import type { $ModelRef } from '@/config/config.schemas.ts';
+import type { $ModelRef } from '@collegium/config';
+
 import type { ToolSchema } from '@/core/core.types.ts';
 
 /** what a provider reports having spent; reasoning content itself is never stored (§3.12) */

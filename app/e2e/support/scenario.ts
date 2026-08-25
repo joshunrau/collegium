@@ -1,4 +1,4 @@
-import type { $AgentDefinition, $PluginRef, $TriggerMode, Config } from '@/config/config.schemas.ts';
+import type { $AgentDefinition, $PluginRef, $TriggerMode, Config } from '@collegium/config';
 
 type AgentSpec = Pick<$AgentDefinition, 'expertise' | 'systemPrompt'> & {
   contextBudgetTokens?: $AgentDefinition['contextBudgetTokens'];
