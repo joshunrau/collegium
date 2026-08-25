@@ -68,3 +68,26 @@ export const $Env = z
     ...env,
     APP_PUBLIC_URL: env.APP_PUBLIC_URL ?? `http://${env.APP_HOST}:${env.APP_PORT}`
   }));
+
+/**
+ * The administrator the provisioner acts as. Deliberately absent from `$Env`, which the running app
+ * parses: these reach the provisioning subprocess and no further, and the root prologue drops them
+ * from the environment before the app itself is imported.
+ *
+ * Creating bots, minting their tokens, and creating a team are all system-level in Mattermost, so
+ * nothing narrower than an administrator can provision. On a server with no users yet the account is
+ * created here, and Mattermost grants system admin to the first user of a fresh install.
+ */
+export type $ProvisioningEnv = z.infer<typeof $ProvisioningEnv>;
+export const $ProvisioningEnv = z.object({
+  MATTERMOST_ADMIN_EMAIL: z
+    .email()
+    .describe(
+      'Email of the Mattermost administrator provisioning signs in as. On a first start the account is created with it.'
+    ),
+  MATTERMOST_ADMIN_PASSWORD: z.string().min(1).describe('Password of that administrator.'),
+  MATTERMOST_ADMIN_USERNAME: z
+    .string()
+    .min(1)
+    .describe('Username of that administrator — also how you log in to Mattermost yourself.')
+});

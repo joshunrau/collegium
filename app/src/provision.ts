@@ -8,12 +8,12 @@
  * from the environment before importing the app.
  */
 
+import { $ProvisioningEnv } from '@collegium/config';
 import { NestFactory } from '@nestjs/core';
 
 // the process entries predate DI, and a failure before the app exists must still land as JSON
 import { JSONLogger } from './logging/adapters/json.logger.ts';
 import { ProvisionModule } from './provision.module.ts';
-import { $ProvisioningEnv } from './provisioning/provisioning.schemas.ts';
 import { ProvisioningService } from './provisioning/provisioning.service.ts';
 
 const logger = new JSONLogger('Provision');

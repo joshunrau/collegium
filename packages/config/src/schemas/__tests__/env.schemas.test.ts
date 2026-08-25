@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { $Env } from '../env.schemas.ts';
+import { $Env, $ProvisioningEnv } from '../env.schemas.ts';
 
 const env: Omit<{ [K in keyof $Env]: string }, 'APP_PUBLIC_URL'> = {
   APP_HOST: '127.0.0.1',
@@ -78,5 +78,25 @@ describe('$Env', () => {
 
   it('should reject a malformed Mattermost URL', () => {
     expect($Env.safeParse({ ...env, MATTERMOST_URL: 'mattermost:8065' }).success).toBe(false);
+  });
+});
+
+describe('$ProvisioningEnv', () => {
+  const admin = {
+    MATTERMOST_ADMIN_EMAIL: 'admin@collegium.local',
+    MATTERMOST_ADMIN_PASSWORD: 'pw',
+    MATTERMOST_ADMIN_USERNAME: 'admin'
+  };
+
+  it('should accept the administrator credentials', () => {
+    expect($ProvisioningEnv.safeParse(admin).success).toBe(true);
+  });
+
+  it('should reject a malformed email', () => {
+    expect($ProvisioningEnv.safeParse({ ...admin, MATTERMOST_ADMIN_EMAIL: 'admin' }).success).toBe(false);
+  });
+
+  it('should reject an empty password', () => {
+    expect($ProvisioningEnv.safeParse({ ...admin, MATTERMOST_ADMIN_PASSWORD: '' }).success).toBe(false);
   });
 });
