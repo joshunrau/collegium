@@ -1,13 +1,11 @@
-import { $MemorySettings, defineToolset } from '@collegium/core/toolsets';
+import { implementToolset, MEMORY_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
 import { MEMORY_SERVICE_TOKEN } from './memory.tokens.ts';
 
-export const MEMORY_TOOLSET = defineToolset({
-  name: 'memory',
+export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
   services: { memory: MEMORY_SERVICE_TOKEN },
-  settings: $MemorySettings,
   tools: {
     read: {
       budgetExempt: true,

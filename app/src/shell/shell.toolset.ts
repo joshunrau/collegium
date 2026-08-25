@@ -1,11 +1,10 @@
-import { defineToolset } from '@collegium/core/toolsets';
+import { implementToolset, SHELL_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
 import { SHELL_SERVICE_TOKEN } from './shell.tokens.ts';
 
-export const SHELL_TOOLSET = defineToolset({
-  name: 'shell',
+export const SHELL_TOOLSET = implementToolset(SHELL_TOOLSET_DEF, {
   services: { shell: SHELL_SERVICE_TOKEN },
   tools: {
     run: {

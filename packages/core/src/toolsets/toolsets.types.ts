@@ -2,6 +2,7 @@ import type { z } from 'zod';
 
 import type { ToolDefinition, ToolTurnScope } from '../tools.ts';
 import type { ServiceToken } from '../utils.ts';
+import type { CORE_TOOLSET_DEFS, FRAMEWORK_TOOLSET_DEFS, GRANTABLE_TOOLSET_DEFS } from './toolsets.constants.ts';
 
 /** `settings`, `storage`, and `turn` are the context's own keys, so a service may not claim them */
 export type ServicesDeclaration = { readonly [key: string]: ServiceToken<unknown> } & {
@@ -150,3 +151,12 @@ export type ToolsetImplementation<
       : 'is not a tool of this def';
   };
 };
+
+export type CoreToolsetName = (typeof CORE_TOOLSET_DEFS)[number]['name'];
+
+export type FrameworkToolsetName = (typeof FRAMEWORK_TOOLSET_DEFS)[number]['name'];
+
+export type GrantableToolsetDef = (typeof GRANTABLE_TOOLSET_DEFS)[number];
+
+/** what `agents[].tools` may hold for the framework: a namespace, or one tool by its `ns::tool` ref (§8) */
+export type ToolGrant = GrantableToolsetDef['name'] | ToolRefsOfDef<GrantableToolsetDef>;

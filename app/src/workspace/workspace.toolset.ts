@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { defineToolset } from '@collegium/core/toolsets';
+import { implementToolset, WORKSPACE_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
@@ -10,8 +10,7 @@ import { AGENT_REGISTRY_TOKEN } from '@/agents/agents.tokens.ts';
 
 import { resolveWorkspacePath } from './workspace.utils.ts';
 
-export const WORKSPACE_TOOLSET = defineToolset({
-  name: 'workspace',
+export const WORKSPACE_TOOLSET = implementToolset(WORKSPACE_TOOLSET_DEF, {
   services: { agents: AGENT_REGISTRY_TOKEN },
   tools: {
     write: {

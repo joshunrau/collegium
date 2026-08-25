@@ -1,12 +1,11 @@
-import { defineToolset } from '@collegium/core/toolsets';
+import { implementToolset, TRIGGERS_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
 import { TRIGGERS_SERVICE_TOKEN } from './triggers.tokens.ts';
 
 /** core (§8): in every agent's tool set and never granted — clearing a trigger the framework itself raised */
-export const TRIGGERS_TOOLSET = defineToolset({
-  name: 'triggers',
+export const TRIGGERS_TOOLSET = implementToolset(TRIGGERS_TOOLSET_DEF, {
   services: { triggers: TRIGGERS_SERVICE_TOKEN },
   tools: {
     resolve: {

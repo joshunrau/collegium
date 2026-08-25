@@ -5,12 +5,11 @@ import {
   QUALIFIED_SKILL_NAME_PATTERN
 } from '@collegium/core/skills';
 import { TOOL_SEGMENT_PATTERN } from '@collegium/core/tools';
+import { CORE_TOOLSET_DEFS, TOOL_GRANT_VALUES } from '@collegium/core/toolsets';
+import type { ToolGrant } from '@collegium/core/toolsets';
 import { isUnique } from '@collegium/core/utils';
 import type { LiteralUnion } from 'type-fest';
 import { z } from 'zod';
-
-import { CORE_TOOLSETS, TOOL_GRANT_VALUES } from '@/tools/tools.toolsets.ts';
-import type { ToolGrant } from '@/tools/tools.toolsets.ts';
 
 import { CONFIG_DEFAULTS } from './config.constants.ts';
 
@@ -21,7 +20,7 @@ import { CONFIG_DEFAULTS } from './config.constants.ts';
 /** plugin grants keep the same two shapes as framework grants; existence is verified at boot, after plugins load (§8) */
 const PLUGIN_GRANT_PATTERN = /^[a-z](?:_?[a-z0-9])*(?:::[a-z](?:_?[a-z0-9])*)?$/;
 
-const CORE_NAMESPACE_SET = new Set<string>(CORE_TOOLSETS.map((toolset) => toolset.name));
+const CORE_NAMESPACE_SET = new Set<string>(CORE_TOOLSET_DEFS.map((def) => def.name));
 
 const GRANTABLE_SKILL_NAME_SET = new Set<string>(BUILTIN_GRANTABLE_SKILL_NAMES);
 

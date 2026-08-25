@@ -1,5 +1,5 @@
 import type { ToolFailure, ToolResult, ToolTurnScope } from '@collegium/core/tools';
-import { $MailSettings, defineToolset } from '@collegium/core/toolsets';
+import { implementToolset, MAIL_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
@@ -74,10 +74,8 @@ function toSendResult(result: Result<void, MailFailure.Send>): ToolResult {
   return Result.err(failure);
 }
 
-export const MAIL_TOOLSET = defineToolset({
-  name: 'mail',
+export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
   services: { mail: MAIL_REGISTRY_TOKEN },
-  settings: $MailSettings,
   tools: {
     conversation: {
       description:

@@ -1,8 +1,8 @@
 import type { BuiltinSkillName } from '@collegium/core/skills';
+import type { ToolGrant } from '@collegium/core/toolsets';
 import type { LiteralUnion } from 'type-fest';
 
 import type { $ModelRef } from '@/config/config.schemas.ts';
-import type { ToolGrant } from '@/tools/tools.types.ts';
 
 export type AgentIdentity = {
   username: string;

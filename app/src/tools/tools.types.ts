@@ -2,8 +2,6 @@ import type { ToolDisclosure } from '@collegium/core/tools';
 
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 
-export type { ToolGrant } from './tools.toolsets.ts';
-
 export declare namespace ToolAttempt {
   /** the model receives this as the tool result and the turn continues */
   type Continue = {

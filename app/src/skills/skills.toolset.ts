@@ -1,12 +1,11 @@
-import { defineToolset } from '@collegium/core/toolsets';
+import { implementToolset, SKILLS_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
 import { SKILLS_SERVICE_TOKEN } from './skills.tokens.ts';
 
 /** core (§8): in every agent's tool set and never granted — loading a skill the agent was already assigned */
-export const SKILLS_TOOLSET = defineToolset({
-  name: 'skills',
+export const SKILLS_TOOLSET = implementToolset(SKILLS_TOOLSET_DEF, {
   services: { skills: SKILLS_SERVICE_TOKEN },
   tools: {
     load: {

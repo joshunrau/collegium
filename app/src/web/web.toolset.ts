@@ -1,5 +1,5 @@
 import type { ToolResult } from '@collegium/core/tools';
-import { defineToolset } from '@collegium/core/toolsets';
+import { implementToolset, WEB_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
@@ -35,8 +35,7 @@ function toSnapshotResult(result: Result<WebSnapshot, WebFailure>): ToolResult {
  * traces every action. A click or fill may commit a side effect on the page, and even a navigation
  * can, so no web tool is retryable: a timeout leaves us unable to say whether it landed (§7.2).
  */
-export const WEB_TOOLSET = defineToolset({
-  name: 'web',
+export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
   services: { web: WEB_SERVICE_TOKEN },
   tools: {
     click: {
