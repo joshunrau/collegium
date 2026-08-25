@@ -1,5 +1,6 @@
-import { $ChannelHandle } from '@collegium/core/common';
 import { z } from 'zod';
+
+import { $ChannelHandle } from '../../common.ts';
 
 export type $MailHost = z.infer<typeof $MailHost>;
 export const $MailHost = z.strictObject({

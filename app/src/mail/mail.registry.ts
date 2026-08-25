@@ -1,3 +1,5 @@
+import type { $MailSettings } from '@collegium/core/toolsets';
+
 import { ChatGateway } from '@/chat/chat.gateway.ts';
 
 import { ExchangeAuth } from './providers/exchange.auth.ts';
@@ -5,7 +7,6 @@ import { ExchangeMailProvider } from './providers/exchange.provider.ts';
 import { ImapMailProvider } from './providers/imap.provider.ts';
 
 import type { MailProvider } from './mail.provider.ts';
-import type { $MailSettings } from './mail.schemas.ts';
 
 /** one configured mailbox, bound to the provider instance that serves it */
 export type MailboxRuntime = {

@@ -1,3 +1,4 @@
+import type { $MemorySettings } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
@@ -6,7 +7,6 @@ import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
 
 import { MemoryLockService } from './locks/memory-lock.service.ts';
 
-import type { $MemorySettings } from './memory.schemas.ts';
 import type { MemoryFailure, MemoryWrite, MemoryWriteReceipt } from './memory.types.ts';
 
 @Injectable()

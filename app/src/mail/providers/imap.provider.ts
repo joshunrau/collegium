@@ -1,3 +1,4 @@
+import type { $ImapMailProvider } from '@collegium/core/toolsets';
 import { Result, toErrorMessage } from '@collegium/core/utils';
 import { ImapFlow } from 'imapflow';
 import type { FetchMessageObject, MailboxObject, SearchObject } from 'imapflow';
@@ -19,7 +20,6 @@ import {
   toSenderPartyFromParsed
 } from './imap.utils.ts';
 
-import type { $ImapMailProvider } from '../mail.schemas.ts';
 import type {
   MailArrival,
   MailFailure,

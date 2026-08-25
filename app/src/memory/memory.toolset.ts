@@ -1,8 +1,7 @@
-import { defineToolset } from '@collegium/core/toolsets';
+import { $MemorySettings, defineToolset } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
-import { $MemorySettings } from './memory.schemas.ts';
 import { MEMORY_SERVICE_TOKEN } from './memory.tokens.ts';
 
 export const MEMORY_TOOLSET = defineToolset({

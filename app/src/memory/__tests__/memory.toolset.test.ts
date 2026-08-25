@@ -1,10 +1,10 @@
+import { $MemorySettings } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { describe, expect, it } from 'vitest';
 
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
 
-import { $MemorySettings } from '../memory.schemas.ts';
 import { MemoryService } from '../memory.service.ts';
 import { MEMORY_TOOLSET } from '../memory.toolset.ts';
 

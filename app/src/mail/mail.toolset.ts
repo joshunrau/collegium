@@ -1,10 +1,9 @@
 import type { ToolFailure, ToolResult, ToolTurnScope } from '@collegium/core/tools';
-import { defineToolset } from '@collegium/core/toolsets';
+import { $MailSettings, defineToolset } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 
-import { $MailSettings } from './mail.schemas.ts';
 import { MAIL_REGISTRY_TOKEN } from './mail.tokens.ts';
 import { renderMailMessage, renderMailSummaries, renderOutboundPayload, toOutboundMail } from './mail.utils.ts';
 
