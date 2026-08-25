@@ -48,48 +48,50 @@ export const $ImapMailProvider = z.strictObject({
   username: z.string().min(1).describe('Login username for both endpoints, where it differs from the address')
 });
 
-/** the mail toolset's settings: the one mailbox an agent acts as — granting mail without these is a boot refusal (§8) */
 export type $MailSettings = z.infer<typeof $MailSettings>;
-export const $MailSettings = z.strictObject({
-  announcementChannel: $ChannelHandle.describe(
-    'Channel where arriving mail is announced, by handle. Must not be a DM, and the agent must be a member — both refused at boot rather than discovered at runtime.'
-  ),
-  pollIntervalMs: z
-    .number()
-    .int()
-    .positive()
-    .default(60_000)
-    .describe(
-      'How often the mailbox is polled for new arrivals, each poll advancing the durable cursor. Announcement latency is bounded by this plus idle-gating.'
+export const $MailSettings = z
+  .strictObject({
+    announcementChannel: $ChannelHandle.describe(
+      'Channel where arriving mail is announced, by handle. Must not be a DM, and the agent must be a member — both refused at boot rather than discovered at runtime.'
     ),
-  provider: z
-    .discriminatedUnion('kind', [$ExchangeMailProvider, $ImapMailProvider])
-    .describe(
-      'Which kind of provider serves this mailbox, with its credentials: Exchange Online, or generic IMAP/SMTP.'
-    )
-});
+    pollIntervalMs: z
+      .number()
+      .int()
+      .positive()
+      .default(60_000)
+      .describe(
+        'How often the mailbox is polled for new arrivals, each poll advancing the durable cursor. Announcement latency is bounded by this plus idle-gating.'
+      ),
+    provider: z
+      .discriminatedUnion('kind', [$ExchangeMailProvider, $ImapMailProvider])
+      .describe(
+        'Which kind of provider serves this mailbox, with its credentials: Exchange Online, or generic IMAP/SMTP.'
+      )
+  })
+  .describe('The one mailbox an agent granted mail acts as. Granting mail without these is a boot refusal (§8).');
 
-/** the memory toolset's settings: the bounds on one agent's memory (§3.6) — every field defaulted, so a bare grant works */
 export type $MemorySettings = z.infer<typeof $MemorySettings>;
-export const $MemorySettings = z.strictObject({
-  maxBodyChars: z
-    .number()
-    .int()
-    .positive()
-    .default(4000)
-    .describe('Longest body one entry may hold. A longer write is refused rather than truncated.'),
-  maxDescriptionChars: z
-    .number()
-    .int()
-    .positive()
-    .default(200)
-    .describe(
-      'Longest description one entry may hold. Descriptions enter the system prompt every turn, so this bounds that cost.'
-    ),
-  maxEntries: z
-    .number()
-    .int()
-    .positive()
-    .default(50)
-    .describe('How many entries one agent may hold. Writing beyond it evicts the oldest entry.')
-});
+export const $MemorySettings = z
+  .strictObject({
+    maxBodyChars: z
+      .number()
+      .int()
+      .positive()
+      .default(4000)
+      .describe('Longest body one entry may hold. A longer write is refused rather than truncated.'),
+    maxDescriptionChars: z
+      .number()
+      .int()
+      .positive()
+      .default(200)
+      .describe(
+        'Longest description one entry may hold. Descriptions enter the system prompt every turn, so this bounds that cost.'
+      ),
+    maxEntries: z
+      .number()
+      .int()
+      .positive()
+      .default(50)
+      .describe('How many entries one agent may hold. Writing beyond it evicts the oldest entry.')
+  })
+  .describe("The bounds on one agent's memory (§3.6). Every field has a default, so a bare grant works.");

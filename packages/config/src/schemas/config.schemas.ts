@@ -246,45 +246,58 @@ export const $MattermostConfig = z.strictObject({
 export type $Config = z.infer<typeof $Config>;
 export const $Config = z
   .strictObject({
-    $schema: z.string().optional(),
+    $schema: z
+      .string()
+      .optional()
+      .describe('Path or URL of the JSON Schema an editor validates this file against; ignored by the app'),
     agents: z
       .array($AgentDefinition)
       .min(1)
       .refine((agents) => isUnique(agents.map((agent) => agent.username)), {
         message: 'agent usernames must be unique'
-      }),
-    app: $AppConfig.prefault({}),
+      })
+      .describe(
+        'The agents this deployment runs, each a persistent identity with its own model, grants, and prompt (§3.1)'
+      ),
+    app: $AppConfig.prefault({}).describe('Framework-wide behaviour: budgets, debounce, retries, logging'),
     channels: z
       .array($ChannelDefinition)
       .default([])
       .describe('Per-channel triggering mode. Any channel not listed here is mention-required.'),
-    mattermost: $MattermostConfig.prefault({}),
-    models: z.strictObject({
-      deepseek: z
-        .strictObject({
-          apiKey: z.string().min(1).describe('DeepSeek API key (https://platform.deepseek.com/api_keys)'),
-          baseUrl: z
-            .url()
-            .default(CONFIG_DEFAULTS.models.deepseek.baseUrl)
-            .describe('Base URL of the DeepSeek-compatible API')
-        })
-        .optional(),
-      openrouter: z
-        .strictObject({
-          apiKey: z.string().min(1).describe('OpenRouter API key (https://openrouter.ai/keys)'),
-          baseUrl: z
-            .url()
-            .default(CONFIG_DEFAULTS.models.openrouter.baseUrl)
-            .describe('Base URL of the OpenRouter-compatible API')
-        })
-        .optional()
-    }),
+    mattermost: $MattermostConfig
+      .prefault({})
+      .describe('What the deployment expects of its Mattermost team beyond the environment'),
+    models: z
+      .strictObject({
+        deepseek: z
+          .strictObject({
+            apiKey: z.string().min(1).describe('DeepSeek API key (https://platform.deepseek.com/api_keys)'),
+            baseUrl: z
+              .url()
+              .default(CONFIG_DEFAULTS.models.deepseek.baseUrl)
+              .describe('Base URL of the DeepSeek-compatible API')
+          })
+          .optional()
+          .describe('DeepSeek, reached directly'),
+        openrouter: z
+          .strictObject({
+            apiKey: z.string().min(1).describe('OpenRouter API key (https://openrouter.ai/keys)'),
+            baseUrl: z
+              .url()
+              .default(CONFIG_DEFAULTS.models.openrouter.baseUrl)
+              .describe('Base URL of the OpenRouter-compatible API')
+          })
+          .optional()
+          .describe('OpenRouter, fronting many providers under one key')
+      })
+      .describe('Credentials for each model provider an agent may name; at least one is required'),
     plugins: z
       .array($PluginRef)
       .optional()
       .refine((plugins) => !plugins || isUnique(plugins.map((plugin) => plugin.name)), {
         message: 'plugin names must be unique'
       })
+      .describe('Plugin packages to load at boot, each contributing one toolset under its own namespace (§3.14)')
   })
   .refine((config) => config.models.deepseek ?? config.models.openrouter, {
     message: 'at least one model provider must be configured'

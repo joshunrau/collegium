@@ -71,6 +71,13 @@ export default defineConfig({
       {
         extends: true,
         test: {
+          include: ['docs/src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
+          name: 'docs'
+        }
+      },
+      {
+        extends: true,
+        test: {
           fileParallelism: false,
           globalSetup: ['app/e2e/setup/cluster.setup.ts'],
           hookTimeout: 600_000,

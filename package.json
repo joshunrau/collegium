@@ -16,8 +16,8 @@
     "knip": "DATABASE_URL=file:/dev/null knip --production",
     "lint": "node scripts/check-module-map.js && turbo run lint",
     "prepare": "husky",
-    "test": "vitest --project unit --project packages --project plugins",
-    "test:coverage": "vitest --project unit --project packages --project plugins --coverage",
+    "test": "vitest --project unit --project packages --project plugins --project docs",
+    "test:coverage": "vitest --project unit --project packages --project plugins --project docs --coverage",
     "test:e2e": "turbo run build --filter=@collegium/core --filter=@collegium/sdk && vitest --project e2e"
   },
   "os": [

@@ -66,6 +66,16 @@ export default defineConfig({
   },
   site: 'https://collegium.sh',
   vite: {
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+    // the workspace packages resolve to their sources, as they do under vitest, so the reference
+    // pages and the served schema derive from @collegium/config without a prior build of it
+    resolve: {
+      conditions: ['source', 'module', 'browser', 'development|production']
+    },
+    ssr: {
+      resolve: {
+        conditions: ['source', 'module', 'node', 'development|production']
+      }
+    }
   }
 });

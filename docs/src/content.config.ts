@@ -5,6 +5,8 @@ import { glob } from 'astro/loaders';
 import { defineCollection } from 'astro:content';
 import { z } from 'zod';
 
+import { referenceLoader } from './reference/reference.loader.ts';
+
 /**
  * Where the site's written pages live, relative to the package root. Only the loader needs it: an
  * entry's id is already its path relative to this base, which is what the page tree is built from.
@@ -62,7 +64,13 @@ const spec = defineCollection({
   schema: $Frontmatter
 });
 
+const reference = defineCollection({
+  loader: referenceLoader,
+  schema: $Frontmatter
+});
+
 export const collections = {
   docs,
+  reference,
   spec
 };

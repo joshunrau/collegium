@@ -5,8 +5,8 @@ import type { CollectionEntry } from 'astro:content';
 import { loader } from 'fumadocs-core/source';
 import type { StaticSource } from 'fumadocs-core/source';
 
-/** A renderable docs entry: a written page under `content`, or the spec loaded from SPEC.md. */
-type DocEntry = CollectionEntry<'docs'> | CollectionEntry<'spec'>;
+/** A renderable docs entry: a written page under `content`, a generated reference page, or the spec loaded from SPEC.md. */
+type DocEntry = CollectionEntry<'docs'> | CollectionEntry<'reference'> | CollectionEntry<'spec'>;
 
 /**
  * The sidebar, top to bottom: each section's folder with its pages in order, then the root-level
@@ -40,6 +40,11 @@ const NAVIGATION = {
         'observability'
       ],
       title: 'Concepts'
+    },
+    {
+      name: 'reference',
+      pages: ['configuration', 'environment'],
+      title: 'Reference'
     }
   ],
   root: ['specification']
@@ -56,11 +61,14 @@ async function collectPages() {
     entry,
     path: `${entry.id}${path.extname(entry.filePath!)}`
   }));
-  // The spec has no file under `content` (content.config.ts loads it from SPEC.md), so it has no
-  // source extension to read.
-  const spec = (await getCollection('spec')).map((entry) => ({ entry, path: `${entry.id}.md` }));
+  // Neither the spec nor the reference pages have a file under `content` (content.config.ts
+  // generates them), so they have no source extension to read.
+  const generated = [...(await getCollection('reference')), ...(await getCollection('spec'))].map((entry) => ({
+    entry,
+    path: `${entry.id}.md`
+  }));
 
-  return [...written, ...spec].filter(({ entry }) => !entry.data.disabled);
+  return [...written, ...generated].filter(({ entry }) => !entry.data.disabled);
 }
 
 /** Bridge Astro's content collections into a fumadocs source, ordered and grouped by `NAVIGATION`. */

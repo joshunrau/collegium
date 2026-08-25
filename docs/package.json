@@ -15,6 +15,7 @@
     "preview": "astro preview"
   },
   "dependencies": {
+    "@collegium/config": "workspace:*",
     "@fontsource-variable/newsreader": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
