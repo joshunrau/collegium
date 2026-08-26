@@ -1,41 +1,45 @@
 ---
 title: Write a Plugin
 description: 'Ship business logic as deterministic code: storage, an ungated read, a gated write, and settings.'
-disabled: true
 ---
 
 Key business logic should be deterministic code, not prompt text. A procedure in a prompt is a suggestion the model will eventually skip; a plugin is TypeScript the framework runs exactly as written, and it will not change under the operator. This guide builds `contacts`: a small address book agents can read freely and update only with approval.
 
-Prerequisites: a running deployment and a working Node.js checkout of the repository.
+Prerequisites: a running deployment, and Node.js wherever you write the plugin.
 
 ## What a plugin is
 
-An operator-supplied workspace package, named in `config.json` and loaded once at boot. A plugin is a toolset: a namespace owning tools, skills, settings, and durable records. It cannot change how agents activate, how turns are ordered, or how approvals resolve. Its contributions appear under its namespace (`contacts::save`), and installing a plugin grants it to no one: agents opt in per grant, exactly as with framework capability.
+A directory of TypeScript that the deployment mounts, compiles once at boot, and loads. A plugin is a toolset: a namespace owning tools, skills, settings, and durable records. It cannot change how agents activate, how turns are ordered, or how approvals resolve. Its contributions appear under its namespace (`contacts::save`), and installing a plugin grants it to no one: agents opt in per grant, exactly as with framework capability.
 
 Plugins are trusted code. A plugin runs with framework privilege, so installing one is the same kind of act as editing the framework itself: review it the way deployed code is reviewed. A coding agent can write the first draft of a plugin; the operator's review and install are what make it live, and nothing lets a Collegium agent install, configure, or enable one.
 
+You do not need a checkout of Collegium to write one. The SDK is on npm, so a plugin is an ordinary repository you can develop and test on its own.
+
 ## 1. Scaffold the package
 
-```
-plugins/contacts/
-  package.json
-  src/
-    index.ts
+```sh
+mkdir contacts && cd contacts
+npm init --yes
+npm install @collegium/sdk
 ```
 
-`package.json`:
+Then set `type`, `exports`, and nothing else:
 
 ```json
 {
-  "name": "@collegium/plugin-contacts",
+  "name": "contacts",
   "type": "module",
   "version": "0.0.0",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@collegium/sdk": "workspace:*" }
+  "exports": "./src/index.ts",
+  "dependencies": { "@collegium/sdk": "^0.0.1-beta.4" }
 }
 ```
 
-The SDK is the plugin's only dependency and its only import. What the SDK does not export, a plugin cannot touch.
+Three rules the framework enforces at boot, so a mistake is a startup refusal that names itself rather than a surprise mid-turn:
+
+- **`exports` names the entry.** A plain string, or an object whose `"."` is a plain string. The file is TypeScript; nothing builds it, and the framework compiles it.
+- **`@collegium/sdk` is the only dependency you may declare**, and you must declare it. `devDependencies` are yours — install `typescript`, `vitest`, whatever you test with.
+- **The version must match the deployment's.** The SDK is released with Collegium and carries its version, so the range you declare names the deployment you wrote for. A mismatch is refused at boot naming both versions.
 
 ## 2. Declare the toolset
 
@@ -102,14 +106,34 @@ The declaration is stated once and everything derives from it. Each tool's `args
 
 Two shapes carry the model's whole gate. `find` has no `approval`, so it never gates — ungated is not unsupervised: every call still appears line by line in the status post and the trace, and the read is marked `retryable` where a mutation never is. `save` has an `approval`, so it always gates, and the function renders the payload a human decides on: show everything the action will do, because a payload nobody can read is a payload nobody is checking.
 
-A plugin may also ship skills — `skills: ['saving-contacts']`, each backed by `skills/<name>.md` beside the entry module and granted as `contacts::saving-contacts`; the in-repo `bookmark` plugin exercises that part of the contract.
+### What you may import
 
-## 3. Load, grant, configure
+`@collegium/sdk` and `node:` builtins. Nothing else — the compiler refuses any other bare specifier at boot, naming the file and the specifier. Your own files are yours: relative imports are compiled in, so a plugin can be as many files as it likes.
+
+**Import `z` from the SDK, not from `zod`.** The SDK re-exports it, and a second copy of zod is not the same zod the framework validates against.
+
+`fetch`, `crypto`, `Intl`, and `structuredClone` are globals rather than imports, so HTTP-shaped business logic needs nothing beyond what you have.
+
+A plugin may also ship skills — `skills: ['saving-contacts']`, each backed by `src/skills/<name>.md` beside the entry module and granted as `contacts::saving-contacts`; the in-repo `bookmark` plugin exercises that part of the contract.
+
+## 3. Install it
+
+The deployment mounts one directory, and each plugin is a subdirectory of it named for the plugin. In a clone that directory is `plugins/`, and `PLUGINS_ROOT` in `.env` points at it.
+
+```sh
+git clone https://github.com/you/contacts plugins/contacts
+```
+
+The directory name is the plugin name. Clone into `plugins/contacts`, not whatever your repository happens to be called — the framework loads `contacts` from the directory `contacts`, and a toolset declaring a different name is refused at boot.
+
+The mount is read-only, and it sits where no agent can reach it: the same filesystem denial that keeps agents out of the framework's own code keeps them out of yours.
+
+## 4. Grant and configure
 
 In `config.json`, declare the plugin, grant it to Clara, and set her settings for it — the same `toolSettings` mechanism every toolset uses:
 
 ```json
-"plugins": [{ "name": "contacts", "path": "./plugins/contacts" }]
+"plugins": ["contacts"]
 ```
 
 ```json
@@ -121,9 +145,9 @@ In `config.json`, declare the plugin, grant it to Clara, and set her settings fo
 
 A namespace grant covers every tool the plugin holds, including ones a later version adds; grant `"contacts::find"` instead to hand out one tool. Settings merge shallowly over `app.defaultToolSettings.contacts` and are parsed against the schema the plugin declares — settings for an ungranted toolset are refused, as are settings its schema rejects.
 
-Failures are startup failures. An entry that will not import, a toolset the schema rejects, settings the declared schema refuses, a grant nothing provides: each stops the process from starting and names the plugin. Nothing about a plugin is discovered mid-turn.
+Failures are startup failures. A directory that is not there, a manifest that names no entry, a dependency or an import the contract does not permit, an SDK version the deployment does not carry, a toolset the schema rejects, a grant nothing provides: each stops the process from starting and names the plugin. Nothing about a plugin is discovered mid-turn.
 
-## 4. Try it
+## 5. Try it
 
 Restart the deployment, then:
 

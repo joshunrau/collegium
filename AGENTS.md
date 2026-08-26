@@ -11,9 +11,11 @@ Package manager is pnpm (>=11). Node version: see `.nvmrc`. The repository is a 
 `@collegium/app` (the framework, in `app/`), `@collegium/core` (shared primitives, in
 `packages/core/`), `@collegium/config` (the deployment's declared inputs, in `packages/config/` —
 schemas the app parses at boot and the docs site generates its reference from),
-`@collegium/sdk` (the sole import surface for plugins, in `packages/sdk/`), and
-one `@collegium/plugin-*` package per plugin under `plugins/*`. Dependencies point one way:
-plugins → sdk → core ← config ← app; the app never imports a plugin statically. The root scripts below run
+`@collegium/sdk` (the sole import surface for plugins, published to npm so one can be written
+outside this repository, in `packages/sdk/`), and the example plugin under `plugins/*`. Dependencies
+point one way: plugins → sdk → core ← config ← app. The app depends on the SDK without importing it —
+the edge is what carries it through `turbo prune` into the image, where the plugin compiler resolves
+it by specifier — and never imports a plugin at all. The root scripts below run
 across the workspace via turbo, so everything runs from the repo root. Instance files (`.env`,
 `config.json`, `docker-compose.yaml`) live at the workspace root, beside the packages rather than
 in them.
@@ -82,13 +84,13 @@ app/src/
   mail/           the mail seam: Exchange and IMAP providers, inbound polling, outbound send, outage notices (§3.13)
   memory/         the memories table and per-agent lock, and the memory toolset
   notifications/  system-bot output — every string deterministic (§3.2)
-  plugins/        boot-time plugin loading: entry resolution, the toolset perimeter, the contributions registry (§3.14)
+  plugins/        boot-time plugin loading: locating a mounted plugin, compiling it behind the bundler seam, the toolset perimeter, the contributions registry (§3.14)
   prisma/         the typed store client
   provisioning/   the admin seam: reconciles Mattermost onto what config.json declares, before the app boots
   queue/          the per (agent, channel) pending pointer
   runtime/        boot orchestration, shutdown, crash handling
   shell/          the §A2 confinement seam: per-agent OS user derivation, sudo-scoped execution, boot probe
-  skills/         the skill library and manifest
+  skills/         the skill library and manifest, and the one place a skill document is read off disk
   testing/        test-only factories and mocks, excluded from the build
   tools/          the machinery alone: registry, executor, settings resolution, toolset storage — toolsets live in their owning modules
   triggers/       the trigger table, webhook intake, idle-gated posting
@@ -118,8 +120,8 @@ for data actually parsed at a perimeter; everything else is a plain type.
 
 The perimeters in this system are: the Mattermost websocket, the Mattermost REST API, HTTP request
 bodies, LLM output, `config.json`, skill files on disk, `process.env`, and plugin packages (their
-`package.json`, entry-module default export, and each granted toolset's merged settings against
-the schema it declares). **SQLite is not a perimeter** — it is our own store, written only through a strictly
+`package.json`, the bare specifiers they import, their entry module's default export, and each
+granted toolset's merged settings against the schema it declares). **SQLite is not a perimeter** — it is our own store, written only through a strictly
 typed client, so a read from it is interior data and is trusted. Plugin storage reads are the one
 qualified case: parsed against the declaring plugin's collection schema, because rows may outlive
 the schema that wrote them.

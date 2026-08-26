@@ -22,8 +22,9 @@ const AGENT_GROUP = 'collegium-agents';
 // what provisioning authenticates with, and what the long-lived app process must never hold
 const ADMIN_ENV_PREFIX = 'MATTERMOST_ADMIN_';
 // the whole tree the image installs — the app package, the workspace packages it imports, and the
-// node_modules both resolve through. It tracks the Dockerfile, and a move that leaves this behind
-// confines a directory the app no longer lives in.
+// node_modules both resolve through — plus the plugin root mounted beneath it, which is what puts
+// operator-supplied code behind the same denial as the framework's own. It tracks the Dockerfile,
+// and a move that leaves this behind confines a directory the app no longer lives in.
 const APP_ROOT = '/srv';
 const APP_USER = 'app';
 const HOME_DIR = '/home';

@@ -8,8 +8,5 @@ catalog:
   es-toolkit: ^1.49.0
   type-fest: ^5.8.0
   zod: ^4.4.3
-# the Docker runner stage assembles its self-contained node_modules with `pnpm deploy`, which
-# refuses to run without this since pnpm v10
-injectWorkspacePackages: true
 minimumReleaseAge: 1440
 packages: ['app', 'docs', 'packages/*', 'plugins/*']
