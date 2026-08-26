@@ -18,6 +18,7 @@
 # the build generates this; a working tree's copy would be an input CI never has
 app/src/prisma/generated
 !packages/*/package.json
+!packages/*/scripts
 !packages/*/src
 !packages/*/tsconfig.json
 !packages/*/tsconfig.build.json
