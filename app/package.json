@@ -47,7 +47,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@collegium/plugin-bookmark": "workspace:*",
     "@mattermost/types": "^11.8.0",
     "@nestjs/testing": "^11.1.28",
     "@swc-node/register": "^1.11.1",

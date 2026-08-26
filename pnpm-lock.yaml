@@ -158,9 +158,6 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
-      '@collegium/plugin-bookmark':
-        specifier: workspace:*
-        version: link:../plugins/bookmark
       '@mattermost/types':
         specifier: ^11.8.0
         version: 11.9.0(typescript@6.0.3)
