@@ -106,10 +106,15 @@ describe('$Config', () => {
   it('should reject a config without a model provider', () => {
     expect($Config.safeParse({ ...config, models: {} }).success).toBe(false);
   });
-  it('should reject a plugin ref carrying settings — they live in toolSettings now (§8)', () => {
-    const withSettings = { ...config, plugins: [{ name: 'bookmark', path: './plugins/bookmark', settings: {} }] };
-    expect($Config.safeParse(withSettings).success).toBe(false);
-    const plain = { ...config, plugins: [{ name: 'bookmark', path: './plugins/bookmark' }] };
-    expect($Config.safeParse(plain).success).toBe(true);
+  it('should take plugins as names alone — the directory and the namespace are one identity (§3.14)', () => {
+    expect($Config.safeParse({ ...config, plugins: ['bookmark'] }).success).toBe(true);
+    const withPath = { ...config, plugins: [{ name: 'bookmark', path: './plugins/bookmark' }] };
+    expect($Config.safeParse(withPath).success).toBe(false);
+  });
+  it('should reject a plugin name outside the namespace grammar', () => {
+    expect($Config.safeParse({ ...config, plugins: ['../escape'] }).success).toBe(false);
+  });
+  it('should reject a plugin named twice', () => {
+    expect($Config.safeParse({ ...config, plugins: ['bookmark', 'bookmark'] }).success).toBe(false);
   });
 });

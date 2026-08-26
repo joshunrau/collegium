@@ -21,6 +21,9 @@ export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
     .with({ kind: 'directory-missing' }, ({ packageRoot }) => {
       return `no directory at ${packageRoot} — is the plugin mounted there?`;
     })
+    .with({ kind: 'directory-unreadable' }, ({ packageRoot }) => {
+      return `${packageRoot} is not readable by the account the app runs as`;
+    })
     .with({ kind: 'entry-missing' }, ({ entry }) => `the entry its package.json declares does not exist: ${entry}`)
     .with({ kind: 'forbidden-import' }, ({ imports }) => renderForbiddenImports(imports))
     .with({ kind: 'manifest-invalid' }, ({ manifestPath }) => {

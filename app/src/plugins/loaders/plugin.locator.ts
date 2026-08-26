@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import type { $PluginRef } from '@collegium/config';
+import type { $PluginName } from '@collegium/config';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
@@ -14,17 +14,24 @@ import type { PluginLoadFailure, PluginSource } from '../plugins.types.ts';
 
 @Injectable()
 export class PluginLocator {
-  private readonly configPath: string;
+  private readonly pluginsRoot: string;
 
   constructor(envService: EnvService) {
-    this.configPath = envService.get('CONFIG_PATH');
+    this.pluginsRoot = envService.get('PLUGINS_ROOT');
   }
 
   /** the declared plugin as files on disk; nothing here reads the plugin's code or runs it */
-  locate(ref: $PluginRef): Result<PluginSource, PluginLoadFailure.Locate> {
-    const packageRoot = path.resolve(path.dirname(this.configPath), ref.path);
+  locate(name: $PluginName): Result<PluginSource, PluginLoadFailure.Locate> {
+    const packageRoot = path.join(this.pluginsRoot, name);
     if (!fs.statSync(packageRoot, { throwIfNoEntry: false })?.isDirectory()) {
       return Result.err({ kind: 'directory-missing', packageRoot });
+    }
+    // the mount carries the host's own ownership and modes, and the app runs as neither root nor the
+    // operator — an unreadable plugin otherwise surfaces as one that does not exist
+    try {
+      fs.accessSync(packageRoot, fs.constants.R_OK | fs.constants.X_OK);
+    } catch {
+      return Result.err({ kind: 'directory-unreadable', packageRoot });
     }
     const entry = this.resolveEntry(packageRoot);
     if (!entry.success) {
@@ -32,7 +39,7 @@ export class PluginLocator {
     }
     return Result.ok({
       entry: entry.value,
-      name: ref.name,
+      name,
       packageRoot,
       skillsDirectory: path.join(path.dirname(entry.value), SKILLS_DIRECTORY)
     });

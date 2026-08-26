@@ -23,23 +23,21 @@ import { pluginLoadFailureCause, renderPluginLoadFailure } from './plugins.utils
       inject: [ConfigService, PluginLoader],
       provide: PluginsRegistry,
       useFactory: async (configService: ConfigService, pluginLoader: PluginLoader) => {
-        const pluginRefs = configService.get('plugins') ?? [];
-        const loaded = await Promise.all(
-          pluginRefs.map(async (ref) => ({ ref, result: await pluginLoader.load(ref) }))
-        );
+        const names = configService.get('plugins') ?? [];
+        const loaded = await Promise.all(names.map(async (name) => ({ name, result: await pluginLoader.load(name) })));
 
-        const failures = loaded.flatMap(({ ref, result }) => {
+        const failures = loaded.flatMap(({ name, result }) => {
           if (result.success) {
             return [];
           }
-          const error = new Error(`plugin "${ref.name}": ${renderPluginLoadFailure(result.error)}`, {
+          const error = new Error(`plugin "${name}": ${renderPluginLoadFailure(result.error)}`, {
             cause: pluginLoadFailureCause(result.error)
           });
           return [error];
         });
 
         if (failures.length > 0) {
-          throw new AggregateError(failures, `failed to load ${failures.length} of ${pluginRefs.length} plugins`);
+          throw new AggregateError(failures, `failed to load ${failures.length} of ${names.length} plugins`);
         }
 
         return new PluginsRegistry(loaded.map(({ result }) => result.unwrap()));

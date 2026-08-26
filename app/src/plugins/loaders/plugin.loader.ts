@@ -1,4 +1,4 @@
-import type { $PluginRef } from '@collegium/config';
+import type { $PluginName } from '@collegium/config';
 import type { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
@@ -16,8 +16,8 @@ export class PluginLoader {
     private readonly locator: PluginLocator
   ) {}
 
-  async load(ref: $PluginRef): Promise<Result<LoadedPlugin, PluginLoadFailure>> {
-    const source = this.locator.locate(ref);
+  async load(name: $PluginName): Promise<Result<LoadedPlugin, PluginLoadFailure>> {
+    const source = this.locator.locate(name);
     if (!source.success) {
       return source;
     }

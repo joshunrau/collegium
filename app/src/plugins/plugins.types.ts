@@ -36,6 +36,11 @@ export declare namespace PluginLoadFailure {
     kind: 'directory-missing';
     packageRoot: string;
   };
+  /** mounted, but the account the app runs as cannot traverse or read it */
+  type DirectoryUnreadable = {
+    kind: 'directory-unreadable';
+    packageRoot: string;
+  };
   type ManifestMissing = {
     kind: 'manifest-missing';
     manifestPath: string;
@@ -85,7 +90,8 @@ export declare namespace PluginLoadFailure {
     expected: string;
     kind: 'name-mismatch';
   };
-  type Locate = DirectoryMissing | EntryMissing | ManifestInvalid | ManifestMissing | ManifestUnreadable;
+  type Locate =
+    DirectoryMissing | DirectoryUnreadable | EntryMissing | ManifestInvalid | ManifestMissing | ManifestUnreadable;
   type Bundle = ForbiddenImport | NotCompilable;
   type Compile = Bundle | DefaultExportMissing | NotImportable;
   type Assemble = NameMismatch | ToolsetInvalid;

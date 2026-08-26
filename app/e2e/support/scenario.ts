@@ -1,4 +1,4 @@
-import type { $AgentDefinition, $PluginRef, $TriggerMode, Config } from '@collegium/config';
+import type { $AgentDefinition, $PluginName, $TriggerMode, Config } from '@collegium/config';
 
 type AgentSpec = Pick<$AgentDefinition, 'expertise' | 'systemPrompt'> & {
   contextBudgetTokens?: $AgentDefinition['contextBudgetTokens'];
@@ -27,8 +27,8 @@ type Scenario = {
   channels: readonly ChannelSpec[];
   /** §4.4; the fixture's window is short enough for every other test, so only debounce tests set this */
   debounce?: Config['app']['debounce'];
-  /** plugin refs written into config.json; relative paths resolve from the repository root, since the config itself lands in a temp dir */
-  plugins?: readonly $PluginRef[];
+  /** plugins written into config.json by name; the harness points PLUGINS_ROOT at the repository's own `plugins/` */
+  plugins?: readonly $PluginName[];
   /** the §7.4 framework-wide hourly ceiling; 250 turns is not drivable in a test, so scenarios lower it */
   turnCeilingPerHour?: number;
 };

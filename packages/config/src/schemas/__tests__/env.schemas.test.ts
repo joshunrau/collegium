@@ -9,6 +9,7 @@ const env: Omit<{ [K in keyof $Env]: string }, 'APP_PUBLIC_URL'> = {
   DATABASE_URL: 'file:///var/lib/collegium.db',
   MATTERMOST_TEAM: 'collegium',
   MATTERMOST_URL: 'http://mattermost:8065',
+  PLUGINS_ROOT: '/srv/plugins',
   WORKSPACE_ROOT: '/workspaces'
 };
 

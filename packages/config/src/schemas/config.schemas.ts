@@ -53,16 +53,13 @@ export const $ChannelDefinition = z.strictObject({
   )
 });
 
-export type $PluginRef = z.infer<typeof $PluginRef>;
-export const $PluginRef = z.strictObject({
-  name: z
-    .string()
-    .regex(TOOL_SEGMENT_PATTERN)
-    .describe(
-      "The plugin's identity: its namespace, its storage scope, and its skills' qualifier. Must equal the name the plugin's own toolset declares."
-    ),
-  path: z.string().min(1).describe("Path to the plugin's package root, resolved relative to config.json")
-});
+export type $PluginName = z.infer<typeof $PluginName>;
+export const $PluginName = z
+  .string()
+  .regex(TOOL_SEGMENT_PATTERN)
+  .describe(
+    "The plugin's identity, stated once: the directory holding it beneath the plugin root, and the namespace its tools, storage, and skills appear under. Must equal the name the plugin's own toolset declares."
+  );
 
 /**
  * One grant: a namespace covering every tool it holds (present and future), or a single tool by
@@ -292,12 +289,12 @@ export const $Config = z
       })
       .describe('Credentials for each model provider an agent may name; at least one is required'),
     plugins: z
-      .array($PluginRef)
+      .array($PluginName)
       .optional()
-      .refine((plugins) => !plugins || isUnique(plugins.map((plugin) => plugin.name)), {
-        message: 'plugin names must be unique'
-      })
-      .describe('Plugin packages to load at boot, each contributing one toolset under its own namespace (§3.14)')
+      .refine((plugins) => !plugins || isUnique(plugins), { message: 'plugin names must be unique' })
+      .describe(
+        'Plugins to load at boot, by name. Each is a directory of that name beneath the plugin root, contributing one toolset under its own namespace (§3.14)'
+      )
   })
   .refine((config) => config.models.deepseek ?? config.models.openrouter, {
     message: 'at least one model provider must be configured'

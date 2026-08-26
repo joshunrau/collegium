@@ -150,10 +150,7 @@ function buildCollegiumConfig({
         baseUrl: inference.baseUrl
       }
     },
-    plugins: scenario.plugins?.map((plugin) => ({
-      ...plugin,
-      path: path.isAbsolute(plugin.path) ? plugin.path : path.resolve(PROJECT_ROOT, '..', plugin.path)
-    }))
+    plugins: scenario.plugins ? [...scenario.plugins] : undefined
   };
 }
 
@@ -252,6 +249,7 @@ class CollegiumProcess {
           DATABASE_URL: this.databaseUrl,
           MATTERMOST_TEAM: this.mattermost.teamName,
           MATTERMOST_URL: this.mattermost.url,
+          PLUGINS_ROOT: path.resolve(PROJECT_ROOT, '..', 'plugins'),
           WORKSPACE_ROOT: this.workspaceRoot
         },
         stdio: ['pipe', 'pipe', 'pipe']

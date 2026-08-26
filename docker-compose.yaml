@@ -21,6 +21,7 @@ services:
       - MATTERMOST_ADMIN_USERNAME=${MATTERMOST_ADMIN_USERNAME:?}
       - MATTERMOST_TEAM=${MATTERMOST_TEAM:?}
       - MATTERMOST_URL=http://mattermost:8065
+      - PLUGINS_ROOT=/srv/plugins
       - WORKSPACE_ROOT=/workspaces
     image: ghcr.io/joshunrau/collegium:latest
     # the browser and the shell tool leave grandchildren behind, and PID 1 is the only reaper
@@ -30,6 +31,9 @@ services:
     stop_grace_period: 15s
     volumes:
       - ${CONFIG_PATH:?}:/app/config.json:ro
+      # beneath the app root deliberately: §6.1 denies every agent OS user traversal of it, so a
+      # plugin's source is no more reachable to an agent than the framework's own
+      - ${PLUGINS_ROOT:?}:/srv/plugins:ro
       - ./state/data:/data
       - ./state/home:/home
       - ./state/workspaces:/workspaces

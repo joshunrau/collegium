@@ -57,6 +57,12 @@ export const $Env = z
       .describe(
         'Where the app reaches Mattermost, over http or https. Not where you reach it — under Compose these differ.'
       ),
+    PLUGINS_ROOT: z
+      .string()
+      .min(1)
+      .describe(
+        'The directory holding one plugin per subdirectory, each named for the plugin it holds. Mounted read-only: a plugin is code the operator installs, and nothing the framework runs writes here.'
+      ),
     WORKSPACE_ROOT: z
       .string()
       .min(1)

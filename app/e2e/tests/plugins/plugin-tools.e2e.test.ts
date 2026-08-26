@@ -18,7 +18,7 @@ const SCENARIO = defineScenario({
     }
   ],
   channels: [{ name: 'main' }],
-  plugins: [{ name: 'bookmark', path: 'plugins/bookmark' }]
+  plugins: ['bookmark']
 });
 
 describe('Plugin capability', () => {

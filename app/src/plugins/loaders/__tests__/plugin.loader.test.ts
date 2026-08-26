@@ -16,13 +16,31 @@ import { PluginCompiler } from '../plugin.compiler.ts';
 import { PluginLoader } from '../plugin.loader.ts';
 import { PluginLocator } from '../plugin.locator.ts';
 
-/** only the directory matters: plugin paths resolve relative to where config.json sits */
-const configPath = path.resolve(import.meta.dirname, '../../../../..', 'config.json');
+const REPOSITORY_PLUGINS = path.resolve(import.meta.dirname, '../../../../..', 'plugins');
 
+let compilers: PluginCompiler[];
 let fixtureRoot: string;
 
+/** a loader rooted where the test needs it, since the root is read once at construction */
+async function buildLoader(pluginsRoot: string): Promise<PluginLoader> {
+  const envService = MockFactory.createMock(EnvService);
+  envService.get.mockReturnValue(pluginsRoot);
+  const moduleRef = await Test.createTestingModule({
+    providers: [
+      PluginAssembler,
+      PluginCompiler,
+      PluginLoader,
+      PluginLocator,
+      { provide: EnvService, useValue: envService },
+      { provide: PluginBundler, useClass: ESBuildBundler }
+    ]
+  }).compile();
+  compilers.push(moduleRef.get(PluginCompiler));
+  return moduleRef.get(PluginLoader);
+}
+
 /** a plugin package on disk, as an operator would mount one */
-function writeFixture(name: string, files: Readonly<{ [filename: string]: string }>): string {
+function writeFixture(name: string, files: Readonly<{ [filename: string]: string }>): void {
   const packageRoot = path.join(fixtureRoot, name);
   fs.mkdirSync(path.join(packageRoot, 'src'), { recursive: true });
   fs.writeFileSync(
@@ -32,49 +50,33 @@ function writeFixture(name: string, files: Readonly<{ [filename: string]: string
   for (const [filename, contents] of Object.entries(files)) {
     fs.writeFileSync(path.join(packageRoot, 'src', filename), contents);
   }
-  return packageRoot;
 }
 
 describe('PluginLoader', () => {
-  let pluginLoader: PluginLoader;
-  let pluginCompiler: PluginCompiler;
-
-  beforeEach(async () => {
+  beforeEach(() => {
+    compilers = [];
     fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'collegium-plugin-fixtures-'));
-    const envService = MockFactory.createMock(EnvService);
-    envService.get.mockReturnValue(configPath);
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        PluginAssembler,
-        PluginCompiler,
-        PluginLoader,
-        PluginLocator,
-        { provide: EnvService, useValue: envService },
-        { provide: PluginBundler, useClass: ESBuildBundler }
-      ]
-    }).compile();
-    pluginLoader = moduleRef.get(PluginLoader);
-    pluginCompiler = moduleRef.get(PluginCompiler);
   });
 
   afterEach(() => {
-    pluginCompiler.onApplicationShutdown();
+    for (const compiler of compilers) {
+      compiler.onApplicationShutdown();
+    }
     fs.rmSync(fixtureRoot, { force: true, recursive: true });
   });
 
-  it('loads the example plugin through its package.json entry', async () => {
-    const result = await pluginLoader.load({ name: 'bookmark', path: 'plugins/bookmark' });
+  it('loads the example plugin from the directory named for it', async () => {
+    const loader = await buildLoader(REPOSITORY_PLUGINS);
+    const result = await loader.load('bookmark');
     expect(result.success).toBe(true);
     const loaded = result.unwrap();
     expect(loaded.toolset.name).toBe('bookmark');
     expect(Object.keys(loaded.toolset.tools)).toStrictEqual(['list', 'save']);
-    expect(loaded.skillsDirectory).toBe(
-      path.resolve(import.meta.dirname, '../../../../..', 'plugins/bookmark/src/skills')
-    );
+    expect(loaded.skillsDirectory).toBe(path.join(REPOSITORY_PLUGINS, 'bookmark/src/skills'));
   });
 
   it('compiles a relative import and a node builtin', async () => {
-    const packageRoot = writeFixture('helped', {
+    writeFixture('helped', {
       'helper.ts': 'export const helped = (): string => "helped";',
       'index.ts': [
         "import { randomUUID } from 'node:crypto';",
@@ -92,19 +94,21 @@ describe('PluginLoader', () => {
         '});'
       ].join('\n')
     });
-    const result = await pluginLoader.load({ name: 'helped', path: packageRoot });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('helped');
     expect(result.success).toBe(true);
     const executed = await result.unwrap().toolset.tools.ping!.execute({}, {} as never);
     expect(executed.unwrap().text).toMatch(/^helped-[0-9a-f]{4}$/);
   });
 
   it('refuses an import the plugin contract does not permit', async () => {
-    const packageRoot = writeFixture('reaching', {
+    writeFixture('reaching', {
       'index.ts': ["import { z } from 'zod';", "import 'date-fns';", 'export default { name: "reaching", z };'].join(
         '\n'
       )
     });
-    const result = await pluginLoader.load({ name: 'reaching', path: packageRoot });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('reaching');
     expect(result.error?.kind).toBe('forbidden-import');
     const message = renderPluginLoadFailure(result.error!);
     expect(message).toContain('"zod"');
@@ -112,14 +116,23 @@ describe('PluginLoader', () => {
     expect(message).toContain('import { z } from "@collegium/sdk"');
   });
 
-  it('rejects a ref whose name does not match the toolset', async () => {
-    const result = await pluginLoader.load({ name: 'other', path: 'plugins/bookmark' });
+  it('rejects a directory whose toolset declares another name', async () => {
+    writeFixture('renamed', {
+      'index.ts': [
+        "import { defineToolset } from '@collegium/sdk';",
+        "export default defineToolset({ name: 'elsewhere', tools: {} });"
+      ].join('\n')
+    });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('renamed');
     expect(result.error?.kind).toBe('name-mismatch');
-    expect(renderPluginLoadFailure(result.error!)).toContain("declares the name 'bookmark'");
+    expect(renderPluginLoadFailure(result.error!)).toContain("declares the name 'elsewhere'");
   });
 
-  it('rejects a package root with no package.json', async () => {
-    const result = await pluginLoader.load({ name: 'bookmark', path: 'plugins/bookmark/src' });
-    expect(result.error?.kind).toBe('manifest-missing');
+  it('rejects a name nothing is mounted under', async () => {
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('absent');
+    expect(result.error?.kind).toBe('directory-missing');
+    expect(renderPluginLoadFailure(result.error!)).toContain('is the plugin mounted there?');
   });
 });

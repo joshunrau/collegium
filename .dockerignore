@@ -13,7 +13,6 @@
 !app/tsconfig.json
 !app/prisma.config.ts
 !app/prisma
-!app/scripts
 !app/src
 # the build generates this; a working tree's copy would be an input CI never has
 app/src/prisma/generated
@@ -22,6 +21,4 @@ app/src/prisma/generated
 !packages/*/src
 !packages/*/tsconfig.json
 !packages/*/tsconfig.build.json
-!plugins/*/package.json
-!plugins/*/src
-!plugins/*/tsconfig.json
+!packages/*/tsdown.config.ts

@@ -8,5 +8,7 @@ config.json
 data
 dist
 node_modules
+/plugins/*
+!/plugins/bookmark
 scratch
 state
