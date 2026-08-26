@@ -26,7 +26,7 @@ export const $Env = z
       .string()
       .min(1)
       .describe(
-        'The address the app binds to. Under Compose this is `0.0.0.0`, and the port is published on the host loopback.'
+        'The address the app binds to. Under Compose this is `0.0.0.0`, reachable on the Compose network alone: the port is not published to the host.'
       ),
     APP_PORT: $NumberLike
       .pipe(z.int().nonnegative().max(65_535))

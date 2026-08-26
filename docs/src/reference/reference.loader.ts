@@ -58,7 +58,7 @@ const REFERENCE_PAGES: readonly ReferencePage[] = [
       {
         heading: 'Compose only',
         intro:
-          '`.env` also sets `MATTERMOST_PORT` and `POSTGRES_PASSWORD`, which `docker-compose.yaml` reads and the app never sees; the `APP_PORT` and `CONFIG_PATH` there are the host-side values Compose maps into the container.'
+          '`.env` also sets `MATTERMOST_PORT` and `POSTGRES_PASSWORD`, which `docker-compose.yaml` reads and the app never sees; the `CONFIG_PATH` there is the host-side path Compose mounts into the container, and `APP_PORT` is the port the app binds inside the Compose network, published to nothing.'
       }
     ],
     title: 'Environment'

@@ -25,9 +25,6 @@ services:
     image: ghcr.io/joshunrau/collegium:latest
     # the browser and the shell tool leave grandchildren behind, and PID 1 is the only reaper
     init: true
-    ports:
-      # §6.4 — the decision, command, and trigger endpoints carry no authentication
-      - '127.0.0.1:${APP_PORT:?}:${APP_PORT:?}'
     pull_policy: missing
     restart: unless-stopped
     stop_grace_period: 15s
