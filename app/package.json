@@ -21,6 +21,7 @@
   "dependencies": {
     "@collegium/config": "workspace:*",
     "@collegium/core": "workspace:*",
+    "@collegium/sdk": "workspace:*",
     "@mattermost/client": "^11.8.0",
     "@nestjs/common": "^11.1.28",
     "@nestjs/core": "^11.1.28",

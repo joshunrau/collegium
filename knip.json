@@ -10,7 +10,7 @@
       "entry": ["src/main.ts!", "src/entrypoint.ts!", "src/provision.ts!"],
       "project": ["src/**/*.ts!"],
       "ignore": ["src/prisma/generated/**", "src/testing/**"],
-      "ignoreDependencies": ["@prisma/client", "prisma"]
+      "ignoreDependencies": ["@collegium/sdk", "@prisma/client", "prisma"]
     },
     "docs": {
       "entry": ["src/pages/**/*.{ts,astro}!", "src/reference/reference.loader.ts!"],

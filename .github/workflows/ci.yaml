@@ -67,7 +67,20 @@ jobs:
             assert.ok(existsSync('app/dist/main.js'), 'app/dist/main.js was not emitted');
             assert.ok(!existsSync('app/dist/testing'), 'test-only code reached dist');
             assert.ok(existsSync('packages/config/dist/config.schema.json'), 'config.schema.json was not emitted');
+            assert.ok(existsSync('packages/sdk/dist/index.js'), 'the sdk bundle was not emitted');
+            assert.ok(existsSync('packages/sdk/dist/index.d.ts'), 'the sdk declarations were not emitted');
           "
+
+      # the image is assembled from the pruned workspace, and the app depends on the SDK without
+      # importing it — an edge that reads as dead. Deleting it drops the SDK from the image, and
+      # every mounted plugin then has nothing to resolve its one permitted import to (§3.14).
+      - name: Verify the Pruned Workspace Carries the SDK
+        run: |
+          pnpm exec turbo prune @collegium/app --docker --out-dir "${RUNNER_TEMP}/prune"
+          if [ ! -f "${RUNNER_TEMP}/prune/full/packages/sdk/package.json" ]; then
+            echo "turbo prune dropped @collegium/sdk from the image" >&2
+            exit 1
+          fi
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15

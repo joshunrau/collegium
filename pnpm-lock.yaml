@@ -86,6 +86,9 @@ importers:
       '@collegium/core':
         specifier: workspace:*
         version: link:../packages/core
+      '@collegium/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
       '@mattermost/client':
         specifier: ^11.8.0
         version: 11.9.0(@mattermost/types@11.9.0(typescript@6.0.3))(typescript@6.0.3)
