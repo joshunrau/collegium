@@ -26,17 +26,11 @@ export type LoadedPlugin = {
   readonly toolset: $PluginToolset;
 };
 
-/**
- * Why a declared plugin did not load. Every variant is a startup failure naming the plugin (§3.14),
- * and rendering lives in one place, so a new variant cannot ship without its message.
- */
 export declare namespace PluginLoadFailure {
-  /** config names a plugin, and nothing is mounted there */
   type DirectoryMissing = {
     kind: 'directory-missing';
     packageRoot: string;
   };
-  /** mounted, but the account the app runs as cannot traverse or read it */
   type DirectoryUnreadable = {
     kind: 'directory-unreadable';
     packageRoot: string;
@@ -55,7 +49,6 @@ export declare namespace PluginLoadFailure {
     kind: 'manifest-invalid';
     manifestPath: string;
   };
-  /** a plugin may import one package, so a plugin may depend on one package */
   type DependencyForbidden = {
     kind: 'dependency-forbidden';
     names: readonly string[];
@@ -64,7 +57,6 @@ export declare namespace PluginLoadFailure {
     kind: 'sdk-dependency-missing';
     manifestPath: string;
   };
-  /** what the plugin was written against, and what the deployment actually carries */
   type SdkVersionUnsatisfied = {
     declared: string;
     kind: 'sdk-version-unsatisfied';
@@ -99,7 +91,6 @@ export declare namespace PluginLoadFailure {
     cause: unknown;
     kind: 'toolset-invalid';
   };
-  /** the plugin's own declaration and the name config loads it by are one identity, stated twice */
   type NameMismatch = {
     declared: string;
     expected: string;

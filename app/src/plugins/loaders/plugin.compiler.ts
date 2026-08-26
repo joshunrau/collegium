@@ -23,8 +23,7 @@ export class PluginCompiler implements OnApplicationShutdown {
     private readonly sdk: PluginSdk
   ) {}
 
-  /** the plugin's whole module graph, compiled and evaluated; its default export is what comes back */
-  async instantiate(source: PluginSource): Promise<Result<unknown, PluginLoadFailure.Compile>> {
+  async compileToDiskAndImport(source: PluginSource): Promise<Result<unknown, PluginLoadFailure.Compile>> {
     const bundled = await this.bundler.bundle({ entry: source.entry, sdkModuleUrl: this.sdk.moduleUrl });
     if (!bundled.success) {
       return Result.err(bundled.error);

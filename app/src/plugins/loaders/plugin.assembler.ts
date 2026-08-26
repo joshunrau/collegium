@@ -6,7 +6,6 @@ import type { LoadedPlugin, PluginLoadFailure, PluginSource } from '../plugins.t
 
 @Injectable()
 export class PluginAssembler {
-  /** the plugin perimeter (§7): an evaluated default export becomes a toolset here or not at all */
   async assemble(
     source: PluginSource,
     defaultExport: unknown

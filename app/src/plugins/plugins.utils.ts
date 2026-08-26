@@ -14,7 +14,6 @@ function renderForbiddenImports(imports: PluginLoadFailure.ForbiddenImport['impo
   return `a plugin may import only "${SDK_SPECIFIER}" and node: builtins; found ${listed}${remedy}`;
 }
 
-/** every load failure reads the same way, and a new variant cannot ship without its message */
 export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
   return match(failure)
     .with({ kind: 'default-export-missing' }, ({ entry }) => `'${entry}' is missing its required default export`)
@@ -54,7 +53,6 @@ export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
     .exhaustive();
 }
 
-/** the underlying error, where one exists, so a boot failure keeps the stack that explains it */
 export function pluginLoadFailureCause(failure: PluginLoadFailure): unknown {
   return 'cause' in failure ? failure.cause : undefined;
 }

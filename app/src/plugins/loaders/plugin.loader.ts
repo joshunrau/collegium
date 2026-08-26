@@ -21,10 +21,10 @@ export class PluginLoader {
     if (!source.success) {
       return source;
     }
-    const instantiated = await this.compiler.instantiate(source.value);
-    if (!instantiated.success) {
-      return instantiated;
+    const imported = await this.compiler.compileToDiskAndImport(source.value);
+    if (!imported.success) {
+      return imported;
     }
-    return this.assembler.assemble(source.value, instantiated.value);
+    return this.assembler.assemble(source.value, imported.value);
   }
 }

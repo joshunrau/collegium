@@ -25,7 +25,6 @@ export class PluginLocator {
     this.pluginsRoot = envService.get('PLUGINS_ROOT');
   }
 
-  /** the declared plugin as files on disk; nothing here reads the plugin's code or runs it */
   locate(name: $PluginName): Result<PluginSource, PluginLoadFailure.Locate> {
     const packageRoot = path.join(this.pluginsRoot, name);
     if (!fs.statSync(packageRoot, { throwIfNoEntry: false })?.isDirectory()) {
@@ -38,7 +37,16 @@ export class PluginLocator {
     } catch {
       return Result.err({ kind: 'directory-unreadable', packageRoot });
     }
-    const entry = this.resolveEntry(packageRoot);
+    const manifestPath = path.join(packageRoot, 'package.json');
+    const manifest = this.readManifest(manifestPath);
+    if (!manifest.success) {
+      return Result.err(manifest.error);
+    }
+    const dependencies = this.verifyDependencies(manifest.value.dependencies, manifestPath);
+    if (!dependencies.success) {
+      return Result.err(dependencies.error);
+    }
+    const entry = this.resolveEntry(packageRoot, manifest.value.exports);
     if (!entry.success) {
       return Result.err(entry.error);
     }
@@ -50,8 +58,7 @@ export class PluginLocator {
     });
   }
 
-  private resolveEntry(packageRoot: string): Result<string, PluginLoadFailure.Locate> {
-    const manifestPath = path.join(packageRoot, 'package.json');
+  private readManifest(manifestPath: string): Result<$PluginPackageManifest, PluginLoadFailure.Locate> {
     if (!fs.existsSync(manifestPath)) {
       return Result.err({ kind: 'manifest-missing', manifestPath });
     }
@@ -65,11 +72,13 @@ export class PluginLocator {
     if (!parsed.success) {
       return Result.err({ cause: parsed.error, kind: 'manifest-invalid', manifestPath });
     }
-    const dependencies = this.verifyDependencies(parsed.data.dependencies, manifestPath);
-    if (!dependencies.success) {
-      return Result.err(dependencies.error);
-    }
-    const declaredEntry = parsed.data.exports;
+    return Result.ok(parsed.data);
+  }
+
+  private resolveEntry(
+    packageRoot: string,
+    declaredEntry: $PluginPackageManifest['exports']
+  ): Result<string, PluginLoadFailure.Locate> {
     const entry = path.resolve(packageRoot, typeof declaredEntry === 'string' ? declaredEntry : declaredEntry['.']);
     if (!fs.statSync(entry, { throwIfNoEntry: false })?.isFile()) {
       return Result.err({ entry, kind: 'entry-missing' });

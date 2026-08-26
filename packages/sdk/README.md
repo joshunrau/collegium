@@ -55,6 +55,7 @@ compiler refuses any import but this one.
 
 **Versioning.** This package is released with Collegium itself and carries the same version, so the
 range you declare names the deployment you are writing for. Boot refuses a plugin whose declared
-range the deployment's version does not satisfy. Until v1, breaking changes land in minor releases.
+range the deployment's version does not satisfy. Before v1 any release may break a plugin, so declare
+the version you tested against and re-declare it when you update.
 
 Full guide: [collegium.sh/docs/guides/write-a-plugin](https://collegium.sh/docs/guides/write-a-plugin)

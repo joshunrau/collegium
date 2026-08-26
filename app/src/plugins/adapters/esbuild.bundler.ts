@@ -34,7 +34,6 @@ export class ESBuildBundler extends PluginBundler {
             name: 'collegium-plugin-imports',
             setup: (build) => {
               build.onResolve({ filter: /.*/ }, (args) => {
-                // relative and absolute paths are the plugin's own files, resolved as usual
                 if (args.kind === 'entry-point' || args.path.startsWith('.') || path.isAbsolute(args.path)) {
                   return null;
                 }
