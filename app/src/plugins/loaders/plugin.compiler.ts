@@ -8,7 +8,7 @@ import { Injectable } from '@nestjs/common';
 import type { OnApplicationShutdown } from '@nestjs/common';
 
 import { PluginBundler } from '../plugins.bundler.ts';
-import { SDK_SPECIFIER } from '../plugins.constants.ts';
+import { PluginSdk } from '../plugins.sdk.ts';
 
 import type { PluginLoadFailure, PluginSource } from '../plugins.types.ts';
 
@@ -18,18 +18,14 @@ const BUNDLE_DIRECTORY_PREFIX = 'collegium-plugins-';
 export class PluginCompiler implements OnApplicationShutdown {
   private bundleDirectory: string | undefined;
 
-  /**
-   * Where the framework's own SDK sits. `@collegium/app` depends on the package without importing
-   * it: the edge is what carries the SDK through `turbo prune` into the image, and what makes this
-   * resolve to the same file in a checkout and in the container.
-   */
-  private readonly sdkModuleUrl = import.meta.resolve(SDK_SPECIFIER);
-
-  constructor(private readonly bundler: PluginBundler) {}
+  constructor(
+    private readonly bundler: PluginBundler,
+    private readonly sdk: PluginSdk
+  ) {}
 
   /** the plugin's whole module graph, compiled and evaluated; its default export is what comes back */
   async instantiate(source: PluginSource): Promise<Result<unknown, PluginLoadFailure.Compile>> {
-    const bundled = await this.bundler.bundle({ entry: source.entry, sdkModuleUrl: this.sdkModuleUrl });
+    const bundled = await this.bundler.bundle({ entry: source.entry, sdkModuleUrl: this.sdk.moduleUrl });
     if (!bundled.success) {
       return Result.err(bundled.error);
     }

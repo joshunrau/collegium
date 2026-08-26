@@ -55,6 +55,21 @@ export declare namespace PluginLoadFailure {
     kind: 'manifest-invalid';
     manifestPath: string;
   };
+  /** a plugin may import one package, so a plugin may depend on one package */
+  type DependencyForbidden = {
+    kind: 'dependency-forbidden';
+    names: readonly string[];
+  };
+  type SdkDependencyMissing = {
+    kind: 'sdk-dependency-missing';
+    manifestPath: string;
+  };
+  /** what the plugin was written against, and what the deployment actually carries */
+  type SdkVersionUnsatisfied = {
+    declared: string;
+    kind: 'sdk-version-unsatisfied';
+    version: string;
+  };
   type EntryMissing = {
     entry: string;
     kind: 'entry-missing';
@@ -91,7 +106,15 @@ export declare namespace PluginLoadFailure {
     kind: 'name-mismatch';
   };
   type Locate =
-    DirectoryMissing | DirectoryUnreadable | EntryMissing | ManifestInvalid | ManifestMissing | ManifestUnreadable;
+    | DependencyForbidden
+    | DirectoryMissing
+    | DirectoryUnreadable
+    | EntryMissing
+    | ManifestInvalid
+    | ManifestMissing
+    | ManifestUnreadable
+    | SdkDependencyMissing
+    | SdkVersionUnsatisfied;
   type Bundle = ForbiddenImport | NotCompilable;
   type Compile = Bundle | DefaultExportMissing | NotImportable;
   type Assemble = NameMismatch | ToolsetInvalid;

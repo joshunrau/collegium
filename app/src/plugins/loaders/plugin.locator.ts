@@ -4,11 +4,13 @@ import * as path from 'node:path';
 import type { $PluginName } from '@collegium/config';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
+import { satisfies } from 'semver';
 
 import { EnvService } from '@/config/env/env.service.ts';
 
-import { SKILLS_DIRECTORY } from '../plugins.constants.ts';
+import { SDK_SPECIFIER, SKILLS_DIRECTORY } from '../plugins.constants.ts';
 import { $PluginPackageManifest } from '../plugins.schemas.ts';
+import { PluginSdk } from '../plugins.sdk.ts';
 
 import type { PluginLoadFailure, PluginSource } from '../plugins.types.ts';
 
@@ -16,7 +18,10 @@ import type { PluginLoadFailure, PluginSource } from '../plugins.types.ts';
 export class PluginLocator {
   private readonly pluginsRoot: string;
 
-  constructor(envService: EnvService) {
+  constructor(
+    envService: EnvService,
+    private readonly sdk: PluginSdk
+  ) {
     this.pluginsRoot = envService.get('PLUGINS_ROOT');
   }
 
@@ -60,11 +65,42 @@ export class PluginLocator {
     if (!parsed.success) {
       return Result.err({ cause: parsed.error, kind: 'manifest-invalid', manifestPath });
     }
+    const dependencies = this.verifyDependencies(parsed.data.dependencies, manifestPath);
+    if (!dependencies.success) {
+      return Result.err(dependencies.error);
+    }
     const declaredEntry = parsed.data.exports;
     const entry = path.resolve(packageRoot, typeof declaredEntry === 'string' ? declaredEntry : declaredEntry['.']);
     if (!fs.statSync(entry, { throwIfNoEntry: false })?.isFile()) {
       return Result.err({ entry, kind: 'entry-missing' });
     }
     return Result.ok(entry);
+  }
+
+  /**
+   * A plugin may import one package, so a plugin may depend on one package — checked at the manifest
+   * rather than left to the compiler, so the operator reads which dependency is the problem instead
+   * of a refused import from somewhere inside a bundle.
+   */
+  private verifyDependencies(
+    dependencies: Readonly<{ [name: string]: string }>,
+    manifestPath: string
+  ): Result<void, PluginLoadFailure.Locate> {
+    const forbidden = Object.keys(dependencies).filter((name) => name !== SDK_SPECIFIER);
+    if (forbidden.length > 0) {
+      return Result.err({ kind: 'dependency-forbidden', names: forbidden });
+    }
+    const declared = dependencies[SDK_SPECIFIER];
+    if (declared === undefined) {
+      return Result.err({ kind: 'sdk-dependency-missing', manifestPath });
+    }
+    // a workspace protocol resolves to this very package, so there is no version to disagree with
+    if (declared.startsWith('workspace:')) {
+      return Result.ok();
+    }
+    if (!satisfies(this.sdk.version, declared)) {
+      return Result.err({ declared, kind: 'sdk-version-unsatisfied', version: this.sdk.version });
+    }
+    return Result.ok();
   }
 }

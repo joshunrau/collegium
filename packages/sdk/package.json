@@ -21,7 +21,8 @@
       "types": "./src/index.ts",
       "source": "./src/index.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
@@ -47,7 +48,8 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
-      }
+      },
+      "./package.json": "./package.json"
     }
   }
 }

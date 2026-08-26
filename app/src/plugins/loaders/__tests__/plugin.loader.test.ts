@@ -10,6 +10,7 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 
 import { ESBuildBundler } from '../../adapters/esbuild.bundler.ts';
 import { PluginBundler } from '../../plugins.bundler.ts';
+import { PluginSdk } from '../../plugins.sdk.ts';
 import { renderPluginLoadFailure } from '../../plugins.utils.ts';
 import { PluginAssembler } from '../plugin.assembler.ts';
 import { PluginCompiler } from '../plugin.compiler.ts';
@@ -17,6 +18,10 @@ import { PluginLoader } from '../plugin.loader.ts';
 import { PluginLocator } from '../plugin.locator.ts';
 
 const REPOSITORY_PLUGINS = path.resolve(import.meta.dirname, '../../../../..', 'plugins');
+
+/** the version a fixture is written against; the real one belongs to the deployment, not the test */
+const SDK_VERSION = '1.2.3';
+const SDK = { moduleUrl: import.meta.resolve('@collegium/sdk'), version: SDK_VERSION };
 
 let compilers: PluginCompiler[];
 let fixtureRoot: string;
@@ -32,7 +37,8 @@ async function buildLoader(pluginsRoot: string): Promise<PluginLoader> {
       PluginLoader,
       PluginLocator,
       { provide: EnvService, useValue: envService },
-      { provide: PluginBundler, useClass: ESBuildBundler }
+      { provide: PluginBundler, useClass: ESBuildBundler },
+      { provide: PluginSdk, useValue: SDK }
     ]
   }).compile();
   compilers.push(moduleRef.get(PluginCompiler));
@@ -40,12 +46,16 @@ async function buildLoader(pluginsRoot: string): Promise<PluginLoader> {
 }
 
 /** a plugin package on disk, as an operator would mount one */
-function writeFixture(name: string, files: Readonly<{ [filename: string]: string }>): void {
+function writeFixture(
+  name: string,
+  files: Readonly<{ [filename: string]: string }>,
+  dependencies: Readonly<{ [name: string]: string }> = { '@collegium/sdk': `^${SDK_VERSION}` }
+): void {
   const packageRoot = path.join(fixtureRoot, name);
   fs.mkdirSync(path.join(packageRoot, 'src'), { recursive: true });
   fs.writeFileSync(
     path.join(packageRoot, 'package.json'),
-    JSON.stringify({ exports: './src/index.ts', name, type: 'module', version: '0.0.0' })
+    JSON.stringify({ dependencies, exports: './src/index.ts', name, type: 'module', version: '0.0.0' })
   );
   for (const [filename, contents] of Object.entries(files)) {
     fs.writeFileSync(path.join(packageRoot, 'src', filename), contents);
@@ -127,6 +137,22 @@ describe('PluginLoader', () => {
     const result = await loader.load('renamed');
     expect(result.error?.kind).toBe('name-mismatch');
     expect(renderPluginLoadFailure(result.error!)).toContain("declares the name 'elsewhere'");
+  });
+
+  it('rejects a plugin depending on anything but the sdk', async () => {
+    writeFixture('vendored', { 'index.ts': 'export default {};' }, { '@collegium/sdk': '*', 'date-fns': '^4.0.0' });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('vendored');
+    expect(result.error?.kind).toBe('dependency-forbidden');
+    expect(renderPluginLoadFailure(result.error!)).toContain('"date-fns"');
+  });
+
+  it('rejects a plugin written against an sdk this deployment does not carry', async () => {
+    writeFixture('ahead', { 'index.ts': 'export default {};' }, { '@collegium/sdk': '^2.0.0' });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('ahead');
+    expect(result.error?.kind).toBe('sdk-version-unsatisfied');
+    expect(renderPluginLoadFailure(result.error!)).toContain(`carries ${SDK_VERSION}`);
   });
 
   it('rejects a name nothing is mounted under', async () => {

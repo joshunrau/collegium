@@ -18,6 +18,11 @@ function renderForbiddenImports(imports: PluginLoadFailure.ForbiddenImport['impo
 export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
   return match(failure)
     .with({ kind: 'default-export-missing' }, ({ entry }) => `'${entry}' is missing its required default export`)
+    .with(
+      { kind: 'dependency-forbidden' },
+      ({ names }) =>
+        `its package.json depends on ${names.map((name) => `"${name}"`).join(', ')}; a plugin may depend on "${SDK_SPECIFIER}" alone`
+    )
     .with({ kind: 'directory-missing' }, ({ packageRoot }) => {
       return `no directory at ${packageRoot} — is the plugin mounted there?`;
     })
@@ -34,6 +39,15 @@ export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
     .with({ kind: 'name-mismatch' }, ({ declared, expected }) => {
       return `it declares the name '${declared}', but config loads it as '${expected}'`;
     })
+    .with(
+      { kind: 'sdk-dependency-missing' },
+      ({ manifestPath }) => `${manifestPath} declares no dependency on "${SDK_SPECIFIER}"`
+    )
+    .with(
+      { kind: 'sdk-version-unsatisfied' },
+      ({ declared, version }) =>
+        `it was written against "${SDK_SPECIFIER}" ${declared}, and this deployment carries ${version}`
+    )
     .with({ kind: 'not-compilable' }, ({ messages }) => `it did not compile:\n  ${messages.join('\n  ')}`)
     .with({ kind: 'not-importable' }, () => 'the compiled entry could not be evaluated')
     .with({ kind: 'toolset-invalid' }, () => 'its default export is not a toolset the framework accepts')
