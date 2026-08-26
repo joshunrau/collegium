@@ -2,13 +2,23 @@ import { Module } from '@nestjs/common';
 
 import { ConfigService } from '@/config/config.service.ts';
 
+import { ESBuildBundler } from './adapters/esbuild.bundler.ts';
+import { PluginAssembler } from './loaders/plugin.assembler.ts';
+import { PluginCompiler } from './loaders/plugin.compiler.ts';
 import { PluginLoader } from './loaders/plugin.loader.ts';
+import { PluginLocator } from './loaders/plugin.locator.ts';
+import { PluginBundler } from './plugins.bundler.ts';
 import { PluginsRegistry } from './plugins.registry.ts';
+import { pluginLoadFailureCause, renderPluginLoadFailure } from './plugins.utils.ts';
 
 @Module({
   exports: [PluginsRegistry],
   providers: [
+    PluginAssembler,
+    PluginCompiler,
     PluginLoader,
+    PluginLocator,
+    { provide: PluginBundler, useClass: ESBuildBundler },
     {
       inject: [ConfigService, PluginLoader],
       provide: PluginsRegistry,
@@ -19,9 +29,13 @@ import { PluginsRegistry } from './plugins.registry.ts';
         );
 
         const failures = loaded.flatMap(({ ref, result }) => {
-          return result.success
-            ? []
-            : [new Error(`plugin "${ref.name}": ${result.error.message}`, { cause: result.error.cause })];
+          if (result.success) {
+            return [];
+          }
+          const error = new Error(`plugin "${ref.name}": ${renderPluginLoadFailure(result.error)}`, {
+            cause: pluginLoadFailureCause(result.error)
+          });
+          return [error];
         });
 
         if (failures.length > 0) {

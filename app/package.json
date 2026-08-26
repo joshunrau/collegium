@@ -32,6 +32,7 @@
     "camoufox-js": "^0.11.5",
     "colorette": "^2.0.20",
     "es-toolkit": "catalog:",
+    "esbuild": "^0.28.2",
     "imapflow": "^1.6.5",
     "mailparser": "^3.9.14",
     "node-html-markdown": "^2.0.0",

@@ -238,7 +238,10 @@ class CollegiumProcess {
       await fs.promises.writeFile(this.configPath, JSON.stringify(this.config), { mode: 0o600 });
       await this.migrate();
       this.seedCredentials();
-      this.child = spawn(process.execPath, ['src/main.ts'], {
+      // the emitted JavaScript, not the source: running `src/main.ts` registers a TypeScript loader
+      // (main.ts) that the shipped image has no equivalent of, and a suite that only ever exercises
+      // the loader-registered path cannot see a compiled build break
+      this.child = spawn(process.execPath, ['dist/main.js'], {
         cwd: PROJECT_ROOT,
         env: {
           ...process.env,
