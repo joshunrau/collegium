@@ -12,11 +12,13 @@ import type { Config } from '@collegium/config';
 import { withTimeout } from '@collegium/core/utils';
 
 import { E2E_RESOURCE_PREFIX, PROJECT_ROOT } from './constants.ts';
+import { REPOSITORY_PLUGINS_ROOT } from './env.ts';
 import { InferenceStub, textResponse } from './inference.ts';
 import { exec } from './utils/exec.utils.ts';
 import { PENDING, ProbeAbortError, waitFor } from './utils/wait.utils.ts';
 
 import type { Channel } from './channel.ts';
+import type { HarnessEnv } from './env.ts';
 import type { Scenario } from './scenario.ts';
 import type { AgentBot, WorkspaceChannel } from './workspace.ts';
 
@@ -238,20 +240,20 @@ class CollegiumProcess {
       // the emitted JavaScript, not the source: running `src/main.ts` registers a TypeScript loader
       // (main.ts) that the shipped image has no equivalent of, and a suite that only ever exercises
       // the loader-registered path cannot see a compiled build break
+      const env: HarnessEnv = {
+        APP_HOST: COLLEGIUM_FIXTURE.bindHost,
+        APP_PORT: String(this.port),
+        APP_PUBLIC_URL: this.publicUrl,
+        CONFIG_PATH: this.configPath,
+        DATABASE_URL: this.databaseUrl,
+        MATTERMOST_TEAM: this.mattermost.teamName,
+        MATTERMOST_URL: this.mattermost.url,
+        PLUGINS_ROOT: REPOSITORY_PLUGINS_ROOT,
+        WORKSPACE_ROOT: this.workspaceRoot
+      };
       this.child = spawn(process.execPath, ['dist/main.js'], {
         cwd: PROJECT_ROOT,
-        env: {
-          ...process.env,
-          APP_HOST: COLLEGIUM_FIXTURE.bindHost,
-          APP_PORT: String(this.port),
-          APP_PUBLIC_URL: this.publicUrl,
-          CONFIG_PATH: this.configPath,
-          DATABASE_URL: this.databaseUrl,
-          MATTERMOST_TEAM: this.mattermost.teamName,
-          MATTERMOST_URL: this.mattermost.url,
-          PLUGINS_ROOT: path.resolve(PROJECT_ROOT, '..', 'plugins'),
-          WORKSPACE_ROOT: this.workspaceRoot
-        },
+        env: { ...process.env, ...env },
         stdio: ['pipe', 'pipe', 'pipe']
       });
       this.child.stdout.setEncoding('utf8').on('data', (chunk: string) => {

@@ -13,8 +13,11 @@ import { ProvisionModule } from '@/provision.module.ts';
 import { ProvisioningService } from '@/provisioning/provisioning.service.ts';
 
 import { E2E_RESOURCE_PREFIX } from './constants.ts';
+import { REPOSITORY_PLUGINS_ROOT } from './env.ts';
 import { exec } from './utils/exec.utils.ts';
 import { createWorkspaceId } from './utils/naming.utils.ts';
+
+import type { HarnessEnv } from './env.ts';
 
 /** creating accounts and minting their tokens is several round trips per bot, once per run */
 const PROVISIONING_TIMEOUT = 120_000;
@@ -81,15 +84,18 @@ export function setupProvisioning(options: { runs: number }): Provisioning {
     );
     await exec('npx', ['prisma', 'migrate', 'deploy'], { env: { ...process.env, DATABASE_URL: databaseUrl } });
 
-    Object.assign(process.env, {
+    // provisioning loads no plugin, but it parses the same environment the app does
+    const env: Omit<HarnessEnv, 'APP_PUBLIC_URL'> = {
       APP_HOST: '127.0.0.1',
       APP_PORT: '3000',
       CONFIG_PATH: configPath,
       DATABASE_URL: databaseUrl,
       MATTERMOST_TEAM: cluster.teamName,
       MATTERMOST_URL: cluster.url,
+      PLUGINS_ROOT: REPOSITORY_PLUGINS_ROOT,
       WORKSPACE_ROOT: path.join(tmpDir, 'workspaces')
-    });
+    };
+    Object.assign(process.env, env);
 
     for (let attempt = 0; attempt < options.runs; attempt++) {
       const context = await NestFactory.createApplicationContext(ProvisionModule, { logger: false });
