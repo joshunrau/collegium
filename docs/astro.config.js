@@ -67,8 +67,10 @@ export default defineConfig({
   site: 'https://collegium.sh',
   vite: {
     plugins: [tailwindcss()],
-    // the workspace packages resolve to their sources, as they do under vitest, so the reference
-    // pages and the served schema derive from @collegium/config without a prior build of it
+    // only astro's own vite environment honours these, so `astro dev` syncs content straight from
+    // the workspace sources; every build environment falls back to astro's defaults and resolves
+    // @collegium/config from its dist, which is why docs is built through turbo rather than by
+    // calling `astro build` directly
     resolve: {
       conditions: ['source', 'module', 'browser', 'development|production']
     },

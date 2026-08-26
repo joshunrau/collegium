@@ -15,7 +15,8 @@
     "db:reset:dev": "NODE_ENV=development prisma migrate reset",
     "format": "prettier --write src",
     "lint": "tsc && eslint --fix .",
-    "postinstall": "CAMOUFOX_PATH=$(camoufox-js path); [ -f \"$CAMOUFOX_PATH/version.json\" ] || camoufox-js fetch"
+    "postinstall": "CAMOUFOX_PATH=$(camoufox-js path); [ -f \"$CAMOUFOX_PATH/version.json\" ] || camoufox-js fetch",
+    "test:e2e": "vitest -c ../vitest.config.js --project e2e"
   },
   "dependencies": {
     "@collegium/config": "workspace:*",
@@ -42,6 +43,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@collegium/plugin-bookmark": "workspace:*",
     "@mattermost/types": "^11.8.0",
     "@nestjs/testing": "^11.1.28",
     "@swc-node/register": "^1.11.1",
