@@ -1,9 +1,21 @@
 {
   "name": "@collegium/sdk",
   "type": "module",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Write a Collegium plugin: declare a toolset with its tools, settings, storage, and skills.",
   "license": "AGPL-3.0-only",
+  "homepage": "https://collegium.sh",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joshunrau/collegium.git",
+    "directory": "packages/sdk"
+  },
+  "keywords": [
+    "collegium",
+    "plugin",
+    "toolset",
+    "agent"
+  ],
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -11,15 +23,31 @@
       "default": "./dist/index.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": "24.x"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsdown",
     "lint": "tsc && eslint --fix ."
   },
   "dependencies": {
-    "@collegium/core": "workspace:*",
+    "type-fest": "catalog:",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@collegium/core": "workspace:*",
+    "tsdown": "^0.22.14"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
   }
 }

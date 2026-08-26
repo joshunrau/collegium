@@ -3,7 +3,6 @@ import * as path from 'node:path';
 
 import type { $PluginRef } from '@collegium/config';
 import { $PluginToolset } from '@collegium/core/plugins';
-import { loadSkillLibrary } from '@collegium/core/skills';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
@@ -63,24 +62,8 @@ export class PluginLoader {
       });
     }
 
-    const skills = this.loadSkills(path.dirname(entry.value), toolset.skills);
-    if (!skills.success) {
-      return Result.err(skills.error);
-    }
-
-    return Result.ok({ skills: skills.value, toolset });
-  }
-
-  /** skill documents are assets of the module, so they resolve beside the entry, not the package root */
-  private loadSkills(entryDir: string, names: readonly string[]): Result<LoadedPlugin['skills'], PluginLoadError> {
-    if (names.length === 0) {
-      return Result.ok({});
-    }
-    try {
-      return Result.ok(loadSkillLibrary(path.join(entryDir, SKILLS_DIRECTORY), names));
-    } catch (error) {
-      return Result.err({ cause: error, message: 'failed to load a declared skill document' });
-    }
+    // skill documents are assets of the module, so they resolve beside the entry, not the package root
+    return Result.ok({ skillsDirectory: path.join(path.dirname(entry.value), SKILLS_DIRECTORY), toolset });
   }
 
   private resolveEntry(packageRoot: string): Result<string, PluginLoadError> {

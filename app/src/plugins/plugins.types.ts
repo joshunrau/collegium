@@ -1,8 +1,13 @@
 import type { $PluginToolset } from '@collegium/core/plugins';
-import type { Skill } from '@collegium/core/skills';
+
+/** one plugin's declared skill documents: where they sit, and the namespace qualifying them (§9) */
+export type PluginSkillSource = {
+  readonly directory: string;
+  readonly names: readonly string[];
+  readonly namespace: string;
+};
 
 export type LoadedPlugin = {
-  /** keyed by bare skill name; qualified as `<namespace>::<skill>` at registration (§9) */
-  readonly skills: Readonly<{ [key: string]: Skill }>;
+  readonly skillsDirectory: string;
   readonly toolset: $PluginToolset;
 };

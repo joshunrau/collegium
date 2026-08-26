@@ -29,7 +29,9 @@ describe('PluginLoader', () => {
     const loaded = result.unwrap();
     expect(loaded.toolset.name).toBe('bookmark');
     expect(Object.keys(loaded.toolset.tools)).toStrictEqual(['list', 'save']);
-    expect(Object.keys(loaded.skills)).toStrictEqual(['saving-bookmarks']);
+    expect(loaded.skillsDirectory).toBe(
+      path.resolve(import.meta.dirname, '../../../../..', 'plugins/bookmark/src/skills')
+    );
   });
 
   it('rejects a ref whose name does not match the toolset', async () => {

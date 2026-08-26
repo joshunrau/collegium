@@ -1,11 +1,6 @@
 import * as path from 'node:path';
 
-import {
-  BUILTIN_CORE_SKILL_NAMES,
-  BUILTIN_SKILL_NAMES,
-  loadSkillLibrary,
-  renderQualifiedSkillName
-} from '@collegium/core/skills';
+import { BUILTIN_CORE_SKILL_NAMES, BUILTIN_SKILL_NAMES, renderQualifiedSkillName } from '@collegium/core/skills';
 import type { Skill } from '@collegium/core/skills';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
@@ -14,6 +9,8 @@ import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
 import { FRAMEWORK_TOOLSETS } from '@/tools/tools.toolsets.ts';
+
+import { loadPluginSkillLibrary, loadSkillLibrary } from './skills.utils.ts';
 
 @Injectable()
 export class SkillsService {
@@ -33,7 +30,12 @@ export class SkillsService {
         ([name, skill]) => [renderQualifiedSkillName(toolset.name, name), skill] as const
       );
     });
-    this.skills = new Map([...Object.entries(frameworkSkills), ...toolsetSkills, ...pluginsRegistry.skills]);
+    const pluginSkills = pluginsRegistry.skillSources.flatMap((source) =>
+      Object.entries(loadPluginSkillLibrary(source)).map(
+        ([name, skill]) => [renderQualifiedSkillName(source.namespace, name), skill] as const
+      )
+    );
+    this.skills = new Map([...Object.entries(frameworkSkills), ...toolsetSkills, ...pluginSkills]);
     this.verifyGrants(agentRegistry.list());
   }
 

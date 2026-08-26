@@ -1,14 +1,12 @@
-import { renderQualifiedSkillName } from '@collegium/core/skills';
-import type { Skill } from '@collegium/core/skills';
 import type { AnyToolset } from '@collegium/core/toolsets';
 
 import { FRAMEWORK_TOOLSETS } from '@/tools/tools.toolsets.ts';
 
-import type { LoadedPlugin } from './plugins.types.ts';
+import type { LoadedPlugin, PluginSkillSource } from './plugins.types.ts';
 
 export class PluginsRegistry {
-  /** keyed by qualified `<namespace>::<skill>` name (§9) */
-  readonly skills: ReadonlyMap<string, Skill>;
+  /** what the skills module reads at boot; the documents themselves are never this module's (§9) */
+  readonly skillSources: readonly PluginSkillSource[];
   readonly toolsets: readonly AnyToolset[];
 
   constructor(plugins: readonly LoadedPlugin[]) {
@@ -19,12 +17,12 @@ export class PluginsRegistry {
       }
     }
     this.toolsets = plugins.map((plugin) => plugin.toolset);
-    this.skills = new Map(
-      plugins.flatMap((plugin) =>
-        Object.entries(plugin.skills).map(
-          ([name, skill]) => [renderQualifiedSkillName(plugin.toolset.name, name), skill] as const
-        )
-      )
-    );
+    this.skillSources = plugins
+      .filter((plugin) => plugin.toolset.skills.length > 0)
+      .map((plugin) => ({
+        directory: plugin.skillsDirectory,
+        names: plugin.toolset.skills,
+        namespace: plugin.toolset.name
+      }));
   }
 }

@@ -8,7 +8,7 @@ import type { LoadedPlugin } from '../plugins.types.ts';
 
 function buildLoadedPlugin(name = 'bookmark'): LoadedPlugin {
   return {
-    skills: { 'saving-bookmarks': { body: 'The body.', description: 'How to bookmark.', title: 'Saving bookmarks' } },
+    skillsDirectory: '/srv/plugins/bookmark/src/skills',
     toolset: {
       name,
       skills: ['saving-bookmarks'],
@@ -29,9 +29,11 @@ describe('PluginsRegistry', () => {
     expect(registry.toolsets.map((toolset) => toolset.name)).toStrictEqual(['bookmark']);
   });
 
-  it('exposes plugin skills under their qualified names (§9)', () => {
+  it('reports where a plugin keeps its skill documents, under its namespace (§9)', () => {
     const registry = new PluginsRegistry([buildLoadedPlugin()]);
-    expect(registry.skills.get('bookmark::saving-bookmarks')?.title).toBe('Saving bookmarks');
+    expect(registry.skillSources).toStrictEqual([
+      { directory: '/srv/plugins/bookmark/src/skills', names: ['saving-bookmarks'], namespace: 'bookmark' }
+    ]);
   });
 
   it('refuses a plugin claiming a framework namespace (§1)', () => {

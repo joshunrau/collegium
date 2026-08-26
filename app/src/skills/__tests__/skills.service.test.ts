@@ -1,6 +1,10 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import { BUILTIN_SKILL_NAMES } from '@collegium/core/skills';
 import { Test } from '@nestjs/testing';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
@@ -10,12 +14,26 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 
 import { SkillsService } from '../skills.service.ts';
 
-const pluginSkill = { body: 'The body.', description: 'How to bookmark.', title: 'Saving bookmarks' };
+const PLUGIN_SKILL = ['---', 'description: How to bookmark.', 'title: Saving bookmarks', '---', 'The body.'];
+
+let skillsDirectory: string;
+
+beforeEach(() => {
+  skillsDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'collegium-plugin-skills-'));
+  fs.writeFileSync(path.join(skillsDirectory, 'saving-bookmarks.md'), PLUGIN_SKILL.join('\n'));
+});
+
+afterEach(() => {
+  fs.rmSync(skillsDirectory, { force: true, recursive: true });
+});
 
 async function buildService(profiles: AgentProfile[]): Promise<SkillsService> {
   const agentRegistry = MockFactory.createMock(AgentRegistry);
   agentRegistry.list.mockReturnValue(profiles);
-  const pluginsRegistry = { skills: new Map([['bookmark::saving-bookmarks', pluginSkill]]), toolsets: [] };
+  const pluginsRegistry = {
+    skillSources: [{ directory: skillsDirectory, names: ['saving-bookmarks'], namespace: 'bookmark' }],
+    toolsets: []
+  };
   const moduleRef = await Test.createTestingModule({
     providers: [
       SkillsService,

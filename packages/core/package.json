@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
+  "sideEffects": false,
   "exports": {
     "./approvals": {
       "types": "./src/approvals.ts",
@@ -54,7 +55,6 @@
     "extract-stack": "^3.0.0",
     "serialize-error": "^13.0.1",
     "type-fest": "catalog:",
-    "yaml": "^2.9.0",
     "zod": "catalog:"
   }
 }

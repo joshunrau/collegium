@@ -40,6 +40,7 @@
     "reflect-metadata": "^0.2.2",
     "serialize-error": "^13.0.1",
     "ts-pattern": "^5.9.0",
+    "yaml": "^2.9.0",
     "zod": "catalog:"
   },
   "devDependencies": {
