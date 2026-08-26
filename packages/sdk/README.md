@@ -53,7 +53,8 @@ SDK the deployment's image carries, not the copy in your `node_modules` — that
 editor, `tsc`, and your tests use. Import `z` from here rather than installing `zod` yourself; the
 compiler refuses any import but this one.
 
-**Versioning.** While the SDK is `0.x`, breaking changes land in minor releases. Boot refuses a
-plugin whose declared range the deployment's SDK version does not satisfy.
+**Versioning.** This package is released with Collegium itself and carries the same version, so the
+range you declare names the deployment you are writing for. Boot refuses a plugin whose declared
+range the deployment's version does not satisfy. Until v1, breaking changes land in minor releases.
 
 Full guide: [collegium.sh/docs/guides/write-a-plugin](https://collegium.sh/docs/guides/write-a-plugin)

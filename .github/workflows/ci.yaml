@@ -163,9 +163,49 @@ jobs:
             --tag 'ghcr.io/joshunrau/collegium:latest' \
             --tag 'ghcr.io/joshunrau/collegium:${{ needs.configure.outputs.release_version }}' \
             $(printf 'ghcr.io/joshunrau/collegium@sha256:%s ' *)
-  release:
+  publish-npm:
     runs-on: ubuntu-latest
     needs: [configure, merge]
+    if: ${{ needs.configure.outputs.release_version != 'null' }}
+    permissions:
+      contents: read
+      # mints an OIDC token for npm trusted publishing, so no registry token is stored here
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          cache: 'pnpm'
+          node-version-file: '.nvmrc'
+          registry-url: 'https://registry.npmjs.org'
+      # the app's postinstall fetches a browser, so only the publishable closure is installed
+      - name: Build Publishable Packages
+        run: |
+          filters=()
+          while IFS=$'\t' read -r name _ _; do
+            filters+=("--filter=${name}...")
+          done < <(node scripts/list-publishable.js)
+          pnpm install --frozen-lockfile "${filters[@]}"
+          pnpm exec turbo run build "${filters[@]}"
+      # the already-published check keeps a re-run of this workflow idempotent
+      - name: Publish Packages
+        run: |
+          while IFS=$'\t' read -r name version _; do
+            if [ -n "$(npm view "${name}@${version}" version 2>/dev/null)" ]; then
+              echo "Skipping ${name}@${version} (already published)"
+              continue
+            fi
+            echo "Publishing ${name}@${version}"
+            pnpm --filter "${name}" publish --no-git-checks
+          done < <(node scripts/list-publishable.js)
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [configure, merge, publish-npm]
     permissions:
       contents: write
     steps:

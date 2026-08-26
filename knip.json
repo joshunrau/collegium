@@ -3,8 +3,8 @@
   "ignoreExportsUsedInFile": true,
   "workspaces": {
     ".": {
-      "entry": [],
-      "project": []
+      "entry": ["scripts/*.js"],
+      "project": ["scripts/*.js"]
     },
     "app": {
       "entry": ["src/main.ts!", "src/entrypoint.ts!", "src/provision.ts!"],
