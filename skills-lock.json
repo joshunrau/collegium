@@ -54,6 +54,12 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/tdd/SKILL.md",
       "computedHash": "614ac2e45fb0ec02f6ce422d26bd9aa4e33aa4867323f5a3a5c0c20b96f78ff4"
+    },
+    "writing-documentation": {
+      "source": "joshunrau/skills",
+      "sourceType": "github",
+      "skillPath": "skills/writing-documentation/SKILL.md",
+      "computedHash": "02e98e9a443fc9b9184a4ef7da4897014dc232bf923b1958617b56911b6ea331"
     }
   }
 }
