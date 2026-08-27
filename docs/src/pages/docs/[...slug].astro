@@ -4,7 +4,9 @@ import '@/styles/docs.css';
 import DocsCodeBlock from '@/components/docs/DocsCodeBlock.astro';
 import { DocsRoot } from '@/components/docs/DocsRoot.tsx';
 import Layout from '@/components/common/Layout.astro';
+import { ReferenceTree } from '@/components/reference/ReferenceTree.tsx';
 import { type DocEntry, source } from '@/content.source.ts';
+import { referenceToc } from '@/reference/reference.toc.ts';
 import { render } from 'astro:content';
 import type { TOCItemType } from 'fumadocs-core/toc';
 import defaultMdxComponents from 'fumadocs-ui/mdx';
@@ -21,15 +23,22 @@ export function getStaticPaths() {
 }
 
 const { entry } = Astro.props;
-const { Content, headings } = await render(entry);
+
+/** A reference page is drawn from its schema tree; every other page is its rendered markdown. */
+const { Content, reference, toc } =
+  entry.collection === 'reference'
+    ? { Content: undefined, reference: entry.data.reference, toc: referenceToc(entry.data.reference) }
+    : await render(entry).then(({ Content, headings }) => ({
+        Content,
+        reference: undefined,
+        toc: headings.map((heading): TOCItemType => ({
+          depth: heading.depth,
+          title: heading.text,
+          url: `#${heading.slug}`
+        }))
+      }));
 
 const slugs = typeof Astro.params.slug === 'string' ? Astro.params.slug.split('/') : [];
-
-const toc: TOCItemType[] = headings.map((heading) => ({
-  depth: heading.depth,
-  title: heading.text,
-  url: `#${heading.slug}`
-}));
 ---
 
 <Layout description={entry.data.description} image={`/api/opengraph/${slugs.join('/')}.webp`} title={entry.data.title}>
@@ -43,7 +52,8 @@ const toc: TOCItemType[] = headings.map((heading) => ({
     <h1 class="text-3xl font-semibold">{entry.data.title}</h1>
     <p class="text-fd-muted-foreground mb-8 text-lg">{entry.data.description}</p>
     <div class="prose flex-1">
-      <Content components={{ ...defaultMdxComponents, pre: DocsCodeBlock }} />
+      {Content ? <Content components={{ ...defaultMdxComponents, pre: DocsCodeBlock }} /> : null}
+      {reference ? <ReferenceTree client:load page={reference} /> : null}
     </div>
   </DocsRoot>
 </Layout>

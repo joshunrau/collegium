@@ -2,20 +2,28 @@ import { $Env, $ProvisioningEnv, buildConfigJsonSchema } from '@collegium/config
 import type { Loader } from 'astro/loaders';
 import { z } from 'zod';
 
-import { renderJsonSchemaMarkdown } from './reference.utils.ts';
+import { renderSearchMarkdown } from './reference.search.ts';
+import { buildFieldTree, mapFieldDescriptions } from './reference.tree.ts';
 
-import type { JsonSchemaNode } from './reference.utils.ts';
+import type {
+  JsonSchemaNode,
+  ReferenceLayout,
+  ReferencePage,
+  ReferenceSection,
+  RenderedHtml
+} from './reference.types.ts';
 
-type ReferenceSection = {
+type ReferenceSectionSource = {
   readonly heading?: string;
   readonly intro: string;
   readonly schema?: () => JsonSchemaNode;
 };
 
-type ReferencePage = {
+type ReferencePageSource = {
   readonly description: string;
   readonly id: string;
-  readonly sections: readonly ReferenceSection[];
+  readonly layout: ReferenceLayout;
+  readonly sections: readonly ReferenceSectionSource[];
   readonly title: string;
 };
 
@@ -24,13 +32,14 @@ const envJsonSchema = (schema: z.ZodType) =>
 
 /**
  * The reference pages, each generated from the schemas the app parses its inputs against. Listed
- * in `NAVIGATION` by id like any written page; the body is markdown, so the TOC, search and OG
- * image come from the same pipeline.
+ * in `NAVIGATION` by id like any written page. The tree renders the page; a markdown body of the
+ * same rows is what search indexes.
  */
-const REFERENCE_PAGES: readonly ReferencePage[] = [
+const REFERENCE_PAGES: readonly ReferencePageSource[] = [
   {
     description: 'Every field of config.json, generated from the schema the app boots against.',
     id: 'reference/configuration',
+    layout: 'sections',
     sections: [
       {
         intro:
@@ -43,6 +52,7 @@ const REFERENCE_PAGES: readonly ReferencePage[] = [
   {
     description: 'The variables the app and its provisioning read from the environment.',
     id: 'reference/environment',
+    layout: 'list',
     sections: [
       {
         intro:
@@ -65,28 +75,45 @@ const REFERENCE_PAGES: readonly ReferencePage[] = [
   }
 ];
 
-function renderSection(section: ReferenceSection): string {
-  return [
-    section.heading === undefined ? undefined : `## ${section.heading}`,
-    section.intro,
-    section.schema === undefined ? undefined : renderJsonSchemaMarkdown(section.schema())
-  ]
-    .filter((part) => part !== undefined)
-    .join('\n\n');
+const slugOf = (heading: string) => heading.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+function buildSection(source: ReferenceSectionSource): ReferenceSection<string> {
+  return {
+    fields: source.schema && buildFieldTree(source.schema()),
+    heading: source.heading === undefined ? undefined : { id: slugOf(source.heading), text: source.heading },
+    intro: source.intro
+  };
+}
+
+async function renderSection(
+  section: ReferenceSection<string>,
+  render: (markdown: string) => Promise<RenderedHtml>
+): Promise<ReferenceSection<RenderedHtml>> {
+  return {
+    ...section,
+    fields: section.fields && (await mapFieldDescriptions(section.fields, render)),
+    intro: await render(section.intro)
+  };
 }
 
 export const referenceLoader: Loader = {
   load: async (context) => {
-    for (const page of REFERENCE_PAGES) {
-      const body = page.sections.map(renderSection).join('\n\n');
+    const render = async (markdown: string): Promise<RenderedHtml> => ({
+      html: (await context.renderMarkdown(markdown)).html
+    });
+    for (const source of REFERENCE_PAGES) {
+      const page: ReferencePage<string> = { layout: source.layout, sections: source.sections.map(buildSection) };
+      const reference: ReferencePage<RenderedHtml> = {
+        layout: page.layout,
+        sections: await Promise.all(page.sections.map((section) => renderSection(section, render)))
+      };
       context.store.set({
-        body,
+        body: renderSearchMarkdown(page),
         data: await context.parseData({
-          data: { description: page.description, title: page.title },
-          id: page.id
+          data: { description: source.description, reference, title: source.title },
+          id: source.id
         }),
-        id: page.id,
-        rendered: await context.renderMarkdown(body)
+        id: source.id
       });
     }
   },

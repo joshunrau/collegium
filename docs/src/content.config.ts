@@ -7,6 +7,8 @@ import { z } from 'zod';
 
 import { referenceLoader } from './reference/reference.loader.ts';
 
+import type { ReferencePage, RenderedHtml } from './reference/reference.types.ts';
+
 /**
  * Where the site's written pages live, relative to the package root. Only the loader needs it: an
  * entry's id is already its path relative to this base, which is what the page tree is built from.
@@ -66,7 +68,8 @@ const spec = defineCollection({
 
 const reference = defineCollection({
   loader: referenceLoader,
-  schema: $Frontmatter
+  // The tree is built in-process by the loader; z.custom states that trust rather than restating the type as a schema.
+  schema: $Frontmatter.extend({ reference: z.custom<ReferencePage<RenderedHtml>>() })
 });
 
 export const collections = {

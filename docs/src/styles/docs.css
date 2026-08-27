@@ -9,6 +9,7 @@
  */
 @source '../components/common';
 @source '../components/docs';
+@source '../components/reference';
 @source '../pages/docs';
 
 .prose {
