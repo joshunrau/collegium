@@ -20,7 +20,11 @@ const schema: JsonSchemaNode = {
               { properties: { provider: { const: 'y' } }, type: 'object' }
             ]
           },
-          tools: { description: 'Grants.', items: { description: 'One grant.', type: 'string' }, type: 'array' },
+          tools: {
+            description: 'Grants.',
+            items: { description: 'One grant.', examples: ['x', 'y::z'], type: 'string' },
+            type: 'array'
+          },
           username: { description: 'The handle.', type: 'string' }
         },
         required: ['username'],
@@ -64,8 +68,13 @@ describe('buildFieldTree', () => {
     expect(model?.variants[0]?.children).toMatchObject([{ id: undefined, name: 'name', type: '"a" | "b"' }]);
   });
 
-  it('should fold an item description into its array row', () => {
-    expect(tools).toMatchObject({ children: [], description: 'Grants.\n\nOne grant.', type: 'string[]' });
+  it('should fold an item description and its examples into the array row', () => {
+    expect(tools).toMatchObject({
+      children: [],
+      description: 'Grants.\n\nOne grant.',
+      examples: ['x', 'y::z'],
+      type: 'string[]'
+    });
   });
 
   it('should show defaults as JSON and close an open record with a trailing row', () => {

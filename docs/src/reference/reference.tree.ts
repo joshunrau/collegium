@@ -45,6 +45,8 @@ function discriminantOf(variants: readonly JsonSchemaNode[]): Discriminant | und
   return { key, values: variants.map((variant) => variant.properties?.[key]?.const) };
 }
 
+const exampleText = (example: unknown): string => (typeof example === 'string' ? example : json(example));
+
 function joinParagraphs(...parts: readonly (string | undefined)[]): string | undefined {
   const present = parts.filter((part) => part !== undefined);
   return present.length > 0 ? present.join('\n\n') : undefined;
@@ -63,9 +65,11 @@ function buildVariant(
 }
 
 function buildField(name: string, node: JsonSchemaNode, required: boolean, id: string | undefined): FieldNode<string> {
+  const item = node.type === 'array' ? node.items : undefined;
   const base = {
     defaultValue: node.default === undefined ? undefined : json(node.default),
     description: node.description,
+    examples: (node.examples ?? item?.examples ?? []).map(exampleText),
     id,
     name,
     required,
@@ -82,7 +86,6 @@ function buildField(name: string, node: JsonSchemaNode, required: boolean, id: s
       variants: variants.map((variant, index) => buildVariant(variant, discriminant, index))
     };
   }
-  const item = node.type === 'array' ? node.items : undefined;
   if (item !== undefined) {
     return {
       ...base,
@@ -110,7 +113,15 @@ function buildChildren(
   const rest = typeof node.additionalProperties === 'object' ? node.additionalProperties : {};
   return [
     ...rows,
-    { children: [], description: OPEN_RECORD_NOTE, name: '…', required: false, type: describeType(rest), variants: [] }
+    {
+      children: [],
+      description: OPEN_RECORD_NOTE,
+      examples: [],
+      name: '…',
+      required: false,
+      type: describeType(rest),
+      variants: []
+    }
   ];
 }
 

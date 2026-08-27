@@ -4,6 +4,7 @@ import type { FieldNode, RenderedHtml } from '@/reference/reference.types.ts';
 import { cn } from '@/utils/cn.ts';
 
 import { FieldDescription } from './FieldDescription.tsx';
+import { FieldExamples } from './FieldExamples.tsx';
 import { FieldSignature } from './FieldSignature.tsx';
 
 type Field = FieldNode<RenderedHtml>;
@@ -45,6 +46,7 @@ const FieldRow = ({ field }: { field: Field }) => (
   <div className="border-fd-border scroll-m-28 border-b py-3 last:border-b-0" id={field.id}>
     <FieldSignature field={field} name={field.name} />
     <FieldDescription className="mt-1 text-sm" description={field.description} />
+    <FieldExamples examples={field.examples} />
     <FieldBody nested field={field} />
   </div>
 );

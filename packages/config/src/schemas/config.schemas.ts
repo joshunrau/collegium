@@ -89,8 +89,12 @@ export const $ToolGrant = z
     }
   })
   .describe(
-    `A toolset namespace, or one tool by its "namespace::tool" ref. Framework values: ${TOOL_GRANT_VALUES.join(', ')}. Plugin grants use the plugin's namespace the same way.`
-  ) as unknown as z.ZodType<LiteralUnion<ToolGrant, string>, LiteralUnion<ToolGrant, string>>;
+    'A toolset namespace, or one tool by its "namespace::tool" ref. Plugin grants use the plugin\'s namespace the same way.'
+  )
+  .meta({ examples: [...TOOL_GRANT_VALUES] }) as unknown as z.ZodType<
+  LiteralUnion<ToolGrant, string>,
+  LiteralUnion<ToolGrant, string>
+>;
 
 /** a framework library skill by bare name, or a toolset-shipped skill by its `ns::skill` name (§9) */
 export type $SkillGrant = z.infer<typeof $SkillGrant>;

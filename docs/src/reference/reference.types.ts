@@ -9,6 +9,7 @@ export type JsonSchemaNode = {
   readonly default?: unknown;
   readonly description?: string;
   readonly enum?: readonly unknown[];
+  readonly examples?: readonly unknown[];
   readonly items?: JsonSchemaNode;
   readonly oneOf?: readonly JsonSchemaNode[];
   readonly properties?: { readonly [key: string]: JsonSchemaNode };
@@ -30,6 +31,8 @@ export type FieldNode<TDescription> = {
   readonly children: readonly FieldNode<TDescription>[];
   readonly defaultValue?: string;
   readonly description?: TDescription;
+  /** Values the schema offers as examples, as an operator would write them; an array row shows its item's. */
+  readonly examples: readonly string[];
   /** The dotted path an always-visible row is linked by. Absent inside a variant tab, where a hidden target cannot be scrolled to. */
   readonly id?: string;
   readonly name: string;
