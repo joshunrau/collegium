@@ -43,7 +43,7 @@ const REFERENCE_PAGES: readonly ReferencePageSource[] = [
     sections: [
       {
         intro:
-          'The schema below is the one the app parses `config.json` against at boot, and the one served at [/api/config/schema.json](/api/config/schema.json) — point `$schema` at it for completion in an editor. Fields with a default may be omitted.',
+          'The schema below is the one the app parses `config.json` against at boot, and the one served at [/config.schema.json](/config.schema.json) — point `$schema` at it for completion in an editor. Fields with a default may be omitted.',
         schema: () => buildConfigJsonSchema()
       }
     ],

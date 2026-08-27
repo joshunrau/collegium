@@ -13,7 +13,7 @@ import { ConfigService } from '../config.service.ts';
 import { EnvService } from '../env/env.service.ts';
 
 const config = {
-  $schema: 'https://collegium.sh/api/config/schema.json',
+  $schema: 'https://collegium.sh/config.schema.json',
   agentDefaults: {
     model: { name: 'deepseek-v4-flash', provider: 'deepseek' }
   },
