@@ -1,8 +1,8 @@
 import type { FieldNode, RenderedHtml } from '@/reference/reference.types.ts';
 
 import { FieldDescription } from './FieldDescription.tsx';
-import { FieldOptions } from './FieldOptions.tsx';
 import { FieldSignature } from './FieldSignature.tsx';
+import { FieldTable } from './FieldTable.tsx';
 import { FieldBody } from './FieldTree.tsx';
 
 /** A root key under the `sections` layout: its own heading, then the same signature, description and body a row carries. */
@@ -13,7 +13,7 @@ export const FieldSection = ({ field }: { field: FieldNode<RenderedHtml> }) => (
     </h2>
     <FieldSignature className="-mt-4 mb-4" field={field} />
     <FieldDescription className="mb-4" description={field.description} />
-    <FieldOptions options={field.options} />
+    <FieldTable table={field.table} />
     <FieldBody field={field} nested={false} />
   </section>
 );

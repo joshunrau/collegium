@@ -25,7 +25,7 @@ const schema: JsonSchemaNode = {
             items: {
               description: 'One grant.',
               type: 'string',
-              'x-builtin-options': [{ label: 'x', values: ['x::a'] }]
+              'x-table': { rows: [{ label: 'x', values: ['x::a'] }], title: 'Built in' }
             },
             type: 'array'
           },
@@ -72,11 +72,11 @@ describe('buildFieldTree', () => {
     expect(model?.variants[0]?.children).toMatchObject([{ id: undefined, name: 'name', type: '"a" | "b"' }]);
   });
 
-  it('should fold an item description and its built-in options into the array row', () => {
+  it('should fold an item description and its table into the array row', () => {
     expect(tools).toMatchObject({
       children: [],
       description: 'Grants.\n\nOne grant.',
-      options: [{ label: 'x', values: ['x::a'] }],
+      table: { rows: [{ label: 'x', values: ['x::a'] }], title: 'Built in' },
       type: 'string[]'
     });
   });

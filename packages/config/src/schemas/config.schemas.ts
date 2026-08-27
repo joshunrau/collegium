@@ -12,7 +12,7 @@ import type { LiteralUnion } from 'type-fest';
 import { z } from 'zod';
 
 import { CONFIG_DEFAULTS } from '../constants.ts';
-import { builtinOptions } from '../meta.ts';
+import { schemaTable } from '../meta.ts';
 
 // After any change here, update the root config.json to match; `pnpm build` regenerates
 // dist/config.schema.json. The e2e mirrors (`buildCollegiumConfig`, `Scenario`) are typed from
@@ -92,7 +92,7 @@ export const $ToolGrant = z
   .describe(
     'A toolset namespace, or one tool by its "namespace::tool" ref. Plugin grants use the plugin\'s namespace the same way.'
   )
-  .meta(builtinOptions(TOOL_GRANT_GROUPS)) as unknown as z.ZodType<
+  .meta(schemaTable({ rows: TOOL_GRANT_GROUPS, title: 'Built-in options' })) as unknown as z.ZodType<
   LiteralUnion<ToolGrant, string>,
   LiteralUnion<ToolGrant, string>
 >;

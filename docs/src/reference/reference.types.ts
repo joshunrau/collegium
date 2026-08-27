@@ -1,11 +1,11 @@
-import type { BuiltinOptions, BuiltinOptionsMeta } from '@collegium/config';
+import type { SchemaTable, SchemaTableMeta } from '@collegium/config';
 
 /**
  * The draft-7 subset `z.toJSONSchema` emits for the schemas this site documents, plus the config
  * package's own keyword. Interior data — produced in-process from the package's own Zod schemas —
  * so a plain type, not a perimeter.
  */
-export type JsonSchemaNode = Partial<BuiltinOptionsMeta> & {
+export type JsonSchemaNode = Partial<SchemaTableMeta> & {
   readonly additionalProperties?: boolean | JsonSchemaNode;
   readonly anyOf?: readonly JsonSchemaNode[];
   readonly const?: unknown;
@@ -36,9 +36,9 @@ export type FieldNode<TDescription> = {
   /** The dotted path an always-visible row is linked by. Absent inside a variant tab, where a hidden target cannot be scrolled to. */
   readonly id?: string;
   readonly name: string;
-  /** The built-in values the schema declares, in their groups; an array row shows its item's. */
-  readonly options: BuiltinOptions;
   readonly required: boolean;
+  /** The table the schema attaches to the field; an array row shows its item's. */
+  readonly table?: SchemaTable;
   readonly type: string;
   /** Shared by every tab set keyed on the same discriminant and values, so they select together. */
   readonly variantGroup?: string;

@@ -1,4 +1,4 @@
-import { BUILTIN_OPTIONS_KEYWORD } from '@collegium/config';
+import { SCHEMA_TABLE_KEYWORD } from '@collegium/config';
 
 import type { FieldNode, FieldVariant, JsonSchemaNode } from './reference.types.ts';
 
@@ -71,8 +71,8 @@ function buildField(name: string, node: JsonSchemaNode, required: boolean, id: s
     description: node.description,
     id,
     name,
-    options: node[BUILTIN_OPTIONS_KEYWORD] ?? item?.[BUILTIN_OPTIONS_KEYWORD] ?? [],
     required,
+    table: node[SCHEMA_TABLE_KEYWORD] ?? item?.[SCHEMA_TABLE_KEYWORD],
     type: describeType(node)
   };
   const childId = (child: string) => (id === undefined ? undefined : `${id}.${child}`);
@@ -117,7 +117,6 @@ function buildChildren(
       children: [],
       description: OPEN_RECORD_NOTE,
       name: '…',
-      options: [],
       required: false,
       type: describeType(rest),
       variants: []

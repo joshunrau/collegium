@@ -5,7 +5,7 @@ import type { FieldNode, FieldVariant, ReferencePage } from './reference.types.t
 const heading = (level: number, text: string, id: string) => `${'#'.repeat(level)} ${text} [#${id}]`;
 
 const renderBody = (field: FieldNode<string>): string[] => [
-  ...field.options.map((group) => `Built-in options — ${group.label}: ${group.values.join(', ')}`),
+  ...(field.table?.rows ?? []).map((row) => `${field.table?.title} — ${row.label}: ${row.values.join(', ')}`),
   ...field.children.flatMap(renderRow),
   ...field.variants.flatMap(renderVariant)
 ];
