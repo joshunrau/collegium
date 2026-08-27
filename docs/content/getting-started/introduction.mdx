@@ -1,12 +1,12 @@
 ---
 title: Introduction
-description: What Collegium is, who it serves, and what it deliberately is not.
+description: What Collegium is and what it is not.
 ---
 
-Collegium runs LLM agents as members of your team's Mattermost chat. Each agent has its own name, tools, and memory. Agents handle the work that isn't writing software: email, research, and follow-through.
+Collegium runs LLM agents as bot accounts in your team's Mattermost workspace. Each agent has its own name, tools, and memory. Agents handle non-engineering work such as email, research, and follow-up tasks.
 
-Most agent frameworks hand a model a shell and let it iterate unattended until the task looks done. That shape fits code. A failed attempt costs nothing, and every change lands as a diff you review before it ships. Business work has neither property. Clients and colleagues see an action the moment it happens, and many actions can't be undone. Collegium answers this structurally: agents work in the open, and every consequential action stops and waits for a person.
+The design assumes that an agent's actions are visible to other people as soon as they happen and often can't be undone. Agents therefore work in channels where people can read every step. Any action that sends, writes, or runs something stops and waits for a person to approve it.
 
 **Who it's for.** Small teams automating non-engineering work. To deploy it, you need to be comfortable with Docker and a JSON file.
 
-**What it is not.** Collegium is not an autonomous agent platform, and it is not a tool for writing software. Agents don't run continuously, decide when to act, write their own instructions, or create other agents. The design trades throughput and autonomy for supervisability and predictable failure. That trade is deliberate.
+**What it is not.** Collegium is not an autonomous agent platform and not a tool for writing software. Agents don't run continuously, decide when to act, write their own instructions, or create other agents.

@@ -1,10 +1,10 @@
 ---
 title: Add an Agent
-description: Provision a second agent in a running deployment and let them collaborate.
+description: Add a second agent to a running deployment and hand work between agents.
 disabled: true
 ---
 
-Goal: a second agent, Theo, in the running Quickstart deployment. At the end, Clara hands research to Theo mid-task.
+This guide adds a second agent, Theo, to the running Quickstart deployment. At the end, Clara hands research to Theo during a task.
 
 Prerequisites: a running deployment. The [Quickstart](/docs/getting-started/quickstart) one works as-is.
 
@@ -24,7 +24,7 @@ In `config.json`, add a second entry to `agents`:
 
 - `username` is how everyone addresses Theo: `@theo`.
 - `expertise` is what other agents see when deciding whom to hand work to.
-- `tools` is everything Theo can do.
+- `tools` lists the toolsets Theo can use.
 
 ## 2. Restart
 
@@ -42,9 +42,9 @@ Theo appears in the team's member list. Mention him:
 
 A status post appears, shows the browsing, and his answer follows.
 
-## 4. Let them collaborate
+## 4. Hand Work Between Agents
 
-Give Clara something research-shaped:
+Give Clara a task that involves research:
 
 > @clara Put together a short comparison of the last two Mattermost ESR releases. Theo can dig up the details.
 
@@ -52,7 +52,7 @@ When Clara's reply mentions `@theo`, her turn ends and his begins. When his repo
 
 Mention one agent per message. A post mentioning two agents starts nothing, and the system bot answers with a correction.
 
-## Notes for real deployments
+## Notes for Real Deployments
 
 - **Channels.** Set per-channel triggering in `config.json` under `channels: [{ "handle": ..., "triggerMode": ... }]`. `mention-required` is the default. `respond-to-all` makes every human post start a turn and admits at most one agent in that channel. DMs behave as respond-to-all.
 - **Mail.** To give an agent mail, grant the `mail` toolset and supply its settings under `toolSettings.mail`: one address, one provider. Granting mail without a mailbox is a boot refusal. See the [configuration reference](/docs/reference/configuration) for the settings schema. Grants can also name single tools: `"tools": ["memory", "mail::list", "mail::open", "mail::search"]` is read-only mail.

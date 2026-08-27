@@ -1,15 +1,15 @@
 ---
 title: Write a Plugin
-description: 'Ship business logic as deterministic code: storage, an ungated read, a gated write, and settings.'
+description: Build a plugin with durable storage, an ungated read, a gated write, and settings.
 ---
 
-A plugin is a directory of TypeScript that the deployment compiles at boot. It contributes a toolset: a namespace of tools, skills, settings, and durable records, granted to agents like any built-in toolset. This guide builds `contacts`: an address book agents can read freely and update only with approval.
+A plugin is a directory of TypeScript that the deployment compiles at boot. It contributes a toolset: a namespace of tools, skills, settings, and durable records, granted to agents like any built-in toolset. This guide builds `contacts`: an address book agents can read without approval and update only with approval.
 
 Prerequisites: a running deployment, and Node.js wherever you write the plugin. You don't need a checkout of Collegium.
 
 Plugins run with framework privilege. Review a plugin before you install it, the same way you review any deployed code.
 
-## 1. Scaffold the package
+## 1. Scaffold the Package
 
 ```sh
 mkdir contacts && cd contacts
@@ -35,7 +35,7 @@ The framework checks three things at boot and refuses to start if any fails:
 - `@collegium/sdk` is the only entry in `dependencies`. Put `typescript`, `vitest`, and other tooling in `devDependencies`.
 - The `@collegium/sdk` range matches the deployment's version.
 
-## 2. Declare the toolset
+## 2. Declare the Toolset
 
 `src/index.ts` default-exports one toolset:
 
@@ -102,7 +102,7 @@ export default defineToolset({
 - A tool without `approval` runs without a gate. Mark it `retryable` only if a timed-out call is safe to report as a failure. Never mark a mutation retryable.
 - `traceDetail` is the one-line summary shown in the status post.
 
-### What you may import
+### Imports
 
 Import `@collegium/sdk`, `node:` builtins, and your own files by relative path. The compiler refuses any other bare specifier at boot.
 
@@ -112,7 +112,7 @@ Import `z` from `@collegium/sdk`, not from `zod`.
 
 To ship skills, declare `skills: ['saving-contacts']` and add `src/skills/saving-contacts.md` beside the entry module. Agents get the skill via the grant `contacts::saving-contacts`. See the in-repo `bookmark` plugin for an example.
 
-## 3. Install it
+## 3. Install the Plugin
 
 Clone the plugin into the directory `PLUGINS_ROOT` in `.env` points at. In a clone of Collegium, that is `plugins/`:
 
@@ -122,7 +122,7 @@ git clone https://github.com/you/contacts plugins/contacts
 
 The subdirectory name must equal the toolset's `name`. The framework refuses to boot if they differ.
 
-## 4. Grant and configure
+## 4. Grant and Configure
 
 In `config.json`, declare the plugin:
 
@@ -141,13 +141,13 @@ Then grant it to Clara and set her settings for it:
 
 `"contacts"` grants every tool in the plugin, including ones a later version adds. Grant `"contacts::find"` instead to hand out one tool. Settings merge over `app.defaultToolSettings.contacts`. The framework refuses settings for an ungranted toolset and settings the schema rejects.
 
-## 5. Try it
+## 5. Try It
 
 Restart the deployment, then:
 
 > @clara Save Elena Baptiste, elena@northshoresummit.co, as our Northshore Summit contact.
 
-The approval prompt shows exactly what will be written. Approve it, then:
+The approval prompt shows what will be written. Approve it, then:
 
 > @clara Who do we know at Northshore Summit?
 

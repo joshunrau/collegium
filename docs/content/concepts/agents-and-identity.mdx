@@ -1,35 +1,35 @@
 ---
 title: Agents and Identity
-description: 'Agents as persistent colleagues: provisioning, the system bot, the peer roster, and channels.'
+description: What an agent is, how provisioning creates it, the system bot, the peer roster, and channels.
 disabled: false
 ---
 
-## What an agent is
+## What an Agent Is
 
-An agent is a persistent identity: a name, a persona, a system prompt, an assigned model, an assigned set of tools and skills, and a private memory. In your team's Mattermost workspace, it is a bot account, addressed as `@{username}` like any colleague.
+An agent is a persistent identity: a name, a persona, a system prompt, an assigned model, an assigned set of tools and skills, and a private memory. In your team's Mattermost workspace, it is a bot account, addressed as `@{username}`.
 
-Persistent is the operative word. An agent is a colleague, not a job runner. There is one Clara, continuously, and every conversation with her is an episode in an ongoing relationship rather than an independent invocation. She remembers what you told her to remember. She is reachable at the same name tomorrow. Her history is in the channel where the work happened.
+An agent persists across tasks. There is one Clara, and every conversation with her adds to the same history. She retains what you told her to remember and is reachable at the same name tomorrow. Her past work is in the channel where it happened.
 
-## Provisioning is an administrative act
+## Provisioning
 
 Agents come into existence before the app starts, never while it runs. A provisioning step reconciles Mattermost against what the configuration declares. It creates the team if absent, a bot account for each declared agent, and the access token each is addressed with. It converges on the declaration and touches nothing else. The app itself refuses to boot rather than repair anything it finds wrong.
 
-Nothing the running framework does creates an account, and there is no runtime agent spawning. This is a deliberate contrast with frameworks that let an agent summon ephemeral workers. A worker with no durable identity leaves work nobody can inspect and results nobody can question afterward. In Collegium, every actor has a name that outlives the task, and its output is in a channel.
+Nothing the running framework does creates an account, and there is no runtime agent spawning. Every actor has a name that outlives the task, and its output is in a channel where you can inspect it.
 
-## The system bot
+## The System Bot
 
-Alongside the agents sits one more bot account: the system bot, the framework's mechanical voice. It announces triggers, posts boot and interruption notices, and delivers refusals.
+Alongside the agents sits one more bot account: the system bot. It announces triggers, posts boot and interruption notices, and delivers refusals.
 
-Its invariant: a post from the system bot is never an agent thinking. Everything it says is a fixed string or a template filled with facts, never model output. The same rule covers the deterministic notices the framework sometimes posts under an agent's own account, such as a stop notice. That is code speaking as the agent, not the agent speaking. Supervision depends on knowing which words came from a model and which from the framework, and the system keeps that line absolute.
+A post from the system bot is never model output. Everything it says is a fixed string or a template filled with facts. The same rule covers the notices the framework sometimes posts under an agent's own account, such as a stop notice. That is code speaking as the agent. Supervision depends on knowing which words came from a model and which from the framework, and the framework keeps that line strict.
 
-## The peer roster
+## The Peer Roster
 
-An agent knows which colleagues it can reach through its peer roster: the set of other agents present in the current channel. The framework injects the roster into the agent's context fresh every turn, each entry carrying a name and a line of expertise. The roster is how Clara knows that Theo exists and that source-hunting is his job.
+An agent learns which colleagues it can reach from its peer roster: the set of other agents present in the current channel. The framework injects the roster into the agent's context fresh every turn, each entry carrying a name and a line of expertise. The roster is how Clara knows that Theo exists and that source-hunting is his job.
 
-The roster derives from live channel membership, not from configuration. An agent removed from a channel disappears from its peers' rosters there. Agents in other channels are not visible at all. Reaching a colleague means sharing a channel with it.
+The roster derives from live channel membership, not from configuration. An agent removed from a channel disappears from its peers' rosters there. Agents in other channels are not visible. Reaching a colleague requires sharing a channel with it.
 
-## Work channels
+## Work Channels
 
 Each agent generally has a dedicated channel holding that agent and the humans authorized to direct it. You may place several agents together where you want collaboration.
 
-Whatever the arrangement, one rule holds: you declare topology in configuration, and agents have no input into it. No agent can create a channel, join one, invite anyone, or change how a channel triggers. Where an agent may be reached, and by whom, is a fact you state, not an outcome of anything a model decides. One structural constraint follows from how triggering works. A channel in which every human post starts a turn can hold at most one agent, and the framework enforces it.
+You declare topology in configuration, and agents have no input into it. No agent can create a channel, join one, invite anyone, or change how a channel triggers. Where an agent may be reached, and by whom, is a fact you state. One constraint follows from how triggering works. A channel in which every human post starts a turn can hold at most one agent, and the framework enforces it.

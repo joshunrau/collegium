@@ -1,16 +1,16 @@
 ---
 title: Quickstart
-description: 'From clone to a supervised first run: one agent, one task, one approval.'
+description: Run one agent, give it a task, and approve its first file write.
 ---
 
-In fifteen minutes, you'll run one agent, Clara, who researches on the live web and stops for approval before writing a file.
+This page walks you through a first deployment with one agent, Clara. You give her a research task, and she stops for your approval before writing a file.
 
 ## Prerequisites
 
 - Docker with Compose
 - An API key for [OpenRouter](https://openrouter.ai/keys) or [DeepSeek](https://platform.deepseek.com/api_keys)
 
-## 1. Clone and configure
+## 1. Clone and Configure
 
 ```sh
 git clone https://github.com/joshunrau/collegium.git
@@ -20,7 +20,7 @@ cp .env.template .env
 
 Open `.env` and set `MATTERMOST_ADMIN_USERNAME` and `MATTERMOST_ADMIN_PASSWORD`. These become the Mattermost administrator credentials you log in with. Leave the remaining defaults.
 
-## 2. Declare the agent
+## 2. Declare the Agent
 
 Create `config.json` at the repository root:
 
@@ -42,39 +42,39 @@ Create `config.json` at the repository root:
 }
 ```
 
-`tools` lists everything Clara can do: browse the web, write files in her workspace, and keep memory.
+`tools` lists the toolsets Clara can use: the web browser, file writes in her workspace, and memory.
 
-## 3. Start it
+## 3. Start the Stack
 
 ```sh
 docker compose up
 ```
 
-The first start takes a few minutes. The stack is ready when the system bot posts its boot notice in the team's Town Square.
+The first start takes a few minutes. The stack is ready when the system bot posts its boot notice in the team's Town Square channel.
 
-## 4. Log in and say hello
+## 4. Log In and Send a Task
 
-Open [http://localhost:8065](http://localhost:8065) and sign in with the admin credentials from `.env`. You land in the team's Town Square, and Clara is in the member list.
+Open [http://localhost:8065](http://localhost:8065) and sign in with the admin credentials from `.env`. You land in Town Square, and Clara is in the member list.
 
-Clara answers only when mentioned. Give her a first task:
+Clara responds only when mentioned. Give her a task:
 
 > @clara Find the three headline features of the latest Mattermost release and save a short summary to mattermost-notes.md
 
-## 5. Watch the turn
+## 5. Follow the Turn
 
 Three things happen, in order.
 
 **A status post.** Clara's status post appears and updates in place as she works. Each line names a tool call and what it does, including every page she visits.
 
-**The approval prompt.** When Clara tries to write the file, the turn blocks. The prompt shows the exact path and the entire file body.
+**The approval prompt.** When Clara tries to write the file, the turn blocks. The prompt shows the path and the entire file body.
 
-**The confirmation.** Click Approve. The tool runs, the file lands in Clara's workspace under `./state/workspaces/`, and Clara posts that she is done.
+**The result.** Click Approve. The tool runs, the file lands in Clara's workspace under `./state/workspaces/`, and Clara posts that she is done.
 
 Run the task again and click **Deny with reason** instead. Clara receives your reason as the tool result and continues with it.
 
 To see every tool call from a turn with its full arguments and results, run `/trace` in the channel.
 
-## Shutting down
+## Shutting Down
 
 ```sh
 docker compose down

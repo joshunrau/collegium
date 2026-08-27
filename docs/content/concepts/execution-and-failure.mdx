@@ -1,39 +1,39 @@
 ---
 title: Execution and Failure
-description: One turn per channel, the visible queue, the failure taxonomy, and loop control.
+description: One turn per channel, the queue, how turns end, restart behavior, and loop control.
 disabled: false
 ---
 
-## One turn at a time, per channel
+## One Turn per Channel
 
-An agent executes strictly one turn at a time in a given channel. While a turn is live, that channel is closed to further turns for that agent. Live means calling the model, running a tool, or blocked on an approval. Other channels are unaffected. The channel is the unit of concurrency, and also the unit of context and of intervention. That keeps the mental model small: what is happening in a channel is one thing, and stopping a channel stops it.
+An agent executes one turn at a time in a given channel. While a turn is live, that channel is closed to further turns for that agent. Live means calling the model, running a tool, or blocked on an approval. Other channels are unaffected. The channel is the unit of concurrency, and also the unit of context and of intervention. What is happening in a channel is one thing, and stopping a channel stops it.
 
-A corollary: only one approval prompt can ever be live for a given agent in a given channel. That is what keeps every decision unambiguous.
+Only one approval prompt can be live for a given agent in a given channel.
 
-## The queue
+## The Queue
 
-A message addressed to a busy agent is queued, never dropped. The framework acknowledges it with a 👀 reaction rather than a reply. A post per queued message would be noise in the same channel where approval prompts live.
+A message addressed to a busy agent is queued, never dropped. The framework acknowledges it with a 👀 reaction rather than a reply, to avoid adding posts to the channel where approval prompts live.
 
-The queue drains rather than pops. When a turn ends in a way that allows progress and the channel goes idle, one new turn consumes everything queued there. Ten messages sent during a long turn become one turn, not ten. The queue itself holds pointers rather than content: the fact of unprocessed work and where it starts. The content arrives through the channel history as it always does. When the assembled context can't reach back as far as the earliest unprocessed post, the new turn's status post says how far back it saw.
+The queue drains rather than pops. When a turn ends in a way that allows progress and the channel goes idle, one new turn consumes everything queued there. Ten messages sent during a long turn become one turn, not ten. The queue itself holds pointers rather than content: the fact of unprocessed work and where it starts. The content arrives through the channel history. When the assembled context can't reach back as far as the earliest unprocessed post, the new turn's status post says how far back it saw.
 
-The backlog is unbounded and nothing expires. If approvals are slow, work accumulates behind them indefinitely. The alternative is silently discarding work, and an unbounded queue at least fails visibly. A channel that has been busy for a day is obviously busy.
+The backlog is unbounded and nothing expires. If approvals are slow, work accumulates behind them. The alternative is discarding work silently; an unbounded queue at least fails visibly.
 
-## Every stop is a clean stop
+## How Turns End
 
 Every way a turn can end has a defined, visible outcome. Normal completion posts its answer. A denial ends the turn with the agent asking how to proceed. Budget exhaustion asks to extend. A malformed tool call ends immediately with the error posted. A mutating call that timed out ends with an explicit statement that completion can't be confirmed. A model-provider outage ends with the failure posted. Human intervention posts what it did: `/stop` at the next boundary, `/kill` immediately. In every case, the channel is released and the record says what happened.
 
-What never happens is quiet adaptation. Transport blips such as timeouts and rate limits are retried invisibly because they carry no intent. Everything else stops. Feeding errors back for the model to try again is the standard framework pattern, and it is the mechanism behind improvisation. A model told a tool doesn't exist will guess three name variants. If one lands, it has succeeded at a call nobody intended. The contrast with coding work is worth stating. A coding agent that retries a flaky call is being resilient, because its failures are free. An agent whose ambiguous call was an email to a client duplicates that email by retrying. Different work, different correct default.
+The framework never adapts quietly. Transport errors such as timeouts and rate limits are retried invisibly because they carry no intent. Everything else stops. Feeding errors back for the model to retry is the mechanism behind improvisation. A model told a tool doesn't exist will guess name variants, and if one lands, it has succeeded at a call nobody intended. For an agent whose ambiguous call was an email, a retry duplicates the email.
 
-## Restart: nothing resumes
+## Restart
 
-On restart, whether deploy or crash, all in-flight turns are abandoned and every agent boots idle. Resuming would mean re-running tool calls that are not idempotent, or executing intentions formed against a world that changed across the deploy. Instead, the framework invalidates pending approval prompts so a stale prompt can't be clicked into action. It backfills channel history. The system bot posts one notice naming the downtime window and stating that in-flight work was abandoned. Queued work and outstanding triggers survive and drain once channels go idle. What is lost is exactly one turn's progress per channel, and the notice says so.
+On restart, whether deploy or crash, all in-flight turns are abandoned and every agent boots idle. Resuming would mean re-running tool calls that are not idempotent, or executing intentions formed before the deploy. Instead, the framework invalidates pending approval prompts so a stale prompt can't be clicked into action. It backfills channel history. The system bot posts one notice naming the downtime window and stating that in-flight work was abandoned. Queued work and outstanding triggers survive and drain once channels go idle. What is lost is one turn's progress per channel.
 
-## Loop control
+## Loop Control
 
-Agent-to-agent mentions make chains possible, and chains need bounds that live in the framework rather than in prompts.
+Agent-to-agent mentions make chains possible. The framework bounds them in code.
 
-Depth: every turn carries a depth counter the model never sees. Human-initiated work starts at zero. Trigger-initiated work starts at one, because a cron is not a human. Each agent-to-agent handoff adds one. At the limit, further handoffs are refused, and the turn posts visibly that a person needs to pick the work up.
+Depth: every turn carries a depth counter the model never sees. Human-initiated work starts at zero. Trigger-initiated work starts at one. Each agent-to-agent handoff adds one. At the limit, further handoffs are refused, and the turn posts that a person needs to pick the work up.
 
-Width: one, by the mention rule. Each turn can hand work to at most one colleague, so depth bounds total work instead of bounding the levels of an exploding tree.
+Width: one, by the mention rule. Each turn can hand work to at most one colleague, so depth bounds total work.
 
-Framework-wide: a ceiling on turns started per rolling hour. A breach halts every agent, posts prominently, and stays until a human posts `/resume`. Clearing it is a human decision on purpose. The halt exists to stop a runaway loop and put a person in front of it. Once they have looked, their judgment is the control the system was routing to.
+Framework-wide: a ceiling on turns started per rolling hour. A breach halts every agent, posts a notice, and stays until a human posts `/resume`. The halt exists to stop a runaway loop and put a person in front of it.
