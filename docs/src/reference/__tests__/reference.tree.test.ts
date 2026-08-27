@@ -22,7 +22,11 @@ const schema: JsonSchemaNode = {
           },
           tools: {
             description: 'Grants.',
-            items: { description: 'One grant.', type: 'string', 'x-builtin-options': [['x', 'x::a'], ['y']] },
+            items: {
+              description: 'One grant.',
+              type: 'string',
+              'x-builtin-options': [{ label: 'x', values: ['x::a'] }]
+            },
             type: 'array'
           },
           username: { description: 'The handle.', type: 'string' }
@@ -72,7 +76,7 @@ describe('buildFieldTree', () => {
     expect(tools).toMatchObject({
       children: [],
       description: 'Grants.\n\nOne grant.',
-      options: [['x', 'x::a'], ['y']],
+      options: [{ label: 'x', values: ['x::a'] }],
       type: 'string[]'
     });
   });
