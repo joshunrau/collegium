@@ -4,6 +4,7 @@ import {
   CORE_TOOLSET_DEFS,
   FRAMEWORK_TOOLSET_DEFS,
   GRANTABLE_TOOLSET_DEFS,
+  TOOL_GRANT_GROUPS,
   TOOL_GRANT_VALUES
 } from '../toolsets.constants.ts';
 
@@ -19,5 +20,6 @@ describe('framework toolset defs', () => {
     expect(TOOL_GRANT_VALUES).toContain('mail::send');
     expect(TOOL_GRANT_VALUES).not.toContain('skills');
     expect(TOOL_GRANT_VALUES).not.toContain('triggers::resolve');
+    expect(TOOL_GRANT_GROUPS).toContainEqual(['memory', 'memory::read', 'memory::write']);
   });
 });

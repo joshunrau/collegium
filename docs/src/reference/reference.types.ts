@@ -1,15 +1,17 @@
+import type { BuiltinOptions, BuiltinOptionsMeta } from '@collegium/config';
+
 /**
- * The draft-7 subset `z.toJSONSchema` emits for the schemas this site documents. Interior data —
- * produced in-process from the package's own Zod schemas — so a plain type, not a perimeter.
+ * The draft-7 subset `z.toJSONSchema` emits for the schemas this site documents, plus the config
+ * package's own keyword. Interior data — produced in-process from the package's own Zod schemas —
+ * so a plain type, not a perimeter.
  */
-export type JsonSchemaNode = {
+export type JsonSchemaNode = Partial<BuiltinOptionsMeta> & {
   readonly additionalProperties?: boolean | JsonSchemaNode;
   readonly anyOf?: readonly JsonSchemaNode[];
   readonly const?: unknown;
   readonly default?: unknown;
   readonly description?: string;
   readonly enum?: readonly unknown[];
-  readonly examples?: readonly unknown[];
   readonly items?: JsonSchemaNode;
   readonly oneOf?: readonly JsonSchemaNode[];
   readonly properties?: { readonly [key: string]: JsonSchemaNode };
@@ -31,11 +33,11 @@ export type FieldNode<TDescription> = {
   readonly children: readonly FieldNode<TDescription>[];
   readonly defaultValue?: string;
   readonly description?: TDescription;
-  /** Values the schema offers as examples, as an operator would write them; an array row shows its item's. */
-  readonly examples: readonly string[];
   /** The dotted path an always-visible row is linked by. Absent inside a variant tab, where a hidden target cannot be scrolled to. */
   readonly id?: string;
   readonly name: string;
+  /** The built-in values the schema declares, in their groups; an array row shows its item's. */
+  readonly options: BuiltinOptions;
   readonly required: boolean;
   readonly type: string;
   /** Shared by every tab set keyed on the same discriminant and values, so they select together. */

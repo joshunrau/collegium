@@ -1,7 +1,7 @@
 import type { FieldNode, RenderedHtml } from '@/reference/reference.types.ts';
 
 import { FieldDescription } from './FieldDescription.tsx';
-import { FieldExamples } from './FieldExamples.tsx';
+import { FieldOptions } from './FieldOptions.tsx';
 import { FieldSignature } from './FieldSignature.tsx';
 import { FieldBody } from './FieldTree.tsx';
 
@@ -13,7 +13,7 @@ export const FieldSection = ({ field }: { field: FieldNode<RenderedHtml> }) => (
     </h2>
     <FieldSignature className="-mt-4 mb-4" field={field} />
     <FieldDescription className="mb-4" description={field.description} />
-    <FieldExamples examples={field.examples} />
+    <FieldOptions options={field.options} />
     <FieldBody field={field} nested={false} />
   </section>
 );

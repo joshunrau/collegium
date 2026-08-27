@@ -1,3 +1,5 @@
+import { BUILTIN_OPTIONS_KEYWORD } from '@collegium/config';
+
 import type { FieldNode, FieldVariant, JsonSchemaNode } from './reference.types.ts';
 
 const OPEN_RECORD_NOTE = 'Further keys are accepted beyond those listed.';
@@ -45,8 +47,6 @@ function discriminantOf(variants: readonly JsonSchemaNode[]): Discriminant | und
   return { key, values: variants.map((variant) => variant.properties?.[key]?.const) };
 }
 
-const exampleText = (example: unknown): string => (typeof example === 'string' ? example : json(example));
-
 function joinParagraphs(...parts: readonly (string | undefined)[]): string | undefined {
   const present = parts.filter((part) => part !== undefined);
   return present.length > 0 ? present.join('\n\n') : undefined;
@@ -69,9 +69,9 @@ function buildField(name: string, node: JsonSchemaNode, required: boolean, id: s
   const base = {
     defaultValue: node.default === undefined ? undefined : json(node.default),
     description: node.description,
-    examples: (node.examples ?? item?.examples ?? []).map(exampleText),
     id,
     name,
+    options: node[BUILTIN_OPTIONS_KEYWORD] ?? item?.[BUILTIN_OPTIONS_KEYWORD] ?? [],
     required,
     type: describeType(node)
   };
@@ -116,8 +116,8 @@ function buildChildren(
     {
       children: [],
       description: OPEN_RECORD_NOTE,
-      examples: [],
       name: '…',
+      options: [],
       required: false,
       type: describeType(rest),
       variants: []

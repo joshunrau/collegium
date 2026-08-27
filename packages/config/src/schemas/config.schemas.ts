@@ -5,13 +5,14 @@ import {
   QUALIFIED_SKILL_NAME_PATTERN
 } from '@collegium/core/skills';
 import { TOOL_SEGMENT_PATTERN } from '@collegium/core/tools';
-import { CORE_TOOLSET_DEFS, TOOL_GRANT_VALUES } from '@collegium/core/toolsets';
+import { CORE_TOOLSET_DEFS, TOOL_GRANT_GROUPS } from '@collegium/core/toolsets';
 import type { ToolGrant } from '@collegium/core/toolsets';
 import { isUnique } from '@collegium/core/utils';
 import type { LiteralUnion } from 'type-fest';
 import { z } from 'zod';
 
 import { CONFIG_DEFAULTS } from '../constants.ts';
+import { builtinOptions } from '../meta.ts';
 
 // After any change here, update the root config.json to match; `pnpm build` regenerates
 // dist/config.schema.json. The e2e mirrors (`buildCollegiumConfig`, `Scenario`) are typed from
@@ -91,7 +92,7 @@ export const $ToolGrant = z
   .describe(
     'A toolset namespace, or one tool by its "namespace::tool" ref. Plugin grants use the plugin\'s namespace the same way.'
   )
-  .meta({ examples: [...TOOL_GRANT_VALUES] }) as unknown as z.ZodType<
+  .meta(builtinOptions(TOOL_GRANT_GROUPS)) as unknown as z.ZodType<
   LiteralUnion<ToolGrant, string>,
   LiteralUnion<ToolGrant, string>
 >;

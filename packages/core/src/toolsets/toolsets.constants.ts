@@ -42,8 +42,10 @@ export const GRANTABLE_TOOLSET_DEFS = [
 /** every framework toolset; a namespace equals its module directory name in the app (§2) */
 export const FRAMEWORK_TOOLSET_DEFS = [...CORE_TOOLSET_DEFS, ...GRANTABLE_TOOLSET_DEFS] as const;
 
-/** what `agents[].tools` may hold for the framework, rendered: each namespace, then each of its tools by ref (§8) */
-export const TOOL_GRANT_VALUES: readonly string[] = GRANTABLE_TOOLSET_DEFS.flatMap((def) => [
+/** what `agents[].tools` may hold for the framework, rendered: per namespace, the namespace itself then each of its tools by ref (§8) */
+export const TOOL_GRANT_GROUPS: readonly (readonly string[])[] = GRANTABLE_TOOLSET_DEFS.map((def) => [
   def.name,
   ...def.tools.map((tool) => renderToolDisplayName([def.name, tool]))
 ]);
+
+export const TOOL_GRANT_VALUES: readonly string[] = TOOL_GRANT_GROUPS.flat();
