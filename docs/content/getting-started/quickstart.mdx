@@ -3,7 +3,7 @@ title: Quickstart
 description: 'From clone to a supervised first run: one agent, one task, one approval.'
 ---
 
-Fifteen minutes from clone to a working deployment: one agent, Clara, researching on the live web and stopping for approval before she writes a file. Nothing is needed beyond Docker and a model API key.
+In fifteen minutes, you'll run one agent, Clara, who researches on the live web and stops for approval before writing a file.
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ cd collegium
 cp .env.template .env
 ```
 
-Open `.env` and set `MATTERMOST_ADMIN_USERNAME` and `MATTERMOST_ADMIN_PASSWORD`. On first start these create the Mattermost administrator account, and they are how you log in yourself. The remaining defaults work as-is.
+Open `.env` and set `MATTERMOST_ADMIN_USERNAME` and `MATTERMOST_ADMIN_PASSWORD`. These become the Mattermost administrator credentials you log in with. Leave the remaining defaults.
 
 ## 2. Declare the agent
 
@@ -42,7 +42,7 @@ Create `config.json` at the repository root:
 }
 ```
 
-This file is the entire capability story. Clara can browse the web, write files inside her own workspace, and keep memory. She cannot run shell commands and cannot send email, because nothing here grants it.
+`tools` lists everything Clara can do: browse the web, write files in her workspace, and keep memory.
 
 ## 3. Start it
 
@@ -50,13 +50,13 @@ This file is the entire capability story. Clara can browse the web, write files 
 docker compose up
 ```
 
-The first start takes a few minutes: Compose brings up Postgres and Mattermost, then provisioning creates the administrator account, the team, and Clara's bot account before the app boots. The stack is ready when the system bot posts its boot notice in the team's Town Square.
+The first start takes a few minutes. The stack is ready when the system bot posts its boot notice in the team's Town Square.
 
 ## 4. Log in and say hello
 
 Open [http://localhost:8065](http://localhost:8065) and sign in with the admin credentials from `.env`. You land in the team's Town Square, and Clara is in the member list.
 
-In Town Square, Clara answers only when mentioned. Give her a first task:
+Clara answers only when mentioned. Give her a first task:
 
 > @clara Find the three headline features of the latest Mattermost release and save a short summary to mattermost-notes.md
 
@@ -64,19 +64,15 @@ In Town Square, Clara answers only when mentioned. Give her a first task:
 
 Three things happen, in order.
 
-**A status post.** After a brief typing indicator, Clara's status post appears and updates in place as she works. Each line names a tool call and what it is doing, including every page she visits. This is the live trace: you are watching the work, not a spinner.
+**A status post.** Clara's status post appears and updates in place as she works. Each line names a tool call and what it does, including every page she visits.
 
-**The approval prompt.** When Clara tries to write the file, the turn blocks. The prompt shows the full payload: the exact path and the entire file body, not a summary of it. This is the moment the system is built around.
+**The approval prompt.** When Clara tries to write the file, the turn blocks. The prompt shows the exact path and the entire file body.
 
 **The confirmation.** Click Approve. The tool runs, the file lands in Clara's workspace under `./state/workspaces/`, and Clara posts that she is done.
 
-Run it again and try **Deny with reason** instead: your reason is fed back to her as the tool result, and she continues the same turn with it in hand.
+Run the task again and click **Deny with reason** instead. Clara receives your reason as the tool result and continues with it.
 
-## What you just saw
-
-- Every action was visible in the channel as it happened, and the full record is retrievable with `/trace`.
-- Reads ran freely; the one consequential action stopped and showed you everything it was about to do.
-- Clara's entire reach was declared in one file you wrote yourself.
+To see every tool call from a turn with its full arguments and results, run `/trace` in the channel.
 
 ## Shutting down
 
@@ -84,6 +80,6 @@ Run it again and try **Deny with reason** instead: your reason is fed back to he
 docker compose down
 ```
 
-State persists under `./state`: the Mattermost data, the conversation store, and Clara's workspace. Starting again resumes the deployment; agents always boot idle, and any work that was queued drains once its channel is idle again.
+State persists under `./state`: the Mattermost data, the conversation store, and Clara's workspace. Starting again resumes the deployment.
 
 Next: [Next Steps](/docs/getting-started/next-steps).

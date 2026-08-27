@@ -6,36 +6,36 @@ disabled: false
 
 ## What an approval is
 
-An approval is a blocking request for human consent. When an agent reaches a consequential action, the turn stops and a prompt appears in the channel under the agent's own account: the proposed action with its complete payload, and buttons. The turn holds until a human answers.
+An approval is a blocking request for human consent. When an agent reaches a consequential action, the turn stops. A prompt appears in the channel under the agent's own account, showing the proposed action with its complete payload and buttons. The turn holds until a human answers.
 
 There are three answers, and they mean different things.
 
 - **Approve.** The tool executes and the turn continues.
-- **Deny.** The turn ends. The agent posts asking how to proceed, and denial stays what it should be: a loud, countable event, not a nudge the model routes around. A bare "denied" would otherwise send the model to the nearest adjacent path, producing four near-identical proposals refused in a row.
-- **Deny with reason.** The stated reason is fed back to the agent as the tool's result, and the turn continues under the same budget. This is steering: "not that recipient, use the shared address" reaches the model as information it can act on immediately.
+- **Deny.** The turn ends, and the agent posts asking how to proceed. Denial stays a loud, countable event, not a nudge the model routes around. A bare "denied" fed back to the model would send it to the nearest adjacent path, producing four near-identical proposals refused in a row.
+- **Deny with reason.** The agent receives your reason as the tool's result, and the turn continues under the same budget. This is steering. "Not that recipient, use the shared address" reaches the model as information it can act on immediately.
 
-Once resolved, the prompt is rewritten into its terminal state and the buttons are removed, so a decided prompt can never be clicked again.
+Once resolved, the framework rewrites the prompt into its terminal state and removes the buttons. Nobody can click a decided prompt again.
 
 ## The full payload, always
 
-The prompt shows the payload itself, not a summary of it: every recipient of an email and its entire body, the whole file about to be written. Where a payload exceeds what one post can carry, the prompt shows a bounded prefix inline and attaches the complete payload, so the approver sees the exact bytes rather than a rendering of them. Shell commands are the exception that proves the rule: never attached and never truncated, they appear inline and in full, and a command too long to present is refused outright.
+The prompt shows the payload itself, not a summary of it: every recipient of an email and its entire body, or the whole file about to be written. Where a payload exceeds what one post can carry, the prompt shows a bounded prefix inline and attaches the complete payload. You see the exact bytes rather than a rendering of them. Shell commands are the exception that proves the rule. They are never attached and never truncated. They appear inline and in full, and the framework refuses a command too long to present.
 
 This is a condition for the gate meaning anything. A payload nobody can read is a payload nobody is checking.
 
 ## No timeout, and anyone present may answer
 
-An approval has no timeout. The agent waits for hours or days if it must, and work addressed to it queues visibly behind the pending decision. A gate that expires is a gate that pressures people to answer fast, which is the opposite of its purpose.
+An approval has no timeout. The agent waits for hours or days if it must, and work addressed to it queues visibly behind the pending decision. A gate that expires pressures people to answer fast, which is the opposite of its purpose.
 
-Any human present in the channel may decide. There is no separate approver list, deliberately: a configured roster would be a second access-control system drifting silently out of sync with channel membership. Presence confers authority, membership is managed in one place (the chat client itself), and the framework verifies each decision against membership before honoring it.
+Any human present in the channel may decide. There is no separate approver list, deliberately. A configured roster would be a second access-control system, drifting silently out of sync with channel membership. Presence confers authority. You manage membership in one place, the chat client itself, and the framework verifies each decision against membership before honoring it.
 
 ## The action budget
 
-Each turn carries an action budget: ten attempts, where an attempt is one model-emitted tool invocation, including invocations that a human denies before execution. Loading a skill, reading a memory body, and posting do not count.
+Each turn carries an action budget: ten attempts. An attempt is one model-emitted tool invocation, including invocations a human denies before execution. Loading a skill, reading a memory body, and posting don't count.
 
-On exhaustion the agent posts what it has and asks for an extension. Approving grants ten more attempts with all accumulated context preserved, and each extension prompt carries the running count, because the human is the control and the control needs the number. Denying an extension ends the turn's actions but not its voice: a denial with reason lets the agent conclude in words with zero attempts remaining, so "stop and report what you have" gets exactly that. Steering buys words, never budget.
+On exhaustion, the agent posts what it has and asks for an extension. Approving grants ten more attempts with all accumulated context preserved. Each extension prompt carries the running count, because you are the control and the control needs the number. Denying an extension ends the turn's actions but not its voice. A denial with reason lets the agent conclude in words with zero attempts remaining, so "stop and report what you have" gets exactly that. Steering buys words, never budget.
 
-Why a ceiling at all, when every consequential call already gates: because reads do not. An agent can run forty searches without touching the gate, and the first visible sign would be whatever it concluded. Read-only is not free, and frequent budget hits are themselves information: the task is too large or the tools are too fine-grained.
+The ceiling exists because reads don't gate. An agent can run forty searches without touching the gate, and the first visible sign would be whatever it concluded. Read-only is not free. Frequent budget hits are themselves information: the task is too large or the tools are too fine-grained.
 
 ## Why the gate stays scarce
 
-Approval frequency is inversely related to approval quality. A gate that fires on every step is answered reflexively within a day, and a reflexive approver is no control at all. The generous read-only floor, the status post carrying everything ungated, and the budget prompt arriving only at real boundaries all serve the same end: when a prompt does appear, it is rare enough to be read, and what it asks is worth deciding.
+Approval frequency is inversely related to approval quality. A gate that fires on every step gets answered reflexively within a day, and a reflexive approver is no control at all. Three things serve the same end: the generous read-only floor, the status post carrying everything ungated, and the budget prompt arriving only at real boundaries. When a prompt does appear, it is rare enough to read, and what it asks is worth deciding.

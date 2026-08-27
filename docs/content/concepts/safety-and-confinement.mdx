@@ -8,32 +8,32 @@ The safety model has three layers, in order of precedence: capability, confineme
 
 ## Capability: what exists at all
 
-The first question is never "will the agent behave" but "does the capability exist". Most agents have no shell. Some have no write access. Each holds only the tools its role requires, set in configuration, immutable while the process runs, and enumerable without running anything. A capability that was never granted needs no further defense.
+The first question is never whether the agent will behave. It is whether the capability exists. Most agents have no shell. Some have no write access. Each holds only the tools its role requires, set in configuration, immutable while the process runs, and enumerable without running anything. A capability that was never granted needs no further defense.
 
 ## Confinement: where capabilities may point
 
-For agents that hold only tools, confinement is enforced inside the tool bodies: paths rooted to the agent's own workspace, database connections opened read-only, network access checked against what the tool permits. The model's cooperation is irrelevant; the tool refuses out-of-bounds requests as a matter of code.
+For agents that hold only tools, the tool bodies enforce confinement. Paths are rooted to the agent's own workspace. Database connections open read-only. Network access is checked against what the tool permits. The model's cooperation is irrelevant. The tool refuses out-of-bounds requests as a matter of code.
 
-Shell is confined differently, and more strongly. Each shell-holding agent runs its commands as a dedicated OS user that owns its home directory and nothing else. The framework's own files are unreadable to agent users, and agent homes are unreadable to each other. This boundary does not depend on the framework's code being correct: it is the operating system's permission model, which is why shell earns it. At boot the framework probes every shell-holding agent's OS user and refuses to start if one is missing, so a misconfigured host fails loudly at deploy time rather than on the first command.
+Shell is confined differently, and more strongly. Each shell-holding agent runs its commands as a dedicated OS user that owns its home directory and nothing else. Agent users can't read the framework's own files, and agents can't read each other's homes. This boundary doesn't depend on the framework's code being correct. It is the operating system's permission model, which is why shell earns it. At boot, the framework probes every shell-holding agent's OS user and refuses to start if one is missing. A misconfigured host fails loudly at deploy time rather than on the first command.
 
 ## Approval: the residual
 
-What remains after capability and confinement (actions that are irreversible or externally visible) blocks for human consent with the full payload shown.
+What remains after capability and confinement is actions that are irreversible or externally visible. Those block for human consent with the full payload shown.
 
-One limitation is named rather than hidden: approval verifies the call, not the content. A file write of nine hundred words of confident nonsense is a well-formed, in-bounds, correctly-scoped invocation, and the gate has no opinion about whether prose is true. Two consequences follow. The read-only floor stays generous, because gating observation multiplies prompts with zero risk reduction, and prompt volume is what kills a gate. And the payload appears in full, because the human judging content is the entire defense on that axis.
+One limitation is named rather than hidden: approval verifies the call, not the content. A file write of nine hundred words of confident nonsense is a well-formed, in-bounds, correctly-scoped invocation. The gate has no opinion about whether prose is true. Two consequences follow. The read-only floor stays generous, because gating observation multiplies prompts with zero risk reduction, and prompt volume is what kills a gate. And the payload appears in full, because the human judging content is the entire defense on that axis.
 
 ## Reversibility
 
-There is no undo, and the design does not pretend otherwise. Instead, the gated writes land only where nothing of independent value lives: file writes inside the agent's own workspace, shell inside a home directory that belongs to the agent alone. Nothing there can be destroyed that was not the agent's own work product. Purpose-built tools that write to real systems are individually reviewed, their write targets fixed in code and never chosen by the model; recovery on those paths belongs to the underlying system.
+There is no undo, and the design doesn't pretend otherwise. Instead, gated writes land only where nothing of independent value lives: file writes inside the agent's own workspace, shell inside a home directory that belongs to the agent alone. Nothing there can be destroyed except the agent's own work product. Purpose-built tools that write to real systems are individually reviewed. Their write targets are fixed in code and never chosen by the model. Recovery on those paths belongs to the underlying system.
 
 ## The mail boundary
 
-An agent may act as at most one email address, fixed in configuration. The boundary is enforced by the provider, not by the framework asking politely: credentials scoped to that one mailbox are all the agent's deployment ever holds, so reaching another mailbox is not forbidden but impossible.
+An agent may act as at most one email address, fixed in configuration. The provider enforces the boundary, not the framework asking politely. Credentials scoped to that one mailbox are all the agent's deployment ever holds, so reaching another mailbox is not forbidden but impossible.
 
-Reading is ungated; sending gates with the full recipient list, subject, and entire body in the prompt. Recipients are explicit arguments and no hidden-recipient field exists anywhere in the system, so a recipient the approver cannot see is unrepresentable. Attachments are described but never opened.
+Reading is ungated. Sending gates with the full recipient list, subject, and entire body in the prompt. Recipients are explicit arguments, and no hidden-recipient field exists anywhere in the system. A recipient the approver can't see is unrepresentable. Attachments are described but never opened.
 
-A send is never retried. A refusal the server answered cleanly is an ordinary result; an outcome that cannot be established ends the turn with an explicit statement that completion is unconfirmed. Feeding "unresolved" back to a model invites exactly the duplicate email the rule exists to prevent.
+A send is never retried. A refusal the server answered cleanly is an ordinary result. An outcome that can't be established ends the turn with an explicit statement that completion is unconfirmed. Feeding "unresolved" back to a model invites exactly the duplicate email the rule exists to prevent.
 
 ## The network posture
 
-The framework's callback endpoints (where approval decisions, slash commands, and triggers arrive) carry no authentication, by decision rather than omission. Anyone who can reach the port can approve an action or inject a trigger. The port must therefore never be publicly routable: bind the loopback or a private interface, and let Mattermost reach it over that path. The compose deployment ships this way. Stating the trust boundary plainly beats an authentication layer that would invite exposing the port.
+The framework's callback endpoints carry no authentication, by decision rather than omission. These are the endpoints where approval decisions, slash commands, and triggers arrive. Anyone who can reach the port can approve an action or inject a trigger. The port must therefore never be publicly routable. Bind the loopback or a private interface, and let Mattermost reach it over that path. The compose deployment ships this way. Stating the trust boundary plainly beats an authentication layer that would invite exposing the port.

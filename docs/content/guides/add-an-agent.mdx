@@ -4,9 +4,9 @@ description: Provision a second agent in a running deployment and let them colla
 disabled: true
 ---
 
-Goal: a second agent, Theo, in the running Quickstart deployment. At the end, Clara hands research to Theo mid-task, and the deployment matches the picture on the landing page.
+Goal: a second agent, Theo, in the running Quickstart deployment. At the end, Clara hands research to Theo mid-task.
 
-Prerequisites: a running deployment (the [Quickstart](/docs/getting-started/quickstart) one works as-is).
+Prerequisites: a running deployment. The [Quickstart](/docs/getting-started/quickstart) one works as-is.
 
 ## 1. Declare Theo
 
@@ -22,11 +22,9 @@ In `config.json`, add a second entry to `agents`:
 }
 ```
 
-Three fields carry the design:
-
-- `username` is the identity. Provisioning creates a Mattermost bot account of this name, and `@theo` is how everyone, humans and agents alike, addresses him.
-- `expertise` is what other agents see. It appears in every peer's roster, and it is how Clara decides that a question about sources belongs to Theo.
-- `tools` is the entire reach. Theo browses and remembers; he cannot write files, run commands, or send mail, because nothing grants it.
+- `username` is how everyone addresses Theo: `@theo`.
+- `expertise` is what other agents see when deciding whom to hand work to.
+- `tools` is everything Theo can do.
 
 ## 2. Restart
 
@@ -34,7 +32,7 @@ Three fields carry the design:
 docker compose restart app
 ```
 
-Provisioning runs before the app boots and converges Mattermost on the declaration: Theo's bot account and access token are created because they are absent, and everything that already matches is left untouched. Restarting abandons any in-flight turn (agents always boot idle) and the system bot posts one notice naming the downtime window. Queued work survives the restart and drains once channels go idle.
+Restarting abandons any in-flight turn. The system bot posts a notice naming the downtime window. Queued work survives the restart.
 
 ## 3. Verify
 
@@ -46,19 +44,16 @@ A status post appears, shows the browsing, and his answer follows.
 
 ## 4. Let them collaborate
 
-Each agent now carries the other in its peer roster: name plus expertise, injected fresh every turn. Give Clara something research-shaped:
+Give Clara something research-shaped:
 
 > @clara Put together a short comparison of the last two Mattermost ESR releases. Theo can dig up the details.
 
-When Clara's reply mentions `@theo`, her turn ends and his begins; when his report mentions `@clara`, the work returns to her. Every handoff is an ordinary post in the channel, readable by anyone in it.
+When Clara's reply mentions `@theo`, her turn ends and his begins. When his report mentions `@clara`, the work returns to her. Every handoff is an ordinary post in the channel.
 
-Two rules keep this legible:
-
-- **One agent per message.** A post mentioning two agents starts nothing; the system bot answers with a mechanical correction. Chains stay chains, never trees.
-- **Delegation is bounded.** A chain of agent-to-agent handoffs stops at a fixed depth with a visible notice asking a person to pick the work up.
+Mention one agent per message. A post mentioning two agents starts nothing, and the system bot answers with a correction.
 
 ## Notes for real deployments
 
-- **Channels.** Topology is declared, never chosen by agents. Per-channel triggering is set in `config.json` (`channels: [{ "handle": ..., "triggerMode": ... }]`): `mention-required` is the default everywhere; `respond-to-all` makes every human post start a turn and admits at most one agent in that channel. DMs behave as respond-to-all inherently.
-- **Mail.** An agent gains mail by granting the `mail` toolset and supplying its settings under `toolSettings.mail`: one address, one provider, fixed in configuration. Granting mail without a mailbox is a boot refusal — the mail settings schema in the [configuration reference](/docs/reference/configuration) is the rule. Grants can also name single tools: `"tools": ["memory", "mail::list", "mail::open", "mail::search"]` is read-only mail.
-- **Shell.** A shell grant is per-agent and each command is approved individually. The agent runs as a dedicated OS user that owns its home directory and nothing else; the container entrypoint provisions that user, and boot refuses to start if it is missing.
+- **Channels.** Set per-channel triggering in `config.json` under `channels: [{ "handle": ..., "triggerMode": ... }]`. `mention-required` is the default. `respond-to-all` makes every human post start a turn and admits at most one agent in that channel. DMs behave as respond-to-all.
+- **Mail.** To give an agent mail, grant the `mail` toolset and supply its settings under `toolSettings.mail`: one address, one provider. Granting mail without a mailbox is a boot refusal. See the [configuration reference](/docs/reference/configuration) for the settings schema. Grants can also name single tools: `"tools": ["memory", "mail::list", "mail::open", "mail::search"]` is read-only mail.
+- **Shell.** Grant `shell` per agent. You approve each command individually. The agent runs as a dedicated OS user, which the container entrypoint provisions. Boot refuses to start if that user is missing.
