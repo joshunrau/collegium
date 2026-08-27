@@ -29,7 +29,7 @@ const SCENARIO = defineScenario({
 const RESUME_SCENARIO = defineScenario({
   ...SCENARIO,
   // the harness handshake spends a slot, so two turns fit before the third breaches
-  turnCeilingPerHour: 3
+  hourlyCeiling: 3
 });
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -15,8 +15,14 @@ import { CONFIG_DEFAULTS } from '../constants.ts';
 import { schemaTable } from '../meta.ts';
 
 // After any change here, update the root config.json to match; `pnpm build` regenerates
-// dist/config.schema.json. The e2e mirrors (`buildCollegiumConfig`, `Scenario`) are typed from
-// `Config` and stop compiling on their own.
+// dist/config.schema.json. The e2e mirror (`buildCollegiumConfig`) is typed from `ConfigInput` and
+// stops compiling on its own.
+//
+// Where a key lives: a thing the deployment has is an entry in its noun's collection (agents,
+// mattermost.channels, providers, plugins); a value an agent runs with is a key on the agent, and
+// on agentDefaults when it can be stated once for every agent; a toolset's knob is a field of that
+// toolset's own settings schema and never appears here; a framework-wide behaviour goes in the
+// section named for the SPEC concept that defines it.
 
 /** plugin grants keep the same two shapes as framework grants; existence is verified at boot, after plugins load (§8) */
 const PLUGIN_GRANT_PATTERN = /^[a-z](?:_?[a-z0-9])*(?:::[a-z](?:_?[a-z0-9])*)?$/;
@@ -28,13 +34,25 @@ const GRANTABLE_SKILL_NAME_SET = new Set<string>(BUILTIN_GRANTABLE_SKILL_NAMES);
 const CORE_SKILL_NAME_SET = new Set<string>(BUILTIN_CORE_SKILL_NAMES);
 
 /** per-namespace settings, validated generically at boot against the schema each toolset declares (§8) */
-const $ToolSettings = z.record(z.string().regex(TOOL_SEGMENT_PATTERN), z.unknown());
+export type $ToolSettings = z.infer<typeof $ToolSettings>;
+export const $ToolSettings = z.record(z.string().regex(TOOL_SEGMENT_PATTERN), z.unknown());
 
 export type $ModelRef = z.infer<typeof $ModelRef>;
-export const $ModelRef = z.discriminatedUnion('provider', [
-  z.strictObject({ name: z.enum(DEEPSEEK_MODELS), provider: z.literal('deepseek') }),
-  z.strictObject({ name: z.enum(OPENROUTER_MODELS), provider: z.literal('openrouter') })
-]);
+export const $ModelRef = z
+  .discriminatedUnion('provider', [
+    z.strictObject({ name: z.enum(DEEPSEEK_MODELS), provider: z.literal('deepseek') }),
+    z.strictObject({ name: z.enum(OPENROUTER_MODELS), provider: z.literal('openrouter') })
+  ])
+  .describe('The model an agent thinks with. Its provider must be configured under providers.');
+
+export type $ContextBudgetTokens = z.infer<typeof $ContextBudgetTokens>;
+export const $ContextBudgetTokens = z
+  .number()
+  .int()
+  .positive()
+  .describe(
+    'How many estimated tokens of channel history one turn may assemble (§3.8). The estimate is a character ratio, not a tokenizer.'
+  );
 
 /** a Mattermost account name: the slug an agent is addressed by, and its bot account's own handle */
 export type $Username = z.infer<typeof $Username>;
@@ -43,13 +61,12 @@ export const $Username = z
   .regex(/^[a-z][a-z0-9-]*$/)
   .max(22);
 
-export type $TriggerMode = z.infer<typeof $TriggerMode>;
-export const $TriggerMode = z.enum(['mention-required', 'respond-to-all']);
+export type $TriggeringMode = z.infer<typeof $TriggeringMode>;
+export const $TriggeringMode = z.enum(['mention-required', 'respond-to-all']);
 
 export type $ChannelDefinition = z.infer<typeof $ChannelDefinition>;
 export const $ChannelDefinition = z.strictObject({
-  handle: $ChannelHandle.describe("The channel's name in its URL, resolved against the configured team at boot"),
-  triggerMode: $TriggerMode.describe(
+  triggeringMode: $TriggeringMode.describe(
     'mention-required: the agent acts only when explicitly @-mentioned. respond-to-all: every human post starts a turn, and the channel may hold at most one agent (§3.10).'
   )
 });
@@ -117,21 +134,30 @@ export const $SkillGrant = z.string().check((ctx) => {
   }
 });
 
-export type $AgentDefinition = z.infer<typeof $AgentDefinition>;
-export const $AgentDefinition = z.strictObject({
-  contextBudgetTokens: z
-    .number()
-    .int()
-    .positive()
+export type $AgentDefaults = z.infer<typeof $AgentDefaults>;
+export const $AgentDefaults = z.strictObject({
+  contextBudgetTokens: $ContextBudgetTokens.default(CONFIG_DEFAULTS.agentDefaults.contextBudgetTokens),
+  model: $ModelRef.optional(),
+  toolSettings: $ToolSettings
+    .default({})
+    .describe(
+      'Per-namespace settings every agent granted that namespace starts from. An agent’s own toolSettings merge over these shallowly, per namespace: a field the agent states replaces that field whole, and the rest keep their defaults.'
+    )
+});
+
+/** one agent as written: its username is the key it sits under */
+export type $AgentDeclaration = z.infer<typeof $AgentDeclaration>;
+export const $AgentDeclaration = z.strictObject({
+  contextBudgetTokens: $ContextBudgetTokens
     .optional()
-    .describe('Overrides app.contextBudgetTokens for this agent. Absent means the app-wide value.'),
+    .describe('Overrides agentDefaults.contextBudgetTokens for this agent'),
   expertise: z
     .string()
     .min(1)
     .describe(
       'What this agent should be contacted about, in a few words. Shown to every other agent so they know when to hand work over.'
     ),
-  model: $ModelRef.describe('LLM model and provider for this agent'),
+  model: $ModelRef.optional().describe('Overrides agentDefaults.model. Required when no default is set.'),
   skills: z
     .array($SkillGrant)
     .default([])
@@ -148,27 +174,8 @@ export const $AgentDefinition = z.strictObject({
   toolSettings: $ToolSettings
     .default({})
     .describe(
-      'Per-namespace settings for this agent, merged shallowly over app.defaultToolSettings and validated against the schema the toolset declares. Settings for an ungranted toolset are refused at boot.'
-    ),
-  username: $Username.describe(
-    "The agent's unique identity (a lowercase slug). Provisioning creates the Mattermost bot account of this name if it is absent."
-  )
-});
-
-export type $InferenceRetryPolicy = z.infer<typeof $InferenceRetryPolicy>;
-export const $InferenceRetryPolicy = z.strictObject({
-  backoffMs: z
-    .number()
-    .int()
-    .positive()
-    .default(CONFIG_DEFAULTS.app.inferenceRetry.backoffMs)
-    .describe('Delay before the first retry of a transport failure, doubling with each further attempt'),
-  maxAttempts: z
-    .number()
-    .int()
-    .positive()
-    .default(CONFIG_DEFAULTS.app.inferenceRetry.maxAttempts)
-    .describe('Total attempts allowed for one completion, the first attempt included')
+      'Per-namespace settings for this agent, merged shallowly over agentDefaults.toolSettings and validated against the schema the toolset declares. Settings for an ungranted toolset are refused at boot.'
+    )
 });
 
 export type $DebouncePolicy = z.infer<typeof $DebouncePolicy>;
@@ -177,60 +184,129 @@ export const $DebouncePolicy = z.strictObject({
     .number()
     .int()
     .positive()
-    .default(CONFIG_DEFAULTS.app.debounce.ceilingMs)
+    .default(CONFIG_DEFAULTS.activation.debounce.ceilingMs)
     .describe('Hard limit on how long folding may delay a turn, so a human typing steadily still gets a response'),
   windowMs: z
     .number()
     .int()
     .positive()
-    .default(CONFIG_DEFAULTS.app.debounce.windowMs)
+    .default(CONFIG_DEFAULTS.activation.debounce.windowMs)
     .describe(
       'How long to wait after each message before starting a turn, folding fragments into one turn for free (§4.4). Past this the running turn folds them instead, at the cost of a discarded completion. Keep it well under 5s: it is also how long the typing indicator must cover before the turn lights its own.'
     )
 });
 
-export type $AppConfig = z.infer<typeof $AppConfig>;
-export const $AppConfig = z.strictObject({
-  contextBudgetTokens: z
-    .number()
-    .int()
-    .positive()
-    .default(CONFIG_DEFAULTS.app.contextBudgetTokens)
-    .describe(
-      'How many estimated tokens of channel history one turn may assemble (§3.8), overridable per agent. The estimate is a character ratio, not a tokenizer.'
-    ),
-  debounce: $DebouncePolicy.prefault({}).describe('How message fragments are folded into one turn (§4.4)'),
-  defaultToolSettings: $ToolSettings
-    .default({})
-    .describe(
-      'App-wide per-namespace settings, merged shallowly under each agent’s own toolSettings. Shallow: an agent overriding a field replaces it whole.'
-    ),
-  enableLifecycleNotifications: z.boolean().default(CONFIG_DEFAULTS.app.enableLifecycleNotifications),
-  inferenceRetry: $InferenceRetryPolicy
+export type $ActivationConfig = z.infer<typeof $ActivationConfig>;
+export const $ActivationConfig = z.strictObject({
+  debounce: $DebouncePolicy
     .prefault({})
-    .describe('How transport failures from a model provider are retried. Semantic failures are never retried.'),
-  inferenceTimeoutMs: z
+    .describe('The window before a turn starts, during which further fragments fold into it (§4.4)'),
+  foldLimit: z
     .number()
     .int()
     .positive()
-    .default(CONFIG_DEFAULTS.app.inferenceTimeoutMs)
+    .default(CONFIG_DEFAULTS.activation.foldLimit)
     .describe(
-      'How long one completion attempt may run before it is aborted and classified as a retryable transport failure. Bounds a provider that accepts the connection and never responds.'
-    ),
-  logLevel: $LogLevel.default(CONFIG_DEFAULTS.app.logLevel).describe('Minimum severity the app logs'),
-  timezone: z.string().default(CONFIG_DEFAULTS.app.timezone).describe('The timezone to use when displaying dates'),
-  turnCeilingPerHour: z
+      'How many times one running turn may discard its completion to absorb a further fragment (§4.4). Bounds the folding after a turn exists, as the debounce ceiling bounds the window before it.'
+    )
+});
+
+export type $TurnsConfig = z.infer<typeof $TurnsConfig>;
+export const $TurnsConfig = z.strictObject({
+  actionBudget: z
     .number()
     .int()
     .positive()
-    .default(CONFIG_DEFAULTS.app.turnCeilingPerHour)
+    .default(CONFIG_DEFAULTS.turns.actionBudget)
+    .describe(
+      'Action attempts one turn may make before it must ask to continue (§5.3): every model-emitted tool invocation counts, denied ones included. An approved extension grants this many more.'
+    ),
+  delegationDepthLimit: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.turns.delegationDepthLimit)
+    .describe(
+      'How many agent-to-agent hops from the nearest human a delegation chain may reach (§7.4). At the limit, mentions of a peer are stripped and the turn says so.'
+    ),
+  hourlyCeiling: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.turns.hourlyCeiling)
     .describe(
       'Framework-wide ceiling on turns started per rolling hour. A breach halts every agent until a human posts /resume (§7.4).'
     )
 });
 
+export type $InferenceRetryPolicy = z.infer<typeof $InferenceRetryPolicy>;
+export const $InferenceRetryPolicy = z.strictObject({
+  backoffMs: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.inference.retry.backoffMs)
+    .describe('Delay before the first retry of a transport failure, doubling with each further attempt'),
+  maxAttempts: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.inference.retry.maxAttempts)
+    .describe('Total attempts allowed for one completion, the first attempt included')
+});
+
+export type $InferenceConfig = z.infer<typeof $InferenceConfig>;
+export const $InferenceConfig = z.strictObject({
+  retry: $InferenceRetryPolicy
+    .prefault({})
+    .describe('How transport failures from a model provider are retried (§7.2). Semantic failures are never retried.'),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.inference.timeoutMs)
+    .describe(
+      'How long one completion attempt may run before it is aborted and classified as a retryable transport failure. Bounds a provider that accepts the connection and never responds.'
+    )
+});
+
+export type $LoggingConfig = z.infer<typeof $LoggingConfig>;
+export const $LoggingConfig = z.strictObject({
+  level: $LogLevel.default(CONFIG_DEFAULTS.logging.level).describe('Minimum severity the app logs')
+});
+
+export type $NotificationsConfig = z.infer<typeof $NotificationsConfig>;
+export const $NotificationsConfig = z.strictObject({
+  lifecycle: z
+    .boolean()
+    .default(CONFIG_DEFAULTS.notifications.lifecycle)
+    .describe(
+      'Whether the system bot posts a notice in the main channel when the app comes online, naming the downtime and the turns it abandoned, and again when it shuts down (§3.2, §7.3)'
+    )
+});
+
+export type $DisplayConfig = z.infer<typeof $DisplayConfig>;
+export const $DisplayConfig = z.strictObject({
+  timezone: z
+    .string()
+    .default(CONFIG_DEFAULTS.display.timezone)
+    .describe('The IANA timezone every date rendered into a post is shown in')
+});
+
 export type $MattermostConfig = z.infer<typeof $MattermostConfig>;
 export const $MattermostConfig = z.strictObject({
+  channels: z
+    .record(
+      $ChannelHandle.meta({
+        description: "The channel's name in its URL, resolved against the team at boot",
+        title: 'handle'
+      }),
+      $ChannelDefinition
+    )
+    .default({})
+    .describe(
+      'Per-channel triggering mode, by handle. Any channel not listed is mention-required. Each listed channel is created at provisioning if absent, with every bot a member.'
+    ),
   // the default holds without the operator provisioning anything: town-square is created with every
   // team, every member is added to it automatically, and it can be neither left nor archived
   mainChannel: $ChannelHandle
@@ -245,68 +321,80 @@ export const $MattermostConfig = z.strictObject({
     )
 });
 
-export type $Config = z.infer<typeof $Config>;
-export const $Config = z
-  .strictObject({
-    $schema: z
-      .string()
-      .optional()
-      .describe('Path or URL of the JSON Schema an editor validates this file against; ignored by the app'),
-    agents: z
-      .array($AgentDefinition)
-      .min(1)
-      .refine((agents) => isUnique(agents.map((agent) => agent.username)), {
-        message: 'agent usernames must be unique'
-      })
-      .describe(
-        'The agents this deployment runs, each a persistent identity with its own model, grants, and prompt (§3.1)'
-      ),
-    app: $AppConfig.prefault({}).describe('Framework-wide behaviour: budgets, debounce, retries, logging'),
-    channels: z
-      .array($ChannelDefinition)
-      .default([])
-      .describe('Per-channel triggering mode. Any channel not listed here is mention-required.'),
-    mattermost: $MattermostConfig
-      .prefault({})
-      .describe('What the deployment expects of its Mattermost team beyond the environment'),
-    models: z
-      .strictObject({
-        deepseek: z
-          .strictObject({
-            apiKey: z.string().min(1).describe('DeepSeek API key (https://platform.deepseek.com/api_keys)'),
-            baseUrl: z
-              .url()
-              .default(CONFIG_DEFAULTS.models.deepseek.baseUrl)
-              .describe('Base URL of the DeepSeek-compatible API')
-          })
-          .optional()
-          .describe('DeepSeek, reached directly'),
-        openrouter: z
-          .strictObject({
-            apiKey: z.string().min(1).describe('OpenRouter API key (https://openrouter.ai/keys)'),
-            baseUrl: z
-              .url()
-              .default(CONFIG_DEFAULTS.models.openrouter.baseUrl)
-              .describe('Base URL of the OpenRouter-compatible API')
-          })
-          .optional()
-          .describe('OpenRouter, fronting many providers under one key')
-      })
-      .describe('Credentials for each model provider an agent may name; at least one is required'),
-    plugins: z
-      .array($PluginName)
-      .optional()
-      .refine((plugins) => !plugins || isUnique(plugins), { message: 'plugin names must be unique' })
-      .describe(
-        'Plugins to load at boot, by name. Each is a directory of that name beneath the plugin root, contributing one toolset under its own namespace (§3.14)'
-      )
-  })
-  .refine((config) => config.models.deepseek ?? config.models.openrouter, {
-    message: 'at least one model provider must be configured'
-  })
-  // one account cannot be both the mechanical voice (§3.2) and an agent that thinks
-  .refine((config) => config.agents.every((agent) => agent.username !== config.mattermost.systemBotUsername), {
-    message: 'the system bot username must not be an agent username'
-  });
+export type $ProvidersConfig = z.infer<typeof $ProvidersConfig>;
+export const $ProvidersConfig = z.strictObject({
+  deepseek: z
+    .strictObject({
+      apiKey: z.string().min(1).describe('DeepSeek API key (https://platform.deepseek.com/api_keys)'),
+      baseUrl: z
+        .url()
+        .default(CONFIG_DEFAULTS.providers.deepseek.baseUrl)
+        .describe('Base URL of the DeepSeek-compatible API')
+    })
+    .optional()
+    .describe('DeepSeek, reached directly'),
+  openrouter: z
+    .strictObject({
+      apiKey: z.string().min(1).describe('OpenRouter API key (https://openrouter.ai/keys)'),
+      baseUrl: z
+        .url()
+        .default(CONFIG_DEFAULTS.providers.openrouter.baseUrl)
+        .describe('Base URL of the OpenRouter-compatible API')
+    })
+    .optional()
+    .describe('OpenRouter, fronting many providers under one key')
+});
 
-export type Config = Omit<$Config, '$schema'>;
+/** config.json as written, before its cross-references are resolved */
+export type $ConfigDeclaration = z.infer<typeof $ConfigDeclaration>;
+export const $ConfigDeclaration = z.strictObject({
+  $schema: z
+    .string()
+    .optional()
+    .describe('Path or URL of the JSON Schema an editor validates this file against; ignored by the app'),
+  activation: $ActivationConfig
+    .prefault({})
+    .describe('When a turn starts: how a human’s fragments fold into one turn (§4.4)'),
+  agentDefaults: $AgentDefaults
+    .prefault({})
+    .describe(
+      'Values every agent runs with unless its own entry states otherwise — the same keys, the same shapes. Grants and identity are never defaulted.'
+    ),
+  agents: z
+    .record(
+      $Username.meta({
+        description: "The agent's username: how it is addressed, and its bot account's own handle",
+        title: 'username'
+      }),
+      $AgentDeclaration
+    )
+    .describe(
+      'The agents this deployment runs, by username, each a persistent identity with its own prompt, model, and grants (§3.1). Provisioning creates the bot account of that name if it is absent.'
+    ),
+  display: $DisplayConfig.prefault({}).describe('How facts are rendered for humans, not what they are'),
+  inference: $InferenceConfig
+    .prefault({})
+    .describe('The transport to model providers: how long a completion may take and how failures are retried (§7.2)'),
+  logging: $LoggingConfig.prefault({}).describe('What the app logs'),
+  mattermost: $MattermostConfig
+    .prefault({})
+    .describe(
+      'What the deployment expects of its Mattermost team beyond what the environment locates: the main channel, the system bot, and each channel’s triggering mode'
+    ),
+  notifications: $NotificationsConfig
+    .prefault({})
+    .describe('Which of the system bot’s deterministic notices are posted (§3.2)'),
+  plugins: z
+    .array($PluginName)
+    .refine((plugins) => isUnique(plugins), { message: 'plugin names must be unique' })
+    .default([])
+    .describe(
+      'Plugins to load at boot, by name. Each is a directory of that name beneath the plugin root, contributing one toolset under its own namespace (§3.14)'
+    ),
+  providers: $ProvidersConfig
+    .prefault({})
+    .describe(
+      'Credentials for each model provider an agent may name. A provider a model names must be configured here.'
+    ),
+  turns: $TurnsConfig.prefault({}).describe('The bounds on a turn and on chains of turns (§5.3, §7.4)')
+});

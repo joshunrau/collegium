@@ -1,7 +1,6 @@
 import * as fs from 'node:fs';
 
 import { $Config } from '@collegium/config';
-import type { Config } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 import { get } from 'es-toolkit/compat';
 import type { Get, Paths } from 'type-fest';
@@ -10,17 +9,17 @@ import { EnvService } from './env/env.service.ts';
 
 @Injectable()
 export class ConfigService {
-  private readonly config: Config;
+  private readonly config: $Config;
 
   constructor(envService: EnvService) {
     this.config = this.loadConfig(envService.get('CONFIG_PATH'));
   }
 
-  get<const TKey extends Paths<Config>>(key: TKey): Get<Config, TKey> {
-    return get(this.config, key) as Get<Config, TKey>;
+  get<const TKey extends Paths<$Config>>(key: TKey): Get<$Config, TKey> {
+    return get(this.config, key) as Get<$Config, TKey>;
   }
 
-  private loadConfig(filepath: string): Config {
+  private loadConfig(filepath: string): $Config {
     let raw: string;
     try {
       raw = fs.readFileSync(filepath, 'utf-8');
@@ -28,14 +27,9 @@ export class ConfigService {
       throw new Error(`failed to read config at "${filepath}"`, { cause: error });
     }
     try {
-      return this.parseConfig(raw);
+      return $Config.parse(JSON.parse(raw));
     } catch (error) {
       throw new Error(`invalid config at "${filepath}"`, { cause: error });
     }
-  }
-
-  private parseConfig(raw: string): Config {
-    const { $schema, ...config } = $Config.parse(JSON.parse(raw));
-    return config;
   }
 }

@@ -8,11 +8,13 @@ import { ApprovalsService } from '@/approvals/approvals.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
+import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import type { CompletionResult, InferenceFailure, TokenUsage } from '@/inference/inference.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
@@ -125,6 +127,7 @@ describe('TurnRunner', () => {
         TurnControlRegistry,
         TurnFoldRegistry,
         { provide: ApprovalsService, useValue: approvalsService },
+        { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: ContextAssembler, useValue: contextAssembler },
         { provide: ConversationsService, useValue: conversationsService },
         { provide: InferenceRegistry, useValue: inferenceRegistry },

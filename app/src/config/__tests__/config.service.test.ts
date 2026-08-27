@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import type { Config } from '@collegium/config';
+import type { ConfigInput } from '@collegium/config';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -13,32 +13,20 @@ import { ConfigService } from '../config.service.ts';
 import { EnvService } from '../env/env.service.ts';
 
 const config = {
-  agents: [
-    {
-      expertise: 'programming',
-      model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
-      skills: [],
-      systemPrompt: 'You are Mira Turner',
-      tools: [],
-      toolSettings: {},
-      username: 'mira'
-    }
-  ],
-  app: {
-    contextBudgetTokens: 8000,
-    debounce: { ceilingMs: 15_000, windowMs: 3000 },
-    defaultToolSettings: {},
-    enableLifecycleNotifications: true,
-    inferenceRetry: { backoffMs: 250, maxAttempts: 3 },
-    inferenceTimeoutMs: 120_000,
-    logLevel: 'error',
-    timezone: 'America/Toronto',
-    turnCeilingPerHour: 250
+  $schema: 'https://collegium.sh/api/config/schema.json',
+  agentDefaults: {
+    model: { name: 'deepseek-v4-flash', provider: 'deepseek' }
   },
-  channels: [],
-  mattermost: { mainChannel: 'main', systemBotUsername: 'orchestrator' },
-  models: { deepseek: { apiKey: 'key_1', baseUrl: 'https://api.deepseek.com' } }
-} satisfies Config;
+  agents: {
+    mira: {
+      expertise: 'programming',
+      systemPrompt: 'You are Mira Turner'
+    }
+  },
+  display: { timezone: 'America/Toronto' },
+  logging: { level: 'error' },
+  providers: { deepseek: { apiKey: 'key_1' } }
+} satisfies ConfigInput;
 
 function compileConfigService(envService: MockedInstance<EnvService>) {
   return Test.createTestingModule({
@@ -69,7 +57,15 @@ describe('ConfigService', () => {
   });
 
   it('should return a nested config value', () => {
-    expect(configService.get('app.timezone')).toBe('America/Toronto');
+    expect(configService.get('display.timezone')).toBe('America/Toronto');
+  });
+
+  it('should hand out agents resolved against agentDefaults, keyed and named by username', () => {
+    expect(configService.get('agents.mira')).toMatchObject({
+      contextBudgetTokens: 8000,
+      model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
+      username: 'mira'
+    });
   });
 
   it('should throw naming a config file that cannot be read', async () => {

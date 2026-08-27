@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 
 import { CONFIG_DEFAULTS } from '@collegium/config';
-import type { Config } from '@collegium/config';
+import type { ConfigInput } from '@collegium/config';
 import { withTimeout } from '@collegium/core/utils';
 
 import { E2E_RESOURCE_PREFIX, PROJECT_ROOT } from './constants.ts';
@@ -35,7 +35,7 @@ const COLLEGIUM_FIXTURE = {
   host: '127.0.0.1',
   /** the production backoff would stretch retry tests; attempts stay at the shipped default */
   inferenceRetry: {
-    ...CONFIG_DEFAULTS.app.inferenceRetry,
+    ...CONFIG_DEFAULTS.inference.retry,
     backoffMs: 10
   },
   inferenceTimeoutMs: 60_000,
@@ -61,7 +61,7 @@ type CollegiumConfigOptions = {
 };
 
 type CollegiumProcessOptions = {
-  config: Config;
+  config: ConfigInput;
   /** what the workspace minted: the app reads its tokens from the store provisioning writes */
   credentials: readonly AgentBot[];
   mattermost: {
@@ -99,60 +99,59 @@ function buildCollegiumConfig({
   mainChannel,
   scenario,
   systemBotUsername
-}: CollegiumConfigOptions): Config {
+}: CollegiumConfigOptions): ConfigInput {
   return {
-    agents: scenario.agents.map((agent) => {
-      const bot = agents.get(agent.username);
-      if (!bot) {
-        throw new Error(`agent "${agent.username}" has no provisioned Mattermost bot`);
-      }
-      return {
-        contextBudgetTokens: agent.contextBudgetTokens,
-        expertise: agent.expertise,
-        model: COLLEGIUM_FIXTURE.model,
-        skills: Array.from(agent.skills ?? []),
-        systemPrompt: agent.systemPrompt,
-        tools: [...(agent.tools ?? [])],
-        toolSettings: { ...agent.toolSettings },
-        username: bot.username
-      };
-    }),
-    app: {
-      contextBudgetTokens: CONFIG_DEFAULTS.app.contextBudgetTokens,
-      debounce: scenario.debounce ?? COLLEGIUM_FIXTURE.debounce,
-      defaultToolSettings: {},
-      enableLifecycleNotifications: true,
-      inferenceRetry: COLLEGIUM_FIXTURE.inferenceRetry,
-      inferenceTimeoutMs: COLLEGIUM_FIXTURE.inferenceTimeoutMs,
-      logLevel: 'error',
-      timezone: CONFIG_DEFAULTS.app.timezone,
-      turnCeilingPerHour: scenario.turnCeilingPerHour ?? CONFIG_DEFAULTS.app.turnCeilingPerHour
-    },
-    channels: scenario.channels.flatMap((channel) => {
-      if (!channel.triggerMode) {
-        return [];
-      }
-      // config names channels by handle, and a DM has none to name — it is respond-to-all by type (§3.10)
-      if (channel.type === 'direct') {
-        throw new Error(`direct channel "${channel.name}" cannot declare a trigger mode`);
-      }
-      const provisioned = channels.get(channel.name);
-      if (!provisioned) {
-        throw new Error(`channel "${channel.name}" has no provisioned Mattermost channel`);
-      }
-      return [{ handle: provisioned.name, triggerMode: channel.triggerMode }];
-    }),
+    activation: { debounce: scenario.debounce ?? COLLEGIUM_FIXTURE.debounce },
+    agents: Object.fromEntries(
+      scenario.agents.map((agent) => {
+        const bot = agents.get(agent.username);
+        if (!bot) {
+          throw new Error(`agent "${agent.username}" has no provisioned Mattermost bot`);
+        }
+        return [
+          bot.username,
+          {
+            contextBudgetTokens: agent.contextBudgetTokens,
+            expertise: agent.expertise,
+            model: COLLEGIUM_FIXTURE.model,
+            skills: Array.from(agent.skills ?? []),
+            systemPrompt: agent.systemPrompt,
+            tools: [...(agent.tools ?? [])],
+            toolSettings: { ...agent.toolSettings }
+          }
+        ];
+      })
+    ),
+    inference: { retry: COLLEGIUM_FIXTURE.inferenceRetry, timeoutMs: COLLEGIUM_FIXTURE.inferenceTimeoutMs },
+    logging: { level: 'error' },
     mattermost: {
+      channels: Object.fromEntries(
+        scenario.channels.flatMap((channel) => {
+          if (!channel.triggeringMode) {
+            return [];
+          }
+          // config names channels by handle, and a DM has none to name — it is respond-to-all by type (§3.10)
+          if (channel.type === 'direct') {
+            throw new Error(`direct channel "${channel.name}" cannot declare a triggering mode`);
+          }
+          const provisioned = channels.get(channel.name);
+          if (!provisioned) {
+            throw new Error(`channel "${channel.name}" has no provisioned Mattermost channel`);
+          }
+          return [[provisioned.name, { triggeringMode: channel.triggeringMode }]];
+        })
+      ),
       mainChannel,
       systemBotUsername
     },
-    models: {
+    ...(scenario.plugins && { plugins: [...scenario.plugins] }),
+    providers: {
       deepseek: {
         apiKey: inference.apiKey,
         baseUrl: inference.baseUrl
       }
     },
-    plugins: scenario.plugins ? [...scenario.plugins] : undefined
+    turns: { hourlyCeiling: scenario.hourlyCeiling ?? CONFIG_DEFAULTS.turns.hourlyCeiling }
   };
 }
 
@@ -169,7 +168,7 @@ async function awaitAgentHandshake<AgentName extends string>({
 
 class CollegiumProcess {
   private child: ChildProcessWithoutNullStreams | undefined;
-  private readonly config: Config;
+  private readonly config: ConfigInput;
   private readonly configPath: string;
   private readonly credentials: readonly AgentBot[];
   private readonly databasePath: string;

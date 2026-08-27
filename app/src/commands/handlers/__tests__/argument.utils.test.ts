@@ -1,4 +1,4 @@
-import type { $AgentDefinition } from '@collegium/config';
+import type { AgentDefinition } from '@collegium/config';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -11,7 +11,8 @@ import { createEnvServiceMock } from '@/testing/factories/env-service.factory.ts
 
 import { requireAgentName, requireAgentProfile, requirePostId } from '../argument.utils.ts';
 
-const MIRA: $AgentDefinition = {
+const MIRA: AgentDefinition = {
+  contextBudgetTokens: 8000,
   expertise: 'code review',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: [],
@@ -28,7 +29,7 @@ describe('requireAgentName', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         AgentRegistry,
-        { provide: ConfigService, useValue: createConfigServiceMock({ agents: [MIRA] }) },
+        { provide: ConfigService, useValue: createConfigServiceMock({ agents: { mira: MIRA } }) },
         { provide: EnvService, useValue: createEnvServiceMock() },
         { provide: PluginsRegistry, useValue: new PluginsRegistry([]) }
       ]

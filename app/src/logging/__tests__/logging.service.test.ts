@@ -23,7 +23,7 @@ class SomeConsumer {
 }
 
 async function createTestingModule(logLevel: $LogLevel): Promise<TestingModule> {
-  const configService = createConfigServiceMock({ app: { logLevel } });
+  const configService = createConfigServiceMock({ logging: { level: logLevel } });
   return Test.createTestingModule({
     providers: [{ provide: ConfigService, useValue: configService }, LoggingService, SomeConsumer]
   }).compile();

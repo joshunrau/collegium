@@ -140,7 +140,7 @@ Two compensating controls follow from that. **Credentials are never disclosed**:
 
 Sessions are fresh anonymous contexts disposed at turn end — no cookies persist and no login outlives the turn that made it. robots.txt is not consulted: these are agent-driven reads at human pace, not crawling. Non-HTML resources (PDFs) are a typed refusal.
 
-**Grants and settings are one config mechanism.** `agents[].tools` lists namespaces or single `ns::tool` refs; a namespace grant covers tools added to that namespace later, so a plugin update can widen an existing grant with no config change — accepted deliberately, since installing a plugin is already a trust decision. Effective settings per toolset are `app.defaultToolSettings[ns]` merged shallowly with `agents[].toolSettings[ns]`, then parsed against that toolset's own schema. Two generic rules replace every toolset-specific config refinement: settings for an ungranted toolset is an error, and a granted toolset whose merged settings fail its schema is an error — "mail requires a mailbox" is what the mail settings schema says, not a rule anyone maintains, and no toolset is named anywhere in the config module.
+**Grants and settings are one config mechanism.** `agents.<username>.tools` lists namespaces or single `ns::tool` refs; a namespace grant covers tools added to that namespace later, so a plugin update can widen an existing grant with no config change — accepted deliberately, since installing a plugin is already a trust decision. Effective settings per toolset are `agentDefaults.toolSettings[ns]` merged shallowly with `agents.<username>.toolSettings[ns]`, then parsed against that toolset's own schema. Two generic rules replace every toolset-specific config refinement: settings for an ungranted toolset is an error, and a granted toolset whose merged settings fail its schema is an error — "mail requires a mailbox" is what the mail settings schema says, not a rule anyone maintains, and no toolset is named anywhere in the config module.
 
 **Core tools are framework machinery, not grantable capability.** `skills::load` and `triggers::resolve` are in every agent's tool set — loading a skill the agent was already assigned, clearing a trigger the framework itself raised — and naming one in config is an error; their namespaces never appear in config at all. A plugin cannot contribute one.
 
@@ -323,7 +323,7 @@ Folding happens in two places, and the second is what makes the guarantee.
 
 **Only an unaddressed post is absorbed.** A fragment rarely repeats the mention, so this is what separates a sentence being finished from a request being made. The distinction has to be drawn somewhere, and it cannot be drawn on elapsed time: the model call a turn is inside may run until the inference timeout, and over that long a human is not completing a thought. A post that names the agent again is queued and acknowledged exactly as §5.2 says, because absorbing it would silently drop work — nothing about absorption is durable.
 
-**Absorption ends at the first action.** Once a tool has run or a post exists, discarding would throw away work that already had effects, so the turn stops absorbing and anything later takes the queue path. A **fold limit** bounds it from the other side: a human typing steadily reaches an answer instead of paying for one completion per sentence.
+**Absorption ends at the first action.** Once a tool has run or a post exists, discarding would throw away work that already had effects, so the turn stops absorbing and anything later takes the queue path. A **fold limit** (`activation.foldLimit`, three by default) bounds it from the other side: a human typing steadily reaches an answer instead of paying for one completion per sentence.
 
 **Absorption is scoped to the turn's own author.** Unrelated conversation in the channel is recorded and reaches the next turn's window as it always did; it never costs a running turn its completion. Fragments arriving when no turn is absorbing — a different author, a repeated mention, a turn past its first action, an agent already busy on something else — are handled by the queue instead (§5.2), which drains them into one turn.
 
@@ -377,7 +377,7 @@ An unaddressed fragment the running turn absorbs (§4.4) is neither queued nor a
 
 ### **5.3 Action Budget**
 
-**Ten action attempts per turn.** An action attempt is one model-emitted tool invocation, _including invocations denied before execution._ Not counted: framework transport retries, framework posting, and the tools declared budget-exempt (§3.4) — `skills::load` and `memory::read`, the exemption being for loading context the framework already holds. A plugin cannot declare one.
+**Ten action attempts per turn** (`turns.actionBudget`). An action attempt is one model-emitted tool invocation, _including invocations denied before execution._ Not counted: framework transport retries, framework posting, and the tools declared budget-exempt (§3.4) — `skills::load` and `memory::read`, the exemption being for loading context the framework already holds. A plugin cannot declare one.
 
 On exhaustion the agent posts what it has and requests approval to extend. Approving grants a further ten attempts and preserves accumulated context. Extensions are unbounded in number, but each prompt carries the running count — _extension 4; 40 attempts so far_ — because the human in the loop is the control, and the control needs the number.
 
@@ -495,13 +495,13 @@ Agent-to-agent mentions make unbounded chains possible: each turn is individuall
 - Human-initiated turn → depth 0
 - Trigger-initiated turn → depth 1 (a cron is not a human; unattended work is the dangerous kind)
 - Agent-initiated turn → parent depth \+ 1
-- Limit 10. At the limit, agent mentions in output are refused and the turn posts visibly: _"I would have asked a colleague but I've reached the delegation limit — someone needs to pick this up."_
+- Limit 10 (`turns.delegationDepthLimit`). At the limit, agent mentions in output are refused and the turn posts visibly: _"I would have asked a colleague but I've reached the delegation limit — someone needs to pick this up."_
 
 **Depth bounds the chain only because §4.5 bounds its width.** Every turn may address at most one peer, so a chain stays a chain: ten levels is ten turns, not ten levels of a branching tree.
 
 Enforcement is in the framework, not the prompt. Prompt-level constraints are advisory, and advisory constraints are what produced Hermes.
 
-**Global ceiling: 250 turns per hour, framework-wide.** Breach halts all agents, posts prominently, and requires an explicit `/resume`. A halt invalidates pending approval prompts, as a restart does. While a halt stands, queues do not drain and triggers are not flushed — a trigger posted into a halted channel would strand, the exact outcome idle-gating exists to prevent. On clearing, `/resume` runs the same drain-and-flush sweep boot performs.
+**Global ceiling: 250 turns per hour, framework-wide** (`turns.hourlyCeiling`). Breach halts all agents, posts prominently, and requires an explicit `/resume`. A halt invalidates pending approval prompts, as a restart does. While a halt stands, queues do not drain and triggers are not flushed — a trigger posted into a halted channel would strand, the exact outcome idle-gating exists to prevent. On clearing, `/resume` runs the same drain-and-flush sweep boot performs.
 
 **`/resume` refuses only what it can objectively re-check.** A §3.10 topology violation is a fact about membership, so a halt raised by one stands until membership is fixed. A ceiling halt clears on the human's authority: the rolling window is reset and a fresh allowance begins. The halt exists to stop a chain and put a human in front of it; once they have looked, their judgement is the control the system was routing to, and a check that overrides it while offering no way to say _"I have seen it and it is fine"_ turns an emergency brake into a timer — which is not something a human can be accountable for.
 

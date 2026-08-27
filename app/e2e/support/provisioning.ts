@@ -69,17 +69,16 @@ export function setupProvisioning(options: { runs: number }): Provisioning {
     fs.writeFileSync(
       configPath,
       JSON.stringify({
-        agents: [
-          {
+        agents: {
+          [usernames.agent]: {
             expertise: 'provisioning',
             model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
             systemPrompt: 'You are Vera.',
-            tools: [],
-            username: usernames.agent
+            tools: []
           }
-        ],
+        },
         mattermost: { systemBotUsername: usernames.systemBot },
-        models: { deepseek: { apiKey: 'never-called' } }
+        providers: { deepseek: { apiKey: 'never-called' } }
       })
     );
     await exec('npx', ['prisma', 'migrate', 'deploy'], { env: { ...process.env, DATABASE_URL: databaseUrl } });

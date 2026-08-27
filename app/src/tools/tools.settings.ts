@@ -55,7 +55,7 @@ export function resolveGrantedToolsetSettings<TSettings extends z.ZodType>(
     return undefined;
   }
   const merged = {
-    ...asSettingsRecord(`defaultToolSettings.${toolset.name}`, input.defaults[toolset.name]),
+    ...asSettingsRecord(`agentDefaults.toolSettings.${toolset.name}`, input.defaults[toolset.name]),
     ...asSettingsRecord(
       `agent "${input.agent.username}" toolSettings.${toolset.name}`,
       input.agent.toolSettings[toolset.name]
@@ -80,10 +80,12 @@ export function resolveEffectiveToolSettings(input: ResolveToolSettingsInput): E
   for (const namespace of Object.keys(input.defaults)) {
     const toolset = toolsetsByName.get(namespace);
     if (!toolset) {
-      throw new Error(`defaultToolSettings names "${namespace}", which no toolset declares`);
+      throw new Error(`agentDefaults.toolSettings names "${namespace}", which no toolset declares`);
     }
     if (!toolset.settings) {
-      throw new Error(`defaultToolSettings supplies settings for "${namespace}", which declares no settings schema`);
+      throw new Error(
+        `agentDefaults.toolSettings supplies settings for "${namespace}", which declares no settings schema`
+      );
     }
   }
   const resolved = new Map<string, ReadonlyMap<string, unknown>>();

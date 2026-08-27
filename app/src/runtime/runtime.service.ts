@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 
-import type { $AgentDefinition } from '@collegium/config';
+import type { AgentDefinition } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 import type { OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 
@@ -64,7 +64,9 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     await Promise.all(
       this.agentRegistry.list().map((profile) => fs.mkdir(profile.workspaceDir, { mode: 0o700, recursive: true }))
     );
-    const started = await Promise.all(this.configService.get('agents').map((definition) => this.start(definition)));
+    const started = await Promise.all(
+      Object.values(this.configService.get('agents')).map((definition) => this.start(definition))
+    );
     this.running = new Map(started.map((running) => [running.profile.username, running]));
     this.triggersService.onRecorded((channelId) => void this.activationService.flushTriggersIfIdle(channelId));
     const boot = await this.bootService.run();
@@ -73,7 +75,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     await this.mailBootService.assertReadyAndAnnounceOutages();
     this.mailInboundService.start();
     this.loggingService.log(`connected ${this.running.size} agent(s), listening for messages`);
-    if (this.configService.get('app.enableLifecycleNotifications')) {
+    if (this.configService.get('notifications.lifecycle')) {
       await this.notificationsService.notify({
         abandonedTurns: boot.abandonedTurns,
         agentUsernames: Array.from(this.running.keys()),
@@ -126,7 +128,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     }
   }
 
-  private async start(definition: $AgentDefinition): Promise<RunningAgent> {
+  private async start(definition: AgentDefinition): Promise<RunningAgent> {
     const profile = this.agentRegistry.get(definition.username);
     if (!profile) {
       throw new Error(`no profile registered for agent "${definition.username}"`);

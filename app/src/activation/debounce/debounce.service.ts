@@ -31,7 +31,7 @@ export class DebounceService implements OnApplicationShutdown {
   private readonly windowMs: number;
 
   constructor(configService: ConfigService) {
-    const { ceilingMs, windowMs } = configService.get('app.debounce');
+    const { ceilingMs, windowMs } = configService.get('activation.debounce');
     this.ceilingMs = ceilingMs;
     this.windowMs = windowMs;
   }

@@ -13,9 +13,13 @@ export type JsonSchemaNode = Partial<SchemaTableMeta> & {
   readonly description?: string;
   readonly enum?: readonly unknown[];
   readonly items?: JsonSchemaNode;
+  readonly maxLength?: number;
   readonly oneOf?: readonly JsonSchemaNode[];
+  readonly pattern?: string;
   readonly properties?: { readonly [key: string]: JsonSchemaNode };
+  readonly propertyNames?: JsonSchemaNode;
   readonly required?: readonly string[];
+  readonly title?: string;
   readonly type?: readonly string[] | string;
 };
 

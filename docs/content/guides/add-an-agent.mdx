@@ -10,11 +10,10 @@ Prerequisites: a running deployment. The [Quickstart](/docs/getting-started/quic
 
 ## 1. Declare Theo
 
-In `config.json`, add a second entry to `agents`:
+In `config.json`, add a second entry under `agents`, keyed by username:
 
 ```json
-{
-  "username": "theo",
+"theo": {
   "expertise": "web research and fact-finding",
   "systemPrompt": "You are Theo, a researcher. Answer with sources.",
   "model": { "provider": "openrouter", "name": "anthropic/claude-sonnet-5" },
@@ -22,7 +21,7 @@ In `config.json`, add a second entry to `agents`:
 }
 ```
 
-- `username` is how everyone addresses Theo: `@theo`.
+- The key is how everyone addresses Theo: `@theo`.
 - `expertise` is what other agents see when deciding whom to hand work to.
 - `tools` lists the toolsets Theo can use.
 
@@ -54,6 +53,7 @@ Mention one agent per message. A post mentioning two agents starts nothing, and 
 
 ## Notes for Real Deployments
 
-- **Channels.** Set per-channel triggering in `config.json` under `channels: [{ "handle": ..., "triggerMode": ... }]`. `mention-required` is the default. `respond-to-all` makes every human post start a turn and admits at most one agent in that channel. DMs behave as respond-to-all.
+- **Channels.** Set per-channel triggering in `config.json` under `mattermost.channels`, keyed by handle: `{ "support": { "triggeringMode": "respond-to-all" } }`. `mention-required` is the default. `respond-to-all` makes every human post start a turn and admits at most one agent in that channel. DMs behave as respond-to-all.
+- **Defaults.** A value every agent shares — `model`, `contextBudgetTokens`, `toolSettings` — can be stated once under `agentDefaults`, with the same key and shape. An agent restating the key overrides it.
 - **Mail.** To give an agent mail, grant the `mail` toolset and supply its settings under `toolSettings.mail`: one address, one provider. Granting mail without a mailbox is a boot refusal. See the [configuration reference](/docs/reference/configuration) for the settings schema. Grants can also name single tools: `"tools": ["memory", "mail::list", "mail::open", "mail::search"]` is read-only mail.
 - **Shell.** Grant `shell` per agent. You approve each command individually. The agent runs as a dedicated OS user, which the container entrypoint provisions. Boot refuses to start if that user is missing.

@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import type { $AgentDefinition, Config } from '@collegium/config';
+import type { $Config, AgentDefinition } from '@collegium/config';
 import { Test } from '@nestjs/testing';
 import type { PartialDeep } from 'type-fest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -34,7 +34,8 @@ import { TriggersService } from '@/triggers/triggers.service.ts';
 import { BootService } from '../boot/boot.service.ts';
 import { RuntimeService } from '../runtime.service.ts';
 
-const DEFINITION: $AgentDefinition = {
+const DEFINITION: AgentDefinition = {
+  contextBudgetTokens: 8000,
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: [],
@@ -69,7 +70,7 @@ describe('RuntimeService', () => {
   let mira: AgentProfile;
   let workspaceRoot: string;
 
-  const compile = (overrides: PartialDeep<Config> = {}): Promise<RuntimeService> =>
+  const compile = (overrides: PartialDeep<$Config> = {}): Promise<RuntimeService> =>
     Test.createTestingModule({
       providers: [
         RuntimeService,
@@ -81,7 +82,7 @@ describe('RuntimeService', () => {
         { provide: CommandReconcilerService, useValue: commandReconcilerService },
         {
           provide: ConfigService,
-          useValue: createConfigServiceMock({ agents: [DEFINITION], ...overrides })
+          useValue: createConfigServiceMock({ agents: { mira: DEFINITION }, ...overrides })
         },
         { provide: HaltService, useValue: haltService },
         MockFactory.createForService(LoggingService),
@@ -184,7 +185,7 @@ describe('RuntimeService', () => {
   });
 
   it('should stay silent on boot when lifecycle notifications are disabled', async () => {
-    const runtimeService = await compile({ app: { enableLifecycleNotifications: false } });
+    const runtimeService = await compile({ notifications: { lifecycle: false } });
     await runtimeService.onApplicationBootstrap();
     expect(notificationsService.notify).not.toHaveBeenCalled();
   });

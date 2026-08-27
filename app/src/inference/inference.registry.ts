@@ -14,16 +14,15 @@ export class InferenceRegistry {
   private readonly adapters: { [K in ProviderName]?: InferenceClient };
 
   constructor(configService: ConfigService) {
-    const models = configService.get('models');
-    const retryPolicy = configService.get('app.inferenceRetry');
-    const timeoutMs = configService.get('app.inferenceTimeoutMs');
+    const providers = configService.get('providers');
+    const { retry, timeoutMs } = configService.get('inference');
     this.adapters = {};
-    for (const provider of Object.keys(models) as ProviderName[]) {
-      const config = models[provider];
-      if (config) {
+    for (const provider of Object.keys(providers) as ProviderName[]) {
+      const credentials = providers[provider];
+      if (credentials) {
         this.adapters[provider] = new TransportRetrier(
-          new OpenAICompatibleClient({ ...config, timeoutMs }, provider),
-          retryPolicy
+          new OpenAICompatibleClient({ ...credentials, timeoutMs }, provider),
+          retry
         );
       }
     }

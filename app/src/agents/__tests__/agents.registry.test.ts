@@ -1,4 +1,4 @@
-import type { $AgentDefinition } from '@collegium/config';
+import type { AgentDefinition } from '@collegium/config';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -14,7 +14,8 @@ import { AgentRegistry } from '../agents.registry.ts';
 
 import type { AgentProfile } from '../agents.types.ts';
 
-const MIRA: $AgentDefinition = {
+const MIRA: AgentDefinition = {
+  contextBudgetTokens: 8000,
   expertise: 'code review',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: ['handing-work-to-a-peer'],
@@ -24,7 +25,8 @@ const MIRA: $AgentDefinition = {
   username: 'mira'
 };
 
-const TESS: $AgentDefinition = {
+const TESS: AgentDefinition = {
+  contextBudgetTokens: 8000,
   expertise: 'scheduling',
   model: { name: 'deepseek-v4-pro', provider: 'deepseek' },
   skills: [],
@@ -41,7 +43,7 @@ describe('AgentRegistry', () => {
   let mira: AgentProfile;
 
   beforeEach(async () => {
-    const configService = createConfigServiceMock({ agents: [MIRA, TESS] });
+    const configService = createConfigServiceMock({ agents: { mira: MIRA, tess: TESS } });
     const moduleRef = await Test.createTestingModule({
       providers: [
         AgentRegistry,

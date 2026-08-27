@@ -16,7 +16,7 @@ const SCENARIO = defineScenario({
   ],
   channels: [
     { name: 'main' },
-    { members: ['mira'], name: 'flow', triggerMode: 'respond-to-all' },
+    { members: ['mira'], name: 'flow', triggeringMode: 'respond-to-all' },
     { members: ['mira'], name: 'dm', type: 'direct' }
   ]
 });

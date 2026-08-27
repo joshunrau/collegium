@@ -1,4 +1,4 @@
-import type { $AgentDefinition } from '@collegium/config';
+import type { AgentDefinition } from '@collegium/config';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -16,7 +16,8 @@ import { ProvisioningService } from '../provisioning.service.ts';
 
 const ADMIN = { email: 'ops@example.org', password: 'secret', username: 'ops' };
 
-const agent = (username: string): $AgentDefinition => ({
+const agent = (username: string): AgentDefinition => ({
+  contextBudgetTokens: 8000,
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: [],
@@ -46,7 +47,10 @@ describe('ProvisioningService', () => {
       providers: [
         ProvisioningService,
         { provide: MattermostAdminClient, useValue: adminClient },
-        { provide: ConfigService, useValue: createConfigServiceMock({ agents: [agent('jane'), agent('amir')] }) },
+        {
+          provide: ConfigService,
+          useValue: createConfigServiceMock({ agents: { amir: agent('amir'), jane: agent('jane') } })
+        },
         { provide: CredentialsService, useValue: credentialsService },
         { provide: EnvService, useValue: createEnvServiceMock() },
         MockFactory.createForService(LoggingService)
@@ -64,8 +68,8 @@ describe('ProvisioningService', () => {
   it('should provision the system bot and one account per declared agent', () => {
     expect(adminClient.ensureBot.mock.calls.map(([{ username }]) => username)).toStrictEqual([
       'orchestrator',
-      'jane',
-      'amir'
+      'amir',
+      'jane'
     ]);
   });
 
@@ -80,8 +84,8 @@ describe('ProvisioningService', () => {
   it('should keep a token for every account it provisions', () => {
     expect(credentialsService.ensure.mock.calls.map(([{ username }]) => username)).toStrictEqual([
       'orchestrator',
-      'jane',
-      'amir'
+      'amir',
+      'jane'
     ]);
   });
 
@@ -89,6 +93,6 @@ describe('ProvisioningService', () => {
     const added = adminClient.ensureChannelMember.mock.calls
       .filter(([{ channelId }]) => channelId === 'id-town-square')
       .map(([{ userId }]) => userId);
-    expect(added).toStrictEqual(['user-orchestrator', 'user-jane', 'user-amir']);
+    expect(added).toStrictEqual(['user-orchestrator', 'user-amir', 'user-jane']);
   });
 });

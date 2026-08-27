@@ -25,7 +25,7 @@ import { pluginLoadFailureCause, renderPluginLoadFailure } from './plugins.utils
       inject: [ConfigService, PluginLoader],
       provide: PluginsRegistry,
       useFactory: async (configService: ConfigService, pluginLoader: PluginLoader) => {
-        const names = configService.get('plugins') ?? [];
+        const names = configService.get('plugins');
         const loaded = await Promise.all(names.map(async (name) => ({ name, result: await pluginLoader.load(name) })));
 
         const failures = loaded.flatMap(({ name, result }) => {

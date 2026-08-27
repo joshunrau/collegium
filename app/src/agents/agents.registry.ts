@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 
-import type { $AgentDefinition, $TriggerMode } from '@collegium/config';
+import type { $TriggeringMode, AgentDefinition } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 import type { z } from 'zod';
 
@@ -18,21 +18,18 @@ export class AgentRegistry {
   private readonly profiles: ReadonlyMap<string, AgentProfile>;
 
   constructor(configService: ConfigService, envService: EnvService, pluginsRegistry: PluginsRegistry) {
-    const agents = configService.get('agents');
+    const agents = Object.values(configService.get('agents'));
     /** §8 — the two generic settings rules run here, so a bad grant/settings pairing refuses boot */
     const toolSettings = resolveEffectiveToolSettings({
       agents,
-      defaults: configService.get('app.defaultToolSettings'),
+      defaults: configService.get('agentDefaults.toolSettings'),
       toolsets: [...FRAMEWORK_TOOLSETS, ...pluginsRegistry.toolsets]
     });
-    const defaults = {
-      contextBudgetTokens: configService.get('app.contextBudgetTokens'),
-      workspaceRoot: envService.get('WORKSPACE_ROOT')
-    };
+    const workspaceRoot = envService.get('WORKSPACE_ROOT');
     this.profiles = new Map(
       agents.map((definition) => [
         definition.username,
-        this.toProfile(definition, toolSettings.get(definition.username) ?? new Map(), defaults)
+        this.toProfile(definition, toolSettings.get(definition.username) ?? new Map(), workspaceRoot)
       ])
     );
   }
@@ -50,7 +47,7 @@ export class AgentRegistry {
    * callers. Respond-to-all means a human-authored post, or a mention from an agent or the system
    * bot — never an unaddressed agent post, or agents reply to their own output and loop.
    */
-  isAddressedBy(profile: AgentProfile, post: ObservedPost, mode: $TriggerMode): boolean {
+  isAddressedBy(profile: AgentProfile, post: ObservedPost, mode: $TriggeringMode): boolean {
     if (post.mentionedUsernames.includes(profile.username)) {
       return true;
     }
@@ -78,12 +75,12 @@ export class AgentRegistry {
   }
 
   private toProfile(
-    definition: $AgentDefinition,
+    definition: AgentDefinition,
     toolSettings: ReadonlyMap<string, unknown>,
-    defaults: { contextBudgetTokens: number; workspaceRoot: string }
+    workspaceRoot: string
   ): AgentProfile {
     return {
-      contextBudgetTokens: definition.contextBudgetTokens ?? defaults.contextBudgetTokens,
+      contextBudgetTokens: definition.contextBudgetTokens,
       expertise: definition.expertise,
       model: definition.model,
       skills: definition.skills,
@@ -91,7 +88,7 @@ export class AgentRegistry {
       tools: definition.tools,
       toolSettings,
       username: definition.username,
-      workspaceDir: path.join(defaults.workspaceRoot, definition.username)
+      workspaceDir: path.join(workspaceRoot, definition.username)
     };
   }
 }

@@ -14,6 +14,6 @@ export class LoggerFactory {
   constructor(private readonly configService: ConfigService) {}
 
   createLogger(context: string): LoggerService {
-    return new JSONLogger(context, this.configService.get('app.logLevel'));
+    return new JSONLogger(context, this.configService.get('logging.level'));
   }
 }

@@ -1,14 +1,14 @@
-import type { $TriggerMode } from '@collegium/config';
+import type { $TriggeringMode } from '@collegium/config';
 
 /**
  * Built by the module's factory from handles already resolved to ids, so an unresolved instance is
  * not a state this can be in.
  */
 export class ChannelsService {
-  constructor(private readonly modes: ReadonlyMap<string, $TriggerMode>) {}
+  constructor(private readonly modes: ReadonlyMap<string, $TriggeringMode>) {}
 
   /** DMs are respond-to-all inherently, as a property of the channel type (§3.10) */
-  getTriggerMode(input: { channelId: string; isDirectMessage: boolean }): $TriggerMode {
+  getTriggeringMode(input: { channelId: string; isDirectMessage: boolean }): $TriggeringMode {
     if (input.isDirectMessage) {
       return 'respond-to-all';
     }

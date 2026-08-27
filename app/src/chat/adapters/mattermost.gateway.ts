@@ -1,4 +1,4 @@
-import type { Config } from '@collegium/config';
+import type { $Config } from '@collegium/config';
 import type { Result } from '@collegium/core/utils';
 import { removeTrailingSlash } from '@collegium/core/utils';
 
@@ -24,7 +24,7 @@ import type {
 export class MattermostGateway extends ChatGateway {
   private readonly agentUsernames: ReadonlySet<string>;
   private readonly channelIds = new Map<string, Promise<string>>();
-  private readonly config: Pick<Config, 'mattermost'>;
+  private readonly config: Pick<$Config, 'mattermost'>;
   private readonly systemClient: MattermostClient;
   private teamId: Promise<string> | undefined;
   private readonly teamName: string;
@@ -37,7 +37,7 @@ export class MattermostGateway extends ChatGateway {
     private readonly loggerFactory: LoggerFactory
   ) {
     super();
-    this.agentUsernames = new Set(configService.get('agents').map((definition) => definition.username));
+    this.agentUsernames = new Set(Object.keys(configService.get('agents')));
     this.config = { mattermost: configService.get('mattermost') };
     this.teamName = envService.get('MATTERMOST_TEAM');
     this.url = removeTrailingSlash(envService.get('MATTERMOST_URL'));

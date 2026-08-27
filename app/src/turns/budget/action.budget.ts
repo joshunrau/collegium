@@ -1,6 +1,4 @@
-const ATTEMPT_LIMIT = 10;
-
-/** ten action attempts per turn, extendable by ten per approval, unbounded in number (§5.3) */
+/** a configured number of action attempts per turn, extendable by as many again per approval, unbounded in number (§5.3) */
 export class ActionBudget {
   private readonly base: number;
   private extensions = 0;
@@ -8,7 +6,7 @@ export class ActionBudget {
   private limit: number;
   private spent = 0;
 
-  constructor(limit = ATTEMPT_LIMIT) {
+  constructor(limit: number) {
     this.base = limit;
     this.limit = limit;
   }

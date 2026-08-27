@@ -42,7 +42,7 @@ export class HaltService {
     private readonly turnsService: TurnsService,
     @InjectModel('ResumeWatermark') private readonly watermarks: Model<'ResumeWatermark'>
   ) {
-    this.ceiling = configService.get('app.turnCeilingPerHour');
+    this.ceiling = configService.get('turns.hourlyCeiling');
   }
 
   /**

@@ -17,7 +17,7 @@ export class NotificationsService implements BeforeApplicationShutdown {
   ) {}
 
   async beforeApplicationShutdown(): Promise<void> {
-    if (this.configService.get('app.enableLifecycleNotifications')) {
+    if (this.configService.get('notifications.lifecycle')) {
       await this.notify({ kind: 'offline', reason: 'shutdown' } satisfies SystemEvent.Offline);
     }
   }

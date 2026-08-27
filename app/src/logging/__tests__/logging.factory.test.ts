@@ -25,7 +25,7 @@ describe('LoggerFactory', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         LoggerFactory,
-        { provide: ConfigService, useValue: createConfigServiceMock({ app: { logLevel: 'warn' } }) }
+        { provide: ConfigService, useValue: createConfigServiceMock({ logging: { level: 'warn' } }) }
       ]
     }).compile();
     loggerFactory = moduleRef.get(LoggerFactory);

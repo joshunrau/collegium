@@ -53,7 +53,7 @@ describe('ActivationService', () => {
     channelLockService = MockFactory.createMock(ChannelLockService);
     channelLockService.acquire.mockReturnValue({ release: () => undefined });
     const channelsService = MockFactory.createMock(ChannelsService);
-    channelsService.getTriggerMode.mockReturnValue('mention-required');
+    channelsService.getTriggeringMode.mockReturnValue('mention-required');
     conversationsService = MockFactory.createMock(ConversationsService);
     conversationsService.record.mockResolvedValue(true);
     debounceService = MockFactory.createMock(DebounceService);

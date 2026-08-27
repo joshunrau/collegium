@@ -36,6 +36,15 @@ const schema: JsonSchemaNode = {
       },
       type: 'array'
     },
+    members: {
+      additionalProperties: {
+        properties: { role: { description: 'What they do.', type: 'string' } },
+        required: ['role'],
+        type: 'object'
+      },
+      propertyNames: { description: 'A handle.', maxLength: 22, pattern: '^[a-z]+$', title: 'handle', type: 'string' },
+      type: 'object'
+    },
     settings: {
       additionalProperties: {},
       properties: { limit: { default: 10, description: 'A cap.', type: 'integer' } },
@@ -48,7 +57,7 @@ const schema: JsonSchemaNode = {
 };
 
 describe('buildFieldTree', () => {
-  const [agents, settings, verbose] = buildFieldTree(schema);
+  const [agents, members, settings, verbose] = buildFieldTree(schema);
   const [model, tools, username] = agents?.children ?? [];
 
   it('should type and anchor the root rows in schema order', () => {
@@ -84,9 +93,19 @@ describe('buildFieldTree', () => {
   it('should show defaults as JSON and close an open record with a trailing row', () => {
     expect(settings?.children).toMatchObject([
       { defaultValue: '10', id: 'settings.limit', name: 'limit' },
-      { name: '…', type: 'any' }
+      { description: 'Further keys are accepted beyond those listed.', id: 'settings.*', name: '*', type: 'any' }
     ]);
-    expect(settings?.children[1]?.id).toBeUndefined();
+  });
+
+  it('should stand one row for any key of a record, named by the key schema’s title and linked through `*`', () => {
+    const [entry] = members?.children ?? [];
+    expect(entry).toMatchObject({
+      description: 'A handle.\n\nKeys match `^[a-z]+$`, at most 22 characters.',
+      id: 'members.*',
+      name: '<handle>',
+      type: 'object'
+    });
+    expect(entry?.children).toMatchObject([{ description: 'What they do.', id: 'members.*.role', name: 'role' }]);
   });
 
   it('should count only rows holding tabs or linkable rows as containers', () => {

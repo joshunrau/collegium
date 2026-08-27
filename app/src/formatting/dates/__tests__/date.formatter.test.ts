@@ -9,7 +9,10 @@ import { DateFormatter } from '../date.formatter.ts';
 describe('DateFormatter', () => {
   const createFormatter = async (timezone?: string): Promise<DateFormatter> => {
     const moduleRef = await Test.createTestingModule({
-      providers: [DateFormatter, { provide: ConfigService, useValue: createConfigServiceMock({ app: { timezone } }) }]
+      providers: [
+        DateFormatter,
+        { provide: ConfigService, useValue: createConfigServiceMock({ display: { timezone } }) }
+      ]
     }).compile();
     return moduleRef.get(DateFormatter);
   };

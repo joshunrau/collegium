@@ -20,8 +20,8 @@ import { RosterService } from './roster/roster.service.ts';
       provide: ChannelsService,
       useFactory: async (chatGateway: ChatGateway, configService: ConfigService) => {
         const modes = await Promise.all(
-          configService.get('channels').map(async (channel) => {
-            return [await chatGateway.resolveChannelId(channel.handle), channel.triggerMode] as const;
+          Object.entries(configService.get('mattermost.channels')).map(async ([handle, channel]) => {
+            return [await chatGateway.resolveChannelId(handle), channel.triggeringMode] as const;
           })
         );
         return new ChannelsService(new Map(modes));

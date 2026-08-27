@@ -12,7 +12,7 @@ export class DateFormatter extends Intl.DateTimeFormat {
       minute: 'numeric',
       month: 'long',
       second: 'numeric',
-      timeZone: configService.get('app.timezone'),
+      timeZone: configService.get('display.timezone'),
       timeZoneName: 'short',
       year: 'numeric'
     });

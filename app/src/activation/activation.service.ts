@@ -113,7 +113,7 @@ export class ActivationService {
       }
       return;
     }
-    const mode = this.channelsService.getTriggerMode({
+    const mode = this.channelsService.getTriggeringMode({
       channelId: post.channelId,
       isDirectMessage: post.isDirectMessage
     });
@@ -294,7 +294,7 @@ export class ActivationService {
     if (this.multiMentionPolicy.refuses(post)) {
       return false;
     }
-    const mode = this.channelsService.getTriggerMode({
+    const mode = this.channelsService.getTriggeringMode({
       channelId: post.channelId,
       isDirectMessage: post.isDirectMessage
     });

@@ -92,7 +92,7 @@ describe('resolveEffectiveToolSettings', () => {
       'agent "mira" supplies toolSettings for "ghost", which no toolset declares'
     );
     expect(() => resolve({ defaults: { ghost: {} } })).toThrow(
-      'defaultToolSettings names "ghost", which no toolset declares'
+      'agentDefaults.toolSettings names "ghost", which no toolset declares'
     );
   });
 
@@ -101,7 +101,7 @@ describe('resolveEffectiveToolSettings', () => {
       'agent "mira" supplies toolSettings for "plain", which declares no settings schema'
     );
     expect(() => resolve({ defaults: { plain: {} } })).toThrow(
-      'defaultToolSettings supplies settings for "plain", which declares no settings schema'
+      'agentDefaults.toolSettings supplies settings for "plain", which declares no settings schema'
     );
   });
 

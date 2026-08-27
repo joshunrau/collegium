@@ -97,6 +97,30 @@ function buildField(name: string, node: JsonSchemaNode, required: boolean, id: s
   return { ...base, children: isObject(node) ? buildChildren(node, childId) : [], variants: [] };
 }
 
+/** what the key schema of a record demands, when it demands anything a type alone cannot say */
+function describeKeyGrammar(keys: JsonSchemaNode | undefined): string | undefined {
+  if (keys?.pattern === undefined) {
+    return undefined;
+  }
+  const length = keys.maxLength === undefined ? '' : `, at most ${keys.maxLength} characters`;
+  return `Keys match \`${keys.pattern}\`${length}.`;
+}
+
+/**
+ * The trailing row of an object that accepts keys beyond those listed: one row standing for any
+ * such key, named by the key schema's title when it has one and `*` otherwise, its value's own
+ * fields beneath it and linked through the `*` segment.
+ */
+function buildRecordRow(node: JsonSchemaNode, childId: (name: string) => string | undefined): FieldNode<string> {
+  const value = typeof node.additionalProperties === 'object' ? node.additionalProperties : {};
+  const keys = node.propertyNames;
+  const row = buildField(keys?.title === undefined ? '*' : `<${keys.title}>`, value, false, childId('*'));
+  return {
+    ...row,
+    description: joinParagraphs(keys?.description ?? OPEN_RECORD_NOTE, describeKeyGrammar(keys), row.description)
+  };
+}
+
 /** an object's rows in schema order, then one trailing row when it accepts keys beyond those listed */
 function buildChildren(
   node: JsonSchemaNode,
@@ -110,21 +134,10 @@ function buildChildren(
   if (node.additionalProperties === undefined || node.additionalProperties === false) {
     return rows;
   }
-  const rest = typeof node.additionalProperties === 'object' ? node.additionalProperties : {};
-  return [
-    ...rows,
-    {
-      children: [],
-      description: OPEN_RECORD_NOTE,
-      name: '…',
-      required: false,
-      type: describeType(rest),
-      variants: []
-    }
-  ];
+  return [...rows, buildRecordRow(node, childId)];
 }
 
-/** The root object's rows, each linked by its dotted path (`app.debounce.windowMs`). */
+/** The root object's rows, each linked by its dotted path (`activation.debounce.windowMs`). */
 export function buildFieldTree(schema: JsonSchemaNode): FieldNode<string>[] {
   return buildChildren(schema, (name) => name);
 }

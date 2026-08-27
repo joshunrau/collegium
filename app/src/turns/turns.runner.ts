@@ -9,6 +9,7 @@ import type { ApprovalDecision } from '@/approvals/approvals.types.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
+import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
@@ -56,15 +57,12 @@ import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle } from './status/status-post.service.ts';
 import type { Turn, TurnOutcome } from './turns.types.ts';
 
-/** §7.4 — ten agent-to-agent hops from the nearest human is where a delegation chain ends */
-const DELEGATION_DEPTH_LIMIT = 10;
-
-/**
- * §4.4 — how many times one turn will discard a completion to take a further fragment. The
- * pre-turn ceiling bounds the window before a turn exists; this bounds the folding after, so a
- * human typing steadily reaches an answer instead of paying for a completion per sentence.
- */
-const FOLD_LIMIT = 3;
+/** the bounds config states for every turn: §5.3 attempts, §7.4 depth, §4.4 folds */
+type TurnLimits = {
+  readonly actionBudget: number;
+  readonly delegationDepthLimit: number;
+  readonly foldLimit: number;
+};
 
 type RunInput = {
   channelId: string;
@@ -106,8 +104,11 @@ type TurnState = {
  */
 @Injectable()
 export class TurnRunner {
+  private readonly limits: TurnLimits;
+
   constructor(
     private readonly approvalsService: ApprovalsService,
+    configService: ConfigService,
     private readonly contextAssembler: ContextAssembler,
     private readonly conversationsService: ConversationsService,
     private readonly inferenceRegistry: InferenceRegistry,
@@ -122,7 +123,14 @@ export class TurnRunner {
     private readonly turnsService: TurnsService,
     private readonly typingIndicatorService: TypingIndicatorService,
     private readonly webService: WebService
-  ) {}
+  ) {
+    const turns = configService.get('turns');
+    this.limits = {
+      actionBudget: turns.actionBudget,
+      delegationDepthLimit: turns.delegationDepthLimit,
+      foldLimit: configService.get('activation.foldLimit')
+    };
+  }
 
   async run(input: RunInput): Promise<TurnOutcome> {
     const { channelId, profile } = input;
@@ -134,7 +142,7 @@ export class TurnRunner {
       triggeringPostId: input.triggeringPostId
     });
     const state: TurnState = {
-      budget: new ActionBudget(),
+      budget: new ActionBudget(this.limits.actionBudget),
       control: this.turnControlRegistry.register(turn.id, channelId),
       fold: this.turnFoldRegistry.register({
         agentUsername: profile.username,
@@ -402,7 +410,7 @@ export class TurnRunner {
    * it cannot activate anyone, and the fixed notice tells the humans why the chain stopped here.
    */
   private async enforceDepthLimit(input: RunInput, state: TurnState, content: string): Promise<string> {
-    if (input.depth < DELEGATION_DEPTH_LIMIT) {
+    if (input.depth < this.limits.delegationDepthLimit) {
       return content;
     }
     const stripped = this.multiMentionPolicy.stripAgentMentions(content);
@@ -588,8 +596,8 @@ export class TurnRunner {
    * so a later fragment finds the §5.2 queue rather than a buffer nothing will read again.
    */
   private takesFurtherFragments(state: TurnState, folds: number): boolean {
-    const takes = state.fold.takeOffered().length > 0 && folds < FOLD_LIMIT;
-    if (!takes || folds + 1 >= FOLD_LIMIT) {
+    const takes = state.fold.takeOffered().length > 0 && folds < this.limits.foldLimit;
+    if (!takes || folds + 1 >= this.limits.foldLimit) {
       state.fold.stopAbsorbing();
     }
     return takes;

@@ -1,10 +1,10 @@
-import type { $AgentDefinition, $PluginName, $TriggerMode, Config } from '@collegium/config';
+import type { $AgentDeclaration, $DebouncePolicy, $PluginName, $TriggeringMode } from '@collegium/config';
 
-type AgentSpec = Pick<$AgentDefinition, 'expertise' | 'systemPrompt'> & {
-  contextBudgetTokens?: $AgentDefinition['contextBudgetTokens'];
-  skills?: $AgentDefinition['skills'];
-  tools?: $AgentDefinition['tools'];
-  toolSettings?: $AgentDefinition['toolSettings'];
+type AgentSpec = Pick<$AgentDeclaration, 'expertise' | 'systemPrompt'> & {
+  contextBudgetTokens?: $AgentDeclaration['contextBudgetTokens'];
+  skills?: $AgentDeclaration['skills'];
+  tools?: $AgentDeclaration['tools'];
+  toolSettings?: $AgentDeclaration['toolSettings'];
   username: string;
 };
 
@@ -17,7 +17,7 @@ type ChannelSpec = {
   members?: readonly string[];
   name: string;
   /** how posts in this channel address agents; unlisted means mention-required (§3.10) */
-  triggerMode?: $TriggerMode;
+  triggeringMode?: $TriggeringMode;
   /** a direct channel is between the acting human and its single member, and is respond-to-all by type */
   type?: 'direct' | 'public';
 };
@@ -26,11 +26,11 @@ type Scenario = {
   agents: readonly AgentSpec[];
   channels: readonly ChannelSpec[];
   /** §4.4; the fixture's window is short enough for every other test, so only debounce tests set this */
-  debounce?: Config['app']['debounce'];
+  debounce?: $DebouncePolicy;
+  /** the §7.4 framework-wide hourly ceiling; 250 turns is not drivable in a test, so scenarios lower it */
+  hourlyCeiling?: number;
   /** plugins written into config.json by name; the harness points PLUGINS_ROOT at the repository's own `plugins/` */
   plugins?: readonly $PluginName[];
-  /** the §7.4 framework-wide hourly ceiling; 250 turns is not drivable in a test, so scenarios lower it */
-  turnCeilingPerHour?: number;
 };
 
 export function defineScenario<const S extends Scenario>(scenario: S): S {

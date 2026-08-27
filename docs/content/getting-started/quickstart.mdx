@@ -27,16 +27,15 @@ Create `config.json` at the repository root:
 ```json
 {
   "$schema": "https://collegium.sh/api/config/schema.json",
-  "agents": [
-    {
-      "username": "clara",
+  "agents": {
+    "clara": {
       "expertise": "research, summaries, and follow-through",
       "systemPrompt": "You are Clara, a careful researcher. Verify claims against sources before repeating them, and save your findings as files.",
       "model": { "provider": "openrouter", "name": "anthropic/claude-sonnet-5" },
       "tools": ["web", "workspace", "memory"]
     }
-  ],
-  "models": {
+  },
+  "providers": {
     "openrouter": { "apiKey": "sk-or-..." }
   }
 }

@@ -18,7 +18,10 @@ describe('NotificationsService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         NotificationsService,
-        { provide: ConfigService, useValue: createConfigServiceMock({ app: { enableLifecycleNotifications } }) },
+        {
+          provide: ConfigService,
+          useValue: createConfigServiceMock({ notifications: { lifecycle: enableLifecycleNotifications } })
+        },
         { provide: LoggingService, useValue: loggingService },
         { provide: NotificationsEmitter, useValue: notificationsEmitter }
       ]

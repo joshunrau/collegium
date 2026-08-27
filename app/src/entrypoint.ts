@@ -129,7 +129,9 @@ try {
   }
 
   const identities = deriveShellOsIdentities(
-    config.agents.filter((agent) => holdsShellGrant(agent.tools)).map((agent) => agent.username)
+    Object.values(config.agents)
+      .filter((agent) => holdsShellGrant(agent.tools))
+      .map((agent) => agent.username)
   );
 
   if (identities.length > 0) {

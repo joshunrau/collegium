@@ -96,7 +96,7 @@ const HALT_SCENARIO = defineScenario({
   ],
   channels: [{ name: 'main' }],
   // the harness handshake consumes one slot, then three turns fit before the fourth breaches
-  turnCeilingPerHour: 4
+  hourlyCeiling: 4
 });
 
 const CHAIN_SCENARIO = defineScenario({

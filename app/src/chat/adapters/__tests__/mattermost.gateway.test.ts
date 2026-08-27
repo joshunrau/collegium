@@ -1,4 +1,4 @@
-import type { $AgentDefinition } from '@collegium/config';
+import type { AgentDefinition } from '@collegium/config';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -90,7 +90,8 @@ vi.mock('@mattermost/client', () => ({
   WebSocketClient: vendor.WebSocketClient
 }));
 
-const definition = (username: string): $AgentDefinition => ({
+const definition = (username: string): AgentDefinition => ({
+  contextBudgetTokens: 8000,
   expertise: 'code review',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   skills: [],
@@ -149,8 +150,8 @@ describe('MattermostGateway', () => {
       ['tess-token', { id: 'tess-user-id', username: 'tess' }]
     ]);
     const configService = createConfigServiceMock({
-      agents: [definition('mira'), definition('tess')],
-      app: { logLevel: 'error' },
+      agents: { mira: definition('mira'), tess: definition('tess') },
+      logging: { level: 'error' },
       mattermost: { mainChannel: 'main-channel', systemBotUsername: 'collegium' }
     });
     const moduleRef = await Test.createTestingModule({

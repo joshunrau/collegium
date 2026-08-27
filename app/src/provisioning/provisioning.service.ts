@@ -40,15 +40,15 @@ export class ProvisioningService {
     this.loggingService.log(`provisioning team "${teamName}"`);
 
     const mattermost = this.configService.get('mattermost');
-    const agents = this.configService.get('agents');
+    const agents = Object.values(this.configService.get('agents'));
 
     // the main channel first: every bot must be a member, and town-square admits them on team join
     const mainChannelId = await this.adminClient.ensureChannel({ handle: mattermost.mainChannel, teamId });
     const declaredChannels = new Map<string, string>([[mattermost.mainChannel, mainChannelId]]);
-    for (const channel of this.configService.get('channels')) {
-      declaredChannels.set(channel.handle, await this.adminClient.ensureChannel({ handle: channel.handle, teamId }));
+    for (const handle of Object.keys(mattermost.channels)) {
+      declaredChannels.set(handle, await this.adminClient.ensureChannel({ handle, teamId }));
     }
-    const defaultToolSettings = this.configService.get('app.defaultToolSettings');
+    const defaultToolSettings = this.configService.get('agentDefaults.toolSettings');
     for (const agent of agents) {
       const mailSettings = resolveGrantedToolsetSettings(MAIL_TOOLSET, { agent, defaults: defaultToolSettings });
       if (mailSettings) {

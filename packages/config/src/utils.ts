@@ -2,7 +2,7 @@ import { GRANTABLE_TOOLSET_DEFS } from '@collegium/core/toolsets';
 import type { ToolsetDef } from '@collegium/core/toolsets';
 import { z } from 'zod';
 
-import { $Config } from './schemas/config.schemas.ts';
+import { $Config } from './schemas/config.resolution.ts';
 
 type JsonSchema = { [key: string]: unknown };
 
@@ -11,6 +11,13 @@ function requireObject(value: unknown, where: string): JsonSchema {
     throw new Error(`expected the generated schema to hold an object at ${where}`);
   }
   return value as JsonSchema;
+}
+
+/** the node at a dotted path beneath the root, each segment required to hold an object */
+function requireNodeAt(root: JsonSchema, path: readonly string[]): JsonSchema {
+  return path.reduce<JsonSchema>((node, segment, index) => {
+    return requireObject(node[segment], `$.${path.slice(0, index + 1).join('.')}`);
+  }, root);
 }
 
 /**
@@ -30,10 +37,11 @@ function toSettingsProperties(toolsets: readonly ToolsetDef[]): JsonSchema {
   );
 }
 
-function embedSettingsProperties(record: unknown, toolsets: readonly ToolsetDef[], where: string): void {
-  const node = requireObject(record, where);
-  node.properties = toSettingsProperties(toolsets);
-}
+/** where the two settings records sit in the generated schema: the defaults, and each agent's own beneath the record's value */
+const SETTINGS_RECORD_PATHS = [
+  ['properties', 'agentDefaults', 'properties', 'toolSettings'],
+  ['properties', 'agents', 'additionalProperties', 'properties', 'toolSettings']
+] as const;
 
 /**
  * How config.schema.json is generated, stated once so the build artifact and the docs site's copy
@@ -48,22 +56,9 @@ function embedSettingsProperties(record: unknown, toolsets: readonly ToolsetDef[
 export function toConfigJsonSchema(config: z.ZodType, toolsets: readonly ToolsetDef[]): JsonSchema {
   const schema = z.toJSONSchema(config, { io: 'input', target: 'draft-7' });
   const root = requireObject(schema, '$');
-  const properties = requireObject(root.properties, '$.properties');
-  const agents = requireObject(properties.agents, '$.properties.agents');
-  const agentProperties = requireObject(
-    requireObject(agents.items, '$.properties.agents.items').properties,
-    '$.properties.agents.items.properties'
-  );
-  embedSettingsProperties(agentProperties.toolSettings, toolsets, '$.properties.agents.items.properties.toolSettings');
-  const appProperties = requireObject(
-    requireObject(properties.app, '$.properties.app').properties,
-    '$.properties.app.properties'
-  );
-  embedSettingsProperties(
-    appProperties.defaultToolSettings,
-    toolsets,
-    '$.properties.app.properties.defaultToolSettings'
-  );
+  for (const path of SETTINGS_RECORD_PATHS) {
+    requireNodeAt(root, path).properties = toSettingsProperties(toolsets);
+  }
   return schema;
 }
 

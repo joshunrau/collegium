@@ -1,24 +1,40 @@
 /**
  * The shipped defaults, declared once so the Zod schema derives them and fixtures can import the
- * values instead of transcribing them. A default that changes here changes everywhere.
+ * values instead of transcribing them. A default that changes here changes everywhere. Shaped as
+ * config.json is, section for section.
  */
 export const CONFIG_DEFAULTS = {
-  app: {
-    contextBudgetTokens: 8000,
+  activation: {
     debounce: { ceilingMs: 15_000, windowMs: 750 },
-    enableLifecycleNotifications: true,
-    inferenceRetry: { backoffMs: 250, maxAttempts: 3 },
-    inferenceTimeoutMs: 120_000,
-    logLevel: 'info',
-    timezone: 'UTC',
-    turnCeilingPerHour: 250
+    foldLimit: 3
+  },
+  agentDefaults: {
+    contextBudgetTokens: 8000
+  },
+  display: {
+    timezone: 'UTC'
+  },
+  inference: {
+    retry: { backoffMs: 250, maxAttempts: 3 },
+    timeoutMs: 120_000
+  },
+  logging: {
+    level: 'info'
   },
   mattermost: {
     mainChannel: 'town-square',
     systemBotUsername: 'orchestrator'
   },
-  models: {
+  notifications: {
+    lifecycle: true
+  },
+  providers: {
     deepseek: { baseUrl: 'https://api.deepseek.com' },
     openrouter: { baseUrl: 'https://openrouter.ai/api/v1' }
+  },
+  turns: {
+    actionBudget: 10,
+    delegationDepthLimit: 10,
+    hourlyCeiling: 250
   }
 } as const;
