@@ -42,6 +42,9 @@ RUN pnpm install --frozen-lockfile
 COPY --from=prune /srv/out/full/ .
 # turbo prune carries the workspace packages alone; the config every package extends sits at the root
 COPY tsconfig.base.json ./
+# the SDK's declaration bundling outgrows the heap Node sizes itself for a container, and aborts the
+# build with SIGABRT rather than a message naming memory
+ENV NODE_OPTIONS="--max-old-space-size=8192"
 RUN pnpm exec turbo build
 
 FROM base AS run
