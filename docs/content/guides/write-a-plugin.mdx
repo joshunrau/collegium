@@ -34,8 +34,8 @@ Set `type` and `dependencies` in `package.json`:
 
 The framework checks two things at boot and refuses to start if either fails:
 
-- `@collegium/sdk` and `zod` are the only entries in `dependencies`. Put `typescript`, `vitest`, and other tooling in `devDependencies`.
-- Each declared range matches the version the deployment carries.
+- `@collegium/sdk` and `zod` are both declared, and they are the only entries in `dependencies`. Put `typescript`, `vitest`, and other tooling in `devDependencies`.
+- Each declared range matches the version the deployment carries. A range you never state is one the deployment can never check, which is why both are required.
 
 The copies you install serve your editor and your tests. The deployment compiles your imports against its own copies, so exactly one zod runs in the process.
 
@@ -137,13 +137,13 @@ export default defineTool({
 
 ### Files and Imports
 
-The loader reads direct children of `src/tools/` only, and refuses a file it cannot load as a tool. Keep helpers elsewhere under `src/` and import them by relative path. A subdirectory such as `src/tools/__tests__/` is yours; the loader ignores it.
+The loader reads direct children of `src/tools/` only, and refuses a file it cannot load as a tool rather than skipping it. Every direct child must end in `.ts` and carry no further extension, so `save.test.ts` and `types.d.ts` are refused there — a subdirectory such as `src/tools/__tests__/` is yours, and the loader ignores it. Keep helpers elsewhere under `src/` and import them by relative path.
 
 Import `@collegium/sdk`, `zod`, `node:` builtins, and your own files by relative path. The compiler refuses any other bare specifier at boot. Import from `zod` itself, not a subpath.
 
 `fetch`, `crypto`, `Intl`, and `structuredClone` are available as globals.
 
-To ship skills, add markdown files under `src/skills/`. Each `src/skills/<name>.md` becomes the grant `contacts::<name>`. See the in-repo `bookmark` plugin for an example.
+To ship skills, add markdown files under `src/skills/`. Each `src/skills/<name>.md` becomes the grant `contacts::<name>`. The basename must be lowercase and dashed (`saving-contacts`), just as a tool's must be lowercase `snake_case`; the same rules as `src/tools/` apply to what the directory may hold. See the in-repo `bookmark` plugin for an example.
 
 ## 4. Install the Plugin
 

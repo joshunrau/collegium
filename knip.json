@@ -27,6 +27,10 @@
     "packages/sdk": {
       "entry": ["src/index.ts!"],
       "project": ["src/**/*.ts!"]
+    },
+    "plugins/*": {
+      "entry": ["src/config.ts!", "src/tools/*.ts!"],
+      "project": ["src/**/*.ts!"]
     }
   }
 }

@@ -25,10 +25,8 @@ export class PluginCompiler implements OnApplicationShutdown {
 
   async compileToDiskAndImport(source: PluginSource): Promise<Result<unknown, PluginLoadFailure.Compile>> {
     const bundled = await this.bundler.bundle({
-      configPath: source.configPath,
-      packageRoot: source.packageRoot,
       sdkModuleUrl: this.packages.sdk.moduleUrl,
-      toolFiles: source.toolFiles,
+      source,
       zodModuleUrl: this.packages.zod.moduleUrl
     });
     if (!bundled.success) {
@@ -48,7 +46,6 @@ export class PluginCompiler implements OnApplicationShutdown {
       return Result.err({ cause: error, kind: 'not-importable' });
     }
 
-    // the entry is the framework's own synthesis, so its default export failing to exist is a bug here
     if (typeof module !== 'object' || module === null || !('default' in module)) {
       throw new Error(`the synthetic entry for plugin "${source.name}" lost its default export`);
     }

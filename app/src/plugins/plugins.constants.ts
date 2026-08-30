@@ -6,4 +6,8 @@ export const CONFIG_FILE = 'src/config.ts';
 
 export const TOOLS_DIRECTORY = 'src/tools';
 
+export const TOOL_EXTENSION = '.ts';
+
 export const SKILLS_DIRECTORY = 'src/skills';
+
+export const SKILL_EXTENSION = '.md';

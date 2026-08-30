@@ -2,8 +2,9 @@ import { z } from 'zod';
 
 /**
  * The narrow slice of a plugin's package.json the loader honors: `dependencies`, read to hold the
- * plugin to its one permitted import and to the SDK version it was written against. Everything
- * else — `exports` included, since the layout is conventional — is the author's own business.
+ * plugin to its two permitted imports and to the versions of each it was written against.
+ * Everything else — `exports` included, since the layout is conventional — is the author's own
+ * business.
  */
 export type $PluginPackageManifest = z.infer<typeof $PluginPackageManifest>;
 export const $PluginPackageManifest = z.object({

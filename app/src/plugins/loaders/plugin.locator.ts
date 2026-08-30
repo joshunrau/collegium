@@ -10,28 +10,20 @@ import { satisfies } from 'semver';
 
 import { EnvService } from '@/config/env/env.service.ts';
 
-import { CONFIG_FILE, SDK_SPECIFIER, SKILLS_DIRECTORY, TOOLS_DIRECTORY, ZOD_SPECIFIER } from '../plugins.constants.ts';
+import {
+  CONFIG_FILE,
+  SDK_SPECIFIER,
+  SKILL_EXTENSION,
+  SKILLS_DIRECTORY,
+  TOOL_EXTENSION,
+  TOOLS_DIRECTORY,
+  ZOD_SPECIFIER
+} from '../plugins.constants.ts';
 import { PluginPackages } from '../plugins.packages.ts';
 import { $PluginPackageManifest } from '../plugins.schemas.ts';
+import { discoverConventionalFiles, isRepositoryProtocol } from './plugin.locator.utils.ts';
 
-import type { PluginLoadFailure, PluginSource, PluginToolFile } from '../plugins.types.ts';
-
-/** direct children only: a subdirectory (`__tests__/`) is the author's, and never read */
-function listDirectChildren(directory: string, extension: string): string[] {
-  if (!fs.statSync(directory, { throwIfNoEntry: false })?.isDirectory()) {
-    return [];
-  }
-  return fs
-    .readdirSync(directory, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(extension))
-    .map((entry) => entry.name)
-    .sort();
-}
-
-/** a workspace or catalog protocol resolves to this very repository's copy, so there is no range to disagree with */
-function isRepositoryProtocol(declared: string): boolean {
-  return declared.startsWith('workspace:') || declared.startsWith('catalog:');
-}
+import type { PluginConventionalFile, PluginLoadFailure, PluginSource } from '../plugins.types.ts';
 
 @Injectable()
 export class PluginLocator {
@@ -73,52 +65,42 @@ export class PluginLocator {
     if (!toolFiles.success) {
       return Result.err(toolFiles.error);
     }
-    const skillNames = this.discoverSkills(packageRoot);
-    if (!skillNames.success) {
-      return Result.err(skillNames.error);
+    const skillFiles = this.discoverSkills(packageRoot);
+    if (!skillFiles.success) {
+      return Result.err(skillFiles.error);
     }
-    if (toolFiles.value.length === 0 && skillNames.value.length === 0) {
+    if (toolFiles.value.length === 0 && skillFiles.value.length === 0) {
       return Result.err({ kind: 'contributes-nothing', packageRoot });
     }
     return Result.ok({
       configPath,
       name,
       packageRoot,
-      skillNames: skillNames.value,
+      skillNames: skillFiles.value.map((skill) => skill.name),
       skillsDirectory: path.join(packageRoot, SKILLS_DIRECTORY),
       toolFiles: toolFiles.value
     });
   }
 
   /** every `src/skills/*.md` is a skill, named by its basename (§9) */
-  private discoverSkills(packageRoot: string): Result<string[], PluginLoadFailure.Locate> {
-    const names: string[] = [];
-    for (const filename of listDirectChildren(path.join(packageRoot, SKILLS_DIRECTORY), '.md')) {
-      const name = filename.slice(0, -'.md'.length);
-      if (!SKILL_NAME_PATTERN.test(name)) {
-        return Result.err({ file: path.join(SKILLS_DIRECTORY, filename), kind: 'skill-name-invalid' });
-      }
-      names.push(name);
-    }
-    return Result.ok(names);
+  private discoverSkills(packageRoot: string): Result<PluginConventionalFile[], PluginLoadFailure.Locate> {
+    return discoverConventionalFiles(packageRoot, SKILLS_DIRECTORY, SKILL_EXTENSION, (name, file) =>
+      SKILL_NAME_PATTERN.test(name) ? undefined : { file, kind: 'skill-name-invalid' }
+    );
   }
 
   /** every `src/tools/*.ts` is a tool, named by its basename — refused, never skipped, when the name will not do */
-  private discoverTools(pluginName: string, packageRoot: string): Result<PluginToolFile[], PluginLoadFailure.Locate> {
-    const toolFiles: PluginToolFile[] = [];
-    for (const filename of listDirectChildren(path.join(packageRoot, TOOLS_DIRECTORY), '.ts')) {
-      const file = path.join(TOOLS_DIRECTORY, filename);
-      const toolName = filename.slice(0, -'.ts'.length);
-      if (!TOOL_SEGMENT_PATTERN.test(toolName)) {
-        return Result.err({ file, kind: 'tool-name-invalid' });
+  private discoverTools(
+    pluginName: string,
+    packageRoot: string
+  ): Result<PluginConventionalFile[], PluginLoadFailure.Locate> {
+    return discoverConventionalFiles(packageRoot, TOOLS_DIRECTORY, TOOL_EXTENSION, (name, file) => {
+      if (!TOOL_SEGMENT_PATTERN.test(name)) {
+        return { file, kind: 'tool-name-invalid' };
       }
-      const wireName = renderToolWireName([pluginName, toolName]);
-      if (wireName.length > MAX_WIRE_NAME_LENGTH) {
-        return Result.err({ file, kind: 'tool-name-too-long', wireName });
-      }
-      toolFiles.push({ file, name: toolName });
-    }
-    return Result.ok(toolFiles);
+      const wireName = renderToolWireName([pluginName, name]);
+      return wireName.length > MAX_WIRE_NAME_LENGTH ? { file, kind: 'tool-name-too-long', wireName } : undefined;
+    });
   }
 
   private readManifest(manifestPath: string): Result<$PluginPackageManifest, PluginLoadFailure.Locate> {
@@ -139,10 +121,11 @@ export class PluginLocator {
   }
 
   /**
-   * A plugin may import two packages, so a plugin may depend on two packages — checked at the
-   * manifest rather than left to the compiler, so the operator reads which dependency is the
-   * problem instead of a refused import from somewhere inside a bundle. Each declared range is
-   * checked against the copy this deployment carries, because that copy is what the import becomes.
+   * A plugin may import two packages, so a plugin declares those two and nothing else — checked at
+   * the manifest rather than left to the compiler, so the operator reads which dependency is the
+   * problem instead of a refused import from somewhere inside a bundle. Both are required, because
+   * a range that is never declared is a range this deployment can never check. Each is then checked
+   * against the copy this deployment carries, because that copy is what the import becomes.
    */
   private verifyDependencies(
     dependencies: Readonly<{ [name: string]: string }>,
@@ -152,18 +135,15 @@ export class PluginLocator {
     if (forbidden.length > 0) {
       return Result.err({ kind: 'dependency-forbidden', names: forbidden });
     }
-    if (dependencies[SDK_SPECIFIER] === undefined) {
-      return Result.err({ kind: 'sdk-dependency-missing', manifestPath });
-    }
-    const requirements = [
-      { declared: dependencies[SDK_SPECIFIER], installed: this.packages.sdk, name: SDK_SPECIFIER },
-      { declared: dependencies[ZOD_SPECIFIER], installed: this.packages.zod, name: ZOD_SPECIFIER }
-    ];
-    for (const { declared, installed, name } of requirements) {
-      if (declared === undefined || isRepositoryProtocol(declared)) {
-        continue;
+    for (const { installed, name } of [
+      { installed: this.packages.sdk, name: SDK_SPECIFIER },
+      { installed: this.packages.zod, name: ZOD_SPECIFIER }
+    ]) {
+      const declared = dependencies[name];
+      if (declared === undefined) {
+        return Result.err({ kind: 'dependency-missing', manifestPath, name });
       }
-      if (!satisfies(installed.version, declared)) {
+      if (!isRepositoryProtocol(declared) && !satisfies(installed.version, declared)) {
         return Result.err({ declared, kind: 'dependency-version-unsatisfied', name, version: installed.version });
       }
     }

@@ -28,6 +28,10 @@ const PACKAGES = {
 };
 
 const MINIMAL_CONFIG = 'export default {};';
+const PING_TOOL = [
+  "import { z } from 'zod';",
+  "export default { description: 'p', execute: async () => 'p', parameters: z.object({}) };"
+].join('\n');
 
 let compilers: PluginCompiler[];
 let fixtureRoot: string;
@@ -55,7 +59,10 @@ async function buildLoader(pluginsRoot: string): Promise<PluginLoader> {
 function writeFixture(
   name: string,
   files: Readonly<{ [file: string]: string }>,
-  dependencies: Readonly<{ [name: string]: string }> = { '@collegium/sdk': `^${SDK_VERSION}` }
+  dependencies: Readonly<{ [name: string]: string }> = {
+    '@collegium/sdk': `^${SDK_VERSION}`,
+    zod: `^${ZOD_VERSION}`
+  }
 ): void {
   const packageRoot = path.join(fixtureRoot, name);
   fs.mkdirSync(packageRoot, { recursive: true });
@@ -129,6 +136,8 @@ describe('PluginLoader', () => {
     expect(message).toContain('"date-fns"');
     expect(message).toContain('"zod/mini"');
     expect(message).toContain('subpaths are not rewritten');
+    expect(message).toContain('from src/tools/reach.ts');
+    expect(message).not.toContain(fixtureRoot);
   });
 
   it('rejects a plugin without a config file', async () => {
@@ -178,7 +187,11 @@ describe('PluginLoader', () => {
   });
 
   it('rejects a plugin depending on anything but the sdk and zod', async () => {
-    writeFixture('vendored', { 'src/config.ts': MINIMAL_CONFIG }, { '@collegium/sdk': '*', 'date-fns': '^4.0.0' });
+    writeFixture(
+      'vendored',
+      { 'src/config.ts': MINIMAL_CONFIG },
+      { '@collegium/sdk': '*', 'date-fns': '^4.0.0', zod: '*' }
+    );
     const loader = await buildLoader(fixtureRoot);
     const result = await loader.load('vendored');
     expect(result.error?.kind).toBe('dependency-forbidden');
@@ -186,7 +199,7 @@ describe('PluginLoader', () => {
   });
 
   it('rejects a plugin written against an sdk this deployment does not carry', async () => {
-    writeFixture('ahead', { 'src/config.ts': MINIMAL_CONFIG }, { '@collegium/sdk': '^2.0.0' });
+    writeFixture('ahead', { 'src/config.ts': MINIMAL_CONFIG }, { '@collegium/sdk': '^2.0.0', zod: '*' });
     const loader = await buildLoader(fixtureRoot);
     const result = await loader.load('ahead');
     expect(result.error?.kind).toBe('dependency-version-unsatisfied');
@@ -203,6 +216,99 @@ describe('PluginLoader', () => {
     const result = await loader.load('mismatched');
     expect(result.error?.kind).toBe('dependency-version-unsatisfied');
     expect(renderPluginLoadFailure(result.error!)).toContain(`carries zod ${ZOD_VERSION}`);
+  });
+
+  it('rejects a plugin declaring no zod, whose range would go unchecked', async () => {
+    writeFixture('undeclared', { 'src/config.ts': MINIMAL_CONFIG }, { '@collegium/sdk': `^${SDK_VERSION}` });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('undeclared');
+    expect(result.error?.kind).toBe('dependency-missing');
+    expect(renderPluginLoadFailure(result.error!)).toContain('"zod"');
+  });
+
+  it('honours a workspace protocol, which names this repository rather than a range', async () => {
+    writeFixture(
+      'tracking',
+      { 'src/config.ts': MINIMAL_CONFIG, 'src/tools/ping.ts': PING_TOOL },
+      { '@collegium/sdk': 'workspace:*', zod: 'catalog:' }
+    );
+    const loader = await buildLoader(fixtureRoot);
+    expect((await loader.load('tracking')).success).toBe(true);
+  });
+
+  it.each([
+    ['src/tools/legacy.js', 'an extension the convention does not cover'],
+    ['src/tools/shapes.d.ts', 'a compound extension'],
+    ['src/skills/notes.txt', 'a skill document that is not markdown']
+  ])('refuses %s rather than skipping it', async (file) => {
+    writeFixture('littered', { [file]: '', 'src/config.ts': MINIMAL_CONFIG, 'src/tools/ping.ts': PING_TOOL });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('littered');
+    expect(result.error?.kind).toBe('unexpected-file');
+    expect(renderPluginLoadFailure(result.error!)).toContain(file);
+  });
+
+  it('ignores hidden files the operating system drops into a convention directory', async () => {
+    writeFixture('browsed', {
+      'src/config.ts': MINIMAL_CONFIG,
+      'src/skills/.gitkeep': '',
+      'src/tools/.DS_Store': '',
+      'src/tools/ping.ts': PING_TOOL
+    });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('browsed');
+    expect(result.success).toBe(true);
+    expect(Object.keys(result.unwrap().toolset.tools)).toStrictEqual(['ping']);
+  });
+
+  it('rejects a skill document whose basename is outside the skill grammar', async () => {
+    writeFixture('shouty', { 'src/config.ts': MINIMAL_CONFIG, 'src/skills/Saving_Bookmarks.md': '# no' });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('shouty');
+    expect(result.error?.kind).toBe('skill-name-invalid');
+    expect(renderPluginLoadFailure(result.error!)).toContain('lowercase and dashed');
+  });
+
+  it('rejects a package.json that is not valid json', async () => {
+    writeFixture('garbled', { 'src/config.ts': MINIMAL_CONFIG });
+    fs.writeFileSync(path.join(fixtureRoot, 'garbled/package.json'), '{ not json');
+    const loader = await buildLoader(fixtureRoot);
+    expect((await loader.load('garbled')).error?.kind).toBe('manifest-unreadable');
+  });
+
+  it('rejects a package.json the manifest schema refuses', async () => {
+    writeFixture('mistyped', { 'src/config.ts': MINIMAL_CONFIG });
+    fs.writeFileSync(path.join(fixtureRoot, 'mistyped/package.json'), JSON.stringify({ dependencies: 'none' }));
+    const loader = await buildLoader(fixtureRoot);
+    expect((await loader.load('mistyped')).error?.kind).toBe('manifest-invalid');
+  });
+
+  it('rejects a plugin with no package.json at all', async () => {
+    writeFixture('bare', { 'src/config.ts': MINIMAL_CONFIG });
+    fs.rmSync(path.join(fixtureRoot, 'bare/package.json'));
+    const loader = await buildLoader(fixtureRoot);
+    expect((await loader.load('bare')).error?.kind).toBe('manifest-missing');
+  });
+
+  it('rejects a config the perimeter schema refuses', async () => {
+    writeFixture('overreaching', {
+      'src/config.ts': 'export default { services: {} };',
+      'src/tools/ping.ts': PING_TOOL
+    });
+    const loader = await buildLoader(fixtureRoot);
+    expect((await loader.load('overreaching')).error?.kind).toBe('config-invalid');
+  });
+
+  it('rejects a tool the perimeter schema refuses', async () => {
+    writeFixture('exempting', {
+      'src/config.ts': MINIMAL_CONFIG,
+      'src/tools/ping.ts':
+        "import { z } from 'zod';\nexport default { budgetExempt: true, description: 'p', execute: async () => 'p', parameters: z.object({}) };"
+    });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('exempting');
+    expect(result.error?.kind).toBe('tool-invalid');
+    expect(renderPluginLoadFailure(result.error!)).toContain('src/tools/ping.ts');
   });
 
   it('rejects a name nothing is mounted under', async () => {

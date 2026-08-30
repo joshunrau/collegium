@@ -47,8 +47,9 @@ export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
     .with({ kind: 'not-compilable' }, ({ messages }) => `it did not compile:\n  ${messages.join('\n  ')}`)
     .with({ kind: 'not-importable' }, () => 'the compiled plugin could not be evaluated')
     .with(
-      { kind: 'sdk-dependency-missing' },
-      ({ manifestPath }) => `${manifestPath} declares no dependency on "${SDK_SPECIFIER}"`
+      { kind: 'dependency-missing' },
+      ({ manifestPath, name }) =>
+        `${manifestPath} declares no dependency on "${name}"; a plugin declares both "${SDK_SPECIFIER}" and "${ZOD_SPECIFIER}", because a range it never states is one this deployment can never check`
     )
     .with(
       { kind: 'skill-name-invalid' },
@@ -62,6 +63,11 @@ export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
     .with(
       { kind: 'tool-name-too-long' },
       ({ file, wireName }) => `${file} names a tool whose wire name "${wireName}" exceeds the provider limit`
+    )
+    .with(
+      { kind: 'unexpected-file' },
+      ({ directory, extension, file }) =>
+        `${file} is not a file ${directory}/ can hold: every direct child is one contribution named by its basename, so it must end in "${extension}" and carry no further extension — tests and ambient types belong in a subdirectory`
     )
     .exhaustive();
 }

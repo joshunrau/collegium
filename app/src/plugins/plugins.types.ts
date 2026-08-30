@@ -7,8 +7,8 @@ export type PluginSkillSource = {
   readonly namespace: string;
 };
 
-/** one discovered `src/tools/<name>.ts` file: the tool's name, and the file declaring it */
-export type PluginToolFile = {
+/** one discovered conventional file: the contribution's name, and the package-root-relative file declaring it */
+export type PluginConventionalFile = {
   readonly file: string;
   readonly name: string;
 };
@@ -20,15 +20,13 @@ export type PluginSource = {
   readonly packageRoot: string;
   readonly skillNames: readonly string[];
   readonly skillsDirectory: string;
-  readonly toolFiles: readonly PluginToolFile[];
+  readonly toolFiles: readonly PluginConventionalFile[];
 };
 
 export type PluginBundleRequest = {
-  readonly configPath: string;
-  readonly packageRoot: string;
   /** absolute `file:` URL of the framework's own SDK, which every plugin's import of it becomes */
   readonly sdkModuleUrl: string;
-  readonly toolFiles: readonly PluginToolFile[];
+  readonly source: PluginSource;
   /** absolute `file:` URL of the framework's own zod, which every plugin's import of it becomes */
   readonly zodModuleUrl: string;
 };
@@ -76,9 +74,10 @@ export declare namespace PluginLoadFailure {
     kind: 'dependency-forbidden';
     names: readonly string[];
   };
-  type SdkDependencyMissing = {
-    kind: 'sdk-dependency-missing';
+  type DependencyMissing = {
+    kind: 'dependency-missing';
     manifestPath: string;
+    name: string;
   };
   type DependencyVersionUnsatisfied = {
     declared: string;
@@ -103,14 +102,21 @@ export declare namespace PluginLoadFailure {
     file: string;
     kind: 'skill-name-invalid';
   };
+  /** a direct child of a convention directory the convention does not cover */
+  type UnexpectedFile = {
+    directory: string;
+    extension: string;
+    file: string;
+    kind: 'unexpected-file';
+  };
   type ContributesNothing = {
     kind: 'contributes-nothing';
     packageRoot: string;
   };
   /**
-   * The plugin reached past the SDK. Every offending specifier is reported at once, because an
-   * operator fixing imports one boot at a time learns nothing the first message could not have told
-   * them.
+   * The plugin reached past what it may import. Every offending specifier is reported at once,
+   * because an operator fixing imports one boot at a time learns nothing the first message could
+   * not have told them. `importer` is package-root-relative, like every other file a failure names.
    */
   type ForbiddenImport = {
     imports: readonly { importer: string; specifier: string }[];
@@ -142,16 +148,17 @@ export declare namespace PluginLoadFailure {
     | ConfigMissing
     | ContributesNothing
     | DependencyForbidden
+    | DependencyMissing
     | DependencyVersionUnsatisfied
     | DirectoryMissing
     | DirectoryUnreadable
     | ManifestInvalid
     | ManifestMissing
     | ManifestUnreadable
-    | SdkDependencyMissing
     | SkillNameInvalid
     | ToolNameInvalid
-    | ToolNameTooLong;
+    | ToolNameTooLong
+    | UnexpectedFile;
   type Bundle = ForbiddenImport | NotCompilable;
   type Compile = Bundle | NotImportable;
   type Assemble = ConfigInvalid | DefaultExportMissing | ToolInvalid;

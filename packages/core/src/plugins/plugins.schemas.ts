@@ -36,5 +36,5 @@ export const $PluginTool = z.strictObject({
 export type $PluginConfig = z.infer<typeof $PluginConfig>;
 export const $PluginConfig = z.strictObject({
   settings: $ZodSchema.optional(),
-  storage: z.record(z.string().regex(TOOL_SEGMENT_PATTERN), $ZodSchema).optional()
+  storage: z.record(z.string().regex(TOOL_SEGMENT_PATTERN), $ZodSchema).default({})
 });
