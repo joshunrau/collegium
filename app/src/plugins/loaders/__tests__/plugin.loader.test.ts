@@ -10,7 +10,7 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 
 import { ESBuildBundler } from '../../adapters/esbuild.bundler.ts';
 import { PluginBundler } from '../../plugins.bundler.ts';
-import { PluginSdk } from '../../plugins.sdk.ts';
+import { PluginPackages } from '../../plugins.packages.ts';
 import { renderPluginLoadFailure } from '../../plugins.utils.ts';
 import { PluginAssembler } from '../plugin.assembler.ts';
 import { PluginCompiler } from '../plugin.compiler.ts';
@@ -19,9 +19,15 @@ import { PluginLocator } from '../plugin.locator.ts';
 
 const REPOSITORY_PLUGINS = path.resolve(import.meta.dirname, '../../../../..', 'plugins');
 
-/** the version a fixture is written against; the real one belongs to the deployment, not the test */
+/** the versions a fixture is written against; the real ones belong to the deployment, not the test */
 const SDK_VERSION = '1.2.3';
-const SDK = { moduleUrl: import.meta.resolve('@collegium/sdk'), version: SDK_VERSION };
+const ZOD_VERSION = '4.0.0';
+const PACKAGES = {
+  sdk: { moduleUrl: import.meta.resolve('@collegium/sdk'), version: SDK_VERSION },
+  zod: { moduleUrl: import.meta.resolve('zod'), version: ZOD_VERSION }
+};
+
+const MINIMAL_CONFIG = 'export default {};';
 
 let compilers: PluginCompiler[];
 let fixtureRoot: string;
@@ -38,27 +44,29 @@ async function buildLoader(pluginsRoot: string): Promise<PluginLoader> {
       PluginLocator,
       { provide: EnvService, useValue: envService },
       { provide: PluginBundler, useClass: ESBuildBundler },
-      { provide: PluginSdk, useValue: SDK }
+      { provide: PluginPackages, useValue: PACKAGES }
     ]
   }).compile();
   compilers.push(moduleRef.get(PluginCompiler));
   return moduleRef.get(PluginLoader);
 }
 
-/** a plugin package on disk, as an operator would mount one */
+/** a plugin package on disk, as an operator would mount one; keys are package-root-relative paths */
 function writeFixture(
   name: string,
-  files: Readonly<{ [filename: string]: string }>,
+  files: Readonly<{ [file: string]: string }>,
   dependencies: Readonly<{ [name: string]: string }> = { '@collegium/sdk': `^${SDK_VERSION}` }
 ): void {
   const packageRoot = path.join(fixtureRoot, name);
-  fs.mkdirSync(path.join(packageRoot, 'src'), { recursive: true });
+  fs.mkdirSync(packageRoot, { recursive: true });
   fs.writeFileSync(
     path.join(packageRoot, 'package.json'),
-    JSON.stringify({ dependencies, exports: './src/index.ts', name, type: 'module', version: '0.0.0' })
+    JSON.stringify({ dependencies, name, type: 'module', version: '0.0.0' })
   );
-  for (const [filename, contents] of Object.entries(files)) {
-    fs.writeFileSync(path.join(packageRoot, 'src', filename), contents);
+  for (const [file, contents] of Object.entries(files)) {
+    const target = path.join(packageRoot, file);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, contents);
   }
 }
 
@@ -82,26 +90,24 @@ describe('PluginLoader', () => {
     const loaded = result.unwrap();
     expect(loaded.toolset.name).toBe('bookmark');
     expect(Object.keys(loaded.toolset.tools)).toStrictEqual(['list', 'save']);
+    expect(loaded.toolset.skills).toStrictEqual(['saving-bookmarks']);
+    expect(Object.keys(loaded.toolset.storage)).toStrictEqual(['bookmarks']);
     expect(loaded.skillsDirectory).toBe(path.join(REPOSITORY_PLUGINS, 'bookmark/src/skills'));
   });
 
-  it('compiles a relative import and a node builtin', async () => {
+  it('compiles a relative import and a node builtin, rewriting zod to the deployment copy', async () => {
     writeFixture('helped', {
-      'helper.ts': 'export const helped = (): string => "helped";',
-      'index.ts': [
+      'src/config.ts': MINIMAL_CONFIG,
+      'src/helpers.ts': 'export const helped = (): string => "helped";',
+      'src/tools/ping.ts': [
         "import { randomUUID } from 'node:crypto';",
-        "import { defineToolset, ok, z } from '@collegium/sdk';",
-        "import { helped } from './helper.ts';",
-        'export default defineToolset({',
-        "  name: 'helped',",
-        '  tools: {',
-        '    ping: {',
-        "      description: 'p',",
-        '      execute: async () => ok(`${helped()}-${randomUUID().slice(0, 4)}`),',
-        '      parameters: z.object({})',
-        '    }',
-        '  }',
-        '});'
+        "import { z } from 'zod';",
+        "import { helped } from '../helpers.ts';",
+        'export default {',
+        "  description: 'p',",
+        '  execute: async () => `${helped()}-${randomUUID().slice(0, 4)}`,',
+        '  parameters: z.object({})',
+        '};'
       ].join('\n')
     });
     const loader = await buildLoader(fixtureRoot);
@@ -113,34 +119,66 @@ describe('PluginLoader', () => {
 
   it('refuses an import the plugin contract does not permit', async () => {
     writeFixture('reaching', {
-      'index.ts': ["import { z } from 'zod';", "import 'date-fns';", 'export default { name: "reaching", z };'].join(
-        '\n'
-      )
+      'src/config.ts': MINIMAL_CONFIG,
+      'src/tools/reach.ts': ["import 'date-fns';", "import 'zod/mini';", 'export default {};'].join('\n')
     });
     const loader = await buildLoader(fixtureRoot);
     const result = await loader.load('reaching');
     expect(result.error?.kind).toBe('forbidden-import');
     const message = renderPluginLoadFailure(result.error!);
-    expect(message).toContain('"zod"');
     expect(message).toContain('"date-fns"');
-    expect(message).toContain('import { z } from "@collegium/sdk"');
+    expect(message).toContain('"zod/mini"');
+    expect(message).toContain('subpaths are not rewritten');
   });
 
-  it('rejects a directory whose toolset declares another name', async () => {
-    writeFixture('renamed', {
-      'index.ts': [
-        "import { defineToolset } from '@collegium/sdk';",
-        "export default defineToolset({ name: 'elsewhere', tools: {} });"
-      ].join('\n')
+  it('rejects a plugin without a config file', async () => {
+    writeFixture('unconfigured', { 'src/tools/ping.ts': 'export default {};' });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('unconfigured');
+    expect(result.error?.kind).toBe('config-missing');
+  });
+
+  it('rejects a tool file whose basename is outside the segment grammar', async () => {
+    writeFixture('dashed', {
+      'src/config.ts': MINIMAL_CONFIG,
+      'src/tools/save-it.ts': 'export default {};'
     });
     const loader = await buildLoader(fixtureRoot);
-    const result = await loader.load('renamed');
-    expect(result.error?.kind).toBe('name-mismatch');
-    expect(renderPluginLoadFailure(result.error!)).toContain("declares the name 'elsewhere'");
+    const result = await loader.load('dashed');
+    expect(result.error?.kind).toBe('tool-name-invalid');
+    expect(renderPluginLoadFailure(result.error!)).toContain('src/tools/save-it.ts');
   });
 
-  it('rejects a plugin depending on anything but the sdk', async () => {
-    writeFixture('vendored', { 'index.ts': 'export default {};' }, { '@collegium/sdk': '*', 'date-fns': '^4.0.0' });
+  it('rejects a plugin with no tools and no skills', async () => {
+    writeFixture('inert', { 'src/config.ts': MINIMAL_CONFIG });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('inert');
+    expect(result.error?.kind).toBe('contributes-nothing');
+  });
+
+  it('rejects a tool file without a default export', async () => {
+    writeFixture('exportless', {
+      'src/config.ts': MINIMAL_CONFIG,
+      'src/tools/quiet.ts': 'export const quiet = 1;'
+    });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('exportless');
+    expect(result.error?.kind).toBe('default-export-missing');
+    expect(renderPluginLoadFailure(result.error!)).toContain('src/tools/quiet.ts');
+  });
+
+  it('reports a module whose evaluation throws', async () => {
+    writeFixture('throwing', {
+      'src/config.ts': "throw new Error('bad config');",
+      'src/tools/ping.ts': 'export default {};'
+    });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('throwing');
+    expect(result.error?.kind).toBe('not-importable');
+  });
+
+  it('rejects a plugin depending on anything but the sdk and zod', async () => {
+    writeFixture('vendored', { 'src/config.ts': MINIMAL_CONFIG }, { '@collegium/sdk': '*', 'date-fns': '^4.0.0' });
     const loader = await buildLoader(fixtureRoot);
     const result = await loader.load('vendored');
     expect(result.error?.kind).toBe('dependency-forbidden');
@@ -148,11 +186,23 @@ describe('PluginLoader', () => {
   });
 
   it('rejects a plugin written against an sdk this deployment does not carry', async () => {
-    writeFixture('ahead', { 'index.ts': 'export default {};' }, { '@collegium/sdk': '^2.0.0' });
+    writeFixture('ahead', { 'src/config.ts': MINIMAL_CONFIG }, { '@collegium/sdk': '^2.0.0' });
     const loader = await buildLoader(fixtureRoot);
     const result = await loader.load('ahead');
-    expect(result.error?.kind).toBe('sdk-version-unsatisfied');
-    expect(renderPluginLoadFailure(result.error!)).toContain(`carries ${SDK_VERSION}`);
+    expect(result.error?.kind).toBe('dependency-version-unsatisfied');
+    expect(renderPluginLoadFailure(result.error!)).toContain(`carries @collegium/sdk ${SDK_VERSION}`);
+  });
+
+  it('rejects a plugin written against a zod this deployment does not carry', async () => {
+    writeFixture(
+      'mismatched',
+      { 'src/config.ts': MINIMAL_CONFIG },
+      { '@collegium/sdk': `^${SDK_VERSION}`, zod: '^9.0.0' }
+    );
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('mismatched');
+    expect(result.error?.kind).toBe('dependency-version-unsatisfied');
+    expect(renderPluginLoadFailure(result.error!)).toContain(`carries zod ${ZOD_VERSION}`);
   });
 
   it('rejects a name nothing is mounted under', async () => {

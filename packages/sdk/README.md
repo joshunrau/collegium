@@ -2,60 +2,58 @@
 
 The authoring surface for [Collegium](https://collegium.sh) plugins.
 
-A plugin is a directory of TypeScript that default-exports one toolset: a namespace owning tools,
-settings, durable storage, and skills. The deployment mounts it, compiles it at boot, and grants it
-to the agents that need it. This package is what you write it against.
+A plugin is a directory of TypeScript. The deployment mounts it, compiles it at boot, and grants it to the agents that need it. The layout declares the contents: `src/config.ts` declares settings and storage, each `src/tools/<name>.ts` declares one tool named by its filename, and each `src/skills/<name>.md` ships one skill.
 
 ```sh
-npm install @collegium/sdk
+npm install @collegium/sdk zod
 ```
 
-```ts
-import { defineToolset, fail, ok, z } from '@collegium/sdk';
+`src/config.ts`:
 
-export default defineToolset({
-  name: 'contacts',
+```ts
+import { defineConfig } from '@collegium/sdk';
+import { z } from 'zod';
+
+const config = defineConfig({
   settings: z.strictObject({ maxContacts: z.number().int().positive().default(200) }),
-  storage: { contacts: z.object({ email: z.email(), name: z.string().min(1) }) },
-  tools: {
-    find: {
-      description: 'Find saved contacts by name.',
-      execute: async (args, { storage }) => {
-        const matches = (await storage.contacts.list()).filter(({ value }) =>
-          value.name.toLowerCase().includes(args.query.toLowerCase())
-        );
-        return ok(matches.map(({ key, value }) => `- ${key}: ${value.name} <${value.email}>`).join('\n'));
-      },
-      parameters: z.object({ query: z.string().min(1) }),
-      retryable: true
-    },
-    save: {
-      approval: (args) => ({ body: `save contact "${args.id}": ${args.name}`, presentation: 'verbatim' }),
-      description: 'Save or update a contact.',
-      execute: async (args, { settings, storage }) => {
-        if ((await storage.contacts.list()).length >= settings.maxContacts) {
-          return fail.invalidArguments('contact limit reached; delete one first');
-        }
-        await storage.contacts.put(args.id, { email: args.email, name: args.name });
-        return ok(`contact ${args.id} saved`);
-      },
-      parameters: z.object({ email: z.email(), id: z.string().min(1), name: z.string().min(1) })
-    }
+  storage: { contacts: z.object({ email: z.email(), name: z.string().min(1) }) }
+});
+
+declare module '@collegium/sdk' {
+  interface Register {
+    config: typeof config;
   }
+}
+
+export default config;
+```
+
+`src/tools/save.ts`:
+
+```ts
+import { defineTool } from '@collegium/sdk';
+import { z } from 'zod';
+
+export default defineTool({
+  approval: (args) => ({ body: `save contact "${args.id}": ${args.name}`, presentation: 'verbatim' }),
+  description: 'Save or update a contact.',
+  execute: async (args, { err, settings, storage }) => {
+    if ((await storage.contacts.list()).length >= settings.maxContacts) {
+      err.invalidArguments('contact limit reached; delete one first');
+    }
+    await storage.contacts.put(args.id, { email: args.email, name: args.name });
+    return `contact ${args.id} saved`;
+  },
+  parameters: z.object({ email: z.email(), id: z.string().min(1), name: z.string().min(1) })
 });
 ```
 
-A tool with an `approval` always stops for a human, who sees the full payload before it runs; one
-without never gates. Both are disclosed line by line in the channel and in the trace.
+A tool with `approval` always stops for a human, who sees the full payload before it runs; one without never gates. The channel and the trace disclose both, line by line. `execute` returns the text the model reads, and raises the two failures a tool controls through `err`: `invalidArguments` continues the turn, `unresolved` ends it as an unconfirmed side effect.
 
-**This package is a development dependency in practice.** A mounted plugin is compiled against the
-SDK the deployment's image carries, not the copy in your `node_modules` — that copy is what your
-editor, `tsc`, and your tests use. Import `z` from here rather than installing `zod` yourself; the
-compiler refuses any import but this one.
+**zod is a peer dependency.** Install it beside the SDK and import it directly. A plugin may import `@collegium/sdk`, `zod`, and `node:` builtins; the compiler refuses every other bare specifier at boot.
 
-**Versioning.** This package is released with Collegium itself and carries the same version, so the
-range you declare names the deployment you are writing for. Boot refuses a plugin whose declared
-range the deployment's version does not satisfy. Before v1 any release may break a plugin, so declare
-the version you tested against and re-declare it when you update.
+**Your installed copies are for development.** The deployment compiles a mounted plugin against the SDK and zod its image carries, not the copies in your `node_modules` — those serve your editor, `tsc`, and your tests. Exactly one zod runs in the process.
+
+**Versioning.** The SDK is released with Collegium itself and carries the same version, so the range you declare names the deployment you are writing for. Boot refuses a plugin whose declared ranges the deployment's versions do not satisfy. Before v1 any release may break a plugin, so declare the versions you tested against and re-declare them when you update.
 
 Full guide: [collegium.sh/docs/guides/write-a-plugin](https://collegium.sh/docs/guides/write-a-plugin)

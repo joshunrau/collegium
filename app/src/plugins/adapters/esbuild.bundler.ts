@@ -5,26 +5,41 @@ import { Injectable } from '@nestjs/common';
 import * as esbuild from 'esbuild';
 
 import { PluginBundler } from '../plugins.bundler.ts';
-import { SDK_SPECIFIER } from '../plugins.constants.ts';
+import { SDK_SPECIFIER, ZOD_SPECIFIER } from '../plugins.constants.ts';
 import { renderBuildDiagnostics } from './esbuild.utils.ts';
 
 import type { PluginBundleRequest, PluginLoadFailure } from '../plugins.types.ts';
 
 const NODE_BUILTIN_PREFIX = 'node:';
 
-// the plugin directory is the operator's, and a tsconfig found beside its entry would make what the
+// the plugin directory is the operator's, and a tsconfig found beside its files would make what the
 // framework compiles depend on a file the framework does not own
 const HERMETIC_TSCONFIG = {};
 
+/**
+ * The entry module the author no longer writes: every conventional file imported as a namespace —
+ * so a missing default export is the assembler's precise refusal, not a bundler diagnostic — and
+ * exported under the shape the assembler consumes.
+ */
+function renderSyntheticEntry({ configPath, packageRoot, toolFiles }: PluginBundleRequest): string {
+  const relative = (file: string) => `./${path.relative(packageRoot, path.resolve(packageRoot, file))}`;
+  const lines = [`import * as config from ${JSON.stringify(relative(configPath))};`];
+  toolFiles.forEach(({ file }, index) => {
+    lines.push(`import * as tool_${index} from ${JSON.stringify(relative(file))};`);
+  });
+  const entries = toolFiles.map(({ name }, index) => `${JSON.stringify(name)}: tool_${index}`);
+  lines.push(`export default { config, tools: { ${entries.join(', ')} } };`);
+  return lines.join('\n');
+}
+
 @Injectable()
 export class ESBuildBundler extends PluginBundler {
-  async bundle({ entry, sdkModuleUrl }: PluginBundleRequest): Promise<Result<string, PluginLoadFailure.Bundle>> {
+  async bundle(request: PluginBundleRequest): Promise<Result<string, PluginLoadFailure.Bundle>> {
     const forbidden: { importer: string; specifier: string }[] = [];
     let bundled;
     try {
       bundled = await esbuild.build({
         bundle: true,
-        entryPoints: [entry],
         format: 'esm',
         // the diagnostics are returned to the caller, so esbuild printing them too is noise
         logLevel: 'silent',
@@ -38,7 +53,10 @@ export class ESBuildBundler extends PluginBundler {
                   return null;
                 }
                 if (args.path === SDK_SPECIFIER) {
-                  return { external: true, path: sdkModuleUrl };
+                  return { external: true, path: request.sdkModuleUrl };
+                }
+                if (args.path === ZOD_SPECIFIER) {
+                  return { external: true, path: request.zodModuleUrl };
                 }
                 if (args.path.startsWith(NODE_BUILTIN_PREFIX)) {
                   return { external: true, path: args.path };
@@ -52,6 +70,12 @@ export class ESBuildBundler extends PluginBundler {
           }
         ],
         sourcemap: 'inline',
+        stdin: {
+          contents: renderSyntheticEntry(request),
+          loader: 'js',
+          resolveDir: request.packageRoot,
+          sourcefile: '<collegium-plugin-entry>'
+        },
         target: `node${process.versions.node.split('.')[0]}`,
         tsconfigRaw: HERMETIC_TSCONFIG,
         write: false
@@ -65,7 +89,7 @@ export class ESBuildBundler extends PluginBundler {
     }
     const output = bundled.outputFiles[0];
     if (!output) {
-      return Result.err({ kind: 'not-compilable', messages: ['the bundler produced no output'] });
+      throw new Error('the bundler produced no output for a build it reported successful');
     }
     return Result.ok(output.text);
   }

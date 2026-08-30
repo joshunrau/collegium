@@ -76,7 +76,7 @@ export const $PluginName = z
   .string()
   .regex(TOOL_SEGMENT_PATTERN)
   .describe(
-    "The plugin's identity, stated once: the directory holding it beneath the plugin root, and the namespace its tools, storage, and skills appear under. Must equal the name the plugin's own toolset declares."
+    "The plugin's identity, stated once: the directory holding it beneath the plugin root, and the namespace its tools, storage, and skills appear under."
   );
 
 /**

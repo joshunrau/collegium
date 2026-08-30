@@ -3,7 +3,7 @@ title: Write a Plugin
 description: Build a plugin with durable storage, an ungated read, a gated write, and settings.
 ---
 
-A plugin is a directory of TypeScript that the deployment compiles at boot. It contributes a toolset: a namespace of tools, skills, settings, and durable records, granted to agents like any built-in toolset. This guide builds `contacts`: an address book agents can read without approval and update only with approval.
+A plugin is a directory of TypeScript that the deployment compiles at boot. Its layout declares its contents: a config at `src/config.ts`, one tool per file under `src/tools/`, one skill per file under `src/skills/`. This guide builds `contacts`: an address book agents can read without approval and update only with approval.
 
 Prerequisites: a running deployment, and Node.js wherever you write the plugin. You don't need a checkout of Collegium.
 
@@ -14,105 +14,138 @@ Plugins run with framework privilege. Review a plugin before you install it, the
 ```sh
 mkdir contacts && cd contacts
 npm init --yes
-npm install @collegium/sdk
+npm install @collegium/sdk zod
+mkdir -p src/tools
 ```
 
-Set `type`, `exports`, and `dependencies`:
+Set `type` and `dependencies` in `package.json`:
 
 ```json
 {
   "name": "contacts",
   "type": "module",
   "version": "0.0.0",
-  "exports": "./src/index.ts",
-  "dependencies": { "@collegium/sdk": "^0.0.1-beta.4" }
+  "dependencies": {
+    "@collegium/sdk": "^0.0.1-beta.6",
+    "zod": "^4.4.3"
+  }
 }
 ```
 
-The framework checks three things at boot and refuses to start if any fails:
+The framework checks two things at boot and refuses to start if either fails:
 
-- `exports` is a plain string naming a TypeScript entry file, or an object whose `"."` is one. Don't build it; the framework compiles it.
-- `@collegium/sdk` is the only entry in `dependencies`. Put `typescript`, `vitest`, and other tooling in `devDependencies`.
-- The `@collegium/sdk` range matches the deployment's version.
+- `@collegium/sdk` and `zod` are the only entries in `dependencies`. Put `typescript`, `vitest`, and other tooling in `devDependencies`.
+- Each declared range matches the version the deployment carries.
 
-## 2. Declare the Toolset
+The copies you install serve your editor and your tests. The deployment compiles your imports against its own copies, so exactly one zod runs in the process.
 
-`src/index.ts` default-exports one toolset:
+There is no entry file to declare and nothing to build. The framework compiles the layout itself.
+
+## 2. Declare the Config
+
+`src/config.ts` default-exports the config: the settings schema agents are configured by, and the storage collections the plugin owns.
 
 ```ts
-import { defineToolset, fail, ok, z } from '@collegium/sdk';
+import { defineConfig } from '@collegium/sdk';
+import { z } from 'zod';
 
-export type $Contact = z.infer<typeof $Contact>;
-export const $Contact = z.object({
-  email: z.email(),
-  name: z.string().min(1)
-});
-
-export type $ContactsSettings = z.infer<typeof $ContactsSettings>;
-export const $ContactsSettings = z.strictObject({
-  maxContacts: z.number().int().positive().default(200)
-});
-
-export default defineToolset({
-  name: 'contacts',
-  settings: $ContactsSettings,
-  storage: { contacts: $Contact },
-  tools: {
-    find: {
-      description: 'Find saved contacts by name.',
-      execute: async (args, { storage }) => {
-        const contacts = await storage.contacts.list();
-        const matches = contacts.filter(({ value }) => value.name.toLowerCase().includes(args.query.toLowerCase()));
-        if (matches.length === 0) return ok('no contacts matched');
-        return ok(matches.map(({ key, value }) => `- ${key}: ${value.name} <${value.email}>`).join('\n'));
-      },
-      parameters: z.object({
-        query: z.string().min(1).describe('Name or fragment to search for')
-      }),
-      retryable: true
-    },
-    save: {
-      approval: (args) => ({
-        body: `save contact "${args.id}": ${args.name} <${args.email}>`,
-        presentation: 'verbatim'
-      }),
-      description: 'Save or update a contact.',
-      execute: async (args, { settings, storage }) => {
-        const existing = await storage.contacts.list();
-        if (existing.length >= settings.maxContacts) {
-          return fail.invalidArguments(`contact limit of ${settings.maxContacts} reached; delete one first`);
-        }
-        await storage.contacts.put(args.id, { email: args.email, name: args.name });
-        return ok(`contact ${args.id} saved`);
-      },
-      parameters: z.object({
-        email: z.email().describe('Email address'),
-        id: z.string().min(1).describe('Short identifier to save under'),
-        name: z.string().min(1).describe('Full name')
-      }),
-      traceDetail: (args) => `${args.id}: ${args.name}`
-    }
+const config = defineConfig({
+  settings: z.strictObject({
+    maxContacts: z.number().int().positive().default(200)
+  }),
+  storage: {
+    contacts: z.object({
+      email: z.email(),
+      name: z.string().min(1)
+    })
   }
+});
+
+declare module '@collegium/sdk' {
+  interface Register {
+    config: typeof config;
+  }
+}
+
+export default config;
+```
+
+The `declare module` block registers the config's types. It is what types `settings` and `storage` inside every tool file, with no import between them.
+
+- `settings` types the `settings` each tool receives. Agents set values under `toolSettings.contacts`.
+- `storage` declares one collection per key. The framework validates every read and write against the schema.
+
+## 3. Write the Tools
+
+Every `src/tools/<name>.ts` default-exports one tool, and the filename is the tool's name: `src/tools/find.ts` becomes `contacts::find`. The `parameters` schema types `args` in every callback.
+
+`src/tools/find.ts` is the ungated read:
+
+```ts
+import { defineTool } from '@collegium/sdk';
+import { z } from 'zod';
+
+export default defineTool({
+  description: 'Find saved contacts by name.',
+  execute: async (args, { storage }) => {
+    const contacts = await storage.contacts.list();
+    const matches = contacts.filter(({ value }) => value.name.toLowerCase().includes(args.query.toLowerCase()));
+    if (matches.length === 0) return 'no contacts matched';
+    return matches.map(({ key, value }) => `- ${key}: ${value.name} <${value.email}>`).join('\n');
+  },
+  parameters: z.object({
+    query: z.string().min(1).describe('Name or fragment to search for')
+  }),
+  retryable: true
 });
 ```
 
-- `settings` types the `settings` argument each tool receives. Agents set values under `toolSettings.contacts`.
-- `storage` declares one collection per key. Each tool receives it typed, and reads and writes are validated against the schema.
+`src/tools/save.ts` is the gated write:
+
+```ts
+import { defineTool } from '@collegium/sdk';
+import { z } from 'zod';
+
+export default defineTool({
+  approval: (args) => ({
+    body: `save contact "${args.id}": ${args.name} <${args.email}>`,
+    presentation: 'verbatim'
+  }),
+  description: 'Save or update a contact.',
+  execute: async (args, { err, settings, storage }) => {
+    const existing = await storage.contacts.list();
+    if (existing.length >= settings.maxContacts) {
+      err.invalidArguments(`contact limit of ${settings.maxContacts} reached; delete one first`);
+    }
+    await storage.contacts.put(args.id, { email: args.email, name: args.name });
+    return `contact ${args.id} saved`;
+  },
+  parameters: z.object({
+    email: z.email().describe('Email address'),
+    id: z.string().min(1).describe('Short identifier to save under'),
+    name: z.string().min(1).describe('Full name')
+  }),
+  traceDetail: (args) => `${args.id}: ${args.name}`
+});
+```
+
+- `execute` returns the text the model reads. Return `{ text, disclosure }` to disclose a durable record.
+- `err` raises the two failures a tool may raise itself. `err.invalidArguments` feeds the message back to the model and the turn continues. `err.unresolved` ends the turn as an unconfirmed side effect. Any other throw ends the turn as an error.
 - A tool with `approval` blocks for a human decision on every call. The function returns the payload the human sees; include everything the action will do.
 - A tool without `approval` runs without a gate. Mark it `retryable` only if a timed-out call is safe to report as a failure. Never mark a mutation retryable.
 - `traceDetail` is the one-line summary shown in the status post.
 
-### Imports
+### Files and Imports
 
-Import `@collegium/sdk`, `node:` builtins, and your own files by relative path. The compiler refuses any other bare specifier at boot.
+The loader reads direct children of `src/tools/` only, and refuses a file it cannot load as a tool. Keep helpers elsewhere under `src/` and import them by relative path. A subdirectory such as `src/tools/__tests__/` is yours; the loader ignores it.
 
-Import `z` from `@collegium/sdk`, not from `zod`.
+Import `@collegium/sdk`, `zod`, `node:` builtins, and your own files by relative path. The compiler refuses any other bare specifier at boot. Import from `zod` itself, not a subpath.
 
 `fetch`, `crypto`, `Intl`, and `structuredClone` are available as globals.
 
-To ship skills, declare `skills: ['saving-contacts']` and add `src/skills/saving-contacts.md` beside the entry module. Agents get the skill via the grant `contacts::saving-contacts`. See the in-repo `bookmark` plugin for an example.
+To ship skills, add markdown files under `src/skills/`. Each `src/skills/<name>.md` becomes the grant `contacts::<name>`. See the in-repo `bookmark` plugin for an example.
 
-## 3. Install the Plugin
+## 4. Install the Plugin
 
 Clone the plugin into the directory `PLUGINS_ROOT` in `.env` points at. In a clone of Collegium, that is `plugins/`:
 
@@ -120,9 +153,9 @@ Clone the plugin into the directory `PLUGINS_ROOT` in `.env` points at. In a clo
 git clone https://github.com/you/contacts plugins/contacts
 ```
 
-The subdirectory name must equal the toolset's `name`. The framework refuses to boot if they differ.
+The subdirectory name is the plugin's name and namespace. The framework reads it from nowhere else.
 
-## 4. Grant and Configure
+## 5. Grant and Configure
 
 In `config.json`, declare the plugin:
 
@@ -141,7 +174,7 @@ Then grant it to Clara and set her settings for it:
 
 `"contacts"` grants every tool in the plugin, including ones a later version adds. Grant `"contacts::find"` instead to hand out one tool. Settings merge over `agentDefaults.toolSettings.contacts`. The framework refuses settings for an ungranted toolset and settings the schema rejects.
 
-## 5. Try It
+## 6. Try It
 
 Restart the deployment, then:
 

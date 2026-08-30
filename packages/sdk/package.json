@@ -34,13 +34,16 @@
     "build": "rm -rf dist && tsdown",
     "lint": "tsc && eslint --fix ."
   },
+  "peerDependencies": {
+    "zod": "^4.4.3"
+  },
   "dependencies": {
-    "type-fest": "catalog:",
-    "zod": "catalog:"
+    "type-fest": "catalog:"
   },
   "devDependencies": {
     "@collegium/core": "workspace:*",
-    "tsdown": "^0.22.14"
+    "tsdown": "^0.22.14",
+    "zod": "catalog:"
   },
   "publishConfig": {
     "access": "public",

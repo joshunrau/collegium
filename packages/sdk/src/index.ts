@@ -1,6 +1,5 @@
-export { fail, ok } from './tool.utils.ts';
-export { defineToolset } from './toolset.ts';
-export type { ToolApprovalPayload, ToolDisclosure, ToolOutput, ToolResult, ToolTurnScope } from '@collegium/core/tools';
-export type { PluginToolsetDeclaration, ToolsetCollection } from '@collegium/core/toolsets';
-export { Result } from '@collegium/core/utils';
-export { z } from 'zod';
+export { defineConfig } from './config.ts';
+export type { Register } from './config.ts';
+export { defineTool } from './tool.ts';
+export type { PluginTool, ToolContext } from './tool.ts';
+export type { ToolApprovalPayload, ToolDisclosure, ToolTurnScope } from '@collegium/core/tools';

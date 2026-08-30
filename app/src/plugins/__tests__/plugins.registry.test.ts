@@ -12,6 +12,7 @@ function buildLoadedPlugin(name = 'bookmark'): LoadedPlugin {
     toolset: {
       name,
       skills: ['saving-bookmarks'],
+      storage: {},
       tools: {
         save: {
           description: 'Saves a bookmark.',

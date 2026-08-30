@@ -4,13 +4,11 @@
   "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
-  "exports": {
-    ".": "./src/index.ts"
-  },
   "scripts": {
     "lint": "tsc && eslint --fix ."
   },
   "dependencies": {
-    "@collegium/sdk": "workspace:*"
+    "@collegium/sdk": "workspace:*",
+    "zod": "catalog:"
   }
 }

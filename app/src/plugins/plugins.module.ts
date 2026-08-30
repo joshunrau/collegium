@@ -8,8 +8,8 @@ import { PluginCompiler } from './loaders/plugin.compiler.ts';
 import { PluginLoader } from './loaders/plugin.loader.ts';
 import { PluginLocator } from './loaders/plugin.locator.ts';
 import { PluginBundler } from './plugins.bundler.ts';
+import { PluginPackages } from './plugins.packages.ts';
 import { PluginsRegistry } from './plugins.registry.ts';
-import { PluginSdk } from './plugins.sdk.ts';
 import { pluginLoadFailureCause, renderPluginLoadFailure } from './plugins.utils.ts';
 
 @Module({
@@ -19,7 +19,7 @@ import { pluginLoadFailureCause, renderPluginLoadFailure } from './plugins.utils
     PluginCompiler,
     PluginLoader,
     PluginLocator,
-    PluginSdk,
+    PluginPackages,
     { provide: PluginBundler, useClass: ESBuildBundler },
     {
       inject: [ConfigService, PluginLoader],

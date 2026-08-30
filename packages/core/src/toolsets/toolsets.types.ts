@@ -77,35 +77,6 @@ export type ToolRefsOf<TToolset extends AnyToolset> = TToolset extends AnyToolse
   ? `${TToolset['name']}::${Extract<keyof TToolset['tools'], string>}`
   : never;
 
-/** a plugin's toolset: the same declaration, refused `services` and `budgetExempt` (§7) */
-export type PluginToolsetDeclaration<
-  TName extends string,
-  TSettings extends undefined | z.ZodType,
-  TCollections extends CollectionsDeclaration,
-  TParamsMap extends ParametersDeclaration
-> = {
-  readonly name: TName;
-  readonly settings?: TSettings;
-  readonly skills?: readonly string[];
-  readonly storage?: TCollections;
-  readonly tools: {
-    readonly [K in keyof TParamsMap]: Omit<
-      ToolDefinition<ToolsetContext<EmptyDeclaration, TSettings, TCollections>, TParamsMap[K]>,
-      'budgetExempt'
-    >;
-  };
-};
-
-/** the SDK's narrowed view of `defineToolset` — one runtime function under one name for both audiences (§7) */
-export type DefinePluginToolset = <
-  const TName extends string,
-  TParamsMap extends ParametersDeclaration,
-  TSettings extends undefined | z.ZodType = undefined,
-  const TCollections extends CollectionsDeclaration = EmptyDeclaration
->(
-  declaration: PluginToolsetDeclaration<TName, TSettings, TCollections, TParamsMap>
-) => PluginToolsetDeclaration<TName, TSettings, TCollections, TParamsMap>;
-
 /**
  * The inert half of a framework toolset (§2): its namespace, the names of its tools, and the
  * settings schema config supplies for it. Declared below the app as a plain `as const satisfies

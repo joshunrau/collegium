@@ -8,7 +8,7 @@ import { Injectable } from '@nestjs/common';
 import type { OnApplicationShutdown } from '@nestjs/common';
 
 import { PluginBundler } from '../plugins.bundler.ts';
-import { PluginSdk } from '../plugins.sdk.ts';
+import { PluginPackages } from '../plugins.packages.ts';
 
 import type { PluginLoadFailure, PluginSource } from '../plugins.types.ts';
 
@@ -20,11 +20,17 @@ export class PluginCompiler implements OnApplicationShutdown {
 
   constructor(
     private readonly bundler: PluginBundler,
-    private readonly sdk: PluginSdk
+    private readonly packages: PluginPackages
   ) {}
 
   async compileToDiskAndImport(source: PluginSource): Promise<Result<unknown, PluginLoadFailure.Compile>> {
-    const bundled = await this.bundler.bundle({ entry: source.entry, sdkModuleUrl: this.sdk.moduleUrl });
+    const bundled = await this.bundler.bundle({
+      configPath: source.configPath,
+      packageRoot: source.packageRoot,
+      sdkModuleUrl: this.packages.sdk.moduleUrl,
+      toolFiles: source.toolFiles,
+      zodModuleUrl: this.packages.zod.moduleUrl
+    });
     if (!bundled.success) {
       return Result.err(bundled.error);
     }
@@ -42,9 +48,9 @@ export class PluginCompiler implements OnApplicationShutdown {
       return Result.err({ cause: error, kind: 'not-importable' });
     }
 
-    // not isPlainObject: an ESM namespace object carries Symbol.toStringTag 'Module', which plain-object checks reject
+    // the entry is the framework's own synthesis, so its default export failing to exist is a bug here
     if (typeof module !== 'object' || module === null || !('default' in module)) {
-      return Result.err({ entry: source.entry, kind: 'default-export-missing' });
+      throw new Error(`the synthetic entry for plugin "${source.name}" lost its default export`);
     }
     return Result.ok(module.default);
   }

@@ -298,9 +298,6 @@ importers:
       type-fest:
         specifier: 'catalog:'
         version: 5.8.0
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
     devDependencies:
       '@collegium/core':
         specifier: workspace:*
@@ -308,12 +305,18 @@ importers:
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(@volar/typescript@2.4.28)(oxc-resolver@11.24.2)(typescript@6.0.3)
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
 
   plugins/bookmark:
     dependencies:
       '@collegium/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
 
 packages:
   '@astrojs/check@0.9.10':
