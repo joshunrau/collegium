@@ -28,20 +28,6 @@ const NAVIGATION = {
       title: 'Guides'
     },
     {
-      name: 'concepts',
-      pages: [
-        'design-overview',
-        'agents-and-identity',
-        'turns-and-activation',
-        'tools-skills-and-memory',
-        'the-approval-gate',
-        'safety-and-confinement',
-        'execution-and-failure',
-        'observability'
-      ],
-      title: 'Concepts'
-    },
-    {
       name: 'reference',
       pages: ['configuration', 'environment'],
       title: 'Reference'
