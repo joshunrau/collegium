@@ -18,9 +18,9 @@ type DocEntry = CollectionEntry<'docs'> | CollectionEntry<'reference'> | Collect
 const NAVIGATION = {
   folders: [
     {
-      name: 'getting-started',
-      pages: ['introduction', 'quickstart', 'next-steps'],
-      title: 'Getting Started'
+      name: 'introduction',
+      pages: ['overview', 'quickstart', 'next-steps'],
+      title: 'Introduction'
     },
     {
       name: 'guides',
