@@ -85,6 +85,20 @@ jobs:
             echo "turbo prune dropped @collegium/sdk from the image" >&2
             exit 1
           fi
+      # the SDK is released with the framework on one version line: the range a plugin declares names
+      # the deployment it was written for (§3.14), and a second version line makes that range mean
+      # nothing. Only the bump script keeps them in step, and nothing stops a manifest edited by hand.
+      - name: Verify Every Publishable Package Carries the Root Version
+        run: |
+          node --input-type=module --eval "
+            import assert from 'node:assert/strict';
+            import { readFileSync } from 'node:fs';
+            const { listPublishable } = await import('./scripts/list-publishable.js');
+            const root = JSON.parse(readFileSync('package.json', 'utf-8')).version;
+            for (const { name, version } of listPublishable()) {
+              assert.equal(version, root, name + ' is at ' + version + ', not the root ' + root);
+            }
+          "
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15
