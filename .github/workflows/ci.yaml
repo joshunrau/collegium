@@ -141,6 +141,9 @@ jobs:
       # the same deployment with nothing mounted must refuse to start, or the check above proves nothing
       - name: Refuse a Plugin That Is Not Mounted
         run: |
+          # one SQLite file serves the service, and the booted app holds its lock: left running, the
+          # second container dies in `prisma migrate deploy` and never reaches the plugin loader
+          docker compose stop app
           empty="$(mktemp -d)"
           if PLUGINS_ROOT="${empty}" docker compose run --rm --no-TTY app > refusal.log 2>&1; then
             echo "the app booted with no plugin mounted" >&2
