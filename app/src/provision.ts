@@ -19,14 +19,10 @@ import { ProvisioningService } from './provisioning/provisioning.service.ts';
 const logger = new JSONLogger('Provision');
 
 try {
-  const env = $ProvisioningEnv.parse(process.env);
+  const credentials = $ProvisioningEnv.parse(process.env);
   const context = await NestFactory.createApplicationContext(ProvisionModule, { bufferLogs: true });
   try {
-    await context.get(ProvisioningService).reconcile({
-      email: env.MATTERMOST_ADMIN_EMAIL,
-      password: env.MATTERMOST_ADMIN_PASSWORD,
-      username: env.MATTERMOST_ADMIN_USERNAME
-    });
+    await context.get(ProvisioningService).reconcile(credentials);
   } finally {
     await context.close();
   }

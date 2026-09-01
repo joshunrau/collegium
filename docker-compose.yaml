@@ -5,27 +5,31 @@ services:
       context: .
       dockerfile: ./app/Dockerfile
     container_name: collegium
+    # absent unless the `bundled` profile is enabled, and the deployment then reaches a Mattermost
+    # this stack does not start; provisioning waits for that one to answer on its own
     depends_on:
       mattermost:
         condition: service_healthy
+        required: false
     env_file: .env
     environment:
       - APP_HOST=0.0.0.0
-      # where the app binds is not where it is reached: Mattermost calls back by service name
-      - APP_PUBLIC_URL=http://app:${APP_PORT:?}
+      # where the app binds is not where it is reached: a bundled Mattermost calls back by service
+      # name, and a server elsewhere needs an address that reaches this container from outside
+      - APP_PUBLIC_URL=${APP_PUBLIC_URL:-http://app:${APP_PORT:?}}
       - CONFIG_PATH=/app/config.json
       - DATABASE_URL=file:///data/prod.db
-      # already delivered by env_file, restated so `:?` refuses an empty credential before anything starts
-      - MATTERMOST_ADMIN_EMAIL=${MATTERMOST_ADMIN_EMAIL:?}
-      - MATTERMOST_ADMIN_PASSWORD=${MATTERMOST_ADMIN_PASSWORD:?}
-      - MATTERMOST_ADMIN_USERNAME=${MATTERMOST_ADMIN_USERNAME:?}
       - MATTERMOST_TEAM=${MATTERMOST_TEAM:?}
-      - MATTERMOST_URL=http://mattermost:8065
+      - MATTERMOST_URL=${MATTERMOST_URL:-http://mattermost:8065}
       - PLUGINS_ROOT=/srv/plugins
       - WORKSPACE_ROOT=/workspaces
     image: ghcr.io/joshunrau/collegium:latest
     # the browser and the shell tool leave grandchildren behind, and PID 1 is the only reaper
     init: true
+    # on the loopback by default, where a bundled Mattermost has no need of it; a server elsewhere
+    # reaches the app through this port, and APP_BIND_HOST is what opens it to that network
+    ports:
+      - '${APP_BIND_HOST:-127.0.0.1}:${APP_PORT:?}:${APP_PORT:?}'
     pull_policy: missing
     restart: unless-stopped
     stop_grace_period: 15s
@@ -49,8 +53,8 @@ services:
       MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS: app
       MM_SERVICESETTINGS_ENABLEBOTACCOUNTCREATION: 'true'
       MM_SERVICESETTINGS_ENABLEUSERACCESSTOKENS: 'true'
-      MM_SERVICESETTINGS_SITEURL: http://localhost:${MATTERMOST_PORT:?}
-      MM_SQLSETTINGS_DATASOURCE: postgres://collegium:${POSTGRES_PASSWORD:?}@postgres:5432/mattermost?sslmode=disable&connect_timeout=10
+      MM_SERVICESETTINGS_SITEURL: http://localhost:${MATTERMOST_PORT:-8065}
+      MM_SQLSETTINGS_DATASOURCE: postgres://collegium:${POSTGRES_PASSWORD:-postgres}@postgres:5432/mattermost?sslmode=disable&connect_timeout=10
       # provisioning creates the administrator through the signup route, which both of these gate
       MM_EMAILSETTINGS_ENABLESIGNUPWITHEMAIL: 'true'
       MM_TEAMSETTINGS_ENABLEUSERCREATION: 'true'
@@ -62,7 +66,10 @@ services:
       timeout: 5s
     image: ghcr.io/joshunrau/collegium-mattermost:latest
     ports:
-      - '127.0.0.1:${MATTERMOST_PORT:?}:8065'
+      - '127.0.0.1:${MATTERMOST_PORT:-8065}:8065'
+    # the Mattermost this stack starts itself, which a deployment integrating with a server it
+    # already runs leaves out by clearing COMPOSE_PROFILES
+    profiles: [bundled]
     pull_policy: missing
     restart: unless-stopped
     volumes:
@@ -74,7 +81,7 @@ services:
     environment:
       PGDATA: /data
       POSTGRES_DB: mattermost
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_USER: collegium
     healthcheck:
       interval: 5s
@@ -82,6 +89,7 @@ services:
       test: ['CMD-SHELL', 'pg_isready --dbname=mattermost --username=collegium']
       timeout: 3s
     image: postgres:17-alpine
+    profiles: [bundled]
     restart: unless-stopped
     volumes:
       - ./state/postgres/data:/data

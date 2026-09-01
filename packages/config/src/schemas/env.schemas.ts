@@ -16,6 +16,61 @@ const $SqliteFileUrl = z
     'must name an absolute path, e.g. file:///var/lib/collegium.db'
   );
 
+/**
+ * A variable an operator may leave blank. Compose delivers one left empty in `.env` as an empty
+ * string rather than dropping it, and every variable this wraps is absent-or-set: an empty value is
+ * absence, or `.env.template` could not list a variable it does not want set.
+ */
+const $$Blankable = <TSchema extends z.ZodType>(schema: TSchema) =>
+  z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+
+/** the three that must arrive together, and mean nothing one at a time */
+const PASSWORD_KEYS = ['MATTERMOST_ADMIN_EMAIL', 'MATTERMOST_ADMIN_PASSWORD', 'MATTERMOST_ADMIN_USERNAME'] as const;
+
+const $AdminEnv = z.object({
+  MATTERMOST_ADMIN_EMAIL: $$Blankable(z.email()).describe(
+    'Email of the administrator provisioning signs in as, and creates the account with on a Mattermost that has no users yet. Unread when a token is given.'
+  ),
+  MATTERMOST_ADMIN_PASSWORD: $$Blankable(z.string()).describe('Password of that administrator.'),
+  MATTERMOST_ADMIN_TOKEN: $$Blankable(z.string()).describe(
+    'A personal access token belonging to a system administrator that already exists, given in place of the three variables above. The only credential a Mattermost server someone else runs should be provisioned with: it creates no account, and it is what an administrator with MFA enabled can offer, since Mattermost refuses those a password login over the API.'
+  ),
+  MATTERMOST_ADMIN_USERNAME: $$Blankable(z.string()).describe(
+    'Username of that administrator — also how you log in to Mattermost yourself.'
+  )
+});
+
+function resolveAdminCredentials(env: z.infer<typeof $AdminEnv>, issues: z.core.$ZodRawIssue[]): AdminCredentials {
+  if (env.MATTERMOST_ADMIN_TOKEN !== undefined) {
+    const conflicting = PASSWORD_KEYS.filter((key) => env[key] !== undefined);
+    if (conflicting.length > 0) {
+      issues.push({
+        code: 'custom',
+        input: env,
+        message: `MATTERMOST_ADMIN_TOKEN already names an administrator; leave ${conflicting.join(', ')} unset`,
+        path: ['MATTERMOST_ADMIN_TOKEN']
+      });
+    }
+    return { kind: 'token', token: env.MATTERMOST_ADMIN_TOKEN };
+  }
+  const missing = PASSWORD_KEYS.filter((key) => env[key] === undefined);
+  if (missing.length > 0) {
+    issues.push({
+      code: 'custom',
+      input: env,
+      message: `set MATTERMOST_ADMIN_TOKEN to provision as an administrator that already exists, or ${missing.join(', ')} to sign in as one`,
+      path: ['MATTERMOST_ADMIN_TOKEN']
+    });
+  }
+  // the issue above fails the parse, so these stand in for values no caller ever reads
+  return {
+    email: env.MATTERMOST_ADMIN_EMAIL ?? '',
+    kind: 'password',
+    password: env.MATTERMOST_ADMIN_PASSWORD ?? '',
+    username: env.MATTERMOST_ADMIN_USERNAME ?? ''
+  };
+}
+
 export type $Env = z.infer<typeof $Env>;
 // The env holds where the substrate is and which workspace within it this deployment occupies —
 // everything up to and including the team. What lives inside the team is config.json's: which
@@ -26,7 +81,7 @@ export const $Env = z
       .string()
       .min(1)
       .describe(
-        'The address the app binds to. Under Compose this is `0.0.0.0`, reachable on the Compose network alone: the port is not published to the host.'
+        'The address the app binds to. Under Compose this is `0.0.0.0`, and the port is published on the loopback alone unless `APP_BIND_HOST` widens it.'
       ),
     APP_PORT: $NumberLike
       .pipe(z.int().nonnegative().max(65_535))
@@ -35,7 +90,7 @@ export const $Env = z
       .url()
       .optional()
       .describe(
-        'The address Mattermost calls back on to deliver approval decisions, slash commands, and triggers. Defaults to the bind address, which is right only when the app is reached where it binds; a deployment whose Mattermost is a container of its own must state this.'
+        'The address Mattermost calls back on to deliver approval decisions, slash commands, and triggers. Defaults to the bind address, which is right only when the app is reached where it binds; a deployment whose Mattermost is a container of its own — or a server elsewhere — must state this.'
       ),
     CONFIG_PATH: z
       .string()
@@ -76,24 +131,22 @@ export const $Env = z
   }));
 
 /**
- * The administrator the provisioner acts as. Deliberately absent from `$Env`, which the running app
- * parses: these reach the provisioning subprocess and no further, and the root prologue drops them
- * from the environment before the app itself is imported.
+ * The administrator the provisioner acts as, for the life of the provisioning process alone. The
+ * two modes differ in what they may bring into being: a token names an administrator that already
+ * exists and creates no account, which is the only thing a server someone else runs should be
+ * handed; a password may create the administrator it names, because a fresh Mattermost has no
+ * account to sign in as and grants system admin to the first user of an empty install.
+ */
+export type AdminCredentials =
+  | { readonly email: string; readonly kind: 'password'; readonly password: string; readonly username: string }
+  | { readonly kind: 'token'; readonly token: string };
+
+/**
+ * Deliberately absent from `$Env`, which the running app parses: these reach the provisioning
+ * subprocess and no further, and the root prologue drops them from the environment before the app
+ * itself is imported.
  *
  * Creating bots, minting their tokens, and creating a team are all system-level in Mattermost, so
- * nothing narrower than an administrator can provision. On a server with no users yet the account is
- * created here, and Mattermost grants system admin to the first user of a fresh install.
+ * nothing narrower than an administrator can provision.
  */
-export type $ProvisioningEnv = z.infer<typeof $ProvisioningEnv>;
-export const $ProvisioningEnv = z.object({
-  MATTERMOST_ADMIN_EMAIL: z
-    .email()
-    .describe(
-      'Email of the Mattermost administrator provisioning signs in as. On a first start the account is created with it.'
-    ),
-  MATTERMOST_ADMIN_PASSWORD: z.string().min(1).describe('Password of that administrator.'),
-  MATTERMOST_ADMIN_USERNAME: z
-    .string()
-    .min(1)
-    .describe('Username of that administrator — also how you log in to Mattermost yourself.')
-});
+export const $ProvisioningEnv = $AdminEnv.transform((env, ctx) => resolveAdminCredentials(env, ctx.issues));

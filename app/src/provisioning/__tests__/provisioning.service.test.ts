@@ -14,7 +14,7 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { MattermostAdminClient } from '../adapters/mattermost-admin.client.ts';
 import { ProvisioningService } from '../provisioning.service.ts';
 
-const ADMIN = { email: 'ops@example.org', password: 'secret', username: 'ops' };
+const ADMIN = { email: 'ops@example.org', kind: 'password', password: 'secret', username: 'ops' } as const;
 
 const agent = (username: string): AgentDefinition => ({
   contextBudgetTokens: 8000,
@@ -63,6 +63,14 @@ describe('ProvisioningService', () => {
   it('should wait for Mattermost before authenticating', () => {
     expect(adminClient.waitUntilReachable).toHaveBeenCalledBefore(adminClient.authenticate);
     expect(adminClient.authenticate).toHaveBeenCalledWith(ADMIN);
+  });
+
+  it('should refuse a server whose settings cannot carry the deployment before creating anything', () => {
+    expect(adminClient.authenticate).toHaveBeenCalledBefore(adminClient.assertServerSupportsDeployment);
+    expect(adminClient.assertServerSupportsDeployment).toHaveBeenCalledBefore(adminClient.ensureTeam);
+    expect(adminClient.assertServerSupportsDeployment).toHaveBeenCalledExactlyOnceWith({
+      publicUrl: 'http://localhost:3000'
+    });
   });
 
   it('should provision the system bot and one account per declared agent', () => {

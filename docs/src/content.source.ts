@@ -24,7 +24,7 @@ const NAVIGATION = {
     },
     {
       name: 'guides',
-      pages: ['add-an-agent', 'write-a-plugin'],
+      pages: ['add-an-agent', 'use-an-existing-mattermost', 'write-a-plugin'],
       title: 'Guides'
     },
     {

@@ -89,15 +89,37 @@ describe('$ProvisioningEnv', () => {
     MATTERMOST_ADMIN_USERNAME: 'admin'
   };
 
-  it('should accept the administrator credentials', () => {
-    expect($ProvisioningEnv.safeParse(admin).success).toBe(true);
+  it('should resolve the administrator it may create from a password', () => {
+    expect($ProvisioningEnv.parse(admin)).toStrictEqual({
+      email: 'admin@collegium.local',
+      kind: 'password',
+      password: 'pw',
+      username: 'admin'
+    });
+  });
+
+  it('should resolve an administrator that already exists from a token', () => {
+    expect($ProvisioningEnv.parse({ MATTERMOST_ADMIN_TOKEN: 'tok' })).toStrictEqual({ kind: 'token', token: 'tok' });
+  });
+
+  it('should read a variable left blank as one left unset', () => {
+    const blank = { MATTERMOST_ADMIN_TOKEN: 'tok', ...Object.fromEntries(Object.keys(admin).map((key) => [key, ''])) };
+    expect($ProvisioningEnv.parse(blank)).toStrictEqual({ kind: 'token', token: 'tok' });
+  });
+
+  it('should reject a token given alongside a password, which name two administrators', () => {
+    expect($ProvisioningEnv.safeParse({ ...admin, MATTERMOST_ADMIN_TOKEN: 'tok' }).success).toBe(false);
+  });
+
+  it('should reject a partial password credential', () => {
+    expect($ProvisioningEnv.safeParse({ ...admin, MATTERMOST_ADMIN_PASSWORD: undefined }).success).toBe(false);
+  });
+
+  it('should reject an environment naming no administrator at all', () => {
+    expect($ProvisioningEnv.safeParse({}).success).toBe(false);
   });
 
   it('should reject a malformed email', () => {
     expect($ProvisioningEnv.safeParse({ ...admin, MATTERMOST_ADMIN_EMAIL: 'admin' }).success).toBe(false);
-  });
-
-  it('should reject an empty password', () => {
-    expect($ProvisioningEnv.safeParse({ ...admin, MATTERMOST_ADMIN_PASSWORD: '' }).success).toBe(false);
   });
 });

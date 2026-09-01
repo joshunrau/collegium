@@ -1,0 +1,65 @@
+---
+title: Use an Existing Mattermost
+description: Point a deployment at a Mattermost server you already run, instead of the one this stack bundles.
+---
+
+By default the stack starts its own Mattermost beside the app. This guide points it at a server you already run.
+
+Prerequisites: a Mattermost server, an account on it with the System Admin role, and an address on which that server can reach this host over HTTP.
+
+## 1. Prepare the Server
+
+Set three things in the System Console. Boot refuses and names any that are missing, so you can also skip ahead and let it tell you.
+
+- **Integrations > Bot Accounts > Enable Bot Account Creation**. Each agent posts as a bot account.
+- **Integrations > Personal Access Tokens > Enable Personal Access Tokens**. Every bot holds one, minted at each start.
+- **Environment > Developer > Allow untrusted internal connections**. Add the host of `APP_PUBLIC_URL` from step 3. Mattermost needs this only when that address is private, and refuses to call one that is not listed. Approval buttons fail with `address forbidden` when it is missing.
+
+## 2. Create an Administrator Token
+
+Provisioning creates the agent accounts, their tokens, and the team, which the API allows a system administrator alone.
+
+Sign in as your administrator, open **Profile > Security > Personal Access Tokens**, and create one. Copy the token value.
+
+A token rather than a password, for two reasons. It creates no account on your server, and Mattermost refuses a password login over the API to an administrator with MFA enabled.
+
+## 3. Point the Stack at Your Server
+
+Edit `.env`:
+
+```sh
+# leave this empty, so the bundled Mattermost and its database never start
+COMPOSE_PROFILES=
+
+# your server, as this container reaches it
+MATTERMOST_URL=https://mattermost.example.org
+
+# this app, as your server reaches it
+APP_PUBLIC_URL=https://collegium.example.org:3000
+APP_BIND_HOST=0.0.0.0
+
+MATTERMOST_ADMIN_TOKEN=your-token-here
+```
+
+Clear `MATTERMOST_ADMIN_EMAIL`, `MATTERMOST_ADMIN_USERNAME`, and `MATTERMOST_ADMIN_PASSWORD`. A token and a password name two different administrators, and boot refuses both at once.
+
+`APP_BIND_HOST` publishes the app beyond the loopback, where your server can call it. Put a reverse proxy in front of it if you terminate TLS.
+
+## 4. Start
+
+```sh
+docker compose up
+```
+
+`MATTERMOST_TEAM` names the team the deployment occupies. It is created if your server has no team by that handle.
+
+## 5. What Provisioning Changes
+
+Everything below happens on each start, and nothing outside the team you named is touched.
+
+- One bot account per declared agent, plus the system bot, each named by its `config.json` username.
+- One personal access token per bot account.
+- One open channel per channel your `config.json` declares, with every bot as a member.
+- The Team Admin role on the system bot, which reconciles the team's slash commands.
+
+Give the deployment a team of its own if that last grant is more than you want on a shared one.

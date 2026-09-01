@@ -1,3 +1,4 @@
+import type { AdminCredentials } from '@collegium/config';
 import { Client4, ClientError } from '@mattermost/client';
 
 import {
@@ -5,10 +6,10 @@ import {
   $MattermostBot,
   $MattermostIdentified,
   $MattermostRoles,
+  $MattermostServerSettings,
   $MattermostUser
 } from './mattermost-admin.schemas.ts';
-
-import type { AdminCredentials } from '../provisioning.types.ts';
+import { refusesCallbacks } from './mattermost-admin.utils.ts';
 
 const NOT_FOUND = 404;
 
@@ -49,44 +50,49 @@ export class MattermostAdminClient {
   }
 
   /**
-   * Logs the administrator in, creating the account when the server has none. Mattermost exempts the
-   * first account of a fresh install from `EnableOpenServer` and grants it system admin, which is the
-   * whole of how a bundled server bootstraps itself — so a failure here on a server that already has
-   * users means the credentials are wrong, not that provisioning should create anything.
+   * Refuses a server whose settings cannot carry this deployment, naming each one, before anything
+   * is created. Two of them stop provisioning at its first write; the third stops nothing at all —
+   * an unreachable app is a Mattermost that accepts every approval click and delivers none.
+   */
+  async assertServerSupportsDeployment(params: { publicUrl: string }): Promise<void> {
+    const { ServiceSettings } = $MattermostServerSettings.parse(await this.sdk.getConfig());
+    const refusals: string[] = [];
+    if (!ServiceSettings.EnableBotAccountCreation) {
+      refusals.push('ServiceSettings.EnableBotAccountCreation, without which no agent account can exist');
+    }
+    if (!ServiceSettings.EnableUserAccessTokens) {
+      refusals.push(
+        'ServiceSettings.EnableUserAccessTokens, without which no account can hold the token it posts with'
+      );
+    }
+    const allowed = ServiceSettings.AllowedUntrustedInternalConnections;
+    if (await refusesCallbacks({ allowed, publicUrl: params.publicUrl })) {
+      refusals.push(
+        `ServiceSettings.AllowedUntrustedInternalConnections, which must list ${new URL(params.publicUrl).hostname} for approval decisions, slash commands, and triggers to reach the app`
+      );
+    }
+    if (refusals.length > 0) {
+      throw new Error(`Mattermost is missing settings this deployment needs: ${refusals.join('; ')}`);
+    }
+  }
+
+  /**
+   * Establishes the administrator provisioning acts as, and refuses one that is not a system
+   * administrator — creating bots and teams is system-level, so nothing narrower can proceed.
    */
   async authenticate(credentials: AdminCredentials): Promise<void> {
-    const loggedIn = await this.sdk
-      .login(credentials.username, credentials.password)
-      .then(() => true)
-      .catch((error: unknown) => {
-        if (error instanceof ClientError && error.status_code === 401) {
-          return false;
-        }
-        throw error;
-      });
-    if (!loggedIn) {
-      await this.sdk
-        .createUser(
-          MattermostAdminClient.asHydrated<HydratedUser>({
-            email: credentials.email,
-            password: credentials.password,
-            username: credentials.username
-          }),
-          '',
-          ''
-        )
-        .catch((error: unknown) => {
-          throw new Error(
-            `could not sign in as "${credentials.username}", and creating the account was refused — a Mattermost that already has users only accepts credentials it already holds`,
-            { cause: error }
-          );
-        });
-      await this.sdk.login(credentials.username, credentials.password);
+    if (credentials.kind === 'token') {
+      this.sdk.setToken(credentials.token);
+    } else {
+      await this.signIn(credentials);
     }
-    const { roles } = $MattermostRoles.parse(await this.sdk.getMe());
+    const identity = await this.sdk.getMe().catch((error: unknown) => {
+      throw new Error('Mattermost refused the administrator credentials provisioning was given', { cause: error });
+    });
+    const { roles } = $MattermostRoles.parse(identity);
     if (!roles.includes(SYSTEM_ADMIN_ROLE)) {
       throw new Error(
-        `"${credentials.username}" exists but is not a system administrator — creating bots and teams is system-level, so provisioning cannot proceed as this account`
+        'the administrator provisioning authenticated as is not a system administrator — creating bots and teams is system-level, so provisioning cannot proceed as this account'
       );
     }
   }
@@ -190,5 +196,43 @@ export class MattermostAdminClient {
   private async findUser(username: string): Promise<$MattermostUser | undefined> {
     const existing = await this.absentOnNotFound(() => this.sdk.getUserByUsername(username));
     return existing && $MattermostUser.parse(existing);
+  }
+
+  /**
+   * Signs the administrator in, creating the account when the server has none. Mattermost exempts
+   * the first account of a fresh install from `EnableOpenServer` and grants it system admin, which
+   * is the whole of how a bundled server bootstraps itself. A server someone else already runs is
+   * provisioned with a token instead, which reaches none of this.
+   */
+  private async signIn(credentials: { email: string; password: string; username: string }): Promise<void> {
+    const loggedIn = await this.sdk
+      .login(credentials.username, credentials.password)
+      .then(() => true)
+      .catch((error: unknown) => {
+        if (error instanceof ClientError && error.status_code === 401) {
+          return false;
+        }
+        throw error;
+      });
+    if (loggedIn) {
+      return;
+    }
+    await this.sdk
+      .createUser(
+        MattermostAdminClient.asHydrated<HydratedUser>({
+          email: credentials.email,
+          password: credentials.password,
+          username: credentials.username
+        }),
+        '',
+        ''
+      )
+      .catch((error: unknown) => {
+        throw new Error(
+          `could not sign in as "${credentials.username}", and creating the account was refused — a Mattermost that already has users only accepts credentials it already holds, and takes MATTERMOST_ADMIN_TOKEN rather than a password`,
+          { cause: error }
+        );
+      });
+    await this.sdk.login(credentials.username, credentials.password);
   }
 }

@@ -101,6 +101,7 @@ export function setupProvisioning(options: { runs: number }): Provisioning {
       try {
         await context.get(ProvisioningService).reconcile({
           email: `${workspaceId}@example.com`,
+          kind: 'password',
           password: cluster.admin.password,
           username: cluster.admin.username
         });

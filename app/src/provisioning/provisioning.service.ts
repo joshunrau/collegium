@@ -1,3 +1,4 @@
+import type { AdminCredentials } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 
 import { ConfigService } from '@/config/config.service.ts';
@@ -9,8 +10,6 @@ import { resolveGrantedToolsetSettings } from '@/tools/tools.settings.ts';
 
 import { MattermostAdminClient } from './adapters/mattermost-admin.client.ts';
 import { PROVISIONING_PING } from './provisioning.constants.ts';
-
-import type { AdminCredentials } from './provisioning.types.ts';
 
 /**
  * Brings Mattermost into line with what config.json declares, and is the only thing in the system
@@ -34,6 +33,7 @@ export class ProvisioningService {
   async reconcile(credentials: AdminCredentials): Promise<void> {
     await this.adminClient.waitUntilReachable(PROVISIONING_PING);
     await this.adminClient.authenticate(credentials);
+    await this.adminClient.assertServerSupportsDeployment({ publicUrl: this.envService.get('APP_PUBLIC_URL') });
 
     const teamName = this.envService.get('MATTERMOST_TEAM');
     const teamId = await this.adminClient.ensureTeam(teamName);
