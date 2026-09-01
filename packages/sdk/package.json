@@ -1,7 +1,7 @@
 {
   "name": "@collegium/sdk",
   "type": "module",
-  "version": "0.0.1-beta.7",
+  "version": "0.0.1-beta.5",
   "description": "Write a Collegium plugin: declare a toolset with its tools, settings, storage, and skills.",
   "license": "AGPL-3.0-only",
   "homepage": "https://collegium.sh",
