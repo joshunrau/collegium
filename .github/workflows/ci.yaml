@@ -129,17 +129,16 @@ jobs:
           sed -i 's/^MATTERMOST_ADMIN_PASSWORD=.*/MATTERMOST_ADMIN_PASSWORD=smoke-Password-1/' .env
           cat > config.json <<'JSON'
           {
-            "agents": [
-              {
-                "username": "mira",
+            "agents": {
+              "mira": {
                 "expertise": "smoke testing",
                 "systemPrompt": "You are Mira.",
                 "model": { "provider": "deepseek", "name": "deepseek-v4-flash" },
                 "tools": ["bookmark"],
                 "skills": ["bookmark::saving-bookmarks"]
               }
-            ],
-            "models": { "deepseek": { "apiKey": "smoke-test-key" } },
+            },
+            "providers": { "deepseek": { "apiKey": "smoke-test-key" } },
             "plugins": ["bookmark"]
           }
           JSON
