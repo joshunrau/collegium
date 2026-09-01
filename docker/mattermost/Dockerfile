@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 FROM alpine:3.22 AS download
 
 ARG MATTERMOST_VERSION=11.7.7
@@ -16,11 +18,12 @@ COPY --from=download --chown=mattermost:mattermost /mattermost /mattermost
 
 RUN install -d -o mattermost -g mattermost /mattermost/config /mattermost/data /mattermost/logs
 
-USER mattermost
+COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
+
 WORKDIR /mattermost
 
 ENV PATH="/mattermost/bin:${PATH}"
 
 EXPOSE 8065
 
-ENTRYPOINT ["mattermost"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
