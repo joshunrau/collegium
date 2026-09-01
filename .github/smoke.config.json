@@ -1,0 +1,14 @@
+{
+  "$schema": "https://collegium.sh/config.schema.json",
+  "agents": {
+    "mira": {
+      "expertise": "smoke testing",
+      "model": { "name": "deepseek-v4-flash", "provider": "deepseek" },
+      "skills": ["bookmark::saving-bookmarks"],
+      "systemPrompt": "You are Mira.",
+      "tools": ["bookmark"]
+    }
+  },
+  "plugins": ["bookmark"],
+  "providers": { "deepseek": { "apiKey": "smoke-test-key" } }
+}

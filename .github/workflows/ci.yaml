@@ -46,8 +46,12 @@ jobs:
         with:
           cache: 'pnpm'
           node-version-file: '.nvmrc'
+      # the app's postinstall fetches the browser from the GitHub releases API, which is rate
+      # limited per runner IP until a token raises it to the repository's own allowance
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate Prisma Client
         run: pnpm db:generate
       - name: Lint
@@ -94,8 +98,12 @@ jobs:
         with:
           cache: 'pnpm'
           node-version-file: '.nvmrc'
+      # the app's postinstall fetches the browser from the GitHub releases API, which is rate
+      # limited per runner IP until a token raises it to the repository's own allowance
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate Prisma Client
         run: pnpm db:generate
       - name: End-to-end Tests
@@ -127,21 +135,7 @@ jobs:
           cp .env.template .env
           sed -i 's/^MATTERMOST_ADMIN_USERNAME=.*/MATTERMOST_ADMIN_USERNAME=smoke-admin/' .env
           sed -i 's/^MATTERMOST_ADMIN_PASSWORD=.*/MATTERMOST_ADMIN_PASSWORD=smoke-Password-1/' .env
-          cat > config.json <<'JSON'
-          {
-            "agents": {
-              "mira": {
-                "expertise": "smoke testing",
-                "systemPrompt": "You are Mira.",
-                "model": { "provider": "deepseek", "name": "deepseek-v4-flash" },
-                "tools": ["bookmark"],
-                "skills": ["bookmark::saving-bookmarks"]
-              }
-            },
-            "providers": { "deepseek": { "apiKey": "smoke-test-key" } },
-            "plugins": ["bookmark"]
-          }
-          JSON
+          cp .github/smoke.config.json config.json
       - name: Boot the Stack
         run: docker compose up --detach --wait --wait-timeout 420
       # the same deployment with nothing mounted must refuse to start, or the check above proves nothing

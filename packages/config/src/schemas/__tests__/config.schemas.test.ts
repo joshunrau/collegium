@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { $Config } from '../config.resolution.ts';
@@ -169,5 +171,13 @@ describe('$Config', () => {
 
   it('should reject a plugin named twice', () => {
     expect($Config.safeParse({ ...config, plugins: ['bookmark', 'bookmark'] }).success).toBe(false);
+  });
+});
+
+describe('the committed smoke deployment', () => {
+  it('should satisfy the schema the app parses at boot', () => {
+    const path = new URL('../../../../../.github/smoke.config.json', import.meta.url);
+    const result = $Config.safeParse(JSON.parse(readFileSync(path, 'utf-8')));
+    expect(result.error?.issues ?? []).toStrictEqual([]);
   });
 });
