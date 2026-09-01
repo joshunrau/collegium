@@ -60,8 +60,10 @@ services:
       start_period: 30s
       test: ['CMD', 'curl', '--fail', 'http://localhost:8065/api/v4/system/ping']
       timeout: 5s
+    image: ghcr.io/joshunrau/collegium-mattermost:latest
     ports:
       - '127.0.0.1:${MATTERMOST_PORT:?}:8065'
+    pull_policy: missing
     restart: unless-stopped
     volumes:
       - ./state/mattermost/config:/mattermost/config
