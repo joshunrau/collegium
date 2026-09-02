@@ -1,6 +1,6 @@
 import { renderToolDisplayName, renderToolWireName } from '@collegium/core/tools';
 import type { ToolFailure, ToolId } from '@collegium/core/tools';
-import type { AnyTool, AnyToolset, ToolsetCollection } from '@collegium/core/toolsets';
+import type { AnyTool, AnyToolset, AnyToolsetCollection } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
@@ -23,7 +23,7 @@ export type ResolvedTool = {
 export type RegisteredToolset = {
   readonly declaration: AnyToolset;
   readonly services: Readonly<{ [key: string]: unknown }>;
-  readonly storage: Readonly<{ [key: string]: ToolsetCollection<unknown> }>;
+  readonly storage: Readonly<{ [key: string]: AnyToolsetCollection }>;
 };
 
 export type DescribedCall = {

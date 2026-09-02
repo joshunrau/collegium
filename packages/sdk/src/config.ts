@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 
-type CollectionsDeclaration = { readonly [key: string]: z.ZodType };
+type CollectionsDeclaration = { readonly [key: string]: z.ZodObject };
 
 /**
  * The config file's default export: the settings schema agents are configured by, and the storage

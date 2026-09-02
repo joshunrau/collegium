@@ -1,11 +1,13 @@
 import { PLUGIN_TOOL_ERR } from '@collegium/core/plugins';
 import type { ToolTurnScope } from '@collegium/core/tools';
 import { applyCollectionQuery } from '@collegium/core/toolsets';
-import type { ToolsetCollection } from '@collegium/core/toolsets';
+import type { AnyToolsetCollection, CollectionRecord } from '@collegium/core/toolsets';
 import type { z } from 'zod';
 
 import type { PluginConfig } from './config.ts';
 import type { ToolContextFor } from './tool.ts';
+
+type LooseRecord = CollectionRecord<{ [field: string]: unknown }>;
 
 const DEFAULT_TURN: ToolTurnScope = {
   agentUsername: 'tester',
@@ -14,17 +16,37 @@ const DEFAULT_TURN: ToolTurnScope = {
   turnId: 'test-turn'
 };
 
-function createCollection(schema: z.ZodType): ToolsetCollection<unknown> {
-  const rows = new Map<string, unknown>();
-  const entries = () => [...rows].map(([key, value]) => ({ key, value: schema.parse(value) }));
+/** the deployment's store mints a cuid2; here any unique string serves, and a test that needs a known id passes one */
+function createCollection(schema: z.ZodObject): AnyToolsetCollection {
+  const rows = new Map<string, LooseRecord>();
+  const toRecord = ({ createdAt, id, updatedAt, ...value }: LooseRecord): LooseRecord => ({
+    ...schema.parse(value),
+    createdAt,
+    id,
+    updatedAt
+  });
   return {
-    delete: (key) => Promise.try(() => rows.delete(key)),
-    find: (query) => Promise.try(() => applyCollectionQuery(entries(), query)),
-    get: (key) => Promise.try(() => (rows.has(key) ? schema.parse(rows.get(key)) : null)),
-    list: () => Promise.try(entries),
-    put: (key, value) =>
+    create: ({ id = crypto.randomUUID(), ...data }) =>
       Promise.try(() => {
-        rows.set(key, schema.parse(value));
+        if (rows.has(id)) {
+          throw new Error(`storage collection already holds a record with id "${id}"`);
+        }
+        const now = new Date();
+        rows.set(id, { ...schema.parse(data), createdAt: now, id, updatedAt: now });
+        return toRecord(rows.get(id)!);
+      }),
+    deleteById: (id) => Promise.try(() => rows.delete(id)),
+    findById: (id) => Promise.try(() => (rows.has(id) ? toRecord(rows.get(id)!) : null)),
+    findMany: (query = {}) => Promise.try(() => applyCollectionQuery([...rows.values()].map(toRecord), query)),
+    updateById: (id, patch) =>
+      Promise.try(() => {
+        const row = rows.get(id);
+        if (row === undefined) {
+          return null;
+        }
+        const { createdAt, id: _id, updatedAt: _updatedAt, ...value } = row;
+        rows.set(id, { ...schema.parse({ ...schema.parse(value), ...patch }), createdAt, id, updatedAt: new Date() });
+        return toRecord(rows.get(id)!);
       })
   };
 }

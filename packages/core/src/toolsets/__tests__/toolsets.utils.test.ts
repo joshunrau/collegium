@@ -35,6 +35,15 @@ describe('defineToolset', () => {
     expect(() => defineToolset({ name: 'fake', tools: { [toolName]: buildTool() } })).toThrow('provider limit');
   });
 
+  it('rejects a storage collection that is not an object schema or declares a stamped field', () => {
+    expect(() => defineToolset({ name: 'fake', storage: { rows: z.string() as never }, tools: {} })).toThrow(
+      'object schema'
+    );
+    expect(() => defineToolset({ name: 'fake', storage: { rows: z.object({ id: z.string() }) }, tools: {} })).toThrow(
+      'may not declare'
+    );
+  });
+
   it('rejects a storage collection name outside the segment grammar', () => {
     expect(() => defineToolset({ name: 'fake', storage: { 'bad-name': z.object({}) }, tools: {} })).toThrow(
       'storage collection name'

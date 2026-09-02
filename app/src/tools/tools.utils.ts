@@ -1,4 +1,4 @@
-import type { AnyTool, AnyToolset, ToolsetCollection } from '@collegium/core/toolsets';
+import type { AnyTool, AnyToolset, AnyToolsetCollection } from '@collegium/core/toolsets';
 import type { ServiceToken } from '@collegium/core/utils';
 import { z } from 'zod';
 
@@ -19,7 +19,7 @@ export function toToolSchema(wireName: string, definition: AnyTool): ToolSchema 
 export function registerToolset(
   declaration: AnyToolset,
   resolveService: (token: ServiceToken<unknown>) => unknown,
-  buildCollection: (namespace: string, collection: string, schema: z.ZodType) => ToolsetCollection<unknown>
+  buildCollection: (namespace: string, collection: string, schema: z.ZodObject) => AnyToolsetCollection
 ): RegisteredToolset {
   return {
     declaration,

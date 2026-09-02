@@ -21,6 +21,14 @@ describe('bookmark::save', () => {
     expect(await find.execute({ query: 'nothing' }, context)).toBe('no bookmarks matched');
   });
 
+  it('refuses a save under an identifier already taken', async () => {
+    const context = createTestContext(config);
+    await save.execute({ id: 'spec', url: 'https://example.com/spec' }, context);
+    await expect(save.execute({ id: 'spec', url: 'https://example.com/other' }, context)).rejects.toThrow(
+      PluginToolFailureError
+    );
+  });
+
   it('refuses a save past the limit', async () => {
     const context = createTestContext(config, { settings: { maxBookmarks: 1 } });
     await save.execute({ id: 'one', url: 'https://example.com/1' }, context);

@@ -38,10 +38,10 @@ export default defineTool({
   approval: (args) => ({ body: `save contact "${args.id}": ${args.name}`, presentation: 'verbatim' }),
   description: 'Save or update a contact.',
   execute: async (args, { err, settings, storage }) => {
-    if ((await storage.contacts.list()).length >= settings.maxContacts) {
+    if ((await storage.contacts.findMany()).length >= settings.maxContacts) {
       err.invalidArguments('contact limit reached; delete one first');
     }
-    await storage.contacts.put(args.id, { email: args.email, name: args.name });
+    await storage.contacts.create({ email: args.email, id: args.id, name: args.name });
     return `contact ${args.id} saved`;
   },
   parameters: z.object({ email: z.email(), id: z.string().min(1), name: z.string().min(1) })
@@ -50,7 +50,7 @@ export default defineTool({
 
 A tool with `approval` always stops for a human, who sees the full payload before it runs; one without never gates. The channel and the trace disclose both, line by line. `execute` returns the text the model reads, and raises the two failures a tool controls through `err`: `invalidArguments` continues the turn, `unresolved` ends it as an unconfirmed side effect.
 
-**Storage.** Each declared collection is a handle with `get`, `put`, `delete`, `list`, and `find`. `find` takes a `where` over the schema's top-level scalar fields — a value for equality, `{ in: [...] }` for membership, `{ contains: text }` for a case-insensitive substring on a string — and an optional `limit`. Field names and value types come from the schema, so a bad query does not compile.
+**Storage.** Each declared collection is a set of records: the schema's output plus `id`, `createdAt`, and `updatedAt`, which the store stamps. The handle has `create`, `findMany`, `findById`, `updateById`, and `deleteById`. `create` takes the schema's input with an optional `id`, minting a cuid2 when none is given. `findMany` with no argument lists everything; with a `where` over the schema's top-level scalar fields and `id` — a value for equality, `{ in: [...] }` for membership, `{ contains: text }` for a case-insensitive substring on a string — and an optional `limit`, it filters. Field names and value types come from the schema, so a bad query does not compile.
 
 **Testing.** `@collegium/sdk/testing` builds the context `execute` receives, over in-memory storage that validates and parses as the deployment's store does. Pass your config; settings go through your schema, so defaults apply.
 

@@ -2,7 +2,7 @@ import type { z } from 'zod';
 
 import type { ToolDefinition, ToolTurnScope } from '../tools.ts';
 import type { ServiceToken } from '../utils.ts';
-import type { CollectionQuery } from './query/collection-query.types.ts';
+import type { ToolsetCollection } from './storage/collection.types.ts';
 import type { CORE_TOOLSET_DEFS, FRAMEWORK_TOOLSET_DEFS, GRANTABLE_TOOLSET_DEFS } from './toolsets.constants.ts';
 
 /** `settings`, `storage`, and `turn` are the context's own keys, so a service may not claim them */
@@ -12,20 +12,11 @@ export type ServicesDeclaration = { readonly [key: string]: ServiceToken<unknown
   readonly turn?: never;
 };
 
-export type CollectionsDeclaration = { readonly [key: string]: z.ZodType };
+export type CollectionsDeclaration = { readonly [key: string]: z.ZodObject };
 
 export type ParametersDeclaration = { readonly [key: string]: z.ZodType };
 
 export type EmptyDeclaration = {};
-
-/** a toolset-scoped handle over one declared storage collection; rows are validated on write and parsed on read */
-export type ToolsetCollection<TValue> = {
-  delete(key: string): Promise<boolean>;
-  find(query: CollectionQuery<TValue>): Promise<{ key: string; value: TValue }[]>;
-  get(key: string): Promise<null | TValue>;
-  list(): Promise<{ key: string; value: TValue }[]>;
-  put(key: string, value: TValue): Promise<void>;
-};
 
 /**
  * What `execute` receives, assembled from exactly what the toolset declared (§4): each service
@@ -40,7 +31,7 @@ export type ToolsetContext<
   readonly turn: ToolTurnScope;
 } & (keyof TCollections extends never
     ? unknown
-    : { readonly storage: { readonly [K in keyof TCollections]: ToolsetCollection<z.infer<TCollections[K]>> } }) &
+    : { readonly storage: { readonly [K in keyof TCollections]: ToolsetCollection<TCollections[K]> } }) &
   (TSettings extends z.ZodType ? { readonly settings: z.infer<TSettings> } : unknown);
 
 /** a toolset: a namespace and everything that belongs to it (§2); the tools record's keys are the tool names */

@@ -6,7 +6,7 @@ import { createTestContext, PluginToolFailureError } from '../testing.ts';
 
 const config = defineConfig({
   settings: z.strictObject({ limit: z.number().int().default(3) }),
-  storage: { notes: z.object({ body: z.string().min(1) }) }
+  storage: { notes: z.object({ body: z.string().min(1), pinned: z.boolean().default(false) }) }
 });
 
 describe('createTestContext', () => {
@@ -15,28 +15,34 @@ describe('createTestContext', () => {
     expect(createTestContext(config, { settings: { limit: 5 } }).settings).toStrictEqual({ limit: 5 });
   });
 
-  it('keeps storage in memory, validated on write and listed in insertion order', async () => {
+  it('keeps records in memory, stamped and validated on write, in insertion order', async () => {
     const { storage } = createTestContext(config);
-    await storage.notes.put('b', { body: 'second' });
-    await storage.notes.put('a', { body: 'first' });
-    expect(await storage.notes.get('a')).toStrictEqual({ body: 'first' });
-    expect(await storage.notes.list()).toStrictEqual([
-      { key: 'b', value: { body: 'second' } },
-      { key: 'a', value: { body: 'first' } }
-    ]);
-    expect(await storage.notes.delete('b')).toBe(true);
-    expect(await storage.notes.delete('b')).toBe(false);
-    await expect(storage.notes.put('c', { body: '' })).rejects.toThrow(z.ZodError);
+    const second = await storage.notes.create({ body: 'second', id: 'b' });
+    const first = await storage.notes.create({ body: 'first' });
+    expect(second).toMatchObject({ body: 'second', id: 'b', pinned: false });
+    expect(first.id).toEqual(expect.any(String));
+    expect(await storage.notes.findById('b')).toStrictEqual(second);
+    expect(await storage.notes.findMany()).toStrictEqual([second, first]);
+    expect(await storage.notes.deleteById('b')).toBe(true);
+    expect(await storage.notes.deleteById('b')).toBe(false);
+    await expect(storage.notes.create({ body: '' })).rejects.toThrow(z.ZodError);
+    await expect(storage.notes.create({ body: 'again', id: first.id })).rejects.toThrow('already holds');
   });
 
-  it('finds by the same grammar the store compiles, parsing each match', async () => {
+  it('finds by the same grammar the store compiles', async () => {
     const { storage } = createTestContext(config);
-    await storage.notes.put('a', { body: 'Alpha' });
-    await storage.notes.put('b', { body: 'beta' });
-    expect(await storage.notes.find({ where: { body: { contains: 'ALPHA' } } })).toStrictEqual([
-      { key: 'a', value: { body: 'Alpha' } }
-    ]);
-    expect(await storage.notes.find({ limit: 1, where: { body: { in: ['Alpha', 'beta'] } } })).toHaveLength(1);
+    await storage.notes.create({ body: 'Alpha', id: 'a' });
+    await storage.notes.create({ body: 'beta', id: 'b' });
+    expect(await storage.notes.findMany({ where: { body: { contains: 'ALPHA' } } })).toMatchObject([{ id: 'a' }]);
+    expect(await storage.notes.findMany({ limit: 1, where: { id: { in: ['a', 'b'] } } })).toHaveLength(1);
+  });
+
+  it('updates by merging the patch and parsing the whole, or returns null', async () => {
+    const { storage } = createTestContext(config);
+    await storage.notes.create({ body: 'draft', id: 'a' });
+    expect(await storage.notes.updateById('a', { pinned: true })).toMatchObject({ body: 'draft', pinned: true });
+    await expect(storage.notes.updateById('a', { body: '' })).rejects.toThrow(z.ZodError);
+    expect(await storage.notes.updateById('missing', { pinned: true })).toBeNull();
   });
 
   it('raises the failure the framework wrapper catches', () => {

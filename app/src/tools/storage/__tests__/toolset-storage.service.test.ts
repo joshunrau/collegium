@@ -1,5 +1,5 @@
 import { applyCollectionQuery } from '@collegium/core/toolsets';
-import type { CollectionQuery, ToolsetCollection } from '@collegium/core/toolsets';
+import type { CollectionQuery, CollectionRecord, ToolsetCollection } from '@collegium/core/toolsets';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -14,18 +14,20 @@ import { ToolsetStorageService } from '../toolset-storage.service.ts';
 const $Investigator = z.object({
   active: z.boolean(),
   email: z.string().nullable().optional(),
-  name: z.string(),
-  score: z.number(),
+  name: z.string().min(1),
+  score: z.number().default(0),
   tags: z.array(z.string()).optional()
 });
 
-const ENTRIES = [
-  { key: 'ana', value: { active: true, email: 'ana@example.com', name: 'Ana Émile', score: 2 } },
-  { key: 'ben', value: { active: false, email: null, name: 'Ben', score: 2.5 } },
-  { key: 'cid', value: { active: true, name: 'Cid', score: 7, tags: ['x'] } }
+type Investigator = CollectionRecord<z.output<typeof $Investigator>>;
+
+const SEED = [
+  { active: true, email: 'ana@example.com', id: 'ana', name: 'Ana Émile', score: 2 },
+  { active: false, email: null, id: 'ben', name: 'Ben', score: 2.5 },
+  { active: true, id: 'cid', name: 'Cid', score: 7, tags: ['x'] }
 ];
 
-const QUERIES: CollectionQuery<z.infer<typeof $Investigator>>[] = [
+const QUERIES: CollectionQuery<Investigator>[] = [
   {},
   { where: { score: 2 } },
   { where: { score: 2.5 } },
@@ -33,6 +35,9 @@ const QUERIES: CollectionQuery<z.infer<typeof $Investigator>>[] = [
   { where: { active: false } },
   { where: { email: null } },
   { where: { email: 'ana@example.com' } },
+  { where: { id: 'ben' } },
+  { where: { id: { in: ['ana', 'cid'] } } },
+  { where: { id: { contains: 'A' } } },
   { where: { name: { in: ['Ben', 'Cid'] } } },
   { where: { email: { in: [null, 'ana@example.com'] } } },
   { where: { name: { in: [] } } },
@@ -45,8 +50,9 @@ const QUERIES: CollectionQuery<z.infer<typeof $Investigator>>[] = [
 
 describe('ToolsetStorageService', () => {
   let database: MigratedDatabase;
-  let investigators: ToolsetCollection<unknown>;
-  let other: ToolsetCollection<unknown>;
+  let investigators: ToolsetCollection<typeof $Investigator>;
+  let other: ToolsetCollection<typeof $Investigator>;
+  let records: Investigator[];
 
   beforeAll(async () => {
     database = createMigratedDatabase();
@@ -60,32 +66,54 @@ describe('ToolsetStorageService', () => {
     const service = moduleRef.get(ToolsetStorageService);
     investigators = service.collection('prospects', 'investigators', $Investigator);
     other = service.collection('prospects', 'other', $Investigator);
-    for (const entry of ENTRIES) {
-      await investigators.put(entry.key, entry.value);
+    records = [];
+    for (const data of SEED) {
+      records.push(await investigators.create(data));
     }
-    await other.put('ana', ENTRIES[0]!.value);
+    await other.create(SEED[0]!);
   });
 
   afterAll(() => database.dispose());
 
-  it('round-trips a value through the store', async () => {
-    expect(await investigators.get('ben')).toStrictEqual(ENTRIES[1]!.value);
-    expect(await investigators.get('missing')).toBeNull();
-    expect(await investigators.list()).toStrictEqual(ENTRIES);
+  it('creates a record with the given id, the stamp, and the schema defaults applied', async () => {
+    const created = await investigators.create({ active: true, name: 'Dee' });
+    expect(created).toMatchObject({ active: true, name: 'Dee', score: 0 });
+    expect(created.id).toMatch(/^[a-z0-9]{24}$/);
+    expect(created.createdAt).toBeInstanceOf(Date);
+    expect(await investigators.deleteById(created.id)).toBe(true);
+  });
+
+  it('refuses a second record under an id the collection already holds', async () => {
+    await expect(investigators.create({ active: true, id: 'ana', name: 'Ana again' })).rejects.toThrow(
+      'already holds a record with id "ana"'
+    );
+  });
+
+  it('finds by id, or null', async () => {
+    expect(await investigators.findById('ben')).toStrictEqual(records[1]);
+    expect(await investigators.findById('missing')).toBeNull();
   });
 
   it.each(QUERIES)('finds what the in-memory evaluator finds for %j', async (query) => {
-    expect(await investigators.find(query)).toStrictEqual(applyCollectionQuery(ENTRIES, query));
+    expect(await investigators.findMany(query)).toStrictEqual(applyCollectionQuery(records, query));
   });
 
-  it('never reaches another collection through find', async () => {
-    expect(await other.find({ where: { name: { contains: 'a' } } })).toStrictEqual([ENTRIES[0]]);
+  it('never reaches another collection through a query', async () => {
+    expect(await other.findMany({ where: { name: { contains: 'a' } } })).toMatchObject([{ id: 'ana' }]);
   });
 
-  it('deletes by key and reports whether a row went', async () => {
-    const scratch = ENTRIES[2]!;
-    expect(await investigators.delete(scratch.key)).toBe(true);
-    expect(await investigators.delete(scratch.key)).toBe(false);
-    await investigators.put(scratch.key, scratch.value);
+  it('updates by merging the patch and parsing the whole, or returns null', async () => {
+    const updated = await investigators.updateById('cid', { score: 8 });
+    expect(updated).toMatchObject({ id: 'cid', name: 'Cid', score: 8, tags: ['x'] });
+    expect(updated!.updatedAt.getTime()).toBeGreaterThanOrEqual(records[2]!.updatedAt.getTime());
+    await expect(investigators.updateById('cid', { name: '' })).rejects.toThrow(z.ZodError);
+    expect(await investigators.updateById('missing', { score: 1 })).toBeNull();
+    await investigators.updateById('cid', { score: 7 });
+  });
+
+  it('deletes by id and reports whether a row went', async () => {
+    expect(await investigators.deleteById('cid')).toBe(true);
+    expect(await investigators.deleteById('cid')).toBe(false);
+    records[2] = await investigators.create(SEED[2]!);
   });
 });

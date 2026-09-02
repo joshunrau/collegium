@@ -5,7 +5,8 @@ import { createServiceToken, Result } from '../../utils.ts';
 import { defineToolset, implementToolset } from '../toolsets.utils.ts';
 
 import type { ToolTurnScope } from '../../tools.ts';
-import type { AnyToolset, ToolRefsOf, ToolRefsOfDef, ToolsetCollection, ToolsetDef } from '../toolsets.types.ts';
+import type { CollectionRecord } from '../storage/collection.types.ts';
+import type { AnyToolset, ToolRefsOf, ToolRefsOfDef, ToolsetDef } from '../toolsets.types.ts';
 
 type FakeService = { greet(name: string): string };
 const FAKE_SERVICE_TOKEN = createServiceToken<FakeService>('FAKE_SERVICE');
@@ -30,7 +31,9 @@ const FULL_TOOLSET = defineToolset({
         expectTypeOf(args).toEqualTypeOf<{ url: string }>();
         expectTypeOf(context.fake).toEqualTypeOf<FakeService>();
         expectTypeOf(context.settings).toEqualTypeOf<{ limit: number }>();
-        expectTypeOf(context.storage.rows).toEqualTypeOf<ToolsetCollection<{ url: string }>>();
+        expectTypeOf<Awaited<ReturnType<typeof context.storage.rows.findMany>>>().toEqualTypeOf<
+          CollectionRecord<{ url: string }>[]
+        >();
         expectTypeOf(context.turn).toEqualTypeOf<ToolTurnScope>();
         return Result.ok({ text: 'saved' });
       },
@@ -114,7 +117,9 @@ const IMPLEMENTED_FULL = implementToolset(FULL_DEF, {
         expectTypeOf(args).toEqualTypeOf<{ url: string }>();
         expectTypeOf(context.fake).toEqualTypeOf<FakeService>();
         expectTypeOf(context.settings).toEqualTypeOf<{ limit: number }>();
-        expectTypeOf(context.storage.rows).toEqualTypeOf<ToolsetCollection<{ url: string }>>();
+        expectTypeOf<Awaited<ReturnType<typeof context.storage.rows.findMany>>>().toEqualTypeOf<
+          CollectionRecord<{ url: string }>[]
+        >();
         expectTypeOf(context.turn).toEqualTypeOf<ToolTurnScope>();
         return Result.ok({ text: 'saved' });
       },

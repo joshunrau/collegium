@@ -2,6 +2,7 @@ import type { z } from 'zod';
 
 import { assertSkillName } from '../skills.ts';
 import { assertToolSegment, assertWireNameWithinLimit } from '../tools.ts';
+import { $CollectionSchema } from './storage/collection.schemas.ts';
 
 import type {
   CollectionsDeclaration,
@@ -31,8 +32,9 @@ export function defineToolset<
     assertToolSegment(toolName, 'tool name');
     assertWireNameWithinLimit([declaration.name, toolName]);
   }
-  for (const collectionName of Object.keys(declaration.storage ?? {})) {
+  for (const [collectionName, schema] of Object.entries(declaration.storage ?? {})) {
     assertToolSegment(collectionName, 'storage collection name');
+    $CollectionSchema.parse(schema);
   }
   for (const skillName of declaration.skills ?? []) {
     assertSkillName(skillName);

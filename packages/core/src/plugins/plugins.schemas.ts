@@ -3,6 +3,7 @@ import type { Promisable } from 'type-fest';
 import { z } from 'zod';
 
 import { TOOL_SEGMENT_PATTERN } from '../tools.ts';
+import { $CollectionSchema } from '../toolsets.ts';
 
 import type { AnyTool } from '../toolsets.ts';
 import type { PluginToolOutput } from './plugins.types.ts';
@@ -36,5 +37,5 @@ export const $PluginTool = z.strictObject({
 export type $PluginConfig = z.infer<typeof $PluginConfig>;
 export const $PluginConfig = z.strictObject({
   settings: $ZodSchema.optional(),
-  storage: z.record(z.string().regex(TOOL_SEGMENT_PATTERN), $ZodSchema).default({})
+  storage: z.record(z.string().regex(TOOL_SEGMENT_PATTERN), $CollectionSchema).default({})
 });

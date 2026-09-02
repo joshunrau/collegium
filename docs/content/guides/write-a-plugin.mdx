@@ -75,7 +75,13 @@ The `declare module` block registers the config's types. It is what types `setti
 - `settings` types the `settings` each tool receives. Agents set values under `toolSettings.contacts`.
 - `storage` declares one collection per key. The framework validates every read and write against the schema.
 
-Each collection is a handle with `get`, `put`, `delete`, `list`, and `find`. `find` takes a `where` over the schema's top-level scalar fields and an optional `limit`. A field condition is a value for equality, `{ in: [...] }` for membership, or, on a string field, `{ contains: text }` for a case-insensitive substring. Conditions combine with AND, and an undeclared or non-scalar field is a compile error.
+Each collection is a set of records. A record is the schema's output plus `id`, `createdAt`, and `updatedAt`, which the store stamps, so the schema must not declare those names. The handle has five methods:
+
+- `create(data)` parses `data` through the schema, so defaults apply, and returns the record. Pass `id` in `data` to choose the identifier; omit it and the store mints a cuid2. An id the collection already holds is an error, so check with `findById` first when the model supplies it.
+- `findMany(query?)` returns every record in insertion order, or those matching `query`. `query.where` is an AND over the schema's top-level scalar fields and `id`. A field condition is a value for equality, `{ in: [...] }` for membership, or, on a string field, `{ contains: text }` for a case-insensitive substring. `query.limit` caps the result. An undeclared or non-scalar field is a compile error.
+- `findById(id)` returns the record or `null`.
+- `updateById(id, patch)` merges the patch over the stored fields, parses the whole against the schema, and returns the record, or `null` for an unknown id.
+- `deleteById(id)` returns whether a record went.
 
 ## 3. Write the Tools
 
@@ -90,9 +96,9 @@ import { z } from 'zod';
 export default defineTool({
   description: 'Find saved contacts by name.',
   execute: async (args, { storage }) => {
-    const matches = await storage.contacts.find({ where: { name: { contains: args.query } } });
+    const matches = await storage.contacts.findMany({ where: { name: { contains: args.query } } });
     if (matches.length === 0) return 'no contacts matched';
-    return matches.map(({ key, value }) => `- ${key}: ${value.name} <${value.email}>`).join('\n');
+    return matches.map(({ email, id, name }) => `- ${id}: ${name} <${email}>`).join('\n');
   },
   parameters: z.object({
     query: z.string().min(1).describe('Name or fragment to search for')
@@ -112,13 +118,16 @@ export default defineTool({
     body: `save contact "${args.id}": ${args.name} <${args.email}>`,
     presentation: 'verbatim'
   }),
-  description: 'Save or update a contact.',
+  description: 'Save a contact.',
   execute: async (args, { err, settings, storage }) => {
-    const existing = await storage.contacts.list();
+    if (await storage.contacts.findById(args.id)) {
+      err.invalidArguments(`contact ${args.id} already exists; choose another identifier`);
+    }
+    const existing = await storage.contacts.findMany();
     if (existing.length >= settings.maxContacts) {
       err.invalidArguments(`contact limit of ${settings.maxContacts} reached; delete one first`);
     }
-    await storage.contacts.put(args.id, { email: args.email, name: args.name });
+    await storage.contacts.create({ email: args.email, id: args.id, name: args.name });
     return `contact ${args.id} saved`;
   },
   parameters: z.object({

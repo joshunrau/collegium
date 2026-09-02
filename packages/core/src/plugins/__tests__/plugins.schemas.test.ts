@@ -51,8 +51,10 @@ describe('$PluginConfig', () => {
     expect($PluginConfig.safeParse({ services: {} }).success).toBe(false);
   });
 
-  it('rejects a storage schema that is not a Zod type', () => {
+  it('rejects a storage schema that is not a Zod object or declares a stamped field', () => {
     expect($PluginConfig.safeParse({ storage: { bookmarks: {} } }).success).toBe(false);
+    expect($PluginConfig.safeParse({ storage: { bookmarks: z.string() } }).success).toBe(false);
+    expect($PluginConfig.safeParse({ storage: { bookmarks: z.object({ createdAt: z.date() }) } }).success).toBe(false);
   });
 
   it('rejects a collection name outside the segment grammar', () => {

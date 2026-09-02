@@ -1,10 +1,11 @@
-import type { ToolsetCollection } from '@collegium/core/toolsets';
+import type { CollectionRecord, ToolsetCollection } from '@collegium/core/toolsets';
 import { Injectable } from '@nestjs/common';
 import type { z } from 'zod';
 
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import { PrismaService } from '@/prisma/prisma.service.ts';
-import type { Model } from '@/prisma/prisma.types.ts';
+import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
+import { createRecordId, isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
 import { compileCollectionQuery } from './toolset-storage.utils.ts';
 
@@ -21,39 +22,54 @@ export class ToolsetStorageService {
     private readonly prisma: PrismaService
   ) {}
 
-  collection(namespace: string, collection: string, schema: z.ZodType): ToolsetCollection<unknown> {
-    const uniqueWhere = (key: string) => ({ namespace_collection_key: { collection, key, namespace } });
-    const parseRows = (rows: { key: string; payload: PrismaJson.ToolsetRecordPayload }[]) =>
-      rows.map((row) => ({ key: row.key, value: schema.parse(row.payload.value) }));
+  collection<TSchema extends z.ZodObject>(
+    namespace: string,
+    collection: string,
+    schema: TSchema
+  ): ToolsetCollection<TSchema> {
+    const whereId = (id: string) => ({ namespace_collection_id: { collection, id, namespace } });
+    const toRecord = (row: ModelRow<'ToolsetRecord'>): CollectionRecord<z.output<TSchema>> => ({
+      ...schema.parse(row.payload.value),
+      createdAt: row.createdAt,
+      id: row.id,
+      updatedAt: row.updatedAt
+    });
     return {
-      delete: async (key) => {
-        const { count } = await this.records.deleteMany({ where: { collection, key, namespace } });
+      create: async ({ id = createRecordId(), ...data }) => {
+        const payload = { value: schema.parse(data) };
+        try {
+          return toRecord(await this.records.create({ data: { collection, id, namespace, payload } }));
+        } catch (error) {
+          if (isUniqueConstraintViolation(error)) {
+            throw new Error(`storage collection "${namespace}::${collection}" already holds a record with id "${id}"`);
+          }
+          throw error;
+        }
+      },
+      deleteById: async (id) => {
+        const { count } = await this.records.deleteMany({ where: { collection, id, namespace } });
         return count > 0;
       },
-      find: async (query) => {
+      findById: async (id) => {
+        const row = await this.records.findUnique({ where: whereId(id) });
+        return row === null ? null : toRecord(row);
+      },
+      findMany: async (query = {}) => {
         const { params, sql } = compileCollectionQuery({ collection, namespace }, query);
         const matches = await this.prisma.$queryRawUnsafe<{ id: string }[]>(sql, ...params);
         const rows = await this.records.findMany({
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          where: { id: { in: matches.map((match) => match.id) } }
+          where: { collection, id: { in: matches.map((match) => match.id) }, namespace }
         });
-        return parseRows(rows);
+        return rows.map(toRecord);
       },
-      get: async (key) => {
-        const row = await this.records.findUnique({ where: uniqueWhere(key) });
-        return row === null ? null : schema.parse(row.payload.value);
-      },
-      list: async () => {
-        const rows = await this.records.findMany({ orderBy: { createdAt: 'asc' }, where: { collection, namespace } });
-        return parseRows(rows);
-      },
-      put: async (key, value) => {
-        const payload = { value: schema.parse(value) };
-        await this.records.upsert({
-          create: { collection, key, namespace, payload },
-          update: { payload },
-          where: uniqueWhere(key)
-        });
+      updateById: async (id, patch) => {
+        const row = await this.records.findUnique({ where: whereId(id) });
+        if (row === null) {
+          return null;
+        }
+        const payload = { value: schema.parse({ ...schema.parse(row.payload.value), ...patch }) };
+        return toRecord(await this.records.update({ data: { payload }, where: whereId(id) }));
       }
     };
   }

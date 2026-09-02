@@ -187,16 +187,15 @@ model QueueEntry {
 }
 
 model ToolsetRecord {
-  id         String   @id @default(cuid(2))
+  id         String
   collection String
   createdAt  DateTime @default(now())
-  key        String
   namespace  String
   /// [ToolsetRecordPayload]
   payload    Json
   updatedAt  DateTime @updatedAt
 
-  @@unique([namespace, collection, key])
+  @@id([namespace, collection, id])
 }
 
 model Memory {
