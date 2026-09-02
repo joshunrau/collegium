@@ -1,6 +1,6 @@
 ---
 title: Write a Plugin
-description: Build a plugin with durable storage, an ungated read, a gated write, and settings.
+description: Build a plugin with durable storage, an ungated read, a gated write, and settings, then test it without a deployment.
 ---
 
 A plugin is a directory of TypeScript that the deployment compiles at boot. Its layout declares its contents: a config at `src/config.ts`, one tool per file under `src/tools/`, one skill per file under `src/skills/`. This guide builds `contacts`: an address book agents can read without approval and update only with approval.
@@ -145,7 +145,43 @@ Import `@collegium/sdk`, `zod`, `node:` builtins, and your own files by relative
 
 To ship skills, add markdown files under `src/skills/`. Each `src/skills/<name>.md` becomes the grant `contacts::<name>`. The basename must be lowercase and dashed (`saving-contacts`), just as a tool's must be lowercase `snake_case`; the same rules as `src/tools/` apply to what the directory may hold. See the in-repo `bookmark` plugin for an example.
 
-## 4. Install the Plugin
+## 4. Test the Tools
+
+`@collegium/sdk/testing` builds the context a tool receives, so you can call `execute` without a deployment. Storage is in memory and behaves as the deployment's store does: validated on write, parsed on read. Settings pass through your schema, so defaults apply.
+
+```sh
+npm install --save-dev vitest
+```
+
+`src/tools/__tests__/save.test.ts`:
+
+```ts
+import { createTestContext, PluginToolFailureError } from '@collegium/sdk/testing';
+import { describe, expect, it } from 'vitest';
+
+import config from '../../config.ts';
+import find from '../find.ts';
+import save from '../save.ts';
+
+describe('contacts', () => {
+  it('saves a contact and finds it', async () => {
+    const context = createTestContext(config);
+    await save.execute({ email: 'elena@northshoresummit.co', id: 'elena', name: 'Elena Baptiste' }, context);
+    expect(await find.execute({ query: 'elena' }, context)).toBe('- elena: Elena Baptiste <elena@northshoresummit.co>');
+  });
+
+  it('refuses a save past the limit', async () => {
+    const context = createTestContext(config, { settings: { maxContacts: 1 } });
+    await save.execute({ email: 'ana@example.com', id: 'ana', name: 'Ana' }, context);
+    const second = save.execute({ email: 'ben@example.com', id: 'ben', name: 'Ben' }, context);
+    await expect(second).rejects.toThrow(PluginToolFailureError);
+  });
+});
+```
+
+`err.invalidArguments` and `err.unresolved` throw `PluginToolFailureError` here, as they do in a deployment before the framework maps them. Pass `turn` in the options to change the agent, channel, or post the tool sees.
+
+## 5. Install the Plugin
 
 Clone the plugin into the directory `PLUGINS_ROOT` in `.env` points at. In a clone of Collegium, that is `plugins/`:
 
@@ -155,7 +191,7 @@ git clone https://github.com/you/contacts plugins/contacts
 
 The subdirectory name is the plugin's name and namespace. The framework reads it from nowhere else.
 
-## 5. Grant and Configure
+## 6. Grant and Configure
 
 In `config.json`, declare the plugin:
 
@@ -174,7 +210,7 @@ Then grant it to Clara and set her settings for it:
 
 `"contacts"` grants every tool in the plugin, including ones a later version adds. Grant `"contacts::find"` instead to hand out one tool. Settings merge over `agentDefaults.toolSettings.contacts`. The framework refuses settings for an ungranted toolset and settings the schema rejects.
 
-## 6. Try It
+## 7. Try It
 
 Restart the deployment, then:
 

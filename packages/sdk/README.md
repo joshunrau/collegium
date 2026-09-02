@@ -50,6 +50,18 @@ export default defineTool({
 
 A tool with `approval` always stops for a human, who sees the full payload before it runs; one without never gates. The channel and the trace disclose both, line by line. `execute` returns the text the model reads, and raises the two failures a tool controls through `err`: `invalidArguments` continues the turn, `unresolved` ends it as an unconfirmed side effect.
 
+**Testing.** `@collegium/sdk/testing` builds the context `execute` receives, over in-memory storage that validates and parses as the deployment's store does. Pass your config; settings go through your schema, so defaults apply.
+
+```ts
+import { createTestContext, PluginToolFailureError } from '@collegium/sdk/testing';
+
+const context = createTestContext(config, { settings: { maxContacts: 1 } });
+await save.execute({ email: 'ana@example.com', id: 'ana', name: 'Ana' }, context);
+await expect(save.execute({ email: 'ben@example.com', id: 'ben', name: 'Ben' }, context)).rejects.toThrow(
+  PluginToolFailureError
+);
+```
+
 **zod is a peer dependency.** Install it beside the SDK and import it directly. A plugin may import `@collegium/sdk`, `zod`, and `node:` builtins; the compiler refuses every other bare specifier at boot.
 
 **Your installed copies are for development.** The deployment compiles a mounted plugin against the SDK and zod its image carries, not the copies in your `node_modules` — those serve your editor, `tsc`, and your tests. Exactly one zod runs in the process.

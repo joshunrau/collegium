@@ -275,7 +275,7 @@ A unit of operator-supplied capability living outside the framework: a directory
 
 **Storage without schema ownership.** A plugin persists durable records in the framework's own store, scoped to its namespace, validated against its declared collection schemas on write and parsed on read — the one qualified read perimeter, because rows may outlive the schema that wrote them. It owns no tables, no migrations, and no database client — adding a plugin adds no migration step, and a plugin cannot reach the framework's tables (or another toolset's rows) through its handle. A storage write, like any durable record, can disclose itself by returning a disclosure (§3.4).
 
-The example plugin (`plugins/bookmark`) exercises the entire contract — a gated tool, an ungated tool, settings, a collection, a skill — and is kept working by the test suite, so the contract cannot quietly rot.
+The example plugin (`plugins/bookmark`) exercises the entire contract — a gated tool, an ungated tool, settings, a collection, a skill — and is kept working by the test suite, so the contract cannot quietly rot. The SDK's `testing` entry builds the context `execute` receives over in-memory storage that validates and parses as the store does, so a plugin's tools are tested without a deployment; the example plugin's own tests use it.
 
 ## **4. Activation**
 

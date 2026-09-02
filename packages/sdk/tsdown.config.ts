@@ -4,7 +4,10 @@ import { defineConfig } from 'tsdown';
 // the surface a plugin may depend on, and core must stay refactorable behind it (§3.14).
 export default defineConfig({
   dts: { eager: true },
-  entry: ['src/index.ts'],
+  entry: {
+    index: 'src/index.ts',
+    testing: 'src/testing.ts'
+  },
   fixedExtension: false,
   format: 'esm',
   outDir: 'dist',

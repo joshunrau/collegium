@@ -2,16 +2,19 @@ import type { PluginToolDeclaration, PluginToolErr } from '@collegium/core/plugi
 import type { EmptyDeclaration, ToolsetContext } from '@collegium/core/toolsets';
 import type { z } from 'zod';
 
-import type { RegisteredConfig } from './config.ts';
+import type { PluginConfig, RegisteredConfig } from './config.ts';
 
-/** what `execute` receives: the registered config's settings and storage, the failure raisers, and the four facts of the turn */
-export type ToolContext = ToolsetContext<
+/** what `execute` receives under a config: its settings and storage, the failure raisers, and the four facts of the turn */
+export type ToolContextFor<TConfig extends PluginConfig> = ToolsetContext<
   EmptyDeclaration,
-  RegisteredConfig['settings'],
-  RegisteredConfig['storage']
+  TConfig['settings'],
+  TConfig['storage']
 > & {
   readonly err: PluginToolErr;
 };
+
+/** the context under the registered config: what every tool file's `execute` receives */
+export type ToolContext = ToolContextFor<RegisteredConfig>;
 
 export type PluginTool<TParams extends z.ZodType> = PluginToolDeclaration<ToolContext, TParams>;
 

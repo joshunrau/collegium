@@ -5,7 +5,8 @@ import type { AnyTool } from '../toolsets.ts';
 import type { $PluginTool } from './plugins.schemas.ts';
 import type { PluginToolErr } from './plugins.types.ts';
 
-const PLUGIN_TOOL_ERR: PluginToolErr = {
+/** what a plugin tool receives as `err`; shared with the SDK's testing entry, so a test raises the failure a deployment would */
+export const PLUGIN_TOOL_ERR: PluginToolErr = {
   invalidArguments(message) {
     throw new PluginToolFailureError({ kind: 'invalid-arguments', message });
   },

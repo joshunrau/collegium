@@ -73,6 +73,8 @@ jobs:
             assert.ok(existsSync('packages/config/dist/config.schema.json'), 'config.schema.json was not emitted');
             assert.ok(existsSync('packages/sdk/dist/index.js'), 'the sdk bundle was not emitted');
             assert.ok(existsSync('packages/sdk/dist/index.d.ts'), 'the sdk declarations were not emitted');
+            assert.ok(existsSync('packages/sdk/dist/testing.js'), 'the sdk testing bundle was not emitted');
+            assert.ok(existsSync('packages/sdk/dist/testing.d.ts'), 'the sdk testing declarations were not emitted');
           "
 
       # the image is assembled from the pruned workspace, and the app depends on the SDK without
