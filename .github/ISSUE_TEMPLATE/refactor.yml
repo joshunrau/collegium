@@ -1,0 +1,52 @@
+name: Refactor
+description: Track a needed refactor or architectural cleanup
+title: '[Refactor]: '
+labels: ['refactor']
+body:
+  - type: input
+    id: module
+    attributes:
+      label: Module(s) affected
+      description: e.g. commands/, turns/, mail/ — see the module map in AGENTS.md
+      placeholder: app/src/...
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-state
+    attributes:
+      label: Current state
+      description: What exists today, and why it's a problem.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: principle
+    attributes:
+      label: Principle violated
+      description: Which "What Good Code Looks Like Here" principle from AGENTS.md does this fall under?
+      multiple: true
+      options:
+        - Boundaries are the design
+        - Correctness is structural, not vigilant
+        - One source of truth; everything derived
+        - Strict data validation at the boundary
+        - Complexity concentrated, periphery boring
+        - Shape is never repeated
+        - The file tree tells the story
+        - Names and types carry all meaning
+        - Fail loudly on an undeclared policy
+        - Other / not sure
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk
+    attributes:
+      label: Blast radius / risk
+      description: Optional — what else touches this, what could break.
