@@ -38,7 +38,7 @@ describe('Status post', () => {
     const { agents, channels, inference } = harness();
     const reply = `appended-${randomUUID()}`;
     inference.willReply({ agent: 'mira' }, toolCallResponse('skills__load', { name: 'handing-work-to-a-peer' }));
-    inference.willReply({ agent: 'mira' }, toolCallResponse('memory__read', { id: 'no-such-memory' }));
+    inference.willReply({ agent: 'mira' }, toolCallResponse('memory__read', { reference: 'no-such-memory' }));
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
     await channels.main.mention('mira', 'two tools please');
