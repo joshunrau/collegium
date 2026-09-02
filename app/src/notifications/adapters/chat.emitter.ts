@@ -35,7 +35,7 @@ export class ChatEmitter extends NotificationsEmitter {
           reason.kind === 'turn-ceiling'
             ? `${reason.ceiling} turns started within one hour, the framework-wide ceiling`
             : `respond-to-all channel ${reason.channelId} now holds ${reason.agentUsernames.length} agents (${reason.agentUsernames.join(', ')})`;
-        return `🛑 **Halted** — ${cause}. No agent will act until a human posts /resume.`;
+        return `🛑 **Halted** — ${cause}. No agent will act until a human posts /collegium resume.`;
       })
       .with({ kind: 'multi-mention-refusal' }, () => '⚠️ Address one agent per message.')
       .with({ kind: 'offline' }, (event) => {

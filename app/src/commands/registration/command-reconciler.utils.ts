@@ -1,16 +1,5 @@
 import type { RegisteredSlashCommand, SlashCommandRegistration, SlashCommandSurface } from '@/chat/chat.types.ts';
 
-type SlashCommandReconciliationPlan = {
-  /** desired triggers held by accounts this app does not own — unresolvable, boot refuses (§8.4) */
-  readonly collisions: readonly RegisteredSlashCommand[];
-  /** owned commands whose managed fields drifted — the redeploy case §8.4 exists for */
-  readonly corrections: readonly { commandId: string; registration: SlashCommandRegistration }[];
-  /** desired triggers no command currently holds */
-  readonly creates: readonly SlashCommandRegistration[];
-  /** owned commands whose trigger left the desired list */
-  readonly deletes: readonly RegisteredSlashCommand[];
-};
-
 function matchesRegistration(command: RegisteredSlashCommand, registration: SlashCommandRegistration): boolean {
   return (
     command.autoComplete &&
@@ -22,6 +11,17 @@ function matchesRegistration(command: RegisteredSlashCommand, registration: Slas
     command.url === registration.url
   );
 }
+
+export type SlashCommandReconciliationPlan = {
+  /** desired triggers held by accounts this app does not own — unresolvable, boot refuses (§8.4) */
+  readonly collisions: readonly RegisteredSlashCommand[];
+  /** owned commands whose managed fields drifted — the redeploy case §8.4 exists for */
+  readonly corrections: readonly { commandId: string; registration: SlashCommandRegistration }[];
+  /** desired triggers no command currently holds */
+  readonly creates: readonly SlashCommandRegistration[];
+  /** owned commands whose trigger left the desired list */
+  readonly deletes: readonly RegisteredSlashCommand[];
+};
 
 /**
  * §8.4 as pure data: ownership is the creating account, never the trigger word or the URL. A

@@ -46,7 +46,7 @@ describe('requireAgentName', () => {
     const named = requireAgentName(agentRegistry, 'dana', 'queue');
     expect(named.error).toStrictEqual({
       audience: 'invoker',
-      text: 'No agent "dana". Usage: /queue {agent}'
+      text: 'No agent "dana". Usage: /collegium queue {agent}'
     });
   });
 
@@ -63,7 +63,7 @@ describe('requirePostId', () => {
   it('should refuse blank text with the usage line', () => {
     expect(requirePostId('   ', 'forget').error).toStrictEqual({
       audience: 'invoker',
-      text: 'Usage: /forget {post-id}'
+      text: 'Usage: /collegium forget {post-id}'
     });
   });
 });

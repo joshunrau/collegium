@@ -1,7 +1,7 @@
 import { Client4 } from '@mattermost/client';
 
 import { MattermostChannelType } from '@/chat/adapters/mattermost.constants.ts';
-import { COMMAND_TRIGGERS } from '@/commands/commands.definitions.ts';
+import { COMMAND_TRIGGER, COMMAND_TRIGGERS } from '@/commands/commands.definitions.ts';
 
 import { WorkspaceSocket } from './socket.ts';
 import { createWorkspaceId, toBotUsername, toChannelName } from './utils/naming.utils.ts';
@@ -123,11 +123,10 @@ class Workspace {
    * trigger, before boot and again on dispose.
    */
   private static async clearStaleSlashCommands(client: Client4, teamId: string): Promise<void> {
+    const stale = new Set<string>([COMMAND_TRIGGER, ...COMMAND_TRIGGERS]);
     const existing = await client.getCustomTeamCommands(teamId);
     await Promise.all(
-      existing
-        .filter((command) => COMMAND_TRIGGERS.some((trigger) => trigger === command.trigger))
-        .map((command) => client.deleteCommand(command.id))
+      existing.filter((command) => stale.has(command.trigger)).map((command) => client.deleteCommand(command.id))
     );
   }
 

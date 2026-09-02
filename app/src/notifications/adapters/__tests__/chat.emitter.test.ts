@@ -67,7 +67,7 @@ describe('ChatEmitter', () => {
   it('should post the §7.4 halt notice naming the turn ceiling', async () => {
     await chatEmitter.notify({ kind: 'halt', reason: { ceiling: 40, kind: 'turn-ceiling' } });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
-      '🛑 **Halted** — 40 turns started within one hour, the framework-wide ceiling. No agent will act until a human posts /resume.'
+      '🛑 **Halted** — 40 turns started within one hour, the framework-wide ceiling. No agent will act until a human posts /collegium resume.'
     );
   });
 
@@ -77,7 +77,7 @@ describe('ChatEmitter', () => {
       reason: { agentUsernames: ['mira', 'robin'], channelId: 'channel-1', kind: 'topology-violation' }
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
-      '🛑 **Halted** — respond-to-all channel channel-1 now holds 2 agents (mira, robin). No agent will act until a human posts /resume.'
+      '🛑 **Halted** — respond-to-all channel channel-1 now holds 2 agents (mira, robin). No agent will act until a human posts /collegium resume.'
     );
   });
 

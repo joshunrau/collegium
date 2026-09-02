@@ -235,7 +235,7 @@ export const $TurnsConfig = z.strictObject({
     .positive()
     .default(CONFIG_DEFAULTS.turns.hourlyCeiling)
     .describe(
-      'Framework-wide ceiling on turns started per rolling hour. A breach halts every agent until a human posts /resume (§7.4).'
+      'Framework-wide ceiling on turns started per rolling hour. A breach halts every agent until a human posts /collegium resume (§7.4).'
     )
 });
 

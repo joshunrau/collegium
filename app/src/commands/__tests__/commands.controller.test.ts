@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 
 import { CommandsController } from '../commands.controller.ts';
-import { COMMAND_TRIGGERS } from '../commands.definitions.ts';
+import { COMMAND_TRIGGER, COMMAND_TRIGGERS } from '../commands.definitions.ts';
 import { CommandRegistry } from '../commands.registry.ts';
 import { CommandsService } from '../commands.service.ts';
 
@@ -28,47 +28,45 @@ describe('CommandRegistry', () => {
     expect(() => new CommandRegistry(doubled)).toThrow('/stop');
   });
 
-  it('should resolve only the wire form Mattermost sends', () => {
+  it('should resolve a trigger by name', () => {
     const registry = new CommandRegistry(COMMAND_TRIGGERS.map(createHandlerStub));
-    expect(registry.resolve('/stop')?.trigger).toBe('stop');
-    expect(registry.resolve('stop')).toBeUndefined();
+    expect(registry.resolve('stop')?.trigger).toBe('stop');
+    expect(registry.resolve('nonexistent')).toBeUndefined();
   });
 });
 
 describe('CommandsController', () => {
   let commandsController: CommandsController;
-  let run: Mock<(handler: CommandHandler, input: CommandInput) => Promise<{ responseType: string; text: string }>>;
+  let dispatch: Mock<(input: CommandInput) => Promise<{ responseType: string; text: string }>>;
 
   beforeEach(async () => {
-    run = vi.fn(() => Promise.resolve({ responseType: 'ephemeral', text: 'stopping' }));
+    dispatch = vi.fn(() => Promise.resolve({ responseType: 'ephemeral', text: 'stopping' }));
     const moduleRef = await Test.createTestingModule({
       controllers: [CommandsController],
-      providers: [
-        { provide: CommandRegistry, useValue: new CommandRegistry(COMMAND_TRIGGERS.map(createHandlerStub)) },
-        { provide: CommandsService, useValue: { run } }
-      ]
+      providers: [{ provide: CommandsService, useValue: { dispatch } }]
     }).compile();
     commandsController = moduleRef.get(CommandsController);
   });
 
-  it('should bind the parsed body and dispatch to the trigger’s handler', async () => {
+  it('should bind the parsed body and delegate the text after the trigger', async () => {
     const response = await commandsController.handle({
       channel_id: 'channel-1',
-      command: '/stop',
-      text: '',
+      command: `/${COMMAND_TRIGGER}`,
+      text: 'memory mira prune ref-1',
       user_name: 'casey'
     });
-    expect(run).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'stop' }), {
+    expect(dispatch).toHaveBeenCalledWith({
       channelId: 'channel-1',
-      text: '',
+      text: 'memory mira prune ref-1',
       username: 'casey'
     });
     expect(response).toStrictEqual({ response_type: 'ephemeral', text: 'stopping' });
   });
 
-  it('should refuse a command no handler declares', async () => {
+  it('should refuse a command that is not the registered trigger', async () => {
     await expect(
       commandsController.handle({ channel_id: 'channel-1', command: '/warp', text: '', user_name: 'casey' })
     ).rejects.toThrow(BadRequestException);
+    expect(dispatch).not.toHaveBeenCalled();
   });
 });

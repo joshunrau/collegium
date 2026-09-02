@@ -25,11 +25,7 @@ export class CommandRegistry {
     this.handlers = byTrigger;
   }
 
-  /** accepts only the wire form Mattermost sends, e.g. "/stop" — a bare "stop" resolves nothing */
-  resolve(command: string): CommandHandler | undefined {
-    if (!command.startsWith('/')) {
-      return undefined;
-    }
-    return this.handlers.get(command.slice(1));
+  resolve(trigger: string): CommandHandler | undefined {
+    return this.handlers.get(trigger);
   }
 }

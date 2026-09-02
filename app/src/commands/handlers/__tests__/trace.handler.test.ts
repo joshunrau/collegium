@@ -52,7 +52,7 @@ describe('TraceHandler', () => {
 
   it('should refuse a bare /trace with the usage line', async () => {
     const response = await traceHandler.handle({ channelId: 'channel-1', text: '  ', username: 'casey' });
-    expect(response).toStrictEqual({ audience: 'invoker', text: 'Usage: /trace {post-id}' });
+    expect(response).toStrictEqual({ audience: 'invoker', text: 'Usage: /collegium trace {post-id}' });
     expect(conversationsService.findAuthoringTurn).not.toHaveBeenCalled();
   });
 
