@@ -47,3 +47,15 @@ export const DOM_SETTLE_TIMEOUT_MS = 3_000;
  * blocked queue inside a turn is a stall the model cannot see.
  */
 export const MAX_LIVE_SESSIONS = 4;
+
+/** the ceiling on one plain fetch — tighter than a navigation, since nothing renders after the bytes arrive */
+export const FETCH_TIMEOUT_MS = 20_000;
+
+/**
+ * The ceiling on one fetched body, in bytes — a resource guard on the read, before conversion,
+ * where a tarpit would otherwise be buffered whole. Past it the body is cut and the page says so.
+ */
+export const FETCH_BODY_CAP_BYTES = 10_000_000;
+
+/** each hop is re-judged against the URL policy, so a chain is bounded rather than followed blindly */
+export const MAX_REDIRECTS = 5;

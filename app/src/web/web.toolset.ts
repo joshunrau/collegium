@@ -3,10 +3,11 @@ import { implementToolset, WEB_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
+import { FETCH_TIMEOUT_MS } from './web.constants.ts';
 import { WEB_SERVICE_TOKEN } from './web.tokens.ts';
-import { renderWebFailure, renderWebSnapshot } from './web.utils.ts';
+import { renderWebFailure, renderWebPage, renderWebSnapshot } from './web.utils.ts';
 
-import type { WebFailure, WebSnapshot } from './web.types.ts';
+import type { WebFailure, WebPage, WebSnapshot } from './web.types.ts';
 
 const REF_SHAPE = /^e\d+$/;
 
@@ -20,20 +21,27 @@ const DESCRIPTION_PREAMBLE =
   'action returns a fresh snapshot of the page as markdown with ⟨eN⟩ element refs. ';
 
 /** the browser being down is infrastructure, not something the model can reason its way past */
-function toSnapshotResult(result: Result<WebSnapshot, WebFailure>): ToolResult {
+function toPageResult<TPage extends WebPage>(
+  result: Result<TPage, WebFailure>,
+  render: (page: TPage) => string
+): ToolResult {
   if (!result.success) {
     if (result.error.kind === 'unreachable') {
       return Result.err({ kind: 'exception', message: result.error.message });
     }
     return Result.ok({ text: renderWebFailure(result.error) });
   }
-  return Result.ok({ text: renderWebSnapshot(result.value) });
+  return Result.ok({ text: render(result.value) });
 }
+
+const toSnapshotResult = (result: Result<WebSnapshot, WebFailure>): ToolResult =>
+  toPageResult(result, renderWebSnapshot);
 
 /**
  * Ungated as a read instrument (§3.4): the per-agent grant decides who browses, the status post
  * traces every action. A click or fill may commit a side effect on the page, and even a navigation
- * can, so no web tool is retryable: a timeout leaves us unable to say whether it landed (§7.2).
+ * can, so no browser tool is retryable: a timeout leaves us unable to say whether it landed (§7.2).
+ * `fetch` is the exception — a scriptless GET commits nothing, so its timeout is a plain failure.
  */
 export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
   services: { web: WEB_SERVICE_TOKEN },
@@ -46,6 +54,20 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       }),
       timeoutMs: WEB_TIMEOUT_MS,
       traceDetail: (args) => `⟨${args.ref}⟩`
+    },
+    fetch: {
+      description:
+        'Fetch a URL over plain HTTP and read it as markdown — no browser, no JavaScript, no session; ' +
+        "this turn's browser page is untouched. Cheaper and faster than navigate: use it first for articles, " +
+        'documentation, and static pages, and switch to navigate when the result says the page has no static content ' +
+        'or when the task needs a click, a search, or a sign-in.',
+      execute: async (args, context) => toPageResult(await context.web.fetch(args.url), renderWebPage),
+      parameters: z.object({
+        url: z.url().describe('The absolute http(s) URL of a public web page or text resource to fetch')
+      }),
+      retryable: true,
+      timeoutMs: FETCH_TIMEOUT_MS + 5_000,
+      traceDetail: (args) => args.url
     },
     fill: {
       description: `${DESCRIPTION_PREAMBLE}Type into an input from the latest snapshot, replacing its current value — including signing in when the task calls for it.`,

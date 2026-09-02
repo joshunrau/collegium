@@ -2,12 +2,14 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { BrowserClient } from './browser/browser.client.ts';
+import { FetchClient } from './fetch/fetch.client.ts';
+import { extractTitle, needsClientRendering } from './fetch/fetch.utils.ts';
 import { MAX_LIVE_SESSIONS } from './web.constants.ts';
 import { refuseUnbrowsableUrl } from './web.policy.ts';
 import { capMarkdown, toMarkdown } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
-import type { RenderedCapture, WebFailure, WebSnapshot } from './web.types.ts';
+import type { RenderedCapture, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
 
 /**
  * The web seam: turn-scoped browsing sessions, one page each, driven by refs the model read in
@@ -26,7 +28,10 @@ export class WebService {
    */
   private readonly sessions = new Map<string, Promise<Result<BrowserSession, WebFailure.Unreachable>>>();
 
-  constructor(private readonly browserClient: BrowserClient) {}
+  constructor(
+    private readonly browserClient: BrowserClient,
+    private readonly fetchClient: FetchClient
+  ) {}
 
   async click(
     turnId: string,
@@ -52,6 +57,30 @@ export class WebService {
     if (opened?.success) {
       await opened.value.dispose();
     }
+  }
+
+  /** no session and no slot: one GET, converted by the same rules a rendered page is */
+  async fetch(
+    url: string
+  ): Promise<
+    Result<
+      WebPage,
+      WebFailure.Navigation | WebFailure.NoStaticContent | WebFailure.UnsupportedContent | WebFailure.UrlRefused
+    >
+  > {
+    const fetched = await this.fetchClient.get(url);
+    if (!fetched.success) {
+      return fetched;
+    }
+    const { body, kind, status, url: finalUrl } = fetched.value;
+    if (kind === 'text') {
+      return Result.ok({ markdown: capMarkdown(body), status, title: new URL(finalUrl).pathname, url: finalUrl });
+    }
+    const markdown = toMarkdown(body);
+    if (needsClientRendering(markdown)) {
+      return Result.err({ kind: 'no-static-content', url: finalUrl });
+    }
+    return Result.ok({ markdown: capMarkdown(markdown), status, title: extractTitle(body), url: finalUrl });
   }
 
   async fill(

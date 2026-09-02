@@ -4,7 +4,7 @@ import { match } from 'ts-pattern';
 import { MARKDOWN_CAP_CHARS } from './web.constants.ts';
 
 import type { FormElement } from './snapshot/snapshot.types.ts';
-import type { WebFailure, WebSnapshot } from './web.types.ts';
+import type { WebFailure, WebPage, WebSnapshot } from './web.types.ts';
 
 const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 
@@ -56,19 +56,26 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     .with({ kind: 'empty-render' }, ({ url }) => `the page at ${url} rendered no readable content`)
     .with({ kind: 'navigation' }, ({ message }) => `the page could not be loaded: ${message}`)
     .with({ kind: 'no-session' }, () => 'no page is open in this turn — navigate to a URL first')
-    .with(
-      { kind: 'stale-ref' },
-      ({ ref }) =>
-        `⟨${ref}⟩ is not on the current page; the page has changed since that snapshot — use refs from the latest one`
-    )
+    .with({ kind: 'no-static-content' }, ({ url }) => {
+      return `the page at ${url} has no readable content without JavaScript — open it with web::navigate instead`;
+    })
+    .with({ kind: 'stale-ref' }, ({ ref }) => {
+      return `⟨${ref}⟩ is not on the current page; the page has changed since that snapshot — use refs from the latest one`;
+    })
+    .with({ kind: 'unsupported-content' }, ({ contentType, url }) => {
+      return `${url} is ${contentType}, which this tool cannot read as text`;
+    })
     .with({ kind: 'url-refused', reason: 'not-web-scheme' }, ({ url }) => `${url} is not an http or https page`)
     .with({ kind: 'url-refused', reason: 'not-public-host' }, ({ url }) => `${url} is not on the public web`)
     .exhaustive();
 }
 
+export function renderWebPage(page: WebPage): string {
+  return `${page.title} — ${page.url} (HTTP ${page.status})\n\n${page.markdown}`;
+}
+
 export function renderWebSnapshot(snapshot: WebSnapshot): string {
-  const header = `${snapshot.title} — ${snapshot.url} (HTTP ${snapshot.status})`;
   const controls = snapshot.formElements.map((element) => renderFormElement(element));
   const formBlock = controls.length > 0 ? `\n\nForm controls:\n${controls.join('\n')}` : '';
-  return `${header}\n\n${snapshot.markdown}${formBlock}`;
+  return `${renderWebPage(snapshot)}${formBlock}`;
 }

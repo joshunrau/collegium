@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
-import { capMarkdown, toMarkdown } from '../web.utils.ts';
+import { capMarkdown, renderWebFailure, toMarkdown } from '../web.utils.ts';
 
 const fixture = (name: string): string => {
   return fs.readFileSync(path.resolve(import.meta.dirname, 'fixtures', `${name}.html`), 'utf-8');
@@ -47,5 +47,23 @@ describe('capMarkdown', () => {
   it('should cut a page past the guard and say so, rather than shortening it silently', () => {
     const capped = capMarkdown('x'.repeat(MARKDOWN_CAP_CHARS + 1));
     expect(capped).toBe(`${'x'.repeat(MARKDOWN_CAP_CHARS)}\n…page truncated at ${MARKDOWN_CAP_CHARS} characters`);
+  });
+});
+
+describe('renderWebFailure', () => {
+  it('should tell the model which tool can read a page that needs client rendering', () => {
+    expect(renderWebFailure({ kind: 'no-static-content', url: 'https://northmoor.example/' })).toBe(
+      'the page at https://northmoor.example/ has no readable content without JavaScript — open it with web::navigate instead'
+    );
+  });
+
+  it('should name the content type it cannot read', () => {
+    expect(
+      renderWebFailure({
+        contentType: 'application/pdf',
+        kind: 'unsupported-content',
+        url: 'https://northmoor.example/a.pdf'
+      })
+    ).toBe('https://northmoor.example/a.pdf is application/pdf, which this tool cannot read as text');
   });
 });

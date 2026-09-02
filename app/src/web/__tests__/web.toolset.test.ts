@@ -7,9 +7,9 @@ import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.f
 import { WebService } from '../web.service.ts';
 import { WEB_TOOLSET } from '../web.toolset.ts';
 
-import type { WebSnapshot } from '../web.types.ts';
+import type { WebPage, WebSnapshot } from '../web.types.ts';
 
-const { click, fill, navigate } = WEB_TOOLSET.tools;
+const { click, fetch, fill, navigate } = WEB_TOOLSET.tools;
 
 const SNAPSHOT: WebSnapshot = {
   formElements: [{ isFilled: false, kind: 'input', label: 'Search', ref: 'e1', type: 'text' }],
@@ -18,6 +18,8 @@ const SNAPSHOT: WebSnapshot = {
   title: 'Example',
   url: 'https://example.org/'
 };
+
+const PAGE: WebPage = { markdown: '# Example Domain', status: 200, title: 'Example', url: 'https://example.org/' };
 
 function buildContext() {
   const web = MockFactory.createMock(WebService);
@@ -33,6 +35,21 @@ describe('WEB_TOOLSET', () => {
     expect(web.navigate).toHaveBeenCalledWith('turn-1', 'https://example.org/');
     expect(result.unwrap().text).toContain('Example — https://example.org/ (HTTP 200)');
     expect(result.unwrap().text).toContain('⟨e1⟩ input[type=text] "Search"');
+  });
+
+  it('fetches a page without a session and renders it with its header line', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.ok(PAGE));
+    const result = await executeTool(fetch, { url: 'https://example.org/' }, context);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/');
+    expect(result.unwrap().text).toBe('Example — https://example.org/ (HTTP 200)\n\n# Example Domain');
+  });
+
+  it('returns a page that needs client rendering as text pointing at navigate', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.err({ kind: 'no-static-content', url: 'https://example.org/' }));
+    const result = await executeTool(fetch, { url: 'https://example.org/' }, context);
+    expect(result.unwrap().text).toContain('open it with web::navigate instead');
   });
 
   it('returns a stale ref as page text the model can recover from', async () => {
@@ -57,5 +74,11 @@ describe('WEB_TOOLSET', () => {
       expect('approval' in tool).toBe(false);
       expect(tool.retryable).toBeUndefined();
     }
+  });
+
+  it('leaves fetch ungated and retryable, since a scriptless GET commits nothing', () => {
+    expect('approval' in fetch).toBe(false);
+    expect(fetch.retryable).toBe(true);
+    expect(fetch.traceDetail?.({ url: 'https://example.org/' })).toBe('https://example.org/');
   });
 });

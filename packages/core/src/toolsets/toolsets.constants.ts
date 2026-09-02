@@ -21,7 +21,10 @@ export const SKILLS_TOOLSET_DEF = { name: 'skills', tools: ['load'] } as const s
 
 export const TRIGGERS_TOOLSET_DEF = { name: 'triggers', tools: ['resolve'] } as const satisfies ToolsetDef;
 
-export const WEB_TOOLSET_DEF = { name: 'web', tools: ['click', 'fill', 'navigate'] } as const satisfies ToolsetDef;
+export const WEB_TOOLSET_DEF = {
+  name: 'web',
+  tools: ['click', 'fetch', 'fill', 'navigate']
+} as const satisfies ToolsetDef;
 
 export const WORKSPACE_TOOLSET_DEF = { name: 'workspace', tools: ['write'] } as const satisfies ToolsetDef;
 
