@@ -230,7 +230,7 @@ export class ActivationService {
     }
     if (!(await this.haltService.admitTurnStart())) {
       this.loggingService.warn(
-        `left the queue for "${profile.username}" in ${channelId} standing: the turn ceiling refused admission — /collegium resume will drain it`
+        `left the queue for "${profile.username}" in ${channelId} standing: the turn ceiling refused admission — /collegium.resume will drain it`
       );
       lock.release();
       return;
@@ -324,7 +324,7 @@ export class ActivationService {
     } catch (error) {
       this.loggingService.error(
         new Error(
-          `a turn for "${profile.username}" threw past the runner — its queue and triggers stand until /collegium resume or the next post`,
+          `a turn for "${profile.username}" threw past the runner — its queue and triggers stand until /collegium.resume or the next post`,
           { cause: error }
         )
       );

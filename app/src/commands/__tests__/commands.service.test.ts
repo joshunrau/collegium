@@ -1,7 +1,6 @@
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Mock } from 'vitest';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
@@ -12,19 +11,21 @@ import { LoggingService } from '@/logging/logging.service.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 
-import { CommandRegistry } from '../commands.registry.ts';
 import { CommandsService } from '../commands.service.ts';
 
 import type { CommandHandler } from '../commands.handler.ts';
-import type { CommandInput, CommandResponse } from '../commands.types.ts';
+import type { CommandResponse } from '../commands.types.ts';
 
-const INPUT = { channelId: 'channel-1', text: 'resume', username: 'casey' };
+const INPUT = { channelId: 'channel-1', text: '', username: 'casey' };
+
+const toHandler = (response: CommandResponse): CommandHandler => ({
+  handle: () => Promise.resolve(response),
+  trigger: 'resume'
+});
 
 describe('CommandsService', () => {
   let chatGateway: MockedInstance<ChatGateway>;
-  let commandRegistry: MockedInstance<CommandRegistry>;
   let commandsService: CommandsService;
-  let handle: Mock<(input: CommandInput) => Promise<CommandResponse>>;
   let loggingService: MockedInstance<LoggingService>;
   let rosterService: MockedInstance<RosterService>;
   let transport: MockedInstance<ChatTransport>;
@@ -34,7 +35,6 @@ describe('CommandsService', () => {
     chatGateway.postAsSystemIn.mockResolvedValue(
       Result.ok({ authorUsername: 'collegium', createdAt: new Date(0), postId: 'post-1' })
     );
-    commandRegistry = MockFactory.createMock(CommandRegistry);
     loggingService = MockFactory.createMock(LoggingService);
     rosterService = MockFactory.createMock(RosterService);
     rosterService.listAgentsIn.mockReturnValue([]);
@@ -46,7 +46,6 @@ describe('CommandsService', () => {
       providers: [
         CommandsService,
         { provide: ChatGateway, useValue: chatGateway },
-        { provide: CommandRegistry, useValue: commandRegistry },
         { provide: LoggingService, useValue: loggingService },
         { provide: RosterService, useValue: rosterService },
         { provide: TransportRegistry, useValue: transportRegistry }
@@ -55,53 +54,27 @@ describe('CommandsService', () => {
     commandsService = moduleRef.get(CommandsService);
   });
 
-  const dispatch = (response: CommandResponse, input = INPUT) => {
-    handle = vi.fn(() => Promise.resolve(response));
-    const handler: CommandHandler = { handle, trigger: 'resume' };
-    commandRegistry.resolve.mockImplementation((trigger) => (trigger === 'resume' ? handler : undefined));
-    return commandsService.dispatch(input);
-  };
-
-  it('should route the first token to its handler with the rest as the handler’s text', async () => {
-    await dispatch({ audience: 'invoker', text: 'ok' }, { ...INPUT, text: ' resume  now ' });
-    expect(handle).toHaveBeenCalledWith({ ...INPUT, text: 'now' });
-  });
-
-  it('should answer a bare /collegium with the subcommand listing', async () => {
-    const result = await dispatch({ audience: 'invoker', text: 'ok' }, { ...INPUT, text: '' });
-    expect(handle).not.toHaveBeenCalled();
-    expect(result.responseType).toBe('ephemeral');
-    expect(result.text).toContain('Usage: /collegium {subcommand}');
-    expect(result.text).toContain('- resume — Clear a global halt');
-  });
-
-  it('should name an unknown subcommand before the listing', async () => {
-    const result = await dispatch({ audience: 'invoker', text: 'ok' }, { ...INPUT, text: 'warp' });
-    expect(result.text).toMatch(/^Unknown subcommand "warp"\.\n/);
-    expect(result.text).toContain('Usage: /collegium {subcommand}');
-  });
-
   it('should post channel output as the system bot rather than as the invoker', async () => {
-    const response = await dispatch({ audience: 'channel', text: '🟢 Resumed' });
+    const response = await commandsService.run(toHandler({ audience: 'channel', text: '🟢 Resumed' }), INPUT);
     expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith('channel-1', '🟢 Resumed');
     expect(response.text).toBe('');
   });
 
   it('should hold announced work until the announcement is posted', async () => {
     const afterAnnouncing = vi.fn(() => Promise.resolve());
-    await dispatch({ afterAnnouncing, audience: 'channel', text: '🟢 Resumed' });
+    await commandsService.run(toHandler({ afterAnnouncing, audience: 'channel', text: '🟢 Resumed' }), INPUT);
     expect(afterAnnouncing).toHaveBeenCalledAfter(chatGateway.postAsSystemIn);
   });
 
   it('should leave invoker output ephemeral, posting nothing', async () => {
-    const response = await dispatch({ audience: 'invoker', text: 'Nothing here.' });
+    const response = await commandsService.run(toHandler({ audience: 'invoker', text: 'Nothing here.' }), INPUT);
     expect(response).toStrictEqual({ responseType: 'ephemeral', text: 'Nothing here.' });
     expect(chatGateway.postAsSystemIn).not.toHaveBeenCalled();
   });
 
   it('should log a refused announcement rather than failing the command', async () => {
     chatGateway.postAsSystemIn.mockResolvedValue(Result.err({ kind: 'api', message: 'refused' }));
-    await dispatch({ audience: 'channel', text: '🟢 Resumed' });
+    await commandsService.run(toHandler({ audience: 'channel', text: '🟢 Resumed' }), INPUT);
     expect(loggingService.error).toHaveBeenCalledOnce();
   });
 
@@ -110,7 +83,10 @@ describe('CommandsService', () => {
   it('should post under the one agent present when the system bot cannot reach the channel', async () => {
     chatGateway.postAsSystemIn.mockResolvedValue(Result.err({ kind: 'api', message: 'not a member' }));
     rosterService.listAgentsIn.mockReturnValue([{ username: 'mira' } as AgentProfile]);
-    const response = await dispatch({ audience: 'channel', text: '⏹️ Stopping 1 turn(s).' });
+    const response = await commandsService.run(
+      toHandler({ audience: 'channel', text: '⏹️ Stopping 1 turn(s).' }),
+      INPUT
+    );
     expect(transport.send).toHaveBeenCalledWith({ channelId: 'channel-1', text: '⏹️ Stopping 1 turn(s).' });
     expect(response.text).toBe('');
     expect(loggingService.error).not.toHaveBeenCalled();
@@ -118,7 +94,7 @@ describe('CommandsService', () => {
 
   it('should tell the invoker what no channel could be told', async () => {
     chatGateway.postAsSystemIn.mockResolvedValue(Result.err({ kind: 'api', message: 'refused' }));
-    const response = await dispatch({ audience: 'channel', text: '⏹️ Killed 1 turn(s).' });
+    const response = await commandsService.run(toHandler({ audience: 'channel', text: '⏹️ Killed 1 turn(s).' }), INPUT);
     expect(response).toStrictEqual({ responseType: 'ephemeral', text: '⏹️ Killed 1 turn(s).' });
   });
 });

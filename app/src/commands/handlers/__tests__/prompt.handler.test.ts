@@ -43,12 +43,12 @@ describe('PromptHandler', () => {
     const response = await promptHandler.handle({ channelId: 'channel-1', text: 'dana', username: 'casey' });
     expect(response).toStrictEqual({
       audience: 'invoker',
-      text: 'No agent "dana". Usage: /collegium prompt {agent}'
+      text: 'No agent "dana". Usage: /collegium.prompt {agent}'
     });
   });
 
   it('should refuse trailing arguments with the usage line', async () => {
     const response = await promptHandler.handle({ channelId: 'channel-1', text: 'mira now', username: 'casey' });
-    expect(response).toStrictEqual({ audience: 'invoker', text: 'Usage: /collegium prompt {agent}' });
+    expect(response).toStrictEqual({ audience: 'invoker', text: 'Usage: /collegium.prompt {agent}' });
   });
 });

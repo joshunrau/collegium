@@ -49,7 +49,7 @@ const INSPECT_SCENARIO = defineScenario({
 describe('Ephemeral commands', () => {
   const harness = setupHarness(INSPECT_SCENARIO);
 
-  it('/collegium trace returns a turn’s full tool trace to the invoker alone (§8.3)', async () => {
+  it('/collegium.trace returns a turn’s full tool trace to the invoker alone (§8.3)', async () => {
     const { channels, inference } = harness();
     const fact = `fact-${randomUUID()}`;
     const reply = `traced-${randomUUID()}`;
@@ -61,14 +61,14 @@ describe('Ephemeral commands', () => {
 
     await channels.main.mention('mira', 'remember this');
     const finalPost = await channels.main.awaitReplyFrom('mira', { text: reply });
-    await channels.main.runCommand(`/collegium trace ${finalPost.id}`);
+    await channels.main.runCommand(`/collegium.trace ${finalPost.id}`);
     const trace = await channels.main.awaitEphemeral({ contains: 'memory::write' });
     expect(trace.message).toContain(`called \`memory::write\``);
     expect(trace.message).toContain(fact);
     expect((await channels.main.posts()).some((post) => post.text.includes('Trace for turn'))).toBe(false);
   });
 
-  it('/collegium queue reports pending depth and the oldest unprocessed post (§8.4)', async () => {
+  it('/collegium.queue reports pending depth and the oldest unprocessed post (§8.4)', async () => {
     const { agents, channels, inference } = harness();
     const drained = `drained-${randomUUID()}`;
     const blocked = inference.willBlock({ agent: 'mira', contains: 'hold the line' }, textResponse('holding done'));
@@ -77,7 +77,7 @@ describe('Ephemeral commands', () => {
     await blocked.arrived;
     const queued = await channels.main.mention('mira', `queued ${randomUUID()}`);
     await channels.main.awaitReaction(queued, QUEUED_ACKNOWLEDGEMENT_EMOJI);
-    await channels.main.runCommand(`/collegium queue ${agents.mira.username}`);
+    await channels.main.runCommand(`/collegium.queue ${agents.mira.username}`);
     const report = await channels.main.awaitEphemeral({ contains: 'oldest unprocessed' });
     expect(report.message).toContain(queued.id);
 
@@ -86,7 +86,7 @@ describe('Ephemeral commands', () => {
     await channels.main.awaitReplyFrom('mira', { text: drained });
   });
 
-  it('/collegium triggers lists outstanding triggers for an agent (§8.4)', async () => {
+  it('/collegium.triggers lists outstanding triggers for an agent (§8.4)', async () => {
     const { agents, app, channels, inference } = harness();
     const subject = `pending-review ${randomUUID()}`;
     const acknowledged = `ack-${randomUUID()}`;
@@ -104,7 +104,7 @@ describe('Ephemeral commands', () => {
     const { id } = (await response.json()) as { id: string };
     await channels.main.awaitReplyFrom('mira', { text: acknowledged });
 
-    await channels.main.runCommand(`/collegium triggers ${agents.mira.username}`);
+    await channels.main.runCommand(`/collegium.triggers ${agents.mira.username}`);
     const listing = await channels.main.awaitEphemeral({ contains: id });
     expect(listing.message).toContain('posted');
   });
@@ -113,14 +113,14 @@ describe('Ephemeral commands', () => {
 describe('Posting commands', () => {
   const harness = setupHarness(INSPECT_SCENARIO);
 
-  it('/collegium forget removes a post from agent context (§8.4)', async () => {
+  it('/collegium.forget removes a post from agent context (§8.4)', async () => {
     const { channels, inference } = harness();
     const secret = `secret-${randomUUID()}`;
     const reply = `clean-${randomUUID()}`;
     const seed = await channels.main.say(`note: ${secret}`);
     await sleep(500);
 
-    await channels.main.runCommand(`/collegium forget ${seed.id}`);
+    await channels.main.runCommand(`/collegium.forget ${seed.id}`);
     await channels.main.awaitPost({
       description: 'the forget acknowledgement',
       match: (post) => post.text.includes('removed from agent context')
@@ -133,14 +133,14 @@ describe('Posting commands', () => {
     expect(JSON.stringify(request?.messages)).not.toContain(secret);
   });
 
-  it('/collegium reset marks an episode boundary that context never reaches past (§3.8)', async () => {
+  it('/collegium.reset marks an episode boundary that context never reaches past (§3.8)', async () => {
     const { agents, channels, inference } = harness();
     const before = `before-boundary-${randomUUID()}`;
     const reply = `fresh-start-${randomUUID()}`;
     await channels.main.say(`context: ${before}`);
     await sleep(500);
 
-    await channels.main.runCommand(`/collegium reset ${agents.mira.username}`);
+    await channels.main.runCommand(`/collegium.reset ${agents.mira.username}`);
     await channels.main.awaitPost({
       description: 'the reset acknowledgement',
       match: (post) => post.text.includes('Episode boundary set')
@@ -154,7 +154,7 @@ describe('Posting commands', () => {
   });
 });
 
-describe('/collegium stop', () => {
+describe('/collegium.stop', () => {
   const harness = setupHarness(SCENARIO);
 
   it('ends current turns in the channel at the next iteration boundary (§7.5)', async () => {
@@ -164,7 +164,7 @@ describe('/collegium stop', () => {
 
     await channels.main.mention('mira', 'work forever');
     await blocked.arrived;
-    await channels.main.runCommand('/collegium stop');
+    await channels.main.runCommand('/collegium.stop');
     await channels.main.awaitPost({
       description: 'the stop acknowledgement',
       match: (post) => post.text.includes('Stopping 1 turn')
@@ -176,7 +176,7 @@ describe('/collegium stop', () => {
   });
 });
 
-describe('/collegium kill', () => {
+describe('/collegium.kill', () => {
   const harness = setupHarness(SCENARIO);
 
   it('ends current turns in the channel immediately and releases the lock (§7.5)', async () => {
@@ -186,7 +186,7 @@ describe('/collegium kill', () => {
 
     await channels.main.mention('mira', 'wedge yourself');
     await blocked.arrived;
-    await channels.main.runCommand('/collegium kill');
+    await channels.main.runCommand('/collegium.kill');
     await channels.main.awaitPost({
       description: 'the kill acknowledgement',
       match: (post) => post.text.includes('Killed 1 turn')
@@ -199,7 +199,7 @@ describe('/collegium kill', () => {
   });
 });
 
-describe('/collegium resume', () => {
+describe('/collegium.resume', () => {
   const harness = setupHarness(RESUME_SCENARIO);
 
   it('clears a global halt, draining the work queued behind it (§7.4)', async () => {
@@ -221,7 +221,7 @@ describe('/collegium resume', () => {
     // the drained turn's latest message is the /resume acknowledgement, so the match is by agent
     const reply = `resumed-${randomUUID()}`;
     inference.willReply({ agent: 'owen' }, textResponse(reply));
-    await channels.main.runCommand('/collegium resume');
+    await channels.main.runCommand('/collegium.resume');
     await channels.main.awaitPost({
       description: 'the resume acknowledgement',
       match: (post) => post.text.includes('Resumed')
@@ -231,7 +231,7 @@ describe('/collegium resume', () => {
 });
 
 // §7.4's window is per-process, so this needs a harness whose ceiling no earlier test has spent
-describe('/collegium resume and the rolling window', () => {
+describe('/collegium.resume and the rolling window', () => {
   const harness = setupHarness(RESUME_SCENARIO);
 
   it('grants a fresh allowance rather than resuming into the exhausted window (§7.4)', async () => {
@@ -253,7 +253,7 @@ describe('/collegium resume and the rolling window', () => {
     // every turn from here drains behind the halt post, so each matches by agent alone
     const drained = `drained-${randomUUID()}`;
     inference.willReply({ agent: 'mira' }, textResponse(drained));
-    await channels.main.runCommand('/collegium resume');
+    await channels.main.runCommand('/collegium.resume');
     await channels.main.awaitReplyFrom('mira', { text: drained });
 
     // the window was cleared on the human's authority, so a full ceiling's worth runs again
@@ -272,7 +272,7 @@ describe('/collegium resume and the rolling window', () => {
 describe('Intervention scope', () => {
   const harness = setupHarness(SCENARIO);
 
-  it('/collegium stop and /collegium kill apply to every agent in the issuing channel (§7.5)', async () => {
+  it('/collegium.stop and /collegium.kill apply to every agent in the issuing channel (§7.5)', async () => {
     const { channels, inference } = harness();
     const miraDiscarded = `mira-discarded-${randomUUID()}`;
     const owenDiscarded = `owen-discarded-${randomUUID()}`;
@@ -283,7 +283,7 @@ describe('Intervention scope', () => {
     await miraBlocked.arrived;
     await channels.main.mention('owen', 'dig in too');
     await owenBlocked.arrived;
-    await channels.main.runCommand('/collegium stop');
+    await channels.main.runCommand('/collegium.stop');
     await channels.main.awaitPost({
       description: 'a stop acknowledgement covering both turns',
       match: (post) => post.text.includes('Stopping 2 turn')
@@ -297,7 +297,7 @@ describe('Intervention scope', () => {
     expect(posts.some((post) => post.text.includes(owenDiscarded))).toBe(false);
   });
 
-  it('/collegium stop and /collegium kill leave the queue intact so pending work drains into the next turn (§7.5)', async () => {
+  it('/collegium.stop and /collegium.kill leave the queue intact so pending work drains into the next turn (§7.5)', async () => {
     const { channels, inference } = harness();
     const queuedWork = `queued work ${randomUUID()}`;
     const reply = `drained-${randomUUID()}`;
@@ -310,12 +310,12 @@ describe('Intervention scope', () => {
 
     // the drained turn's latest message is the /stop acknowledgement, so the match is by agent
     inference.willReply({ agent: 'mira' }, textResponse(reply));
-    await channels.main.runCommand('/collegium stop');
+    await channels.main.runCommand('/collegium.stop');
     blocked.release();
     await channels.main.awaitReplyFrom('mira', { text: reply });
   });
 
-  it('accepts /collegium stop and /collegium kill from any human in the channel (§7.5)', async () => {
+  it('accepts /collegium.stop and /collegium.kill from any human in the channel (§7.5)', async () => {
     const { channels, inference } = harness();
     const discarded = `bystander-discarded-${randomUUID()}`;
     const human = await channels.main.joinAsHuman(`human-${randomUUID().slice(0, 8)}`);
@@ -323,7 +323,7 @@ describe('Intervention scope', () => {
 
     await channels.main.mention('mira', 'keep working');
     await blocked.arrived;
-    await channels.main.runCommandAs(human, '/collegium kill');
+    await channels.main.runCommandAs(human, '/collegium.kill');
     await channels.main.awaitPost({
       description: 'the kill acknowledgement issued by a non-admin human',
       match: (post) => post.text.includes('Killed 1 turn')

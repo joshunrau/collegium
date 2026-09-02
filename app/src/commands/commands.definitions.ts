@@ -5,10 +5,8 @@ type CommandDefinition = {
   readonly purpose: string;
 };
 
-function renderSubcommand(trigger: CommandTrigger): string {
-  const hint = COMMAND_DEFINITIONS[trigger].hint;
-  return hint ? `${trigger} ${hint}` : trigger;
-}
+/** every trigger is namespaced, so `/coll` autocompletes the whole surface and no generic word is claimed */
+const COMMAND_NAMESPACE = 'collegium';
 
 /** the §8.4 command surface — the one list every other representation derives from */
 export const COMMAND_TRIGGERS = [
@@ -39,28 +37,19 @@ export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefin
   triggers: { hint: '{agent}', purpose: 'List outstanding triggers' }
 };
 
-/** the single Mattermost trigger — every §8.4 command is a subcommand of `/collegium` */
-export const COMMAND_TRIGGER = 'collegium';
-
-/** what Mattermost shows beside `/collegium` in its command list */
-export const COMMAND_DESCRIPTION = 'Collegium operator commands';
-
 /** the one path every slash command posts to; registration composes APP_PUBLIC_URL with this */
 export const COMMANDS_PATH = '/commands';
 
-/** the autocomplete hint Mattermost shows once `/collegium ` is typed: every subcommand and its arguments */
-export function renderAutocompleteHint(): string {
-  return COMMAND_TRIGGERS.map(renderSubcommand).join(' | ');
+/** the trigger word Mattermost holds, e.g. `collegium.stop` */
+export function renderCommandTrigger(trigger: CommandTrigger): string {
+  return `${COMMAND_NAMESPACE}.${trigger}`;
+}
+
+/** what Mattermost posts in `command`, e.g. `/collegium.stop` */
+export function renderCommandName(trigger: CommandTrigger): string {
+  return `/${renderCommandTrigger(trigger)}`;
 }
 
 export function renderUsage(trigger: CommandTrigger): string {
-  return `Usage: /${COMMAND_TRIGGER} ${renderSubcommand(trigger)}`;
-}
-
-/** the ephemeral reply to a bare or unrecognised `/collegium`: one line per subcommand, with its purpose */
-export function renderCommandListing(): string {
-  return [
-    `Usage: /${COMMAND_TRIGGER} {subcommand}`,
-    ...COMMAND_TRIGGERS.map((trigger) => `- ${renderSubcommand(trigger)} — ${COMMAND_DEFINITIONS[trigger].purpose}`)
-  ].join('\n');
+  return `Usage: ${renderCommandName(trigger)} ${COMMAND_DEFINITIONS[trigger].hint}`.trim();
 }

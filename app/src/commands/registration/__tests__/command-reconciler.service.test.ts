@@ -8,22 +8,24 @@ import { LoggingService } from '@/logging/logging.service.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 
-import { COMMAND_DESCRIPTION, COMMAND_TRIGGER, renderAutocompleteHint } from '../../commands.definitions.ts';
+import { COMMAND_DEFINITIONS, COMMAND_TRIGGERS, renderCommandTrigger } from '../../commands.definitions.ts';
 import { CommandReconcilerService } from '../command-reconciler.service.ts';
+
+import type { CommandTrigger } from '../../commands.definitions.ts';
 
 const OWN_USER_ID = 'system-bot';
 const CALLBACK_URL = 'https://collegium.example.com/commands';
 
-const held = (overrides: Partial<RegisteredSlashCommand> = {}): RegisteredSlashCommand => ({
+const held = (trigger: CommandTrigger, overrides: Partial<RegisteredSlashCommand> = {}): RegisteredSlashCommand => ({
   autoComplete: true,
-  autoCompleteHint: renderAutocompleteHint(),
+  autoCompleteHint: COMMAND_DEFINITIONS[trigger].hint,
   creatorId: OWN_USER_ID,
   creatorUsername: 'collegium',
-  description: COMMAND_DESCRIPTION,
-  displayName: COMMAND_TRIGGER,
-  id: 'cmd-collegium',
+  description: COMMAND_DEFINITIONS[trigger].purpose,
+  displayName: renderCommandTrigger(trigger),
+  id: `cmd-${trigger}`,
   method: 'P',
-  trigger: COMMAND_TRIGGER,
+  trigger: renderCommandTrigger(trigger),
   url: CALLBACK_URL,
   ...overrides
 });
@@ -54,56 +56,57 @@ describe('CommandReconcilerService', () => {
     loggingService = moduleRef.get(LoggingService);
   });
 
-  it('should create the single collegium command when the team holds none', async () => {
+  it('should create every declared trigger against the callback url when the team holds none', async () => {
     surface([]);
     await commandReconcilerService.reconcile();
-    expect(chatGateway.createSlashCommand).toHaveBeenCalledTimes(1);
-    expect(chatGateway.createSlashCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: COMMAND_DESCRIPTION,
-        displayName: COMMAND_TRIGGER,
-        trigger: COMMAND_TRIGGER,
-        url: CALLBACK_URL
-      })
-    );
+    expect(chatGateway.createSlashCommand).toHaveBeenCalledTimes(COMMAND_TRIGGERS.length);
+    expect(chatGateway.createSlashCommand).toHaveBeenCalledWith({
+      autoCompleteHint: '',
+      description: COMMAND_DEFINITIONS.stop.purpose,
+      displayName: 'collegium.stop',
+      trigger: 'collegium.stop',
+      url: CALLBACK_URL
+    });
     expect(loggingService.log).toHaveBeenCalledWith(
-      `reconciled /${COMMAND_TRIGGER}: 1 created, 0 corrected, 0 removed`
+      `reconciled ${COMMAND_TRIGGERS.length} slash commands: ${COMMAND_TRIGGERS.length} created, 0 corrected, 0 removed`
     );
   });
 
-  it('should change nothing when the command is already current', async () => {
-    surface([held()]);
+  it('should change nothing when every declared trigger is already current', async () => {
+    surface(COMMAND_TRIGGERS.map((trigger) => held(trigger)));
     await commandReconcilerService.reconcile();
     expect(chatGateway.createSlashCommand).not.toHaveBeenCalled();
     expect(chatGateway.correctSlashCommand).not.toHaveBeenCalled();
     expect(chatGateway.deleteSlashCommand).not.toHaveBeenCalled();
-    expect(loggingService.log).toHaveBeenCalledWith(`reconciled /${COMMAND_TRIGGER}: current`);
+    expect(loggingService.log).toHaveBeenCalledWith(
+      `reconciled ${COMMAND_TRIGGERS.length} slash commands: all current`
+    );
   });
 
-  it('should correct a drifted command and remove orphaned per-trigger commands', async () => {
-    const orphan: RegisteredSlashCommand = {
-      ...held(),
-      id: 'cmd-stop',
-      trigger: 'stop'
-    };
-    surface([held({ url: 'https://old-host.example.com/commands' }), orphan]);
+  it('should correct a drifted trigger and remove one the app no longer declares', async () => {
+    const orphan = { ...held('stop'), id: 'cmd-bare-stop', trigger: 'stop' };
+    surface([
+      ...COMMAND_TRIGGERS.map((trigger) =>
+        trigger === 'stop' ? held(trigger, { url: 'https://old-host.example.com/commands' }) : held(trigger)
+      ),
+      orphan
+    ]);
     await commandReconcilerService.reconcile();
-    expect(chatGateway.deleteSlashCommand).toHaveBeenCalledWith('cmd-stop');
+    expect(chatGateway.deleteSlashCommand).toHaveBeenCalledWith('cmd-bare-stop');
     expect(chatGateway.correctSlashCommand).toHaveBeenCalledWith(
-      'cmd-collegium',
+      'cmd-stop',
       expect.objectContaining({ url: CALLBACK_URL })
     );
     expect(chatGateway.createSlashCommand).not.toHaveBeenCalled();
     expect(loggingService.log).toHaveBeenCalledWith(
-      `reconciled /${COMMAND_TRIGGER}: 0 created, 1 corrected, 1 removed`
+      `reconciled ${COMMAND_TRIGGERS.length} slash commands: 0 created, 1 corrected, 1 removed`
     );
   });
 
-  it('should refuse boot when the trigger is held by an account it does not own', async () => {
-    surface([held({ creatorId: 'other-bot', creatorUsername: 'jira' })]);
-    await expect(commandReconcilerService.reconcile()).rejects.toThrow(`/${COMMAND_TRIGGER} (created by @jira)`);
+  it('should refuse boot naming a declared trigger held by an account it does not own', async () => {
+    surface([held('stop', { creatorId: 'other-bot', creatorUsername: 'jira' })]);
+    await expect(commandReconcilerService.reconcile()).rejects.toThrow('/collegium.stop (created by @jira)');
     expect(chatGateway.createSlashCommand).not.toHaveBeenCalled();
-    expect(chatGateway.deleteSlashCommand).not.toHaveBeenCalled();
   });
 
   it("should fail loudly when it lacks authority to read the team's slash commands", async () => {

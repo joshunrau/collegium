@@ -163,7 +163,7 @@ A `memories` table in SQLite, accessible to agents only through a tool, never th
 - **Descriptions are loaded into the system prompt on every turn.** Bodies are loaded on demand.
 - **Writes are ungated** — the single exception to A5.
 - Entry count, description size, and body size are all capped, by the memory toolset's settings (§3.4). An over-length description or body is refused, never truncated; a write at the entry cap evicts the oldest entry.
-- Every entry carries provenance: written-at timestamp and originating post ID. Entries are shown to the agent, in the trace, and to `/collegium memory` by a **reference** — the first eight characters of the id — which the store resolves back, refusing rather than guessing if it ever matched two.
+- Every entry carries provenance: written-at timestamp and originating post ID. Entries are shown to the agent, in the trace, and to `/collegium.memory` by a **reference** — the first eight characters of the id — which the store resolves back, refusing rather than guessing if it ever matched two.
 - Memory is per-agent and never shared between agents.
 
 _Why ungated:_ gating a memory write would block an entire turn on a triviality — an agent stalling for hours because it wanted to record a phone preference. Memory formation cannot sit behind human latency or it will not happen.
@@ -201,7 +201,7 @@ Each turn assembles context fresh from SQLite:
 
 The token budget is a character-ratio estimate (~4 characters per token) behind a named seam. There is no tokenizer dependency.
 
-There is no threading. All posts are channel-level, so **context is pure recency**: no structural marker indicates where one piece of work ended and the next began. `/collegium reset {agent}` provides a manual episode boundary; context never reaches back past the most recent one.
+There is no threading. All posts are channel-level, so **context is pure recency**: no structural marker indicates where one piece of work ended and the next began. `/collegium.reset {agent}` provides a manual episode boundary; context never reaches back past the most recent one.
 
 DM context follows the same mechanism as any other channel.
 
@@ -237,7 +237,7 @@ Private reasoning is any intermediate model computation that is not emitted as u
 - is never posted to Mattermost;
 - is never included in an approval prompt;
 - is never stored in SQLite;
-- is never returned by `/collegium trace`;
+- is never returned by `/collegium.trace`;
 
 Where a model provider reports reasoning-token usage or similar accounting metadata, the framework may store the usage count, but not the reasoning content.
 
@@ -432,7 +432,7 @@ There is no undo. `workspace::write` and `shell::run` act only inside confinemen
 
 ### **6.4 Callback Endpoints Trust The Network**
 
-`POST /decisions`, `POST /commands`, and `POST /triggers` carry no authentication, by decision. Anyone who can reach `APP_PORT` can approve an agent action, issue `/collegium kill`, or inject a trigger. The port must not be publicly routable — bind the loopback or a private interface and let Mattermost reach it over that path.
+`POST /decisions`, `POST /commands`, and `POST /triggers` carry no authentication, by decision. Anyone who can reach `APP_PORT` can approve an agent action, issue `/collegium.kill`, or inject a trigger. The port must not be publicly routable — bind the loopback or a private interface and let Mattermost reach it over that path.
 
 ## **7. Failure And Recovery**
 
@@ -448,12 +448,12 @@ Every way a turn can stop, and what the human sees:
 - **Side-effect ambiguity** — a mutating call times out. Ends, with an explicit statement that completion cannot be confirmed.
 - **Provider outage** — completion fails after retries. Ends. Failure posted under the agent's name.
 - **Delivery failure** — the chat substrate refused a post the turn had to make. Ends, carrying the substrate's own reason. This is **not** a provider outage: naming the wrong system sends the reader to the wrong place. Where the refusal is total — an agent posting into a channel it does not belong to — there is no post to point at at all, which is A1's failure mode and must be loud in the operational record even though the channel stays silent.
-- **`/collegium stop`** — human command. Ends at the next iteration boundary. Stop notice posted.
-- **`/collegium kill`** — human command. Ends immediately; an in-flight tool may still complete.
-- **Global halt** — hourly ceiling breached. All agents stop; prominent post; requires `/collegium resume`.
+- **`/collegium.stop`** — human command. Ends at the next iteration boundary. Stop notice posted.
+- **`/collegium.kill`** — human command. Ends immediately; an in-flight tool may still complete.
+- **Global halt** — hourly ceiling breached. All agents stop; prominent post; requires `/collegium.resume`.
 - **Restart** — deploy or crash. All in-flight turns abandoned; one system-bot notice in the main channel.
 
-In every case the channel lock is released. The queue drains into a fresh turn only when the exit allows progress — normal completion, denial, budget exhaustion, `/collegium stop`, `/collegium kill`. After a provider outage, semantic error, side-effect ambiguity, or delivery failure — and while a global halt stands — the queue is left standing: a fresh turn would inherit the same failure, and a drain loop bounded only by the hourly ceiling would halt the whole framework over one dead provider. A standing queue drains at the next human post, the next idle trigger flush, or the boot/`/collegium resume` sweep — all human-visible moments. There is no retry timer: a slow retry loop is still the graceful degradation A4 rejects.
+In every case the channel lock is released. The queue drains into a fresh turn only when the exit allows progress — normal completion, denial, budget exhaustion, `/collegium.stop`, `/collegium.kill`. After a provider outage, semantic error, side-effect ambiguity, or delivery failure — and while a global halt stands — the queue is left standing: a fresh turn would inherit the same failure, and a drain loop bounded only by the hourly ceiling would halt the whole framework over one dead provider. A standing queue drains at the next human post, the next idle trigger flush, or the boot/`/collegium.resume` sweep — all human-visible moments. There is no retry timer: a slow retry loop is still the graceful degradation A4 rejects.
 
 ### **7.2 Retry Policy**
 
@@ -501,27 +501,27 @@ Agent-to-agent mentions make unbounded chains possible: each turn is individuall
 
 Enforcement is in the framework, not the prompt. Prompt-level constraints are advisory, and advisory constraints are what produced Hermes.
 
-**Global ceiling: 250 turns per hour, framework-wide** (`turns.hourlyCeiling`). Breach halts all agents, posts prominently, and requires an explicit `/collegium resume`. A halt invalidates pending approval prompts, as a restart does. While a halt stands, queues do not drain and triggers are not flushed — a trigger posted into a halted channel would strand, the exact outcome idle-gating exists to prevent. On clearing, `/collegium resume` runs the same drain-and-flush sweep boot performs.
+**Global ceiling: 250 turns per hour, framework-wide** (`turns.hourlyCeiling`). Breach halts all agents, posts prominently, and requires an explicit `/collegium.resume`. A halt invalidates pending approval prompts, as a restart does. While a halt stands, queues do not drain and triggers are not flushed — a trigger posted into a halted channel would strand, the exact outcome idle-gating exists to prevent. On clearing, `/collegium.resume` runs the same drain-and-flush sweep boot performs.
 
-**`/collegium resume` refuses only what it can objectively re-check.** A §3.10 topology violation is a fact about membership, so a halt raised by one stands until membership is fixed. A ceiling halt clears on the human's authority: the rolling window is reset and a fresh allowance begins. The halt exists to stop a chain and put a human in front of it; once they have looked, their judgement is the control the system was routing to, and a check that overrides it while offering no way to say _"I have seen it and it is fine"_ turns an emergency brake into a timer — which is not something a human can be accountable for.
+**`/collegium.resume` refuses only what it can objectively re-check.** A §3.10 topology violation is a fact about membership, so a halt raised by one stands until membership is fixed. A ceiling halt clears on the human's authority: the rolling window is reset and a fresh allowance begins. The halt exists to stop a chain and put a human in front of it; once they have looked, their judgement is the control the system was routing to, and a check that overrides it while offering no way to say _"I have seen it and it is fine"_ turns an emergency brake into a timer — which is not something a human can be accountable for.
 
 _Accepted cost:_ a loop that trips the ceiling is handed a fresh allowance every time someone resumes it. The compensating controls are that the halt post is prominent, the resume is attributable, and the running count is in front of whoever clicks.
 
-**The rolling window is durable; the halt flag is not.** Turn starts are counted from the store, from a persisted watermark that `/collegium resume` advances, bounded to the trailing hour. The halt not surviving a restart is acceptable only because a restart breaks the loop that raised it; a crash-looping instance granting itself a fresh allowance every boot, with nobody deciding anything, would instead make the framework-wide number untrue. The ceiling is therefore re-evaluated at the first turn start after boot, and re-raises the halt if the window is still full.
+**The rolling window is durable; the halt flag is not.** Turn starts are counted from the store, from a persisted watermark that `/collegium.resume` advances, bounded to the trailing hour. The halt not surviving a restart is acceptable only because a restart breaks the loop that raised it; a crash-looping instance granting itself a fresh allowance every boot, with nobody deciding anything, would instead make the framework-wide number untrue. The ceiling is therefore re-evaluated at the first turn start after boot, and re-raises the halt if the window is still full.
 
 ### **7.5 Manual Intervention**
 
 Both commands are **channel-scoped and apply to all agents in that channel.**
 
-`/collegium stop` aborts current turns at the next iteration boundary. The honest guarantee is _no further tool calls_, not _nothing happened_.
+`/collegium.stop` aborts current turns at the next iteration boundary. The honest guarantee is _no further tool calls_, not _nothing happened_.
 
-`/collegium kill` abandons current turns immediately: the turn record is closed and the channel lock released. A tool already in flight may still complete and its side effect may still land — `/collegium kill` is for a wedged process, and it accepts that ambiguity in exchange for immediacy.
+`/collegium.kill` abandons current turns immediately: the turn record is closed and the channel lock released. A tool already in flight may still complete and its side effect may still land — `/collegium.kill` is for a wedged process, and it accepts that ambiguity in exchange for immediacy.
 
 Both post visibly. Any human in the channel may issue either, since stopping is always safe. Neither clears the queue: whatever was pending drains into the next turn.
 
-**A command's own response is ephemeral**, so it never enters a channel as a post and cannot re-activate the agent it just interrupted — a `/collegium kill` that wakes what it killed is not an intervention. The visible notice is separate: posted by the system bot where it is present, and under the agent's own account in a DM, where Mattermost admits no third party. Both are deterministic code, the second exactly as §3.2 permits for stop notices.
+**A command's own response is ephemeral**, so it never enters a channel as a post and cannot re-activate the agent it just interrupted — a `/collegium.kill` that wakes what it killed is not an intervention. The visible notice is separate: posted by the system bot where it is present, and under the agent's own account in a DM, where Mattermost admits no third party. Both are deterministic code, the second exactly as §3.2 permits for stop notices.
 
-Either command also resolves a pending approval in the channel as **cancelled**: the prompt is rewritten to an invalidated terminal state, exactly as a restart does, and no follow-up posts. A cancellation is not a denial — denial statistics keep meaning that a human refused an action. This is how `/collegium stop` reaches a turn parked on an approval, which is never between iterations and would otherwise be untouchable for days.
+Either command also resolves a pending approval in the channel as **cancelled**: the prompt is rewritten to an invalidated terminal state, exactly as a restart does, and no follow-up posts. A cancellation is not a denial — denial statistics keep meaning that a human refused an action. This is how `/collegium.stop` reaches a turn parked on an approval, which is never between iterations and would otherwise be untouchable for days.
 
 ## **8. Persistence And Observability**
 
@@ -529,11 +529,11 @@ Either command also resolves a pending approval in the channel as **cancelled**:
 
 **One status post per turn, edited in place** as the turn progresses. Tool calls are appended to it as they occur, so the post accumulates a readable trace of the turn rather than only showing current state. Mattermost supports post updates with a websocket edit broadcast, so connected clients re-render live.
 
-**Each line names the tool and what the call is doing** — the URL navigated to, the path written, the command run — because a column of bare tool names says a turn was busy without saying what it did. Each tool renders its own one-line summary, choosing which of its arguments a supervisor needs; the line is capped in length and the untruncated arguments are always in `/collegium trace`. The line is written before the call runs, so arguments the tool's schema will reject have no summary and the call is named alone.
+**Each line names the tool and what the call is doing** — the URL navigated to, the path written, the command run — because a column of bare tool names says a turn was busy without saying what it did. Each tool renders its own one-line summary, choosing which of its arguments a supervisor needs; the line is capped in length and the untruncated arguments are always in `/collegium.trace`. The line is written before the call runs, so arguments the tool's schema will reject have no summary and the call is named alone.
 
 _Why not stream every tool call as a separate post:_ a ten-call turn would produce ten posts of machinery around one post of substance, and approval prompts live in the same channel — noise in the supervision channel degrades the gate (A5).
 
-Every memory write — and any eviction it causes — emits a disclosure line here (§3.6), the untruncated content of which can be viewed with `/collegium trace`.
+Every memory write — and any eviction it causes — emits a disclosure line here (§3.6), the untruncated content of which can be viewed with `/collegium.trace`.
 
 Queued messages are acknowledged with a 👀 reaction (§5.2). This and the typing indicator below are the only signals the framework emits without posting.
 
@@ -563,7 +563,7 @@ _Accepted losses:_ editing a post in the client does not correct what an agent b
 
 ### **8.3 Trace**
 
-The complete tool trace — every call, arguments, and results — is retrievable via `/collegium trace {post-id}`. **The response is ephemeral, visible only to the invoker**, because trace output contains file contents and email bodies verbatim, and everyone in a channel can also approve agents.
+The complete tool trace — every call, arguments, and results — is retrievable via `/collegium.trace {post-id}`. **The response is ephemeral, visible only to the invoker**, because trace output contains file contents and email bodies verbatim, and everyone in a channel can also approve agents.
 
 A trace carrying those payloads runs into the same substrate limit §6.2 does, and takes the same answer: where it exceeds what a single post can carry, it is delivered as an attachment, still ephemeral. One rule for content larger than a post, in both places it arises.
 
@@ -571,21 +571,21 @@ Reading traces is how the tool inventory gets tightened over time.
 
 ### **8.4 Command Surface**
 
-All commands are subcommands of `/collegium`:
+Every command is namespaced under `collegium.`, so typing `/coll` autocompletes the whole surface and no generic word like `stop` is claimed team-wide:
 
-- **`/collegium trace {post-id}`** — full tool trace for a turn. Ephemeral.
-- **`/collegium forget {post-id}`** — remove a post from agent context. Posts.
-- **`/collegium reset {agent}`** — mark an episode boundary. Posts.
-- **`/collegium stop`** — abort current turns in this channel at the next boundary. Posts.
-- **`/collegium kill`** — abandon current turns in this channel immediately. Posts.
-- **`/collegium resume`** — clear a global halt.
-- **`/collegium queue {agent}`** — show pending depth and the oldest unprocessed post. Ephemeral.
-- **`/collegium triggers {agent}`** — list outstanding triggers. Ephemeral.
-- **`/collegium memory {agent}`** — inspect and prune an agent's memories. Ephemeral.
+- **`/collegium.trace {post-id}`** — full tool trace for a turn. Ephemeral.
+- **`/collegium.forget {post-id}`** — remove a post from agent context. Posts.
+- **`/collegium.reset {agent}`** — mark an episode boundary. Posts.
+- **`/collegium.stop`** — abort current turns in this channel at the next boundary. Posts.
+- **`/collegium.kill`** — abandon current turns in this channel immediately. Posts.
+- **`/collegium.resume`** — clear a global halt.
+- **`/collegium.queue {agent}`** — show pending depth and the oldest unprocessed post. Ephemeral.
+- **`/collegium.triggers {agent}`** — list outstanding triggers. Ephemeral.
+- **`/collegium.memory {agent}`** — inspect and prune an agent's memories. Ephemeral.
 
-**The framework registers a single `/collegium` command at boot** and reconciles it against Mattermost. **Ownership is the creating account** — not the trigger word, and not the URL. A command this app created is its own to correct or remove; a command created by anyone else is never touched. An owned command is corrected when its URL has drifted, which is the redeploy case this exists for, and removed when its name has left the desired set. A name already held by a command the app does not own is a collision it cannot resolve, since Mattermost trigger words are unique per team: boot refuses, naming the command and its owner.
+**The framework registers its own command surface at boot.** Each trigger above is reconciled against Mattermost. **Ownership is the creating account** — not the trigger word, and not the URL. A command this app created is its own to correct or remove; a command created by anyone else is never touched. An owned command is corrected when its URL has drifted, which is the redeploy case this exists for, and removed when its name has left the desired set. A name already held by a command the app does not own is a collision it cannot resolve, since Mattermost trigger words are unique per team: boot refuses, naming the command and its owner.
 
-_Why not the URL:_ a command whose URL drifted is precisely the one needing correction, and URL-ownership would read it as foreign. _Why not the name:_ name-ownership would seize a `/collegium` that legitimately belongs to another integration.
+_Why not the URL:_ a command whose URL drifted is precisely the one needing correction, and URL-ownership would read it as foreign. _Why not the name:_ name-ownership would seize a `/collegium.stop` that legitimately belongs to another integration.
 
 _Accepted cost:_ ownership follows the account, so rotating the app's token to a different one orphans the whole command surface — every name in the list becomes a foreign collision and boot refuses. That is loud and fixable by deleting the orphans, but a token rotation carries a deploy step with it.
 

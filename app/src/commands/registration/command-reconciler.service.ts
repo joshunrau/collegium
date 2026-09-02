@@ -6,12 +6,7 @@ import type { SlashCommandRegistration } from '@/chat/chat.types.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 
-import {
-  COMMAND_DESCRIPTION,
-  COMMAND_TRIGGER,
-  COMMANDS_PATH,
-  renderAutocompleteHint
-} from '../commands.definitions.ts';
+import { COMMAND_DEFINITIONS, COMMAND_TRIGGERS, COMMANDS_PATH, renderCommandTrigger } from '../commands.definitions.ts';
 import { planSlashCommandReconciliation } from './command-reconciler.utils.ts';
 
 import type { SlashCommandReconciliationPlan } from './command-reconciler.utils.ts';
@@ -19,7 +14,7 @@ import type { SlashCommandReconciliationPlan } from './command-reconciler.utils.
 /**
  * §8.4 — the framework registers its own command surface at boot. Every failure here throws and
  * boot refuses: a framework that starts without its stop switch is worse than one that does not
- * start. Runs before any agent transport connects, so /collegium stop is registered before any turn can start.
+ * start. Runs before any agent transport connects, so /collegium.stop is registered before any turn can start.
  */
 @Injectable()
 export class CommandReconcilerService {
@@ -58,21 +53,19 @@ export class CommandReconcilerService {
   }
 
   private desiredRegistrations(): SlashCommandRegistration[] {
-    return [
-      {
-        autoCompleteHint: renderAutocompleteHint(),
-        description: COMMAND_DESCRIPTION,
-        displayName: COMMAND_TRIGGER,
-        trigger: COMMAND_TRIGGER,
-        url: this.callbackUrl
-      }
-    ];
+    return COMMAND_TRIGGERS.map((trigger) => ({
+      autoCompleteHint: COMMAND_DEFINITIONS[trigger].hint,
+      description: COMMAND_DEFINITIONS[trigger].purpose,
+      displayName: renderCommandTrigger(trigger),
+      trigger: renderCommandTrigger(trigger),
+      url: this.callbackUrl
+    }));
   }
 
   private summarize({ corrections, creates, deletes }: SlashCommandReconciliationPlan): string {
     if (creates.length === 0 && corrections.length === 0 && deletes.length === 0) {
-      return `reconciled /${COMMAND_TRIGGER}: current`;
+      return `reconciled ${COMMAND_TRIGGERS.length} slash commands: all current`;
     }
-    return `reconciled /${COMMAND_TRIGGER}: ${creates.length} created, ${corrections.length} corrected, ${deletes.length} removed`;
+    return `reconciled ${COMMAND_TRIGGERS.length} slash commands: ${creates.length} created, ${corrections.length} corrected, ${deletes.length} removed`;
   }
 }

@@ -1,5 +1,6 @@
-import { COMMAND_TRIGGERS } from './commands.definitions.ts';
+import { COMMAND_TRIGGERS, renderCommandName } from './commands.definitions.ts';
 
+import type { CommandTrigger } from './commands.definitions.ts';
 import type { CommandHandler } from './commands.handler.ts';
 
 /**
@@ -11,21 +12,22 @@ export class CommandRegistry {
   private readonly handlers: ReadonlyMap<string, CommandHandler>;
 
   constructor(handlers: readonly CommandHandler[]) {
-    const byTrigger = new Map<string, CommandHandler>();
+    const byTrigger = new Map<CommandTrigger, CommandHandler>();
     for (const handler of handlers) {
       if (byTrigger.has(handler.trigger)) {
-        throw new Error(`two command handlers claim /${handler.trigger}`);
+        throw new Error(`two command handlers claim ${renderCommandName(handler.trigger)}`);
       }
       byTrigger.set(handler.trigger, handler);
     }
     const missing = COMMAND_TRIGGERS.filter((trigger) => !byTrigger.has(trigger));
     if (missing.length > 0) {
-      throw new Error(`no handler provided for ${missing.map((trigger) => `/${trigger}`).join(', ')}`);
+      throw new Error(`no handler provided for ${missing.map(renderCommandName).join(', ')}`);
     }
-    this.handlers = byTrigger;
+    this.handlers = new Map([...byTrigger].map(([trigger, handler]) => [renderCommandName(trigger), handler]));
   }
 
-  resolve(trigger: string): CommandHandler | undefined {
-    return this.handlers.get(trigger);
+  /** accepts only the wire form Mattermost sends, e.g. "/collegium.stop" — a bare "stop" resolves nothing */
+  resolve(command: string): CommandHandler | undefined {
+    return this.handlers.get(command);
   }
 }
