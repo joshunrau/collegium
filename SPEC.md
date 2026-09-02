@@ -86,7 +86,7 @@ Each agent is a **Mattermost bot account** with its own access token, addressabl
 
 Agents are persistent colleagues, not task-scoped job runners. There is one instance of each agent, continuously; conversations are episodes in an ongoing relationship rather than independent invocations.
 
-Provisioning is a deployment act, not a runtime one: before the app starts, a separate process reconciles Mattermost against the configuration — creating the team, the channels, one bot account per declared agent, and the access token each is addressed with. It converges; boot only refuses. Its first act against a Mattermost it did not start is a refusal of its own: the server's settings must permit bot accounts, permit personal access tokens, and allow the callback address the app is reached on, and provisioning names each one it finds missing before creating anything — the last of the three otherwise fails nothing until the first approval button is clicked. The administrator it acts as is named by a personal access token where the server already exists, and by a password only where a fresh install has no account to sign in as. Nothing the running framework does creates an account or a channel, and **there is no runtime agent spawning**: every worker has a durable identity and its output is in a channel.
+Provisioning is a deployment act, not a runtime one: before the app starts, a separate process reconciles Mattermost against the configuration — creating the team, the channels, one bot account per declared agent, and the access token each is addressed with. It converges; boot only refuses. Channel membership is what it does not converge: every bot joins the main channel, an agent joins the channel its mail arrivals are announced to, and the system bot joins every channel the configuration names, so that its notices (§3.2) have a place to land in each of them — nothing else. Who else belongs in a channel is set in Mattermost by the people who run it, and §3.10 is checked against that membership rather than against a second declaration that would have to agree with it. Its first act against a Mattermost it did not start is a refusal of its own: the server's settings must permit bot accounts, permit personal access tokens, and allow the callback address the app is reached on, and provisioning names each one it finds missing before creating anything — the last of the three otherwise fails nothing until the first approval button is clicked. The administrator it acts as is named by a personal access token where the server already exists, and by a password only where a fresh install has no account to sign in as. Nothing the running framework does creates an account or a channel, and **there is no runtime agent spawning**: every worker has a durable identity and its output is in a channel.
 
 ### **3.2 System Bot**
 
@@ -209,7 +209,7 @@ DM context follows the same mechanism as any other channel.
 
 Each agent generally has a dedicated Mattermost channel containing that agent and its authorized humans.
 
-**All channel configuration is declared in configuration. Agents have no input into topology.**
+**All channel configuration is declared in configuration. Agents have no input into topology.** Membership is not part of that declaration: it is held in Mattermost and set by the people who run it (§3.1), so what configuration states is which channels exist and how each one triggers.
 
 ### **3.10 Triggering Mode**
 
