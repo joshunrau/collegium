@@ -96,7 +96,7 @@ describe('PluginLoader', () => {
     expect(result.success).toBe(true);
     const loaded = result.unwrap();
     expect(loaded.toolset.name).toBe('bookmark');
-    expect(Object.keys(loaded.toolset.tools)).toStrictEqual(['list', 'save']);
+    expect(Object.keys(loaded.toolset.tools)).toStrictEqual(['find', 'list', 'save']);
     expect(loaded.toolset.skills).toStrictEqual(['saving-bookmarks']);
     expect(Object.keys(loaded.toolset.storage)).toStrictEqual(['bookmarks']);
     expect(loaded.skillsDirectory).toBe(path.join(REPOSITORY_PLUGINS, 'bookmark/src/skills'));

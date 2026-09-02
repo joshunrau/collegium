@@ -50,6 +50,8 @@ export default defineTool({
 
 A tool with `approval` always stops for a human, who sees the full payload before it runs; one without never gates. The channel and the trace disclose both, line by line. `execute` returns the text the model reads, and raises the two failures a tool controls through `err`: `invalidArguments` continues the turn, `unresolved` ends it as an unconfirmed side effect.
 
+**Storage.** Each declared collection is a handle with `get`, `put`, `delete`, `list`, and `find`. `find` takes a `where` over the schema's top-level scalar fields — a value for equality, `{ in: [...] }` for membership, `{ contains: text }` for a case-insensitive substring on a string — and an optional `limit`. Field names and value types come from the schema, so a bad query does not compile.
+
 **Testing.** `@collegium/sdk/testing` builds the context `execute` receives, over in-memory storage that validates and parses as the deployment's store does. Pass your config; settings go through your schema, so defaults apply.
 
 ```ts

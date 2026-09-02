@@ -29,6 +29,16 @@ describe('createTestContext', () => {
     await expect(storage.notes.put('c', { body: '' })).rejects.toThrow(z.ZodError);
   });
 
+  it('finds by the same grammar the store compiles, parsing each match', async () => {
+    const { storage } = createTestContext(config);
+    await storage.notes.put('a', { body: 'Alpha' });
+    await storage.notes.put('b', { body: 'beta' });
+    expect(await storage.notes.find({ where: { body: { contains: 'ALPHA' } } })).toStrictEqual([
+      { key: 'a', value: { body: 'Alpha' } }
+    ]);
+    expect(await storage.notes.find({ limit: 1, where: { body: { in: ['Alpha', 'beta'] } } })).toHaveLength(1);
+  });
+
   it('raises the failure the framework wrapper catches', () => {
     const { err } = createTestContext(config);
     expect(() => err.invalidArguments('rejected')).toThrow(PluginToolFailureError);

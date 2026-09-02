@@ -75,6 +75,8 @@ The `declare module` block registers the config's types. It is what types `setti
 - `settings` types the `settings` each tool receives. Agents set values under `toolSettings.contacts`.
 - `storage` declares one collection per key. The framework validates every read and write against the schema.
 
+Each collection is a handle with `get`, `put`, `delete`, `list`, and `find`. `find` takes a `where` over the schema's top-level scalar fields and an optional `limit`. A field condition is a value for equality, `{ in: [...] }` for membership, or, on a string field, `{ contains: text }` for a case-insensitive substring. Conditions combine with AND, and an undeclared or non-scalar field is a compile error.
+
 ## 3. Write the Tools
 
 Every `src/tools/<name>.ts` default-exports one tool, and the filename is the tool's name: `src/tools/find.ts` becomes `contacts::find`. The `parameters` schema types `args` in every callback.
@@ -88,8 +90,7 @@ import { z } from 'zod';
 export default defineTool({
   description: 'Find saved contacts by name.',
   execute: async (args, { storage }) => {
-    const contacts = await storage.contacts.list();
-    const matches = contacts.filter(({ value }) => value.name.toLowerCase().includes(args.query.toLowerCase()));
+    const matches = await storage.contacts.find({ where: { name: { contains: args.query } } });
     if (matches.length === 0) return 'no contacts matched';
     return matches.map(({ key, value }) => `- ${key}: ${value.name} <${value.email}>`).join('\n');
   },

@@ -1,5 +1,6 @@
 import { PLUGIN_TOOL_ERR } from '@collegium/core/plugins';
 import type { ToolTurnScope } from '@collegium/core/tools';
+import { applyCollectionQuery } from '@collegium/core/toolsets';
 import type { ToolsetCollection } from '@collegium/core/toolsets';
 import type { z } from 'zod';
 
@@ -15,10 +16,12 @@ const DEFAULT_TURN: ToolTurnScope = {
 
 function createCollection(schema: z.ZodType): ToolsetCollection<unknown> {
   const rows = new Map<string, unknown>();
+  const entries = () => [...rows].map(([key, value]) => ({ key, value: schema.parse(value) }));
   return {
     delete: (key) => Promise.try(() => rows.delete(key)),
+    find: (query) => Promise.try(() => applyCollectionQuery(entries(), query)),
     get: (key) => Promise.try(() => (rows.has(key) ? schema.parse(rows.get(key)) : null)),
-    list: () => Promise.try(() => [...rows].map(([key, value]) => ({ key, value: schema.parse(value) }))),
+    list: () => Promise.try(entries),
     put: (key, value) =>
       Promise.try(() => {
         rows.set(key, schema.parse(value));

@@ -2,6 +2,7 @@ import type { z } from 'zod';
 
 import type { ToolDefinition, ToolTurnScope } from '../tools.ts';
 import type { ServiceToken } from '../utils.ts';
+import type { CollectionQuery } from './query/collection-query.types.ts';
 import type { CORE_TOOLSET_DEFS, FRAMEWORK_TOOLSET_DEFS, GRANTABLE_TOOLSET_DEFS } from './toolsets.constants.ts';
 
 /** `settings`, `storage`, and `turn` are the context's own keys, so a service may not claim them */
@@ -20,6 +21,7 @@ export type EmptyDeclaration = {};
 /** a toolset-scoped handle over one declared storage collection; rows are validated on write and parsed on read */
 export type ToolsetCollection<TValue> = {
   delete(key: string): Promise<boolean>;
+  find(query: CollectionQuery<TValue>): Promise<{ key: string; value: TValue }[]>;
   get(key: string): Promise<null | TValue>;
   list(): Promise<{ key: string; value: TValue }[]>;
   put(key: string, value: TValue): Promise<void>;
