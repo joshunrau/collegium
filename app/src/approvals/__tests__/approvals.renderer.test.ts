@@ -44,17 +44,19 @@ describe('renderApprovalPrompt', () => {
 });
 
 describe('renderResolvedPrompt', () => {
-  it('should strike the heading and name the approver (§3.7)', () => {
+  it('should replace the heading with the decision (§3.7)', () => {
     expect(renderResolvedPrompt(INPUT, { byUsername: 'casey', kind: 'approved' })).toBe(
-      '🔐 ~~Approval required: `workspace::write`~~\n\n✅ **Approved** by @casey\n\nwrite notes.md with 12 words'
+      '✅ **Approved** by @casey: `workspace::write`\n\nwrite notes.md with 12 words'
     );
   });
 
   it('should distinguish a bare denial from a denial carrying a reason (§5.4)', () => {
-    expect(renderResolvedPrompt(INPUT, { byUsername: 'casey', kind: 'denied' })).toContain('🛑 **Denied** by @casey');
-    expect(
-      renderResolvedPrompt(INPUT, { byUsername: 'casey', kind: 'denied-with-reason', reason: 'wrong file' })
-    ).toContain('↩️ **Denied with reason** by @casey: wrong file');
+    expect(renderResolvedPrompt(INPUT, { byUsername: 'casey', kind: 'denied' })).toBe(
+      '🛑 **Denied** by @casey: `workspace::write`\n\nwrite notes.md with 12 words'
+    );
+    expect(renderResolvedPrompt(INPUT, { byUsername: 'casey', kind: 'denied-with-reason', reason: 'wrong file' })).toBe(
+      '↩️ **Denied with reason** by @casey: wrong file: `workspace::write`\n\nwrite notes.md with 12 words'
+    );
   });
 
   it('should say which cancellation reached the prompt, never calling it a denial (§7.5)', () => {
@@ -66,7 +68,7 @@ describe('renderResolvedPrompt', () => {
     ];
     for (const [reason, line] of lines) {
       expect(renderResolvedPrompt(INPUT, { kind: 'cancelled', reason })).toBe(
-        `🔐 ~~Approval required: \`workspace::write\`~~\n\n${line}\n\nwrite notes.md with 12 words`
+        `${line}: \`workspace::write\`\n\nwrite notes.md with 12 words`
       );
     }
   });

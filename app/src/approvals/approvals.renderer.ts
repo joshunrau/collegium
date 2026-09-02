@@ -81,10 +81,7 @@ export function renderResolvedPrompt(input: PromptInput, decision: ApprovalDecis
       ({ byUsername, reason }) => `↩️ **Denied with reason** by @${byUsername}: ${reason}`
     )
     .exhaustive();
-  // the resolved prompt is a struck-through historical record: the decision already happened with
-  // the full payload visible, and the untruncated payload lives in the approval_requested trace, so
-  // even a verbatim payload may be capped here without hiding anything from the approver (§6.2)
-  return `🔐 ~~Approval required: \`${input.actionName}\`~~\n\n${line}\n\n${capPayload(input.payloadText)}`;
+  return `${line}: \`${input.actionName}\`\n\n${capPayload(input.payloadText)}`;
 }
 
 /**
