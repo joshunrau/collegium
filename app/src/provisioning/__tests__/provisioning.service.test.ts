@@ -16,7 +16,7 @@ import { ProvisioningService } from '../provisioning.service.ts';
 
 const ADMIN = { email: 'ops@example.org', kind: 'password', password: 'secret', username: 'ops' } as const;
 
-const agent = (username: string): AgentDefinition => ({
+const agent = (username: string, overrides: Partial<AgentDefinition> = {}): AgentDefinition => ({
   contextBudgetTokens: 8000,
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
@@ -24,8 +24,22 @@ const agent = (username: string): AgentDefinition => ({
   systemPrompt: `You are ${username}`,
   tools: [],
   toolSettings: {},
-  username
+  username,
+  ...overrides
 });
+
+/** jane alone holds a mailbox, so her announcement channel is the one an agent is placed in by name */
+const MAIL_SETTINGS = {
+  announcementChannel: 'arrivals',
+  pollIntervalMs: 60_000,
+  provider: {
+    address: 'jane@example.org',
+    clientId: 'client_1',
+    clientSecret: 'secret_1',
+    kind: 'exchange',
+    tenantId: 'tenant_1'
+  }
+};
 
 describe('ProvisioningService', () => {
   let adminClient: MockedInstance<MattermostAdminClient>;
@@ -49,7 +63,13 @@ describe('ProvisioningService', () => {
         { provide: MattermostAdminClient, useValue: adminClient },
         {
           provide: ConfigService,
-          useValue: createConfigServiceMock({ agents: { amir: agent('amir'), jane: agent('jane') } })
+          useValue: createConfigServiceMock({
+            agents: {
+              amir: agent('amir'),
+              jane: agent('jane', { tools: ['mail'], toolSettings: { mail: MAIL_SETTINGS } })
+            },
+            mattermost: { channels: { research: { triggeringMode: 'mention-required' } } }
+          })
         },
         { provide: CredentialsService, useValue: credentialsService },
         { provide: EnvService, useValue: createEnvServiceMock() },
@@ -97,10 +117,22 @@ describe('ProvisioningService', () => {
     ]);
   });
 
-  it('should add every bot to the main channel', () => {
-    const added = adminClient.ensureChannelMember.mock.calls
-      .filter(([{ channelId }]) => channelId === 'id-town-square')
+  const placedIn = (handle: string) =>
+    adminClient.ensureChannelMember.mock.calls
+      .filter(([{ channelId }]) => channelId === `id-${handle}`)
       .map(([{ userId }]) => userId);
-    expect(added).toStrictEqual(['user-orchestrator', 'user-amir', 'user-jane']);
+
+  it('should add every bot to the main channel', () => {
+    expect(placedIn('town-square')).toStrictEqual(['user-orchestrator', 'user-amir', 'user-jane']);
+  });
+
+  // §3.10 is checked against the membership an operator sets, so provisioning declares none of it
+  it('should place the system bot alone in every other declared channel', () => {
+    expect(adminClient.ensureChannel.mock.calls.map(([{ handle }]) => handle)).toContain('research');
+    expect(placedIn('research')).toStrictEqual(['user-orchestrator']);
+  });
+
+  it('should place a mailbox owner in the channel its arrivals are announced to', () => {
+    expect(placedIn('arrivals')).toStrictEqual(['user-orchestrator', 'user-jane']);
   });
 });

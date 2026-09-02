@@ -305,7 +305,7 @@ export const $MattermostConfig = z.strictObject({
     )
     .default({})
     .describe(
-      'Per-channel triggering mode, by handle. Any channel not listed is mention-required. Each listed channel is created at provisioning if absent, with every bot a member.'
+      'Per-channel triggering mode, by handle. Any channel not listed is mention-required. Each listed channel is created at provisioning if absent and holds the system bot; which agents belong in it is set in Mattermost, not here.'
     ),
   // the default holds without the operator provisioning anything: town-square is created with every
   // team, every member is added to it automatically, and it can be neither left nor archived

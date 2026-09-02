@@ -1,4 +1,4 @@
-import type { AdminCredentials } from '@collegium/config';
+import type { AdminCredentials, AgentDefinition } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 
 import { ConfigService } from '@/config/config.service.ts';
@@ -42,35 +42,41 @@ export class ProvisioningService {
     const mattermost = this.configService.get('mattermost');
     const agents = Object.values(this.configService.get('agents'));
 
-    // the main channel first: every bot must be a member, and town-square admits them on team join
-    const mainChannelId = await this.adminClient.ensureChannel({ handle: mattermost.mainChannel, teamId });
-    const declaredChannels = new Map<string, string>([[mattermost.mainChannel, mainChannelId]]);
-    for (const handle of Object.keys(mattermost.channels)) {
-      declaredChannels.set(handle, await this.adminClient.ensureChannel({ handle, teamId }));
-    }
-    const defaultToolSettings = this.configService.get('agentDefaults.toolSettings');
-    for (const agent of agents) {
-      const mailSettings = resolveGrantedToolsetSettings(MAIL_TOOLSET, { agent, defaults: defaultToolSettings });
-      if (mailSettings) {
-        const handle = mailSettings.announcementChannel;
-        declaredChannels.set(handle, await this.adminClient.ensureChannel({ handle, teamId }));
-      }
-    }
-
     const systemBotId = await this.provisionBot({ teamId, username: mattermost.systemBotUsername });
     // §8.4 — the system bot reconciles the team's slash commands at every boot, which needs the grant
     await this.adminClient.ensureTeamAdmin({ teamId, userId: systemBotId });
 
-    const memberIds = [systemBotId];
+    const provisioned: { readonly agent: AgentDefinition; readonly userId: string }[] = [];
     for (const agent of agents) {
-      memberIds.push(await this.provisionBot({ teamId, username: agent.username }));
+      provisioned.push({ agent, userId: await this.provisionBot({ teamId, username: agent.username }) });
     }
 
-    for (const [handle, channelId] of declaredChannels) {
-      for (const userId of memberIds) {
-        await this.adminClient.ensureChannelMember({ channelId, userId });
+    // The system bot is the only account placed in every declared channel, because it posts the
+    // deterministic notices (§3.2) into all of them. Every agent joins the main channel and nothing
+    // else: who belongs in the rest is the operator's to say in Mattermost, and the §3.10 one-agent
+    // rule is then checked against the membership they set rather than against a second declaration
+    // that would have to agree with it. A declared channel is still created, because boot resolves
+    // every declared handle to an id and one that names nothing would refuse to start.
+    await this.provisionChannel({
+      handle: mattermost.mainChannel,
+      memberIds: [systemBotId, ...provisioned.map(({ userId }) => userId)],
+      teamId
+    });
+    for (const handle of Object.keys(mattermost.channels)) {
+      await this.provisionChannel({ handle, memberIds: [systemBotId], teamId });
+    }
+    const defaultToolSettings = this.configService.get('agentDefaults.toolSettings');
+    for (const { agent, userId } of provisioned) {
+      const mailSettings = resolveGrantedToolsetSettings(MAIL_TOOLSET, { agent, defaults: defaultToolSettings });
+      if (mailSettings) {
+        // the one membership the operator does not own: boot refuses a mailbox whose agent cannot
+        // post where its arrivals are announced, and the pairing is already stated in config.json
+        await this.provisionChannel({
+          handle: mailSettings.announcementChannel,
+          memberIds: [systemBotId, userId],
+          teamId
+        });
       }
-      this.loggingService.log(`provisioning channel "${handle}" with ${memberIds.length} member(s)`);
     }
   }
 
@@ -86,5 +92,18 @@ export class ProvisioningService {
       username: params.username
     });
     return userId;
+  }
+
+  /** the channel, and the accounts provisioning is answerable for putting in it */
+  private async provisionChannel(params: {
+    handle: string;
+    memberIds: readonly string[];
+    teamId: string;
+  }): Promise<void> {
+    const channelId = await this.adminClient.ensureChannel({ handle: params.handle, teamId: params.teamId });
+    for (const userId of params.memberIds) {
+      await this.adminClient.ensureChannelMember({ channelId, userId });
+    }
+    this.loggingService.log(`provisioning channel "${params.handle}" with ${params.memberIds.length} member(s)`);
   }
 }

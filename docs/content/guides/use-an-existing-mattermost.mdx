@@ -59,7 +59,8 @@ Everything below happens on each start, and nothing outside the team you named i
 
 - One bot account per declared agent, plus the system bot, each named by its `config.json` username.
 - One personal access token per bot account.
-- One open channel per channel your `config.json` declares, with every bot as a member.
+- One open channel per channel your `config.json` declares, holding the system bot. Every agent joins the main
+  channel; which agents belong in the others is yours to set in Mattermost.
 - The Team Admin role on the system bot, which reconciles the team's slash commands.
 
 Give the deployment a team of its own if that last grant is more than you want on a shared one.
