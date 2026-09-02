@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
+import { renderUnresolvedReference } from '@/memory/memory.utils.ts';
 
 import { renderUsage } from '../commands.definitions.ts';
 import { CommandHandler } from '../commands.handler.ts';
@@ -22,17 +23,19 @@ export class MemoryHandler extends CommandHandler {
   }
 
   async handle(input: CommandInput): Promise<CommandResponse> {
-    const [firstToken = '', action, memoryId] = input.text.trim().split(/\s+/u);
+    const [firstToken = '', action, reference] = input.text.trim().split(/\s+/u);
     const named = requireAgentName(this.agentRegistry, firstToken, this.trigger);
     if (!named.success) {
       return named.error;
     }
     const agentUsername = named.value;
-    if (action === 'prune' && memoryId !== undefined) {
-      const deleted = await this.memoryService.delete(agentUsername, memoryId);
+    if (action === 'prune' && reference !== undefined) {
+      const deleted = await this.memoryService.delete(agentUsername, reference);
       return {
         audience: 'invoker',
-        text: deleted.success ? `Deleted memory ${memoryId}.` : `No memory ${memoryId} for ${agentUsername}.`
+        text: deleted.success
+          ? `Deleted memory ${reference}.`
+          : `${renderUnresolvedReference(deleted.error)} for ${agentUsername}.`
       };
     }
     if (action !== undefined) {
@@ -44,9 +47,10 @@ export class MemoryHandler extends CommandHandler {
     }
     return {
       audience: 'invoker',
-      text: [`Memories for ${agentUsername}:`, ...entries.map((entry) => `- ${entry.id}: ${entry.description}`)].join(
-        '\n'
-      )
+      text: [
+        `Memories for ${agentUsername}:`,
+        ...entries.map((entry) => `- ${entry.reference}: ${entry.description}`)
+      ].join('\n')
     };
   }
 }

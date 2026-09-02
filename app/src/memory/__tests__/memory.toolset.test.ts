@@ -17,27 +17,39 @@ function buildContext() {
 }
 
 describe('MEMORY_TOOLSET', () => {
-  it('reads a memory body back by id', async () => {
+  it('reads a memory body back by reference', async () => {
     const { context, memory } = buildContext();
     memory.read.mockResolvedValue(Result.ok({ body: 'bullet points, always' } as never));
-    const result = await executeTool(read, { id: 'mem-1' }, context);
+    const result = await executeTool(read, { reference: 'mem-1' }, context);
     expect(memory.read).toHaveBeenCalledWith('mira', 'mem-1');
     expect(result.unwrap().text).toBe('bullet points, always');
   });
 
-  it('returns an unknown id to the model as its own recoverable mistake', async () => {
+  it('returns an unknown reference to the model as its own recoverable mistake', async () => {
     const { context, memory } = buildContext();
-    memory.read.mockResolvedValue(Result.err({ id: 'mem-9', kind: 'not-found' }));
-    const result = await executeTool(read, { id: 'mem-9' }, context);
+    memory.read.mockResolvedValue(Result.err({ kind: 'not-found', reference: 'mem-9' }));
+    const result = await executeTool(read, { reference: 'mem-9' }, context);
     expect(result.error).toStrictEqual({
       kind: 'invalid-arguments',
-      message: 'no memory entry with id "mem-9" exists'
+      message: 'no memory entry with reference "mem-9" exists'
+    });
+  });
+
+  it('returns an ambiguous reference as a refusal rather than a guess', async () => {
+    const { context, memory } = buildContext();
+    memory.read.mockResolvedValue(Result.err({ kind: 'ambiguous', reference: 'mem' }));
+    const result = await executeTool(read, { reference: 'mem' }, context);
+    expect(result.error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message: 'reference "mem" matches more than one memory entry'
     });
   });
 
   it('writes under the caps its settings declare and returns the disclosure (§3.6)', async () => {
     const { context, memory } = buildContext();
-    memory.write.mockResolvedValue(Result.ok({ entry: { id: 'mem-1' } as never, evictedDescriptions: ['old fact'] }));
+    memory.write.mockResolvedValue(
+      Result.ok({ entry: { id: 'mem-1-full-id' } as never, evictedDescriptions: ['old fact'], reference: 'mem-1' })
+    );
     const result = await executeTool(write, { body: 'the body', description: 'the description' }, context);
     expect(memory.write).toHaveBeenCalledWith(
       { agentUsername: 'mira', body: 'the body', description: 'the description', originPostId: 'post-1' },

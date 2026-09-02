@@ -3,6 +3,7 @@ import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
 import { MEMORY_SERVICE_TOKEN } from './memory.tokens.ts';
+import { renderUnresolvedReference } from './memory.utils.ts';
 
 export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
   services: { memory: MEMORY_SERVICE_TOKEN },
@@ -11,20 +12,17 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
       budgetExempt: true,
       description: 'Read the full body of one of your memories.',
       execute: async (args, context) => {
-        const memory = await context.memory.read(context.turn.agentUsername, args.id);
+        const memory = await context.memory.read(context.turn.agentUsername, args.reference);
         if (!memory.success) {
-          return Result.err({
-            kind: 'invalid-arguments',
-            message: `no memory entry with id "${memory.error.id}" exists`
-          });
+          return Result.err({ kind: 'invalid-arguments', message: renderUnresolvedReference(memory.error) });
         }
         return Result.ok({ text: memory.value.body });
       },
       parameters: z.object({
-        id: z.string().min(1).describe('The id of the memory entry, as listed beside its description')
+        reference: z.string().min(1).describe('The reference of the memory entry, as listed beside its description')
       }),
       retryable: true,
-      traceDetail: (args) => args.id
+      traceDetail: (args) => args.reference
     },
     // §3.6 — the single ungated write: gating memory formation would park a turn on a triviality
     write: {
@@ -51,10 +49,10 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
           disclosure: {
             body: args.body,
             description: args.description,
-            reference: written.value.entry.id,
+            reference: written.value.reference,
             supersededDescriptions: written.value.evictedDescriptions
           },
-          text: `memory ${written.value.entry.id} saved`
+          text: `memory ${written.value.reference} saved`
         });
       },
       parameters: z.object({

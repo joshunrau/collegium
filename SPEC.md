@@ -163,7 +163,7 @@ A `memories` table in SQLite, accessible to agents only through a tool, never th
 - **Descriptions are loaded into the system prompt on every turn.** Bodies are loaded on demand.
 - **Writes are ungated** — the single exception to A5.
 - Entry count, description size, and body size are all capped, by the memory toolset's settings (§3.4). An over-length description or body is refused, never truncated; a write at the entry cap evicts the oldest entry.
-- Every entry carries provenance: written-at timestamp and originating post ID.
+- Every entry carries provenance: written-at timestamp and originating post ID. Entries are shown to the agent, in the trace, and to `/memory` by a **reference** — the first eight characters of the id — which the store resolves back, refusing rather than guessing if it ever matched two.
 - Memory is per-agent and never shared between agents.
 
 _Why ungated:_ gating a memory write would block an entire turn on a triviality — an agent stalling for hours because it wanted to record a phone preference. Memory formation cannot sit behind human latency or it will not happen.

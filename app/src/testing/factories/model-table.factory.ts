@@ -33,7 +33,7 @@ export type ModelTable<TRow extends object> = {
 
 /**
  * An in-memory stand-in for one Prisma model delegate, implementing only the query surface the
- * services actually use: equality/`in`/date-range where-matching, nested relation conditions,
+ * services actually use: equality/`in`/`startsWith`/date-range where-matching, nested relation conditions,
  * ordered `orderBy`, `select` projection, `include` attachment, and P2002 emulation on create.
  */
 export function createModelTable<TRow extends object>(options: ModelTableOptions<TRow> = {}): ModelTable<TRow> {
@@ -68,6 +68,9 @@ export function createModelTable<TRow extends object>(options: ModelTableOptions
       }
       if ('not' in clauses) {
         return !matchesCondition(value, clauses.not);
+      }
+      if ('startsWith' in clauses) {
+        return typeof value === 'string' && value.startsWith(clauses.startsWith as string);
       }
       if ('gt' in clauses || 'gte' in clauses || 'lt' in clauses || 'lte' in clauses) {
         const actual = toComparable(value);

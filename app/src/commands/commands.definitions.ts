@@ -24,7 +24,7 @@ export type CommandTrigger = (typeof COMMAND_TRIGGERS)[number];
 export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefinition } = {
   forget: { hint: '{post-id}', purpose: 'Remove a post from agent context' },
   kill: { hint: '', purpose: 'Abandon current turns in this channel immediately' },
-  memory: { hint: '{agent} [prune {memory-id}]', purpose: "Inspect or prune an agent's memories" },
+  memory: { hint: '{agent} [prune {reference}]', purpose: "Inspect or prune an agent's memories" },
   prompt: { hint: '{agent}', purpose: "Show an agent's system prompt verbatim" },
   queue: { hint: '{agent}', purpose: 'Show pending depth and the oldest unprocessed post' },
   reset: { hint: '{agent}', purpose: 'Mark an episode boundary' },

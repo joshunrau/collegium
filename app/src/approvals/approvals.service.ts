@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { removeTrailingSlash, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
@@ -8,6 +6,7 @@ import { EnvService } from '@/config/env/env.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { ApprovalStatus, Model, ModelRow } from '@/prisma/prisma.types.ts';
+import { createRecordId } from '@/prisma/prisma.utils.ts';
 
 import { renderApprovalActions, renderApprovalPrompt, renderResolvedPrompt } from './approvals.renderer.ts';
 import { renderApprovalActionName } from './approvals.utils.ts';
@@ -106,7 +105,7 @@ export class ApprovalsService {
     if (refusal) {
       return Result.err(refusal);
     }
-    const approvalId = randomUUID();
+    const approvalId = createRecordId();
     const pendingDecision = new Promise<ApprovalDecision>((resolve) => {
       this.pendingRegistry.register({ approvalId, channelId: input.channelId, resolve });
     });

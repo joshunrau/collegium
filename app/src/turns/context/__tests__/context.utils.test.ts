@@ -102,7 +102,7 @@ describe('renderSystemPrompt', () => {
   it('should append the skills, memories, and peers sections in §3.8 order', () => {
     expect(
       renderSystemPrompt({
-        memories: [{ description: 'casey prefers bullet points', id: 'memory-1' }],
+        memories: [{ description: 'casey prefers bullet points', reference: 'memory-1' }],
         peers: [PEER],
         profile: PROFILE,
         skillManifest: '- handing-work-to-a-peer: How to hand work over.'

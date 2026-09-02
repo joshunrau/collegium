@@ -81,7 +81,7 @@ model Post {
 }
 
 model Turn {
-  id               String      @id @default(uuid())
+  id               String      @id @default(cuid(2))
   actionCount      Int         @default(0)
   agentUsername    String
   channelId        String
@@ -113,7 +113,7 @@ model ResumeWatermark {
 }
 
 model TurnEvent {
-  id        String        @id @default(uuid())
+  id        String        @id @default(cuid(2))
   createdAt DateTime      @default(now())
   kind      TurnEventKind
   /// [TurnEventPayload]
@@ -126,7 +126,7 @@ model TurnEvent {
 }
 
 model Approval {
-  id                String         @id @default(uuid())
+  id                String         @id @default(cuid(2))
   /// [ApprovalArgs]
   args              Json
   createdAt         DateTime       @default(now())
@@ -147,7 +147,7 @@ model Approval {
 }
 
 model Trigger {
-  id                  String        @id @default(uuid())
+  id                  String        @id @default(cuid(2))
   createdAt           DateTime      @default(now())
   // exactly-once intake: an adapter that can re-observe the same event (mail, after a crash
   // between recording and cursor advance) supplies a stable key, and a duplicate is a no-op
@@ -170,14 +170,14 @@ model Trigger {
 // without announcing existing mail; the serialization is the provider adapter's own, and
 // nothing else parses it.
 model MailCursor {
-  id            String   @id @default(uuid())
+  id            String   @id @default(cuid(2))
   agentUsername String   @unique
   cursor        String
   updatedAt     DateTime @updatedAt
 }
 
 model QueueEntry {
-  id                        String   @id @default(uuid())
+  id                        String   @id @default(cuid(2))
   agentUsername             String
   channelId                 String
   createdAt                 DateTime @default(now())
@@ -187,7 +187,7 @@ model QueueEntry {
 }
 
 model ToolsetRecord {
-  id         String   @id @default(uuid())
+  id         String   @id @default(cuid(2))
   collection String
   createdAt  DateTime @default(now())
   key        String
@@ -200,7 +200,7 @@ model ToolsetRecord {
 }
 
 model Memory {
-  id            String   @id @default(uuid())
+  id            String   @id @default(cuid(2))
   agentUsername String
   body          String
   createdAt     DateTime @default(now())
@@ -211,7 +211,7 @@ model Memory {
 }
 
 model Episode {
-  id            String   @id @default(uuid())
+  id            String   @id @default(cuid(2))
   agentUsername String
   channelId     String
   createdAt     DateTime @default(now())

@@ -56,7 +56,7 @@ export class ContextAssembler {
   async renderPromptFor(input: { channelId: string; profile: AgentProfile }): Promise<string> {
     const { channelId, profile } = input;
     return renderSystemPrompt({
-      memories: await this.memoryService.listDescriptions(profile.username),
+      memories: await this.memoryService.list(profile.username),
       peers: this.rosterService.getPeers(channelId, profile.username),
       profile,
       skillManifest: this.skillsService.renderManifest(profile)

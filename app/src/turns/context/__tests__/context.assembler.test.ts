@@ -58,7 +58,7 @@ describe('ContextAssembler', () => {
 
   beforeEach(async () => {
     const memoryService = MockFactory.createMock(MemoryService);
-    memoryService.listDescriptions.mockResolvedValue([{ description: 'casey prefers bullet points', id: 'memory-1' }]);
+    memoryService.list.mockResolvedValue([{ description: 'casey prefers bullet points', reference: 'memory-1' }]);
     const rosterService = MockFactory.createMock(RosterService);
     rosterService.getPeers.mockReturnValue([{ expertise: 'scheduling', username: 'tess' } as AgentProfile]);
     const skillsService = MockFactory.createMock(SkillsService);

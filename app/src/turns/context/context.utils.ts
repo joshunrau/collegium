@@ -59,7 +59,7 @@ export function toCompletionMessages(entries: readonly WindowEntry[], selfUserna
 }
 
 export function renderSystemPrompt(input: {
-  memories: readonly { description: string; id: string }[];
+  memories: readonly { description: string; reference: string }[];
   peers: readonly AgentProfile[];
   profile: AgentProfile;
   skillManifest: string;
@@ -71,7 +71,7 @@ export function renderSystemPrompt(input: {
     );
   }
   if (input.memories.length > 0) {
-    const listing = input.memories.map((memory) => `- [${memory.id}] ${memory.description}`).join('\n');
+    const listing = input.memories.map((memory) => `- [${memory.reference}] ${memory.description}`).join('\n');
     sections.push(
       `## Memories\n\nYour saved memories; read a full body with memory__read when it matters:\n\n${listing}`
     );
