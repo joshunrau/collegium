@@ -1,4 +1,5 @@
 import type { AgentDefinition } from '@collegium/config';
+import type { $MailSettings } from '@collegium/core/toolsets';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -28,8 +29,8 @@ const agent = (username: string, overrides: Partial<AgentDefinition> = {}): Agen
   ...overrides
 });
 
-/** jane alone holds a mailbox, so her announcement channel is the one an agent is placed in by name */
-const MAIL_SETTINGS = {
+/** jane alone holds a mailbox, and its announcement channel is also a declared one */
+const MAIL_SETTINGS: $MailSettings = {
   announcementChannel: 'arrivals',
   pollIntervalMs: 60_000,
   provider: {
@@ -68,7 +69,12 @@ describe('ProvisioningService', () => {
               amir: agent('amir'),
               jane: agent('jane', { tools: ['mail'], toolSettings: { mail: MAIL_SETTINGS } })
             },
-            mattermost: { channels: { research: { triggeringMode: 'mention-required' } } }
+            mattermost: {
+              channels: {
+                arrivals: { triggeringMode: 'respond-to-all' },
+                research: { triggeringMode: 'mention-required' }
+              }
+            }
           })
         },
         { provide: CredentialsService, useValue: credentialsService },
@@ -126,13 +132,15 @@ describe('ProvisioningService', () => {
     expect(placedIn('town-square')).toStrictEqual(['user-orchestrator', 'user-amir', 'user-jane']);
   });
 
-  // §3.10 is checked against the membership an operator sets, so provisioning declares none of it
   it('should place the system bot alone in every other declared channel', () => {
-    expect(adminClient.ensureChannel.mock.calls.map(([{ handle }]) => handle)).toContain('research');
     expect(placedIn('research')).toStrictEqual(['user-orchestrator']);
   });
 
   it('should place a mailbox owner in the channel its arrivals are announced to', () => {
     expect(placedIn('arrivals')).toStrictEqual(['user-orchestrator', 'user-jane']);
+  });
+
+  it('should provision a channel once when it is both declared and announced to', () => {
+    expect(adminClient.ensureChannel.mock.calls.filter(([{ handle }]) => handle === 'arrivals')).toHaveLength(1);
   });
 });

@@ -51,32 +51,27 @@ export class ProvisioningService {
       provisioned.push({ agent, userId: await this.provisionBot({ teamId, username: agent.username }) });
     }
 
-    // The system bot is the only account placed in every declared channel, because it posts the
-    // deterministic notices (§3.2) into all of them. Every agent joins the main channel and nothing
-    // else: who belongs in the rest is the operator's to say in Mattermost, and the §3.10 one-agent
-    // rule is then checked against the membership they set rather than against a second declaration
-    // that would have to agree with it. A declared channel is still created, because boot resolves
-    // every declared handle to an id and one that names nothing would refuse to start.
-    await this.provisionChannel({
-      handle: mattermost.mainChannel,
-      memberIds: [systemBotId, ...provisioned.map(({ userId }) => userId)],
-      teamId
-    });
-    for (const handle of Object.keys(mattermost.channels)) {
-      await this.provisionChannel({ handle, memberIds: [systemBotId], teamId });
+    const memberIdsByHandle = new Map<string, Set<string>>();
+    const membersOf = (handle: string): Set<string> => {
+      const memberIds = memberIdsByHandle.get(handle) ?? new Set([systemBotId]);
+      memberIdsByHandle.set(handle, memberIds);
+      return memberIds;
+    };
+    // §3.1 — a declared channel is still created: boot resolves every handle to an id and refuses one
+    // that names nothing
+    for (const handle of [mattermost.mainChannel, ...Object.keys(mattermost.channels)]) {
+      membersOf(handle);
     }
     const defaultToolSettings = this.configService.get('agentDefaults.toolSettings');
     for (const { agent, userId } of provisioned) {
+      membersOf(mattermost.mainChannel).add(userId);
       const mailSettings = resolveGrantedToolsetSettings(MAIL_TOOLSET, { agent, defaults: defaultToolSettings });
       if (mailSettings) {
-        // the one membership the operator does not own: boot refuses a mailbox whose agent cannot
-        // post where its arrivals are announced, and the pairing is already stated in config.json
-        await this.provisionChannel({
-          handle: mailSettings.announcementChannel,
-          memberIds: [systemBotId, userId],
-          teamId
-        });
+        membersOf(mailSettings.announcementChannel).add(userId);
       }
+    }
+    for (const [handle, memberIds] of memberIdsByHandle) {
+      await this.provisionChannel({ handle, memberIds: [...memberIds], teamId });
     }
   }
 
