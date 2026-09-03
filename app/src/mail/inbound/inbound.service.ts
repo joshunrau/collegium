@@ -2,6 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import type { OnApplicationShutdown } from '@nestjs/common';
 
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model } from '@/prisma/prisma.types.ts';
@@ -9,6 +10,7 @@ import { TriggersService } from '@/triggers/triggers.service.ts';
 import type { Trigger } from '@/triggers/triggers.types.ts';
 
 import { MailRegistry } from '../mail.registry.ts';
+import { renderMailAnnouncement } from '../mail.utils.ts';
 import { MailOutageService } from '../outage/outage.service.ts';
 import { INBOUND_PAGE_SIZE } from './inbound.constants.ts';
 
@@ -29,6 +31,7 @@ export class MailInboundService implements OnApplicationShutdown {
   private readonly timers = new Map<string, NodeJS.Timeout>();
 
   constructor(
+    private readonly dateFormatter: DateFormatter,
     private readonly loggingService: LoggingService,
     private readonly mailOutageService: MailOutageService,
     private readonly mailRegistry: MailRegistry,
@@ -87,7 +90,7 @@ export class MailInboundService implements OnApplicationShutdown {
     const recorded = await this.triggersService.record({
       dedupeKey: `mail:${mailbox.agentUsername}:${arrival.ref}`,
       reference: {
-        body: arrival.body,
+        body: renderMailAnnouncement(arrival, this.dateFormatter.format(arrival.receivedAt)),
         id: arrival.ref,
         sender: arrival.sender.address,
         subject: arrival.subject

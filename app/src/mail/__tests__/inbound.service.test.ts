@@ -2,6 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -62,6 +63,7 @@ describe('MailInboundService', () => {
       providers: [
         MailInboundService,
         MockFactory.createForService(LoggingService),
+        { provide: DateFormatter, useValue: new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeZone: 'UTC' }) },
         { provide: MailOutageService, useValue: mailOutageService },
         { provide: MailRegistry, useValue: mailRegistry },
         { provide: TriggersService, useValue: triggersService },
@@ -79,14 +81,14 @@ describe('MailInboundService', () => {
     expect(provider.pollNew).not.toHaveBeenCalled();
   });
 
-  it('should record one trigger per arrival, with the body and a stable dedupe key', async () => {
+  it('should record one trigger per arrival, with the rendered thread and a stable dedupe key', async () => {
     cursorRows.push({ agentUsername: 'tess', cursor: 'cursor-1', id: 'row-1', updatedAt: new Date(0) });
     provider.pollNew.mockResolvedValue(Result.ok({ cursor: 'cursor-2', messages: [ARRIVAL] }));
     await service.pollOnce(mailbox);
     expect(triggersService.record).toHaveBeenCalledWith({
       dedupeKey: 'mail:tess:msg-1',
       reference: {
-        body: 'Please pay invoice 42.',
+        body: '> **From:** billing@acme.com\n> **Date:** July 31, 2026\n> **Subject:** Invoice overdue\n>\n> Please pay invoice 42.',
         id: 'msg-1',
         sender: 'billing@acme.com',
         subject: 'Invoice overdue'

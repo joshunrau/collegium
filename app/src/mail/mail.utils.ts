@@ -1,4 +1,7 @@
-import type { MailMessage, MailParty, MailSummary, OutboundMail } from './mail.types.ts';
+import { ANNOUNCEMENT_ENVELOPE, FULL_ENVELOPE, quoteMarkdown, renderMailSegments } from './thread/thread.renderer.ts';
+import { splitMailThread } from './thread/thread.splitter.ts';
+
+import type { MailArrival, MailMessage, MailParty, MailSummary, OutboundMail } from './mail.types.ts';
 
 function renderMailSummary(summary: MailSummary): string {
   const marker = summary.isRead ? '' : ' · unread';
@@ -18,8 +21,26 @@ export function renderMailSummaries(summaries: readonly MailSummary[]): string {
   return summaries.map(renderMailSummary).join('\n');
 }
 
+/**
+ * §3.13 — the announcement body: the whole thread in one blockquote, the head under its real
+ * headers and every quoted message under whatever its boundary carried, a rule between them.
+ */
+export function renderMailAnnouncement(arrival: MailArrival, receivedAtFormatted: string): string {
+  const thread = splitMailThread(arrival.body);
+  const head = {
+    body: thread.headBody,
+    envelope: {
+      date: receivedAtFormatted,
+      from: formatMailParty(arrival.sender),
+      ...(arrival.subject === '' ? {} : { subject: arrival.subject })
+    }
+  };
+  return quoteMarkdown(renderMailSegments([head, ...thread.quoted], ANNOUNCEMENT_ENVELOPE));
+}
+
 /** one message in full, as readable text; attachments are described and say so */
 export function renderMailMessage(message: MailMessage): string {
+  const thread = splitMailThread(message.body);
   const parties = (label: string, list: readonly MailParty[]) =>
     list.length === 0 ? [] : [`${label}: ${list.map(formatMailParty).join(', ')}`];
   const attachments =
@@ -41,7 +62,7 @@ export function renderMailMessage(message: MailMessage): string {
     `Received: ${message.receivedAt.toISOString()}`,
     ...attachments,
     '',
-    message.body
+    renderMailSegments([{ body: thread.headBody, envelope: {} }, ...thread.quoted], FULL_ENVELOPE)
   ].join('\n');
 }
 

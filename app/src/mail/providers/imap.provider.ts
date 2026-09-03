@@ -16,6 +16,7 @@ import {
   serializeImapRef,
   toMailArrival,
   toMailMessage,
+  toObservedAt,
   toPreview,
   toSenderPartyFromParsed
 } from './imap.utils.ts';
@@ -140,12 +141,18 @@ export class ImapMailProvider extends MailProvider {
       if (String(mailbox.uidValidity) !== parsedRef.value.uidValidity) {
         return Result.err({ kind: 'not-found', ref });
       }
-      const fetched = await client.fetchOne(String(parsedRef.value.uid), { flags: true, source: true }, { uid: true });
+      const fetched = await client.fetchOne(
+        String(parsedRef.value.uid),
+        { flags: true, internalDate: true, source: true },
+        { uid: true }
+      );
       if (!fetched || fetched.source === undefined) {
         return Result.err({ kind: 'not-found', ref });
       }
       const parsed = await simpleParser(fetched.source);
-      return Result.ok(toMailMessage(parsed, ref, fetched.flags?.has('\\Seen') ?? false));
+      return Result.ok(
+        toMailMessage(parsed, ref, fetched.flags?.has('\\Seen') ?? false, toObservedAt(fetched.internalDate))
+      );
     });
   }
 
@@ -170,13 +177,15 @@ export class ImapMailProvider extends MailProvider {
       }
       const arrivals: MailArrival[] = [];
       for (const uid of fresh) {
-        const fetched = await client.fetchOne(String(uid), { source: true }, { uid: true });
+        const fetched = await client.fetchOne(String(uid), { internalDate: true, source: true }, { uid: true });
         if (!fetched || fetched.source === undefined) {
           // deleted between the search and this read: nothing is left to announce
           continue;
         }
         const parsed = await simpleParser(fetched.source);
-        arrivals.push(toMailArrival(parsed, serializeImapRef(mailbox.uidValidity, uid)));
+        arrivals.push(
+          toMailArrival(parsed, serializeImapRef(mailbox.uidValidity, uid), toObservedAt(fetched.internalDate))
+        );
       }
       return Result.ok({
         cursor: serializeImapCursor({ uidNext: last + 1, uidValidity: parsedCursor.value.uidValidity }),

@@ -68,10 +68,17 @@ export function toPreview(text: string | undefined): string {
   return (text ?? '').replaceAll(/\s+/g, ' ').trim().slice(0, PREVIEW_CHARS);
 }
 
-export function toMailArrival(parsed: ParsedMail, ref: MailMessageRef): MailArrival {
+/** the server's receipt time (INTERNALDATE), or the read itself when the server gave none it could parse */
+export function toObservedAt(internalDate: Date | string | undefined): Date {
+  const date = internalDate === undefined ? new Date() : new Date(internalDate);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+
+/** `observedAt` stands in for a missing Date header */
+export function toMailArrival(parsed: ParsedMail, ref: MailMessageRef, observedAt: Date): MailArrival {
   return {
     body: renderParsedBody(parsed),
-    receivedAt: parsed.date ?? new Date(0),
+    receivedAt: parsed.date ?? observedAt,
     ref,
     sender: toSenderPartyFromParsed(parsed),
     subject: parsed.subject ?? ''
@@ -103,7 +110,7 @@ export function classifySmtpFailure(error: unknown): MailFailure.Send {
   return { kind: 'send-unresolved', message: toErrorMessage(error) };
 }
 
-export function toMailMessage(parsed: ParsedMail, ref: MailMessageRef, isRead: boolean): MailMessage {
+export function toMailMessage(parsed: ParsedMail, ref: MailMessageRef, isRead: boolean, observedAt: Date): MailMessage {
   return {
     attachments: parsed.attachments.map((attachment) => ({
       name: attachment.filename ?? '',
@@ -113,7 +120,7 @@ export function toMailMessage(parsed: ParsedMail, ref: MailMessageRef, isRead: b
     body: renderParsedBody(parsed),
     cc: toParties(parsed.cc),
     isRead,
-    receivedAt: parsed.date ?? new Date(0),
+    receivedAt: parsed.date ?? observedAt,
     ref,
     replyTo: toParties(parsed.replyTo),
     sender: toSenderPartyFromParsed(parsed),

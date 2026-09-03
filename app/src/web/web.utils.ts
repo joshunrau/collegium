@@ -8,6 +8,10 @@ import type { WebFailure, WebPage, WebSnapshot } from './web.types.ts';
 
 const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 
+// not redundant: node-html-markdown reads a doctype with a public identifier as text, and Zoho
+// still writes one (HTML 4.01 Transitional)
+const DOCTYPE = /^\s*<!DOCTYPE[^>]*>/i;
+
 /** §3.4 — a filled input says that it is filled, never with what; a select names its own option */
 function renderFormElement(element: FormElement): string {
   const kind = element.kind === 'input' ? `input[type=${element.type}]` : element.kind;
@@ -38,7 +42,7 @@ function collapseTableRow(line: string): string {
 
 /** Cleaned, post-render HTML to the markdown a model reads. Tables survive as tables (§3.4). */
 export function toMarkdown(html: string): string {
-  return NodeHtmlMarkdown.translate(html).split('\n').map(collapseTableRow).join('\n').trim();
+  return NodeHtmlMarkdown.translate(html.replace(DOCTYPE, '')).split('\n').map(collapseTableRow).join('\n').trim();
 }
 
 /** A page past the guard is cut and says so — a truncation the model cannot see is one it reasons past. */

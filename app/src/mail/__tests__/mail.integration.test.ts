@@ -8,6 +8,7 @@ import { ChatGateway } from '@/chat/chat.gateway.ts';
 import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -21,7 +22,7 @@ import { MailOutageService } from '../outage/outage.service.ts';
 
 import type { MailboxRuntime } from '../mail.registry.ts';
 
-const MAX_POST_SIZE = 200;
+const MAX_POST_SIZE = 500;
 
 type CursorRow = { agentUsername: string; cursor: string; id: string; updatedAt: Date };
 type TriggerRow = {
@@ -100,6 +101,7 @@ describe('mail inbound, end to end through triggers', () => {
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ChatGateway, useValue: chatGateway },
         MockFactory.createForService(ConversationsService),
+        { provide: DateFormatter, useValue: new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeZone: 'UTC' }) },
         MockFactory.createForService(LoggingService),
         { provide: MailRegistry, useValue: mailRegistry },
         { provide: RosterService, useValue: rosterService },
@@ -126,10 +128,11 @@ describe('mail inbound, end to end through triggers', () => {
     expect((await triggersService.post(trigger.id)).success).toBe(true);
     const [channelId, message, files] = chatGateway.postAsSystemIn.mock.calls[0]!;
     expect(channelId).toBe('channel-mail');
-    expect(message).toContain('@tess');
-    expect(message).toContain('Invoice overdue');
-    expect(message).toContain('billing@acme.com');
-    expect(message).toContain('Please pay invoice 42.');
+    expect(message).toContain('🔔 New Mail → @tess');
+    expect(message).toContain('Handle ⟨msg-1⟩');
+    expect(message).toContain(
+      '> **From:** billing@acme.com\n> **Date:** July 31, 2026\n> **Subject:** Invoice overdue\n>\n> Please pay invoice 42.'
+    );
     expect(files).toStrictEqual([]);
 
     expect((await triggersService.resolve(trigger.id, 'tess')).success).toBe(true);
@@ -146,7 +149,9 @@ describe('mail inbound, end to end through triggers', () => {
     const [, message, files] = chatGateway.postAsSystemIn.mock.calls[0]!;
     expect(message).not.toContain(body);
     expect(message).toContain('too large to post');
-    expect(files).toStrictEqual([{ content: body, filename: 'message.md' }]);
+    expect(files).toHaveLength(1);
+    expect(files?.[0]).toMatchObject({ filename: 'message.md' });
+    expect(files?.[0]?.content).toContain(body);
   });
 
   it('should announce a re-observed arrival exactly once (§4.1)', async () => {

@@ -43,9 +43,11 @@ const TEXT_EML = [
   ''
 ].join('\r\n');
 
+const OBSERVED_AT = new Date('2026-07-30T12:30:00Z');
+
 describe('toMailMessage', () => {
   it('should render an HTML part as markdown and describe the attachment without content', async () => {
-    const message = toMailMessage(await simpleParser(HTML_EML), '7:42', false);
+    const message = toMailMessage(await simpleParser(HTML_EML), '7:42', false, OBSERVED_AT);
     expect(message).toMatchObject({
       attachments: [{ name: 'invoice.pdf', type: 'application/pdf' }],
       body: 'Hello **world**',
@@ -58,10 +60,17 @@ describe('toMailMessage', () => {
   });
 
   it('should pass a plain-text body through untouched', async () => {
-    const message = toMailMessage(await simpleParser(TEXT_EML), '7:43', true);
+    const message = toMailMessage(await simpleParser(TEXT_EML), '7:43', true, OBSERVED_AT);
     expect(message.body).toBe('Just plain text.\n');
     expect(message.isRead).toBe(true);
     expect(message.attachments).toStrictEqual([]);
+  });
+
+  it('should fall back to the observed time when the message carries no Date header', async () => {
+    const undated = TEXT_EML.replace('Date: Thu, 30 Jul 2026 12:00:00 +0000\r\n', '');
+    expect(toMailMessage(await simpleParser(undated), '7:44', false, OBSERVED_AT).receivedAt).toStrictEqual(
+      OBSERVED_AT
+    );
   });
 });
 

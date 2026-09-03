@@ -30,6 +30,12 @@ describe('toMarkdown', () => {
     expect(toMarkdown(fixture('static-directory'))).not.toMatch(/ {2,}/);
   });
 
+  it('should drop a doctype with a public identifier rather than read it as text', () => {
+    const html =
+      '<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"><html><body><div>Hello</div></body></html>';
+    expect(toMarkdown(html)).toBe('Hello');
+  });
+
   /** the empty string is why the render assertion exists: an unrendered page reads as "no results" */
   it.each(['client-rendered-directory', 'spa-marketing-site'])(
     'should yield nothing at all from %s, since no script has run',

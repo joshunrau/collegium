@@ -21,33 +21,47 @@ const trigger = (reference: PrismaJson.TriggerReference, source: Trigger['source
 });
 
 describe('renderTriggerPost', () => {
-  it('should mention the agent and summarize every reference field it carries', () => {
+  it('should mention the agent, name the source item, and summarize a reference with no body', () => {
     const rendered = renderTriggerPost(
       trigger({ id: 'msg-7', sender: 'billing@acme.com', subject: 'invoice overdue' }),
       MAX_POST_SIZE
     );
     expect(rendered.message).toBe(
-      '🔔 @mira — webhook: invoice overdue · from billing@acme.com · ref msg-7. Handle it, then mark it done with triggers__resolve("trigger-1").'
+      '🔔 Webhook → @mira\n\nHandle ⟨msg-7⟩, then mark it done with `triggers__resolve("trigger-1")`.\n\ninvoice overdue · from billing@acme.com'
     );
     expect(rendered.files).toStrictEqual([]);
   });
 
   it('should omit the reference fields the event did not carry', () => {
-    expect(renderTriggerPost(trigger({ subject: 'invoice overdue' }), MAX_POST_SIZE).message).toContain(
-      'webhook: invoice overdue. Handle it'
+    const { message } = renderTriggerPost(trigger({ subject: 'invoice overdue' }), MAX_POST_SIZE);
+    expect(message).toContain('Handle it,');
+    expect(message.endsWith('\n\ninvoice overdue')).toBe(true);
+  });
+
+  it('should stop at the instruction when the reference carries nothing', () => {
+    expect(renderTriggerPost(trigger({}), MAX_POST_SIZE).message).toBe(
+      '🔔 Webhook → @mira\n\nHandle it, then mark it done with `triggers__resolve("trigger-1")`.'
     );
   });
 
-  it('should fall back to a fixed phrase when the reference carries nothing', () => {
-    expect(renderTriggerPost(trigger({}), MAX_POST_SIZE).message).toContain('webhook: a new event. Handle it');
+  it('should keep the summary above a webhook body, since nothing puts sender or subject inside it', () => {
+    const rendered = renderTriggerPost(
+      trigger({ body: 'Order 88 shipped.', sender: 'shop@acme.com', subject: 'Shipment' }),
+      MAX_POST_SIZE
+    );
+    expect(rendered.message).toBe(
+      '🔔 Webhook → @mira\n\nHandle it, then mark it done with `triggers__resolve("trigger-1")`.\n\nShipment · from shop@acme.com\n\nOrder 88 shipped.'
+    );
   });
 
-  it('should carry a mail body inline while it fits the post limit', () => {
+  it('should carry a mail body inline while it fits the post limit, without repeating its summary', () => {
     const rendered = renderTriggerPost(
       trigger({ body: 'Please pay invoice 42.', sender: 'billing@acme.com', subject: 'Invoice overdue' }, 'mail'),
       MAX_POST_SIZE
     );
-    expect(rendered.message).toContain('Please pay invoice 42.');
+    expect(rendered.message).toBe(
+      '🔔 New Mail → @mira\n\nHandle it, then mark it done with `triggers__resolve("trigger-1")`.\n\nPlease pay invoice 42.'
+    );
     expect(rendered.files).toStrictEqual([]);
   });
 
