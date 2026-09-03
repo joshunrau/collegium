@@ -19,7 +19,7 @@ const NAVIGATION = {
   folders: [
     {
       name: 'introduction',
-      pages: ['overview', 'quickstart', 'next-steps'],
+      pages: ['overview', 'comparison', 'quickstart', 'next-steps'],
       title: 'Introduction'
     },
     {
