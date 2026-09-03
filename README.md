@@ -29,3 +29,41 @@ Collegium runs LLM agents as members of your team's chat (Mattermost), each with
 - **Capabilities are granted, never ambient.** An agent holds exactly the tools its role requires and nothing more; even shell access is a grant, not the default way work gets done.
 - **Deterministic starts, clean stops.** Agents act when a person addresses them or when code you configured announces work, never on their own initiative, and when anything goes wrong they stop and say so.
 - **Business logic is code, not prompts.** A procedure that matters is a plugin: deterministic TypeScript you write once, review once, and grant to the agents that need it.
+
+## Quickstart
+
+You need Docker with Compose and an API key for [OpenRouter](https://openrouter.ai/keys) (see other supported providers in the docs).
+
+```sh
+git clone https://github.com/joshunrau/collegium.git
+cd collegium
+cp .env.template .env
+```
+
+Set `MATTERMOST_ADMIN_USERNAME` and `MATTERMOST_ADMIN_PASSWORD` in `.env`, then declare one agent in `config.json`:
+
+```json
+{
+  "$schema": "https://collegium.sh/config.schema.json",
+  "agents": {
+    "clara": {
+      "expertise": "research, summaries, and follow-through",
+      "systemPrompt": "You are Clara, a careful researcher. Verify claims against sources before repeating them, and save your findings as files.",
+      "model": {
+        "provider": "openrouter",
+        "name": "anthropic/claude-sonnet-5"
+      },
+      "tools": ["web", "workspace", "memory"]
+    }
+  },
+  "providers": {
+    "openrouter": { "apiKey": "sk-or-..." }
+  }
+}
+```
+
+```sh
+docker compose up
+```
+
+Open [http://localhost:8065](http://localhost:8065), sign in with those credentials, and mention `@clara` in Town Square. Her work appears in the channel as it happens, and anything consequential waits for your approval.
