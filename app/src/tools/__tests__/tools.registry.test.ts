@@ -115,4 +115,10 @@ describe('ToolRegistry', () => {
     expect(registry.isBudgetExempt(profile, 'triggers__resolve')).toBe(false);
     expect(registry.isBudgetExempt(profile, 'ghost')).toBe(false);
   });
+
+  it('lists the exempt calls by wire name from the same flags (§5.3)', () => {
+    const profile = buildAgentProfile();
+    const registry = new ToolRegistry(LIBRARY, [profile]);
+    expect(registry.listBudgetExemptFor(profile)).toStrictEqual(['skills__load']);
+  });
 });

@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 import { AgentsModule } from '@/agents/agents.module.ts';
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { ApprovalsModule } from '@/approvals/approvals.module.ts';
+import { BuiltinsModule } from '@/builtins/builtins.module.ts';
 import { MailModule } from '@/mail/mail.module.ts';
 import { MemoryModule } from '@/memory/memory.module.ts';
 import { PluginsModule } from '@/plugins/plugins.module.ts';
@@ -30,6 +31,7 @@ const SERVICE_TOKENS: readonly ServiceToken<unknown>[] = FRAMEWORK_TOOLSETS.flat
   imports: [
     AgentsModule,
     ApprovalsModule,
+    BuiltinsModule,
     MailModule,
     MemoryModule,
     PluginsModule,

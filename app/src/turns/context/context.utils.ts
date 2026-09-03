@@ -6,6 +6,8 @@ import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import type { CompletionMessage } from '@/inference/inference.types.ts';
 import type { ModelRow } from '@/prisma/prisma.types.ts';
 
+import { renderPreamble } from './preamble.renderer.ts';
+
 /** replayed history is model-facing, so a structural name renders in wire form — never a second spelling (§1) */
 function toWireName(name: PrismaJson.RecordedToolName): string {
   return typeof name === 'string' ? name : renderToolWireName(name);
@@ -61,10 +63,11 @@ export function toCompletionMessages(entries: readonly WindowEntry[], selfUserna
 export function renderSystemPrompt(input: {
   memories: readonly { description: string; reference: string }[];
   peers: readonly AgentProfile[];
+  preamble: { actionBudget: number; budgetExemptToolNames: readonly string[] };
   profile: AgentProfile;
   skillManifest: string;
 }): string {
-  const sections = [input.profile.systemPrompt];
+  const sections = [input.profile.systemPrompt, renderPreamble(input.preamble)];
   if (input.skillManifest !== '') {
     sections.push(
       `## Skills\n\nProcedures you can pull into context with skills__load when they apply:\n\n${input.skillManifest}`

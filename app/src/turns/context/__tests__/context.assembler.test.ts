@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
+import { ConfigService } from '@/config/config.service.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
+import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -65,11 +67,13 @@ describe('ContextAssembler', () => {
     skillsService.renderManifest.mockReturnValue('- handing-work-to-a-peer: How to hand work over.');
     const toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.describeFor.mockReturnValue([{ description: 'Load a skill.', name: 'load_skill', parameters: {} }]);
+    toolRegistry.listBudgetExemptFor.mockReturnValue(['load_skill']);
     windowService = MockFactory.createMock(WindowService);
     windowService.build.mockResolvedValue([]);
     const moduleRef = await Test.createTestingModule({
       providers: [
         ContextAssembler,
+        { provide: ConfigService, useValue: createConfigServiceMock({ turns: { actionBudget: 7 } }) },
         { provide: MemoryService, useValue: memoryService },
         { provide: RosterService, useValue: rosterService },
         { provide: SkillsService, useValue: skillsService },
@@ -88,6 +92,7 @@ describe('ContextAssembler', () => {
     const request = await assemble();
     const indices = [
       'You are Mira.',
+      '## How this works',
       'handing-work-to-a-peer',
       'casey prefers bullet points',
       '@tess — scheduling'
@@ -95,6 +100,12 @@ describe('ContextAssembler', () => {
     expect(indices.every((index) => index >= 0)).toBe(true);
     expect([...indices].sort((a, b) => a - b)).toStrictEqual(indices);
     expect(request.tools.map((tool) => tool.name)).toStrictEqual(['load_skill']);
+  });
+
+  it('should state the configured budget and the exempt calls in the preamble', async () => {
+    const request = await assemble();
+    expect(request.systemPrompt).toContain('Each turn has a budget of 7 tool calls.');
+    expect(request.systemPrompt).toContain('Calls to load_skill do not.');
   });
 
   it('should render the same prompt standalone as it puts on the turn path', async () => {

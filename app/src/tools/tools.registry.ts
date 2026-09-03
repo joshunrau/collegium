@@ -101,6 +101,13 @@ export class ToolRegistry {
     return this.toolsFor(profile).get(name)?.definition.budgetExempt === true;
   }
 
+  /** §5.3 — the wire names an agent may call for free, so the prompt states the rule from the flags the budget bills by */
+  listBudgetExemptFor(profile: AgentProfile): string[] {
+    return Array.from(this.toolsFor(profile).values())
+      .filter((tool) => tool.definition.budgetExempt === true)
+      .map((tool) => tool.wireName);
+  }
+
   /** fails loudly on a name outside the agent's set (§6.1) — never falls back */
   resolveFor(profile: AgentProfile, name: string): Result<ResolvedTool, ToolFailure.UnknownTool> {
     const tool = this.toolsFor(profile).get(name);

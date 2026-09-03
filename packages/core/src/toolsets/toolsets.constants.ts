@@ -3,6 +3,8 @@ import { $MailSettings, $MemorySettings } from './toolsets.schemas.ts';
 
 import type { ToolsetDef } from './toolsets.types.ts';
 
+export const BUILTINS_TOOLSET_DEF = { name: 'builtins', tools: ['now'] } as const satisfies ToolsetDef;
+
 export const MAIL_TOOLSET_DEF = {
   name: 'mail',
   settings: $MailSettings,
@@ -30,9 +32,10 @@ export const WORKSPACE_TOOLSET_DEF = { name: 'workspace', tools: ['write'] } as 
 
 /**
  * §8 — core: in every agent's tool set, never grantable, and naming one in config is a boot
- * refusal. Framework machinery rather than capability an operator hands out.
+ * refusal. Framework machinery rather than capability an operator hands out; `builtins` is the
+ * one namespace shared by the tools too small to own a module each (§2).
  */
-export const CORE_TOOLSET_DEFS = [SKILLS_TOOLSET_DEF, TRIGGERS_TOOLSET_DEF] as const;
+export const CORE_TOOLSET_DEFS = [BUILTINS_TOOLSET_DEF, SKILLS_TOOLSET_DEF, TRIGGERS_TOOLSET_DEF] as const;
 
 export const GRANTABLE_TOOLSET_DEFS = [
   MAIL_TOOLSET_DEF,

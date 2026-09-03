@@ -69,6 +69,7 @@ app/src/
   activation/     decides WHEN a turn starts: addressing, debounce, lock acquisition, drain, trigger flush
   agents/         identity and policy — a passive profile registry holding grants and effective tool settings, no execution
   approvals/      approval lifecycle, pending-decision registry, prompt rendering
+  builtins/       the framework's own small core tools, sharing one namespace rather than owning a module each: the clock
   channels/       triggering mode, the channel lock, the peer roster cache, the multi-mention policy
   chat/           the Mattermost seam
   commands/       the slash-command entry layer and its handlers

@@ -116,7 +116,7 @@ A hand-written TypeScript function exposed to the model with a schema. **One too
 
 **A tool's identity is two segments, `[namespace, tool]`,** held structurally everywhere and rendered per audience: operators, approvers, config, traces, and errors see `mail::send`; the model sees `mail__send`. Each segment is lowercase snake_case with single underscores, which is what makes `__` an unambiguous join; the wire form is produced at request assembly — applied to the tool schemas and the replayed call history together, so the model never sees two spellings of one tool — and retained nowhere downstream of the provider response. Segments are rendered, never parsed, except at the config perimeter.
 
-**A toolset is a namespace and everything that belongs to it**: its tools, the services they may reach, the settings they are configured by, the storage collections they own, the skills they ship. A toolset lives in the module that owns the capability — `mail/`, `memory/`, `web/`, `workspace/` — never in a central tool directory, and a framework toolset's namespace equals its module directory name. Toolset declarations are inert data: a tool body names services by injection token and imports only their types, so the config perimeter derives the grant grammar from the declarations themselves and names survive into the type as a literal union (`'mail::send' | 'memory::read' | …`).
+**A toolset is a namespace and everything that belongs to it**: its tools, the services they may reach, the settings they are configured by, the storage collections they own, the skills they ship. A toolset lives in the module that owns the capability — `mail/`, `memory/`, `web/`, `workspace/` — never in a central tool directory, and a framework toolset's namespace equals its module directory name. The one exception is `builtins/`: the framework's own small core tools that need no module of their own — a clock read, and whatever joins it — share that namespace rather than each owning a directory. Toolset declarations are inert data: a tool body names services by injection token and imports only their types, so the config perimeter derives the grant grammar from the declarations themselves and names survive into the type as a literal union (`'mail::send' | 'memory::read' | …`).
 
 Each tool declares, alongside its description and parameters:
 
@@ -144,7 +144,7 @@ Beside the browser sits `web::fetch`: one plain HTTP GET, no session and no scri
 
 **Grants and settings are one config mechanism.** `agents.<username>.tools` lists namespaces or single `ns::tool` refs; a namespace grant covers tools added to that namespace later, so a plugin update can widen an existing grant with no config change — accepted deliberately, since installing a plugin is already a trust decision. Effective settings per toolset are `agentDefaults.toolSettings[ns]` merged shallowly with `agents.<username>.toolSettings[ns]`, then parsed against that toolset's own schema. Two generic rules replace every toolset-specific config refinement: settings for an ungranted toolset is an error, and a granted toolset whose merged settings fail its schema is an error — "mail requires a mailbox" is what the mail settings schema says, not a rule anyone maintains, and no toolset is named anywhere in the config module.
 
-**Core tools are framework machinery, not grantable capability.** `skills::load` and `triggers::resolve` are in every agent's tool set — loading a skill the agent was already assigned, clearing a trigger the framework itself raised — and naming one in config is an error; their namespaces never appear in config at all. A plugin cannot contribute one.
+**Core tools are framework machinery, not grantable capability.** `builtins::now`, `skills::load`, and `triggers::resolve` are in every agent's tool set — reading the clock, loading a skill the agent was already assigned, clearing a trigger the framework itself raised — and naming one in config is an error; their namespaces never appear in config at all. A plugin cannot contribute one.
 
 ### **3.5 Skill**
 
@@ -200,6 +200,8 @@ Each turn assembles context fresh from SQLite:
 4. Peer roster (§3.11)
 5. Tool definitions
 6. **Channel window** — recent posts from the current channel, interleaved with the trace of this agent's own turns there (§8.2), walked backwards until a token budget is exhausted. The trace is never a peer's: an agent reads its colleagues through their posts alone.
+
+**The system prompt is the agent's own, followed by a framework preamble.** The preamble is code, not configuration: a fixed account of how the runtime behaves — posting, approval, the action budget and what is exempt from it, memory, peers, triggers, the prohibition on self-modification — written in Simplified Technical English and rendered on every turn with the deployment's actual budget. Every sentence in it states what the framework does, never what the model ought to do, so each holds whether or not the model complies; an instruction the model could decline does not belong there. It is what separates a runtime the model can reason about from the advisory prompts of §1.1. Deployment-wide guidance an operator wants every agent to carry is a different thing and is not part of it.
 
 The token budget is a character-ratio estimate (~4 characters per token) behind a named seam. There is no tokenizer dependency.
 

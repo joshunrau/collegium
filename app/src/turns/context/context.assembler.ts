@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
+import { ConfigService } from '@/config/config.service.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
 import type { CompletionRequest } from '@/inference/inference.types.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
@@ -23,13 +24,18 @@ export type AssembledContext = {
  */
 @Injectable()
 export class ContextAssembler {
+  private readonly actionBudget: number;
+
   constructor(
+    configService: ConfigService,
     private readonly memoryService: MemoryService,
     private readonly rosterService: RosterService,
     private readonly skillsService: SkillsService,
     private readonly toolRegistry: ToolRegistry,
     private readonly windowService: WindowService
-  ) {}
+  ) {
+    this.actionBudget = configService.get('turns.actionBudget');
+  }
 
   async assemble(input: { channelId: string; profile: AgentProfile }): Promise<AssembledContext> {
     const { channelId, profile } = input;
@@ -58,6 +64,10 @@ export class ContextAssembler {
     return renderSystemPrompt({
       memories: await this.memoryService.list(profile.username),
       peers: this.rosterService.getPeers(channelId, profile.username),
+      preamble: {
+        actionBudget: this.actionBudget,
+        budgetExemptToolNames: this.toolRegistry.listBudgetExemptFor(profile)
+      },
       profile,
       skillManifest: this.skillsService.renderManifest(profile)
     });

@@ -18,6 +18,7 @@ describe('framework toolset defs', () => {
   it('should render each grantable namespace and each of its tools by ref', () => {
     expect(TOOL_GRANT_VALUES).toContain('memory');
     expect(TOOL_GRANT_VALUES).toContain('mail::send');
+    expect(TOOL_GRANT_VALUES).not.toContain('builtins');
     expect(TOOL_GRANT_VALUES).not.toContain('skills');
     expect(TOOL_GRANT_VALUES).not.toContain('triggers::resolve');
     expect(TOOL_GRANT_GROUPS).toContainEqual({ label: 'memory', values: ['memory::read', 'memory::write'] });

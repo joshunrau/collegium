@@ -4,6 +4,7 @@ import type { AgentProfile } from '@/agents/agents.types.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 
 import { renderSystemPrompt, toCompletionMessages } from '../context.utils.ts';
+import { renderPreamble } from '../preamble.renderer.ts';
 
 const event = (payload: PrismaJson.TurnEventPayload): WindowEntry => ({
   event: { createdAt: new Date(0), id: 'event-1', kind: payload.kind, payload, sequence: 0, turnId: 'turn-1' },
@@ -28,6 +29,8 @@ const post = (authorUsername: string, message: string): WindowEntry => ({
 const PEER = { expertise: 'scheduling', username: 'tess' } as AgentProfile;
 
 const PROFILE = { expertise: 'testing', systemPrompt: 'You are Mira.', username: 'mira' } as AgentProfile;
+
+const PREAMBLE = { actionBudget: 10, budgetExemptToolNames: ['builtins__now', 'skills__load'] };
 
 describe('toCompletionMessages', () => {
   it('should attribute a peer post and speak the agent own posts as the assistant', () => {
@@ -95,8 +98,10 @@ describe('toCompletionMessages', () => {
 });
 
 describe('renderSystemPrompt', () => {
-  it('should carry the agent prompt alone when it has no skills, memories, or peers', () => {
-    expect(renderSystemPrompt({ memories: [], peers: [], profile: PROFILE, skillManifest: '' })).toBe('You are Mira.');
+  it('should carry the agent prompt and the preamble alone when it has no skills, memories, or peers', () => {
+    expect(
+      renderSystemPrompt({ memories: [], peers: [], preamble: PREAMBLE, profile: PROFILE, skillManifest: '' })
+    ).toBe(`You are Mira.\n\n${renderPreamble(PREAMBLE)}`);
   });
 
   it('should append the skills, memories, and peers sections in §3.8 order', () => {
@@ -104,11 +109,14 @@ describe('renderSystemPrompt', () => {
       renderSystemPrompt({
         memories: [{ description: 'casey prefers bullet points', reference: 'memory-1' }],
         peers: [PEER],
+        preamble: PREAMBLE,
         profile: PROFILE,
         skillManifest: '- handing-work-to-a-peer: How to hand work over.'
       })
     ).toBe(
       `You are Mira.
+
+${renderPreamble(PREAMBLE)}
 
 ## Skills
 
