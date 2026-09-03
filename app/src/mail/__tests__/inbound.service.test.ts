@@ -49,9 +49,9 @@ describe('MailInboundService', () => {
     };
     const mailRegistry = MockFactory.createMock(MailRegistry);
     mailRegistry.list.mockReturnValue([mailbox]);
-    mailRegistry.providerFor.mockImplementation((agentUsername) =>
-      agentUsername === 'tess' ? mailbox.provider : undefined
-    );
+    mailRegistry.providerFor.mockImplementation((agentUsername) => {
+      return agentUsername === 'tess' ? mailbox.provider : undefined;
+    });
     mailOutageService = MockFactory.createMock(MailOutageService);
     triggersService = MockFactory.createMock(TriggersService);
     triggersService.record.mockResolvedValue(Result.ok({ id: 'trigger-1' } as never));

@@ -80,10 +80,11 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
     conversation: {
       description:
         'Gather the whole conversation a message belongs to, oldest first. Returns summaries only — only open returns a body.',
-      execute: (args, context) =>
-        withProvider(context, async (provider) =>
-          toReadResult(await provider.getConversation(args.ref), renderMailSummaries)
-        ),
+      execute: (args, context) => {
+        return withProvider(context, async (provider) => {
+          return toReadResult(await provider.getConversation(args.ref), renderMailSummaries);
+        });
+      },
       parameters: z.object({
         ref: $Ref.describe('A message ref (shown as ⟨ref⟩); returns its whole conversation, oldest first')
       }),
@@ -93,10 +94,11 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
     },
     list: {
       description: 'List the most recent messages in your mailbox. Returns summaries only — only open returns a body.',
-      execute: (args, context) =>
-        withProvider(context, async (provider) =>
-          toReadResult(await provider.listRecent(args.count), renderMailSummaries)
-        ),
+      execute: (args, context) => {
+        return withProvider(context, async (provider) => {
+          return toReadResult(await provider.listRecent(args.count), renderMailSummaries);
+        });
+      },
       parameters: z.object({
         count: $Count.describe('How many of the most recent messages to list')
       }),
@@ -108,8 +110,11 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
       description:
         'Open one message in full — the only mail action that returns a body. Attachments are described by name, ' +
         'type, and size; their content is not retrievable.',
-      execute: (args, context) =>
-        withProvider(context, async (provider) => toReadResult(await provider.open(args.ref), renderMailMessage)),
+      execute: (args, context) => {
+        return withProvider(context, async (provider) => {
+          return toReadResult(await provider.open(args.ref), renderMailMessage);
+        });
+      },
       parameters: z.object({
         ref: $Ref.describe('The message ref to open in full')
       }),
@@ -127,8 +132,11 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
         'Reply to a message; it stays in that conversation for the recipient. Requires human approval, which ' +
         'discloses every recipient, the subject, and the entire body; drafting wording in conversation needs no ' +
         'approval at all.',
-      execute: (args, context) =>
-        withProvider(context, async (provider) => toSendResult(await provider.reply(args.ref, toOutboundMail(args)))),
+      execute: (args, context) => {
+        return withProvider(context, async (provider) => {
+          return toSendResult(await provider.reply(args.ref, toOutboundMail(args)));
+        });
+      },
       parameters: z.object({
         ...$Outbound,
         ref: $Ref.describe('The message being replied to; it stays in that conversation for the recipient'),
@@ -140,10 +148,11 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
     search: {
       description:
         "Search your mailbox in the mail provider's own query grammar. Returns summaries only — only open returns a body.",
-      execute: (args, context) =>
-        withProvider(context, async (provider) =>
-          toReadResult(await provider.search(args.query, args.count), renderMailSummaries)
-        ),
+      execute: (args, context) => {
+        return withProvider(context, async (provider) => {
+          return toReadResult(await provider.search(args.query, args.count), renderMailSummaries);
+        });
+      },
       parameters: z.object({
         count: $Count.describe('How many matches to return'),
         query: z.string().min(1).describe("What to search for, in the mail provider's own query grammar")
@@ -161,8 +170,9 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
       description:
         'Send a new message. Requires human approval, which discloses every recipient, the subject, and the entire ' +
         'body; drafting wording in conversation needs no approval at all.',
-      execute: (args, context) =>
-        withProvider(context, async (provider) => toSendResult(await provider.send(toOutboundMail(args)))),
+      execute: (args, context) => {
+        return withProvider(context, async (provider) => toSendResult(await provider.send(toOutboundMail(args))));
+      },
       parameters: z.object($Outbound),
       timeoutMs: MAIL_TIMEOUT_MS,
       traceDetail: (args) => `"${args.subject}" → ${args.to.join(', ')}`

@@ -24,8 +24,9 @@ const config: ConfigInput = {
   providers: { deepseek: { apiKey: 'key_1' } }
 };
 
-const issuePaths = (input: unknown) =>
-  $Config.safeParse(input).error?.issues.map((issue) => issue.path.join('.')) ?? [];
+const issuePaths = (input: unknown) => {
+  return $Config.safeParse(input).error?.issues.map((issue) => issue.path.join('.')) ?? [];
+};
 
 describe('$AgentDeclaration', () => {
   it('should accept a namespace grant and a single-tool ref', () => {

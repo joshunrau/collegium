@@ -151,8 +151,9 @@ export async function mapFieldDescriptions<TFrom, TTo>(
   fields: readonly FieldNode<TFrom>[],
   map: (description: TFrom) => Promise<TTo>
 ): Promise<FieldNode<TTo>[]> {
-  const mapDescription = async (description: TFrom | undefined) =>
-    description === undefined ? undefined : await map(description);
+  const mapDescription = async (description: TFrom | undefined) => {
+    return description === undefined ? undefined : await map(description);
+  };
   return Promise.all(
     fields.map(async (field) => ({
       ...field,

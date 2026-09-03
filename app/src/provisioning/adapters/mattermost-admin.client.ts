@@ -112,15 +112,16 @@ export class MattermostAdminClient {
 
   async ensureChannel(params: { handle: string; teamId: string }): Promise<string> {
     return this.ensureIdentified({
-      create: () =>
-        this.sdk
+      create: () => {
+        return this.sdk
           .createChannel({ display_name: params.handle, name: params.handle, team_id: params.teamId, type: OPEN })
           .catch((error: unknown) => {
             throw new Error(
               `could not create channel "${params.handle}" — an archived channel may already hold the name, which the lookup does not see`,
               { cause: error }
             );
-          }),
+          });
+      },
       lookup: () => this.sdk.getChannelByName(params.teamId, params.handle)
     });
   }
@@ -131,10 +132,11 @@ export class MattermostAdminClient {
 
   async ensureTeam(handle: string): Promise<string> {
     return this.ensureIdentified({
-      create: () =>
-        this.sdk.createTeam(
+      create: () => {
+        return this.sdk.createTeam(
           MattermostAdminClient.asHydrated<HydratedTeam>({ display_name: handle, name: handle, type: OPEN })
-        ),
+        );
+      },
       lookup: () => this.sdk.getTeamByName(handle)
     });
   }

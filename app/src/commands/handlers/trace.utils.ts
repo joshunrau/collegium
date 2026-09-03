@@ -19,13 +19,13 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload): string {
       { kind: 'approval_requested' },
       (event) => `approval requested for \`${toDisplayName(event.toolName)}\`: ${event.payloadText}`
     )
-    .with({ kind: 'assistant_message' }, (event) =>
-      event.toolCalls.length === 0
+    .with({ kind: 'assistant_message' }, (event) => {
+      return event.toolCalls.length === 0
         ? `assistant: ${event.content}`
         : event.toolCalls
             .map((call) => `called \`${toDisplayName(call.toolName)}\` with ${JSON.stringify(call.args)}`)
-            .join('; ')
-    )
+            .join('; ');
+    })
     .with(
       { kind: 'record_written' },
       (event) => `record ${event.reference} written: ${event.description} — ${event.body}`

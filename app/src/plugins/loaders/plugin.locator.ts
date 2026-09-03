@@ -84,9 +84,9 @@ export class PluginLocator {
 
   /** every `src/skills/*.md` is a skill, named by its basename (§9) */
   private discoverSkills(packageRoot: string): Result<PluginConventionalFile[], PluginLoadFailure.Locate> {
-    return discoverConventionalFiles(packageRoot, SKILLS_DIRECTORY, SKILL_EXTENSION, (name, file) =>
-      SKILL_NAME_PATTERN.test(name) ? undefined : { file, kind: 'skill-name-invalid' }
-    );
+    return discoverConventionalFiles(packageRoot, SKILLS_DIRECTORY, SKILL_EXTENSION, (name, file) => {
+      return SKILL_NAME_PATTERN.test(name) ? undefined : { file, kind: 'skill-name-invalid' };
+    });
   }
 
   /** every `src/tools/*.ts` is a tool, named by its basename — refused, never skipped, when the name will not do */

@@ -11,8 +11,9 @@ const completionRequest: CompletionRequest = {
   tools: []
 };
 
-const completionResponse = (message: unknown, usage?: unknown): Response =>
-  Response.json({ choices: [{ message }], ...(usage !== undefined && { usage }) });
+const completionResponse = (message: unknown, usage?: unknown): Response => {
+  return Response.json({ choices: [{ message }], ...(usage !== undefined && { usage }) });
+};
 
 describe('OpenAICompatibleClient', () => {
   const fetchMock = vi.fn<typeof fetch>();

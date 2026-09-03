@@ -1,8 +1,8 @@
 import type { SchemaTable } from '@collegium/config';
 
 /** The table a schema attaches to a field: its title, then one row per label with the values beside it. */
-export const FieldTable = ({ table }: { table: SchemaTable | undefined }) =>
-  table === undefined ? null : (
+export const FieldTable = ({ table }: { table: SchemaTable | undefined }) => {
+  return table === undefined ? null : (
     <div className="not-prose mt-3 text-xs">
       <span className="text-fd-muted-foreground mb-1 block">{table.title}</span>
       {table.rows.map((row) => (
@@ -20,3 +20,4 @@ export const FieldTable = ({ table }: { table: SchemaTable | undefined }) =>
       ))}
     </div>
   );
+};

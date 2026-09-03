@@ -59,12 +59,13 @@ describe('TurnsService', () => {
                 .toSorted((left, right) => right.sequence - left.sequence);
               return Promise.resolve(last ?? null);
             },
-            findMany: ({ where }: any) =>
-              Promise.resolve(
+            findMany: ({ where }: any) => {
+              return Promise.resolve(
                 events
                   .filter((event) => event.turnId === where.turnId)
                   .toSorted((left, right) => left.sequence - right.sequence)
-              )
+              );
+            }
           }
         }
       ]
@@ -73,8 +74,14 @@ describe('TurnsService', () => {
     eventModel = moduleRef.get(getModelToken('TurnEvent'));
   });
 
-  const open = () =>
-    turnsService.open({ agentUsername: 'mira', channelId: 'channel-1', depth: 0, modelName: 'deepseek-v4-flash' });
+  const open = () => {
+    return turnsService.open({
+      agentUsername: 'mira',
+      channelId: 'channel-1',
+      depth: 0,
+      modelName: 'deepseek-v4-flash'
+    });
+  };
 
   it('should assign a gapless sequence per turn and derive the kind column from the payload', async () => {
     const first = await open();

@@ -93,10 +93,9 @@ export function createModelTable<TRow extends object>(options: ModelTableOptions
         // operator would otherwise silently match nothing and the test would pass for the wrong reason
         throw new Error(`unsupported where condition ${JSON.stringify(condition)} against a scalar value`);
       }
-      return Object.entries(clauses).every(
-        ([field, nested]) =>
-          nested === undefined || matchesCondition((value as { [key: string]: unknown })[field], nested)
-      );
+      return Object.entries(clauses).every(([field, nested]) => {
+        return nested === undefined || matchesCondition((value as { [key: string]: unknown })[field], nested);
+      });
     }
     return value === condition;
   };
@@ -194,15 +193,16 @@ export function createModelTable<TRow extends object>(options: ModelTableOptions
       );
       return Promise.resolve(first ? decorate(first, shape) : null);
     },
-    findMany: ({ orderBy, take, where, ...shape }) =>
-      Promise.resolve(
+    findMany: ({ orderBy, take, where, ...shape }) => {
+      return Promise.resolve(
         sorted(
           rows.filter((row) => matchesWhere(row, where)),
           orderBy
         )
           .slice(0, take)
           .map((row) => decorate(row, shape))
-      ),
+      );
+    },
     findUnique: ({ where, ...shape }) => {
       const row = rows.find((candidate) => matchesWhere(candidate, where));
       return Promise.resolve(row ? decorate(row, shape) : null);

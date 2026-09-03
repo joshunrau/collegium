@@ -76,13 +76,14 @@ describe('TriggersService', () => {
     triggersService = moduleRef.get(TriggersService);
   });
 
-  const record = (targetChannelId = 'channel-1', targetAgentUsername = 'mira') =>
-    triggersService.record({
+  const record = (targetChannelId = 'channel-1', targetAgentUsername = 'mira') => {
+    return triggersService.record({
       reference: { subject: 'invoice overdue' },
       source: 'webhook',
       targetAgentUsername,
       targetChannelId
     });
+  };
 
   it('should refuse intake for an agent the registry does not know (§4.2)', async () => {
     const refused = await record('channel-1', 'ghost');

@@ -89,11 +89,11 @@ export class ImapMailProvider extends MailProvider {
   }
 
   initializeCursor(): Promise<Result<string, MailFailure.Poll>> {
-    return this.withInbox((_client, mailbox) =>
-      Promise.resolve(
+    return this.withInbox((_client, mailbox) => {
+      return Promise.resolve(
         Result.ok(serializeImapCursor({ uidNext: mailbox.uidNext, uidValidity: String(mailbox.uidValidity) }))
-      )
-    );
+      );
+    });
   }
 
   listRecent(limit: number): Promise<Result<MailSummary[], MailFailure.Read>> {

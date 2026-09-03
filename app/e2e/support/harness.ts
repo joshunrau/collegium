@@ -84,8 +84,8 @@ async function startHarness<const S extends Scenario>(scenario: S): Promise<Star
       (stub) => stub.stop()
     );
 
-    const toChannel = (channel: WorkspaceChannel): Channel<AgentNameOf<S>> =>
-      new Channel({
+    const toChannel = (channel: WorkspaceChannel): Channel<AgentNameOf<S>> => {
+      return new Channel({
         agents,
         channel,
         client: workspace.client,
@@ -93,6 +93,7 @@ async function startHarness<const S extends Scenario>(scenario: S): Promise<Star
         systemBot: workspace.systemBot,
         teamId: workspace.teamId
       });
+    };
 
     const channels = scenario.channels.map(({ name }) => {
       const channel = workspace.channels.get(name);
@@ -145,13 +146,14 @@ async function startHarness<const S extends Scenario>(scenario: S): Promise<Star
       agents: toRecord<AgentNameOf<S>, AgentBot>([...agents]),
       app,
       channels: toRecord<ChannelNameOf<S>, Channel<AgentNameOf<S>>>(channels),
-      diagnostics: async () =>
-        [
+      diagnostics: async () => {
+        return [
           inference.diagnostics(),
           `channel "${mainChannel[1].name}":\n${await mainChannel[1].describeContents()}`,
           `collegium logs:\n${app.logs()}`,
           `mattermost logs:\n${await readMattermostLogs(cluster.containerId)}`
-        ].join('\n\n'),
+        ].join('\n\n');
+      },
       inference,
       limits: workspace.limits,
       systemBot: workspace.systemBot

@@ -62,8 +62,9 @@ describe('WindowService', () => {
     return moduleRef.get(WindowService).build({ agentUsername: 'mira', budgetTokens, channelId: 'channel-1' });
   };
 
-  const identify = (entries: Awaited<ReturnType<typeof build>>) =>
-    entries.map((entry) => (entry.kind === 'post' ? entry.post.id : entry.event.id));
+  const identify = (entries: Awaited<ReturnType<typeof build>>) => {
+    return entries.map((entry) => (entry.kind === 'post' ? entry.post.id : entry.event.id));
+  };
 
   beforeEach(() => {
     episodesService = MockFactory.createMock(EpisodesService);

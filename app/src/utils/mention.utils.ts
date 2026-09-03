@@ -13,7 +13,7 @@ export function extractMentionedUsernames(text: string): string[] {
  */
 export function stripMentionsOf(text: string, usernames: readonly string[]): string {
   const targets = new Set(usernames.map((username) => username.toLowerCase()));
-  return text.replaceAll(MENTION_PATTERN, (mention, username: string) =>
-    targets.has(username.toLowerCase()) ? username : mention
-  );
+  return text.replaceAll(MENTION_PATTERN, (mention, username: string) => {
+    return targets.has(username.toLowerCase()) ? username : mention;
+  });
 }

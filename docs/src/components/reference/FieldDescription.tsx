@@ -6,7 +6,8 @@ type FieldDescriptionProps = {
   description: RenderedHtml | undefined;
 };
 
-export const FieldDescription = ({ className, description }: FieldDescriptionProps) =>
-  description === undefined ? null : (
+export const FieldDescription = ({ className, description }: FieldDescriptionProps) => {
+  return description === undefined ? null : (
     <div className={cn('prose-no-margin', className)} dangerouslySetInnerHTML={{ __html: description.html }} />
   );
+};

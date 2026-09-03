@@ -48,8 +48,9 @@ describe('Restart', () => {
     expect(invalidated.id).toBe(prompt.id);
     await channels.main.awaitPost({
       description: 'the boot notice stating the downtime window and abandoned work',
-      match: (post) =>
-        post.text.includes('Online') && post.text.includes('Offline since') && post.text.includes('abandoned')
+      match: (post) => {
+        return post.text.includes('Online') && post.text.includes('Offline since') && post.text.includes('abandoned');
+      }
     });
 
     const reply = `alive-${randomUUID()}`;

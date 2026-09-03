@@ -17,9 +17,9 @@ describe('MultiMentionPolicy', () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.list.mockReturnValue([profile('mira'), profile('owen'), profile('tess')]);
     const rosterService = MockFactory.createMock(RosterService);
-    rosterService.listAgentsIn.mockImplementation((channelId) =>
-      channelId === 'channel-dm' ? [profile('mira')] : [profile('mira'), profile('owen'), profile('tess')]
-    );
+    rosterService.listAgentsIn.mockImplementation((channelId) => {
+      return channelId === 'channel-dm' ? [profile('mira')] : [profile('mira'), profile('owen'), profile('tess')];
+    });
     const moduleRef = await Test.createTestingModule({
       providers: [
         MultiMentionPolicy,

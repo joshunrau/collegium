@@ -21,8 +21,9 @@ const $SqliteFileUrl = z
  * string rather than dropping it, and every variable this wraps is absent-or-set: an empty value is
  * absence, or `.env.template` could not list a variable it does not want set.
  */
-const $$Blankable = <TSchema extends z.ZodType>(schema: TSchema) =>
-  z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+const $$Blankable = <TSchema extends z.ZodType>(schema: TSchema) => {
+  return z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+};
 
 /** the three that must arrive together, and mean nothing one at a time */
 const PASSWORD_KEYS = ['MATTERMOST_ADMIN_EMAIL', 'MATTERMOST_ADMIN_PASSWORD', 'MATTERMOST_ADMIN_USERNAME'] as const;

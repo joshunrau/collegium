@@ -23,14 +23,15 @@ type PostRow = {
 const AUTHORING_TURN_DEPTH = 3;
 
 /** the delegate is faked with real state because idempotency is only observable against real state */
-const createPostTable = () =>
-  createModelTable<PostRow>({
+const createPostTable = () => {
+  return createModelTable<PostRow>({
     defaults: (sequence) => ({ authoringTurnId: null, isForgotten: false, observedAt: new Date(sequence) }),
     relations: {
       authoringTurn: (row) => (row.authoringTurnId === null ? undefined : { depth: AUTHORING_TURN_DEPTH })
     },
     uniqueFields: ['id']
   });
+};
 
 describe('ConversationsService', () => {
   let conversationsService: ConversationsService;

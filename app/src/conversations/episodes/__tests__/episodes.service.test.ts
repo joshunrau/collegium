@@ -28,12 +28,13 @@ describe('EpisodesService', () => {
               episodes.push(row);
               return Promise.resolve(row);
             },
-            findFirst: ({ where }: any) =>
-              Promise.resolve(
+            findFirst: ({ where }: any) => {
+              return Promise.resolve(
                 episodes
                   .filter((row) => row.agentUsername === where.agentUsername && row.channelId === where.channelId)
                   .toSorted((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null
-              )
+              );
+            }
           }
         },
         {

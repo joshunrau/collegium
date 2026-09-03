@@ -77,8 +77,8 @@ describe('implementToolset', () => {
   });
 
   it('runs the declaration grammar over the storage it is handed', () => {
-    expect(() =>
-      implementToolset(FAKE_DEF, { storage: { 'bad-name': z.object({}) }, tools: { noop: buildTool() } })
-    ).toThrow('storage collection name');
+    expect(() => {
+      return implementToolset(FAKE_DEF, { storage: { 'bad-name': z.object({}) }, tools: { noop: buildTool() } });
+    }).toThrow('storage collection name');
   });
 });

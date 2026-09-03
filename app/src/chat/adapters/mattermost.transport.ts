@@ -184,9 +184,13 @@ export class MattermostTransport extends ChatTransport {
   send(message: OutgoingChatMessage): Promise<Result<{ createdAt: Date; postId: string }, ChatFailure>> {
     return toChatResult(async () => {
       const fileIds = await Promise.all(
-        (message.files ?? []).map((file) =>
-          this.client.uploadFile({ channelId: message.channelId, content: file.content, filename: file.filename })
-        )
+        (message.files ?? []).map((file) => {
+          return this.client.uploadFile({
+            channelId: message.channelId,
+            content: file.content,
+            filename: file.filename
+          });
+        })
       );
       const created = await this.client.createPost({
         attachments: message.attachments,
@@ -204,9 +208,9 @@ export class MattermostTransport extends ChatTransport {
   }
 
   updatePost(postId: string, update: PostUpdate): Promise<Result<void, ChatFailure>> {
-    return toChatResult(() =>
-      this.client.updatePost({ attachments: update.attachments, message: update.text, postId })
-    );
+    return toChatResult(() => {
+      return this.client.updatePost({ attachments: update.attachments, message: update.text, postId });
+    });
   }
 
   private async handleEvent(event: WebSocketMessage, onEvent: ChatEventHandler): Promise<void> {

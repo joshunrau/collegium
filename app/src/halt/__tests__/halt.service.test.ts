@@ -59,9 +59,9 @@ describe('HaltService', () => {
     rosterService.findRespondToAllViolation.mockReturnValue(undefined);
     startedAt = [];
     turnsService = MockFactory.createMock(TurnsService);
-    turnsService.countStartedAfter.mockImplementation((moment: Date) =>
-      Promise.resolve(startedAt.filter((at) => at > moment).length)
-    );
+    turnsService.countStartedAfter.mockImplementation((moment: Date) => {
+      return Promise.resolve(startedAt.filter((at) => at > moment).length);
+    });
     watermarks = createModelTable<WatermarkRow>();
     haltService = await createService();
   });

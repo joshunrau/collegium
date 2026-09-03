@@ -80,8 +80,9 @@ describe('ContextAssembler', () => {
     contextAssembler = moduleRef.get(ContextAssembler);
   });
 
-  const assemble = () =>
-    contextAssembler.assemble({ channelId: 'channel-1', profile: PROFILE }).then(({ request }) => request);
+  const assemble = () => {
+    return contextAssembler.assemble({ channelId: 'channel-1', profile: PROFILE }).then(({ request }) => request);
+  };
 
   it('should carry every section of §3.8 in order in the system prompt', async () => {
     const request = await assemble();

@@ -65,9 +65,9 @@ export class MailRegistry {
     if (new Set(addresses).size !== addresses.length) {
       throw new Error('mailbox addresses must be unique across agents');
     }
-    const clientIds = mailboxes.flatMap(({ settings }) =>
-      settings.provider.kind === 'exchange' ? [settings.provider.clientId] : []
-    );
+    const clientIds = mailboxes.flatMap(({ settings }) => {
+      return settings.provider.kind === 'exchange' ? [settings.provider.clientId] : [];
+    });
     if (new Set(clientIds).size !== clientIds.length) {
       throw new Error(
         'Exchange client ids must be unique across agents: one app registration per mailbox is what lets the provider enforce the mailbox boundary'

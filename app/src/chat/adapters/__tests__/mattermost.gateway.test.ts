@@ -36,9 +36,9 @@ const vendor = vi.hoisted(() => {
     editCommand = vi.fn();
     getChannel = vi.fn();
     // the fixture's channel ids are their handles, so what a caller asked for stays legible downstream
-    getChannelByName = vi.fn((teamId: string, handle: string) =>
-      Promise.resolve({ id: handle, team_id: teamId, type: 'O' })
-    );
+    getChannelByName = vi.fn((teamId: string, handle: string) => {
+      return Promise.resolve({ id: handle, team_id: teamId, type: 'O' });
+    });
     getChannelMember = vi.fn((channelId: string, userId: string) => {
       if (!mattermost.channelMemberIds.has(userId)) {
         return Promise.reject(new ClientError('app.channel.get_member.missing.app_error'));

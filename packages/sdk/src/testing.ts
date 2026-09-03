@@ -26,20 +26,21 @@ function createCollection(schema: z.ZodObject): AnyToolsetCollection {
     updatedAt
   });
   return {
-    create: ({ id = crypto.randomUUID(), ...data }) =>
-      Promise.try(() => {
+    create: ({ id = crypto.randomUUID(), ...data }) => {
+      return Promise.try(() => {
         if (rows.has(id)) {
           throw new Error(`storage collection already holds a record with id "${id}"`);
         }
         const now = new Date();
         rows.set(id, { ...schema.parse(data), createdAt: now, id, updatedAt: now });
         return toRecord(rows.get(id)!);
-      }),
+      });
+    },
     deleteById: (id) => Promise.try(() => rows.delete(id)),
     findById: (id) => Promise.try(() => (rows.has(id) ? toRecord(rows.get(id)!) : null)),
     findMany: (query = {}) => Promise.try(() => applyCollectionQuery([...rows.values()].map(toRecord), query)),
-    updateById: (id, patch) =>
-      Promise.try(() => {
+    updateById: (id, patch) => {
+      return Promise.try(() => {
         const row = rows.get(id);
         if (row === undefined) {
           return null;
@@ -47,7 +48,8 @@ function createCollection(schema: z.ZodObject): AnyToolsetCollection {
         const { createdAt, id: _id, updatedAt: _updatedAt, ...value } = row;
         rows.set(id, { ...schema.parse({ ...schema.parse(value), ...patch }), createdAt, id, updatedAt: new Date() });
         return toRecord(rows.get(id)!);
-      })
+      });
+    }
   };
 }
 

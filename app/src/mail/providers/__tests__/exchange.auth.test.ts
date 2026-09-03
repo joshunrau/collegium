@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ExchangeAuth } from '../exchange.auth.ts';
 
-const tokenResponse = (token: string, expiresInSeconds = 3600) =>
-  new Response(JSON.stringify({ access_token: token, expires_in: expiresInSeconds }), { status: 200 });
+const tokenResponse = (token: string, expiresInSeconds = 3600) => {
+  return new Response(JSON.stringify({ access_token: token, expires_in: expiresInSeconds }), { status: 200 });
+};
 
 describe('ExchangeAuth', () => {
   const fetchMock = vi.fn<typeof fetch>();

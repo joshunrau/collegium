@@ -87,8 +87,9 @@ class Channel<AgentName extends string> {
     return waitFor({
       describeFailure: () => this.socket.describeContents(),
       description: title === undefined ? 'an interactive dialog' : `the interactive dialog "${title}"`,
-      probe: () =>
-        this.socket.dialogsObserved().find((dialog) => title === undefined || dialog.title === title) ?? PENDING,
+      probe: () => {
+        return this.socket.dialogsObserved().find((dialog) => title === undefined || dialog.title === title) ?? PENDING;
+      },
       timeoutMs: options.timeoutMs ?? CHANNEL_TIMEOUTS.dialog
     });
   }
@@ -100,11 +101,15 @@ class Channel<AgentName extends string> {
     return waitFor({
       describeFailure: () => this.socket.describeContents(),
       description: `an ephemeral post in channel "${this.name}"${contains === undefined ? '' : ` containing "${contains}"`}`,
-      probe: () =>
-        this.socket
-          .ephemeralPosts()
-          .find((post) => post.channelId === this.id && (contains === undefined || post.message.includes(contains))) ??
-        PENDING,
+      probe: () => {
+        return (
+          this.socket
+            .ephemeralPosts()
+            .find(
+              (post) => post.channelId === this.id && (contains === undefined || post.message.includes(contains))
+            ) ?? PENDING
+        );
+      },
       timeoutMs: options.timeoutMs ?? CHANNEL_TIMEOUTS.ephemeral
     });
   }

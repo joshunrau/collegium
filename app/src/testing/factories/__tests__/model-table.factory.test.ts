@@ -13,8 +13,8 @@ type Row = {
 
 const at = (minutes: number) => new Date(Date.UTC(2026, 0, 1, 0, minutes));
 
-const createTable = () =>
-  createModelTable<Row>({
+const createTable = () => {
+  return createModelTable<Row>({
     defaults: (sequence) => ({ endedAt: null, id: `row-${sequence}`, score: 0, turnId: 'turn-1' }),
     relations: {
       channel: (row) => ({ id: row.channelId }),
@@ -22,6 +22,7 @@ const createTable = () =>
     },
     uniqueFields: ['id']
   });
+};
 
 const ids = (rows: unknown[]) => rows.map((row) => (row as Row).id);
 

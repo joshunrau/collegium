@@ -41,8 +41,9 @@ export function renderMailAnnouncement(arrival: MailArrival, receivedAtFormatted
 /** one message in full, as readable text; attachments are described and say so */
 export function renderMailMessage(message: MailMessage): string {
   const thread = splitMailThread(message.body);
-  const parties = (label: string, list: readonly MailParty[]) =>
-    list.length === 0 ? [] : [`${label}: ${list.map(formatMailParty).join(', ')}`];
+  const parties = (label: string, list: readonly MailParty[]) => {
+    return list.length === 0 ? [] : [`${label}: ${list.map(formatMailParty).join(', ')}`];
+  };
   const attachments =
     message.attachments.length === 0
       ? []

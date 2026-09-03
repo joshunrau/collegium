@@ -143,19 +143,21 @@ describe('Loop control', () => {
     return { mira: inference.requestsFor('mira').length, owen: inference.requestsFor('owen').length };
   };
 
-  const awaitDelegationLimitNotice = () =>
-    harness().channels.main.awaitPost({
+  const awaitDelegationLimitNotice = () => {
+    return harness().channels.main.awaitPost({
       description: 'the delegation-limit notice',
       match: (post) => post.text.includes('delegation limit'),
       timeoutMs: 60_000
     });
+  };
 
   const awaitChainSettled = async (phrase: string) => {
     const { agents, channels } = harness();
     await channels.main.awaitPost({
       description: 'the final output with its agent mention stripped',
-      match: (post) =>
-        post.text === `${agents.owen.username} ${phrase}` || post.text === `${agents.mira.username} ${phrase}`,
+      match: (post) => {
+        return post.text === `${agents.owen.username} ${phrase}` || post.text === `${agents.mira.username} ${phrase}`;
+      },
       timeoutMs: 60_000
     });
   };

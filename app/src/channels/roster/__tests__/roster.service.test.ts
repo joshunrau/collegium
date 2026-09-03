@@ -33,15 +33,16 @@ describe('RosterService', () => {
     membershipsByAgent = { mira: ['channel-1'], tess: ['channel-1', 'channel-2'] };
     membershipCalls = [];
     const transportRegistry = {
-      get: (username: string): ChatTransport =>
-        ({
+      get: (username: string): ChatTransport => {
+        return {
           getChannelMemberships: () => {
             membershipCalls.push(username);
             return Promise.resolve(
               membershipFailure ? Result.err(membershipFailure) : Result.ok(membershipsByAgent[username] ?? [])
             );
           }
-        }) as ChatTransport
+        } as ChatTransport;
+      }
     };
     const moduleRef = await Test.createTestingModule({
       providers: [

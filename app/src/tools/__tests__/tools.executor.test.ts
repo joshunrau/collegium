@@ -81,13 +81,14 @@ describe('ToolExecutor', () => {
   let approvalsService: MockedInstance<ApprovalsService>;
   let toolExecutor: ToolExecutor;
 
-  const execute = (name: string, args: unknown) =>
-    toolExecutor.execute({
+  const execute = (name: string, args: unknown) => {
+    return toolExecutor.execute({
       appendEvent: () => Promise.resolve(),
       call: { arguments: args, id: 'call-1', name },
       profile: PROFILE,
       turn: buildToolTurnScope()
     });
+  };
 
   beforeEach(async () => {
     approvalsService = MockFactory.createMock(ApprovalsService);

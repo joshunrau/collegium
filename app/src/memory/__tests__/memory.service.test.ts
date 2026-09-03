@@ -24,10 +24,11 @@ const entry = (overrides: Partial<ModelRow<'Memory'>> = {}): ModelRow<'Memory'> 
 });
 
 /** the delegate is faked with real state because the lock is only observable against real state */
-const createMemoryTable = () =>
-  createModelTable<ModelRow<'Memory'>>({
+const createMemoryTable = () => {
+  return createModelTable<ModelRow<'Memory'>>({
     defaults: (sequence) => ({ createdAt: new Date(sequence), id: buildId(sequence) })
   });
+};
 
 describe('MemoryService', () => {
   let memoryService: MemoryService;

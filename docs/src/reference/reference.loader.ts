@@ -27,8 +27,9 @@ type ReferencePageSource = {
   readonly title: string;
 };
 
-const envJsonSchema = (schema: z.ZodType) =>
-  z.toJSONSchema(schema, { io: 'input', target: 'draft-7', unrepresentable: 'any' }) as JsonSchemaNode;
+const envJsonSchema = (schema: z.ZodType) => {
+  return z.toJSONSchema(schema, { io: 'input', target: 'draft-7', unrepresentable: 'any' }) as JsonSchemaNode;
+};
 
 /**
  * The reference pages, each generated from the schemas the app parses its inputs against. Listed

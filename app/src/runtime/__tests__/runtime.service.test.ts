@@ -70,8 +70,8 @@ describe('RuntimeService', () => {
   let mira: AgentProfile;
   let workspaceRoot: string;
 
-  const compile = (overrides: PartialDeep<$Config> = {}): Promise<RuntimeService> =>
-    Test.createTestingModule({
+  const compile = (overrides: PartialDeep<$Config> = {}): Promise<RuntimeService> => {
+    return Test.createTestingModule({
       providers: [
         RuntimeService,
         { provide: ActivationService, useValue: activationService },
@@ -98,6 +98,7 @@ describe('RuntimeService', () => {
     })
       .compile()
       .then((moduleRef) => moduleRef.get(RuntimeService));
+  };
 
   beforeEach(() => {
     workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'collegium-runtime-'));

@@ -58,8 +58,9 @@ const restPost = (id: string) => ({
   user_id: 'user-1'
 });
 
-const memberError = (serverErrorId: string) =>
-  new ClientError('https://mattermost.test', { message: 'refused', server_error_id: serverErrorId });
+const memberError = (serverErrorId: string) => {
+  return new ClientError('https://mattermost.test', { message: 'refused', server_error_id: serverErrorId });
+};
 
 describe('MattermostClient', () => {
   const fetchMock = vi.fn();

@@ -36,8 +36,9 @@ const compilePayloadContains = (path: string, needle: string): Statement => ({
 });
 
 /** the id is a text column, never null, so only a string can equal it */
-const compileIdScalar = (expected: CollectionScalar): Statement =>
-  typeof expected === 'string' ? { params: [expected], sql: '"id" = ?' } : { params: [], sql: '0' };
+const compileIdScalar = (expected: CollectionScalar): Statement => {
+  return typeof expected === 'string' ? { params: [expected], sql: '"id" = ?' } : { params: [], sql: '0' };
+};
 
 const compileIdContains = (needle: string): Statement => ({
   params: [needle],

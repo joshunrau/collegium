@@ -28,9 +28,9 @@ describe('BackfillService', () => {
 
   beforeEach(async () => {
     conversationsService = MockFactory.createMock(ConversationsService);
-    conversationsService.latestPostIdIn.mockImplementation((channelId) =>
-      Promise.resolve(channelId === 'channel-1' ? 'post-5' : undefined)
-    );
+    conversationsService.latestPostIdIn.mockImplementation((channelId) => {
+      return Promise.resolve(channelId === 'channel-1' ? 'post-5' : undefined);
+    });
     conversationsService.record.mockResolvedValue(true);
     loggingService = MockFactory.createMock(LoggingService);
     memberships = { mira: Result.ok(['channel-1']), owen: Result.ok(['channel-2']) };
@@ -39,14 +39,15 @@ describe('BackfillService', () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.list.mockReturnValue([{ username: 'mira' } as AgentProfile, { username: 'owen' } as AgentProfile]);
     const transportRegistry = {
-      get: (username: string): ChatTransport =>
-        ({
+      get: (username: string): ChatTransport => {
+        return {
           getChannelMemberships: () => Promise.resolve(memberships[username]!),
           postsSince: (channelId: string, since: string | undefined) => {
             reads.push({ channelId, since, username });
             return Promise.resolve(postsSince(channelId));
           }
-        }) as ChatTransport
+        } as ChatTransport;
+      }
     };
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -77,8 +78,11 @@ describe('BackfillService', () => {
   });
 
   it('should skip a channel whose history cannot be read and carry on with the next', async () => {
-    postsSince = (channelId) =>
-      channelId === 'channel-1' ? Result.err<ChatFailure>({ kind: 'api', message: 'gone' }) : Result.ok([post('kept')]);
+    postsSince = (channelId) => {
+      return channelId === 'channel-1'
+        ? Result.err<ChatFailure>({ kind: 'api', message: 'gone' })
+        : Result.ok([post('kept')]);
+    };
     await backfillService.run();
     expect(conversationsService.record).toHaveBeenCalledOnce();
     expect(loggingService.error).toHaveBeenCalledOnce();

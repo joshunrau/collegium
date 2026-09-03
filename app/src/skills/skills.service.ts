@@ -30,11 +30,11 @@ export class SkillsService {
         ([name, skill]) => [renderQualifiedSkillName(toolset.name, name), skill] as const
       );
     });
-    const pluginSkills = pluginsRegistry.skillSources.flatMap((source) =>
-      Object.entries(loadPluginSkillLibrary(source)).map(
+    const pluginSkills = pluginsRegistry.skillSources.flatMap((source) => {
+      return Object.entries(loadPluginSkillLibrary(source)).map(
         ([name, skill]) => [renderQualifiedSkillName(source.namespace, name), skill] as const
-      )
-    );
+      );
+    });
     this.skills = new Map([...Object.entries(frameworkSkills), ...toolsetSkills, ...pluginSkills]);
     this.verifyGrants(agentRegistry.list());
   }

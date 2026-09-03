@@ -20,5 +20,6 @@ export const toActivationDepth = (source: ActivationSource | undefined): number 
  * announcement and a peer's mention have no follow-on sentence to wait for, and a turn nobody is
  * still typing at should never discard a completion.
  */
-export const toFoldAuthorUsername = (source: ActivationSource | undefined): string | undefined =>
-  source?.authorKind === 'human' ? source.authorUsername : undefined;
+export const toFoldAuthorUsername = (source: ActivationSource | undefined): string | undefined => {
+  return source?.authorKind === 'human' ? source.authorUsername : undefined;
+};

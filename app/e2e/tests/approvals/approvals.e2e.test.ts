@@ -25,11 +25,12 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 describe('Approval prompts', () => {
   const harness = setupHarness(SCENARIO);
 
-  const awaitPrompt = (marker: string) =>
-    harness().channels.main.awaitPost({
+  const awaitPrompt = (marker: string) => {
+    return harness().channels.main.awaitPost({
       description: `the approval prompt carrying "${marker}"`,
       match: (post) => post.text.includes('Approval required') && post.text.includes(marker)
     });
+  };
 
   it('posts a prompt showing the full payload before a gated tool executes (§6.2)', async () => {
     const { agents, app, channels, inference } = harness();
@@ -115,11 +116,12 @@ describe('Approval prompts', () => {
 describe('Approval resolution', () => {
   const harness = setupHarness(SCENARIO);
 
-  const awaitPrompt = (marker: string) =>
-    harness().channels.main.awaitPost({
+  const awaitPrompt = (marker: string) => {
+    return harness().channels.main.awaitPost({
       description: `the approval prompt carrying "${marker}"`,
       match: (post) => post.text.includes('Approval required') && post.text.includes(marker)
     });
+  };
 
   it('executes the tool, continues the turn, and rewrites the prompt once approved (§3.7)', async () => {
     const { agents, app, channels, inference } = harness();
@@ -245,13 +247,14 @@ describe('Approval resolution', () => {
 describe('Action budget', () => {
   const harness = setupHarness(SCENARIO);
 
-  const burn = (marker: string) =>
-    toolCallsResponse(
+  const burn = (marker: string) => {
+    return toolCallsResponse(
       Array.from({ length: 11 }, (_, index) => ({
         arguments: { body: `note ${index} ${marker}`, description: `filler ${index}` },
         name: 'memory__write'
       }))
     );
+  };
 
   it('posts what it has and requests an extension after ten action attempts (§5.3)', async () => {
     const { agents, channels, inference } = harness();
@@ -316,11 +319,12 @@ describe('Action budget', () => {
 describe('Approver identity', () => {
   const harness = setupHarness(SCENARIO);
 
-  const awaitPrompt = (marker: string) =>
-    harness().channels.main.awaitPost({
+  const awaitPrompt = (marker: string) => {
+    return harness().channels.main.awaitPost({
       description: `the approval prompt carrying "${marker}"`,
       match: (post) => post.text.includes('Approval required') && post.text.includes(marker)
     });
+  };
 
   it('records the approver the user id resolves to, not the name supplied in the body (§3.7)', async () => {
     const { app, channels, inference } = harness();

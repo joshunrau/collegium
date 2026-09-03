@@ -67,14 +67,14 @@ export function renderApprovalPrompt(
 export function renderResolvedPrompt(input: PromptInput, decision: ApprovalDecision): string {
   const line = match(decision)
     .with({ kind: 'approved' }, ({ byUsername }) => `✅ **Approved** by @${byUsername}`)
-    .with({ kind: 'cancelled' }, ({ reason }) =>
-      match(reason)
+    .with({ kind: 'cancelled' }, ({ reason }) => {
+      return match(reason)
         .with('halt', () => '⛔ **No longer awaiting a decision** — a global halt interrupted this turn')
         .with('kill', () => '⛔ **No longer awaiting a decision** — the turn was killed')
         .with('restart', () => '⛔ **No longer awaiting a decision** — the process restarted and abandoned this turn')
         .with('stop', () => '⛔ **No longer awaiting a decision** — the turn was stopped')
-        .exhaustive()
-    )
+        .exhaustive();
+    })
     .with({ kind: 'denied' }, ({ byUsername }) => `🛑 **Denied** by @${byUsername}`)
     .with(
       { kind: 'denied-with-reason' },

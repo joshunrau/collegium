@@ -30,8 +30,9 @@ const held = (overrides: Partial<RegisteredSlashCommand> = {}): RegisteredSlashC
   ...overrides
 });
 
-const plan = (commands: readonly RegisteredSlashCommand[], registrations: readonly SlashCommandRegistration[] = []) =>
-  planSlashCommandReconciliation({ desired: registrations, surface: { commands, ownUserId: OWN_USER_ID } });
+const plan = (commands: readonly RegisteredSlashCommand[], registrations: readonly SlashCommandRegistration[] = []) => {
+  return planSlashCommandReconciliation({ desired: registrations, surface: { commands, ownUserId: OWN_USER_ID } });
+};
 
 describe('planSlashCommandReconciliation', () => {
   it('should create a desired trigger no command holds', () => {

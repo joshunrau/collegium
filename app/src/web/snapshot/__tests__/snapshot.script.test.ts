@@ -21,9 +21,9 @@ describe('captureSnapshot', () => {
   it('should stamp every interactable with a unique ref and advance the index', () => {
     loadDocument(fixture('static-directory'));
     const capture = captureSnapshot(0);
-    const refs = [...document.querySelectorAll('[data-collegium-ref]')].map((element) =>
-      element.getAttribute('data-collegium-ref')
-    );
+    const refs = [...document.querySelectorAll('[data-collegium-ref]')].map((element) => {
+      return element.getAttribute('data-collegium-ref');
+    });
     expect(refs.length).toBeGreaterThan(0);
     expect(new Set(refs).size).toBe(refs.length);
     expect(capture.nextRefIndex).toBe(refs.length);

@@ -86,9 +86,9 @@ describe('CommandReconcilerService', () => {
   it('should correct a drifted trigger and remove one the app no longer declares', async () => {
     const orphan = { ...held('stop'), id: 'cmd-bare-stop', trigger: 'stop' };
     surface([
-      ...COMMAND_TRIGGERS.map((trigger) =>
-        trigger === 'stop' ? held(trigger, { url: 'https://old-host.example.com/commands' }) : held(trigger)
-      ),
+      ...COMMAND_TRIGGERS.map((trigger) => {
+        return trigger === 'stop' ? held(trigger, { url: 'https://old-host.example.com/commands' }) : held(trigger);
+      }),
       orphan
     ]);
     await commandReconcilerService.reconcile();

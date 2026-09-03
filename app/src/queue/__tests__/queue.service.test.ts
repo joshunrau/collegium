@@ -43,14 +43,16 @@ describe('QueueService', () => {
               return Promise.resolve();
             },
             findMany: () => Promise.resolve([...rows]),
-            findUnique: ({ where }: any) =>
-              Promise.resolve(
-                rows.find(
-                  (row) =>
+            findUnique: ({ where }: any) => {
+              return Promise.resolve(
+                rows.find((row) => {
+                  return (
                     row.agentUsername === where.agentUsername_channelId.agentUsername &&
                     row.channelId === where.agentUsername_channelId.channelId
-                ) ?? null
-              )
+                  );
+                }) ?? null
+              );
+            }
           }
         }
       ]

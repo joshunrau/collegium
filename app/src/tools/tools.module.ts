@@ -20,9 +20,9 @@ import { FRAMEWORK_TOOLSETS } from './tools.toolsets.ts';
 import { registerToolset } from './tools.utils.ts';
 
 /** every service token any framework toolset declares — the factory's explicit dependencies, so boot order is Nest's problem */
-const SERVICE_TOKENS: readonly ServiceToken<unknown>[] = FRAMEWORK_TOOLSETS.flatMap((toolset) =>
-  Object.values<ServiceToken<unknown>>(toolset.services ?? {})
-);
+const SERVICE_TOKENS: readonly ServiceToken<unknown>[] = FRAMEWORK_TOOLSETS.flatMap((toolset) => {
+  return Object.values<ServiceToken<unknown>>(toolset.services ?? {});
+});
 
 /** the toolsets' service modules are imported here, where their tokens resolve — never forwarded by the turn */
 @Module({
@@ -51,8 +51,8 @@ const SERVICE_TOKENS: readonly ServiceToken<unknown>[] = FRAMEWORK_TOOLSETS.flat
         ...services: unknown[]
       ) => {
         const serviceByToken = new Map(SERVICE_TOKENS.map((token, index) => [token, services[index]]));
-        const toolsets = [...FRAMEWORK_TOOLSETS, ...pluginsRegistry.toolsets].map((declaration) =>
-          registerToolset(
+        const toolsets = [...FRAMEWORK_TOOLSETS, ...pluginsRegistry.toolsets].map((declaration) => {
+          return registerToolset(
             declaration,
             (token) => {
               if (!serviceByToken.has(token)) {
@@ -61,8 +61,8 @@ const SERVICE_TOKENS: readonly ServiceToken<unknown>[] = FRAMEWORK_TOOLSETS.flat
               return serviceByToken.get(token);
             },
             (namespace, collection, schema) => storageService.collection(namespace, collection, schema)
-          )
-        );
+          );
+        });
         return new ToolRegistry(toolsets, agentRegistry.list());
       }
     }

@@ -26,8 +26,9 @@ import { DebounceService } from '../debounce/debounce.service.ts';
 
 const PROFILE = { username: 'mira' } as AgentProfile;
 
-const post = (overrides: Partial<ObservedPost> = {}): ObservedPost =>
-  createObservedPost({ mentionedUsernames: ['mira'], message: '@mira hello', ...overrides });
+const post = (overrides: Partial<ObservedPost> = {}): ObservedPost => {
+  return createObservedPost({ mentionedUsernames: ['mira'], message: '@mira hello', ...overrides });
+};
 
 describe('ActivationService', () => {
   let activationService: ActivationService;

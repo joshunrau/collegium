@@ -34,8 +34,9 @@ function toPageResult<TPage extends WebPage>(
   return Result.ok({ text: render(result.value) });
 }
 
-const toSnapshotResult = (result: Result<WebSnapshot, WebFailure>): ToolResult =>
-  toPageResult(result, renderWebSnapshot);
+const toSnapshotResult = (result: Result<WebSnapshot, WebFailure>): ToolResult => {
+  return toPageResult(result, renderWebSnapshot);
+};
 
 /**
  * Ungated as a read instrument (§3.4): the per-agent grant decides who browses, the status post
@@ -71,10 +72,11 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
     },
     fill: {
       description: `${DESCRIPTION_PREAMBLE}Type into an input from the latest snapshot, replacing its current value — including signing in when the task calls for it.`,
-      execute: async (args, context) =>
-        toSnapshotResult(
+      execute: async (args, context) => {
+        return toSnapshotResult(
           await context.web.fill(context.turn.turnId, { pressEnter: args.pressEnter, ref: args.ref, text: args.text })
-        ),
+        );
+      },
       parameters: z.object({
         pressEnter: z.boolean().optional().describe('Press Enter after typing, e.g. to run a search'),
         ref: $Ref.describe('The ref of the input to fill, from the latest snapshot'),

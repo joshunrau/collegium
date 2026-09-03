@@ -94,9 +94,9 @@ export class MattermostGateway extends ChatGateway {
   ): Promise<Result<SystemPostReceipt, ChatFailure>> {
     return toChatResult(async () => {
       const fileIds = await Promise.all(
-        (files ?? []).map((file) =>
-          this.systemClient.uploadFile({ channelId, content: file.content, filename: file.filename })
-        )
+        (files ?? []).map((file) => {
+          return this.systemClient.uploadFile({ channelId, content: file.content, filename: file.filename });
+        })
       );
       const created = await this.systemClient.createPost({
         channelId,
@@ -119,11 +119,11 @@ export class MattermostGateway extends ChatGateway {
   resolveChannelId(handle: string): Promise<string> {
     let channelId = this.channelIds.get(handle);
     if (!channelId) {
-      channelId = this.resolveTeamId().then((teamId) =>
-        this.systemClient.getChannelIdByName({ handle, teamId }).catch((error: unknown) => {
+      channelId = this.resolveTeamId().then((teamId) => {
+        return this.systemClient.getChannelIdByName({ handle, teamId }).catch((error: unknown) => {
           throw new Error(`no channel "${handle}" in team "${this.teamName}"`, { cause: error });
-        })
-      );
+        });
+      });
       this.channelIds.set(handle, channelId);
     }
     return channelId;

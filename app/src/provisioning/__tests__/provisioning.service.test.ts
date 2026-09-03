@@ -51,9 +51,9 @@ describe('ProvisioningService', () => {
     adminClient = MockFactory.createMock(MattermostAdminClient);
     adminClient.ensureTeam.mockResolvedValue('team-1');
     adminClient.ensureChannel.mockImplementation(({ handle }: { handle: string }) => Promise.resolve(`id-${handle}`));
-    adminClient.ensureBot.mockImplementation(({ username }: { username: string }) =>
-      Promise.resolve(`user-${username}`)
-    );
+    adminClient.ensureBot.mockImplementation(({ username }: { username: string }) => {
+      return Promise.resolve(`user-${username}`);
+    });
     adminClient.mintAccessToken.mockResolvedValue('minted');
     credentialsService = MockFactory.createMock(CredentialsService);
     credentialsService.ensure.mockImplementation(({ mint }) => mint());
@@ -123,10 +123,11 @@ describe('ProvisioningService', () => {
     ]);
   });
 
-  const placedIn = (handle: string) =>
-    adminClient.ensureChannelMember.mock.calls
+  const placedIn = (handle: string) => {
+    return adminClient.ensureChannelMember.mock.calls
       .filter(([{ channelId }]) => channelId === `id-${handle}`)
       .map(([{ userId }]) => userId);
+  };
 
   it('should add every bot to the main channel', () => {
     expect(placedIn('town-square')).toStrictEqual(['user-orchestrator', 'user-amir', 'user-jane']);

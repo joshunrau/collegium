@@ -8,13 +8,14 @@ const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringif
 const DELTA_LINK = 'https://graph.microsoft.com/v1.0/users/x/mailFolders/inbox/messages/delta?$deltatoken=round-2';
 const NEXT_LINK = 'https://graph.microsoft.com/v1.0/users/x/mailFolders/inbox/messages/delta?$skiptoken=page-2';
 
-const cursorOf = (overrides: { [key: string]: unknown } = {}) =>
-  JSON.stringify({
+const cursorOf = (overrides: { [key: string]: unknown } = {}) => {
+  return JSON.stringify({
     boundaryIds: ['msg-boundary'],
     link: DELTA_LINK,
     watermark: '2026-07-30T12:00:00.000Z',
     ...overrides
   });
+};
 
 describe('ExchangeMailProvider cursor', () => {
   const fetchMock = vi.fn<typeof fetch>();

@@ -150,11 +150,13 @@ describe('TurnRunner', () => {
 
   const run = () => turnRunner.run({ channelId: 'channel-1', depth: 0, profile: PROFILE });
 
-  const runFolding = () =>
-    turnRunner.run({ channelId: 'channel-1', depth: 0, foldAuthorUsername: 'casey', profile: PROFILE });
+  const runFolding = () => {
+    return turnRunner.run({ channelId: 'channel-1', depth: 0, foldAuthorUsername: 'casey', profile: PROFILE });
+  };
 
-  const offerFragment = (postId: string): boolean =>
-    turnFoldRegistry.offer({ agentUsername: 'mira', authorUsername: 'casey', channelId: 'channel-1', postId });
+  const offerFragment = (postId: string): boolean => {
+    return turnFoldRegistry.offer({ agentUsername: 'mira', authorUsername: 'casey', channelId: 'channel-1', postId });
+  };
 
   it('should disclose in the status post when a draining turn’s window fell short of the 👀 promise', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));

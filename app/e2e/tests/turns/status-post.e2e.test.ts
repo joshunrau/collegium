@@ -44,8 +44,9 @@ describe('Status post', () => {
     await channels.main.mention('mira', 'two tools please');
     const statusPost = await channels.main.awaitPost({
       description: 'the status post carrying the first tool call',
-      match: (post) =>
-        post.authorId === agents.mira.userId && post.text.includes('→ `skills::load handing-work-to-a-peer`')
+      match: (post) => {
+        return post.authorId === agents.mira.userId && post.text.includes('→ `skills::load handing-work-to-a-peer`');
+      }
     });
     const updated = statusPost.text.includes('→ `memory::read no-such-memory`')
       ? statusPost
@@ -71,10 +72,13 @@ describe('Status post', () => {
 
     await channels.main.awaitPost({
       description: 'the memory disclosure line in the status post',
-      match: (post) =>
-        post.authorId === agents.mira.userId &&
-        post.text.includes(`recorded: ${description}`) &&
-        post.text.includes('short answers, always')
+      match: (post) => {
+        return (
+          post.authorId === agents.mira.userId &&
+          post.text.includes(`recorded: ${description}`) &&
+          post.text.includes('short answers, always')
+        );
+      }
     });
   });
 });

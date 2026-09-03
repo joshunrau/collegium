@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FETCH_BODY_CAP_BYTES, MAX_REDIRECTS } from '../../web.constants.ts';
 import { FetchClient } from '../fetch.client.ts';
 
-const html = (body: string, status = 200) =>
-  new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8' }, status });
+const html = (body: string, status = 200) => {
+  return new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8' }, status });
+};
 
 const redirect = (location: string) => new Response(null, { headers: { location }, status: 302 });
 

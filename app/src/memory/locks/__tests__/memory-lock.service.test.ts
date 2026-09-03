@@ -6,10 +6,13 @@ import { MemoryLockService } from '../memory-lock.service.ts';
 describe('MemoryLockService', () => {
   let memoryLockService: MemoryLockService;
 
-  const settle = (order: string[], label: string) => () =>
-    Promise.resolve().then(() => {
-      order.push(label);
-    });
+  const settle = (order: string[], label: string) => {
+    return () => {
+      return Promise.resolve().then(() => {
+        order.push(label);
+      });
+    };
+  };
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({ providers: [MemoryLockService] }).compile();

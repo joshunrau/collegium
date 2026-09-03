@@ -62,15 +62,15 @@ const ROW_BAND = [0, 0.38, 0.55, 1];
 
 const Mentions: React.FC<{ text: string }> = ({ text }) => (
   <>
-    {text.split(/(@\w+)/g).map((part, i) =>
-      part.startsWith('@') ? (
+    {text.split(/(@\w+)/g).map((part, i) => {
+      return part.startsWith('@') ? (
         <span className="font-medium" key={i}>
           {part}
         </span>
       ) : (
         part
-      )
-    )}
+      );
+    })}
   </>
 );
 

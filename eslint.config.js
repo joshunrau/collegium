@@ -2,6 +2,46 @@
 
 import { config } from '@douglasneuroinformatics/eslint-config';
 
+/** @type {ReadonlySet<string>} */
+const LITERALS = new Set(['ArrayExpression', 'JSXElement', 'JSXFragment', 'ObjectExpression', 'TemplateLiteral']);
+
+/** @type {import('eslint').Rule.RuleModule} */
+const multilineArrowBody = {
+  create: (context) => ({
+    /** @param {any} node */
+    ArrowFunctionExpression(node) {
+      const { body } = node;
+      if (body.type === 'BlockStatement') return;
+      if (LITERALS.has(body.type)) return;
+
+      const { sourceCode } = context;
+      const arrow = sourceCode.getTokenBefore(body, (token) => token.value === '=>');
+      if (arrow?.loc.end.line === body.loc.end.line) return;
+
+      let [start, end] = body.range;
+      let before = sourceCode.getTokenBefore(body);
+      let after = sourceCode.getTokenAfter(body);
+      while (before?.value === '(' && after?.value === ')') {
+        [start, end] = [before.range[0], after.range[1]];
+        before = sourceCode.getTokenBefore(before);
+        after = sourceCode.getTokenAfter(after);
+      }
+
+      context.report({
+        fix: (fixer) => fixer.replaceTextRange([start, end], `{ return ${sourceCode.getText(body)}; }`),
+        messageId: 'block',
+        node: body
+      });
+    }
+  }),
+  meta: {
+    fixable: 'code',
+    messages: { block: 'An arrow body off the `=>` line must be a literal, or use a block with `return`.' },
+    schema: [],
+    type: 'suggestion'
+  }
+};
+
 const moduleBoundaryPatterns = [
   {
     group: ['@/prisma/generated/**'],
@@ -50,10 +90,14 @@ export default config(
     ignores: ['app/src/prisma/generated/**']
   },
   {
+    plugins: {
+      local: { rules: { 'multiline-arrow-body': multilineArrowBody } }
+    },
     rules: {
       '@typescript-eslint/consistent-type-definitions': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
-      '@typescript-eslint/no-namespace': 'off'
+      '@typescript-eslint/no-namespace': 'off',
+      'local/multiline-arrow-body': 'error'
     }
   },
   {
@@ -92,9 +136,9 @@ export default config(
         'error',
         {
           restrictDefaultExports: {
+            defaultFrom: true,
             direct: true,
             named: true,
-            defaultFrom: true,
             namedFrom: true,
             namespaceFrom: true
           }

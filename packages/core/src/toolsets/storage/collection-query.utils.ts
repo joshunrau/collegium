@@ -14,8 +14,9 @@ const foldAsciiCase = (text: string): string => text.replace(/[A-Z]+/g, (upper) 
 
 const readField = (record: unknown, field: string): unknown => (isPlainObject(record) ? record[field] : undefined);
 
-const matchesScalar = (actual: unknown, expected: CollectionScalar): boolean =>
-  expected === null ? actual === null || actual === undefined : actual === expected;
+const matchesScalar = (actual: unknown, expected: CollectionScalar): boolean => {
+  return expected === null ? actual === null || actual === undefined : actual === expected;
+};
 
 const matchesCondition = (actual: unknown, condition: Condition): boolean => {
   if (condition === null || typeof condition !== 'object') {
@@ -50,8 +51,8 @@ export function applyCollectionQuery<TRecord extends object>(
   query: CollectionQuery<TRecord>
 ): TRecord[] {
   const conditions = collectionQueryConditions(query);
-  const matching = records.filter((record) =>
-    conditions.every(([field, condition]) => matchesCondition(readField(record, field), condition))
-  );
+  const matching = records.filter((record) => {
+    return conditions.every(([field, condition]) => matchesCondition(readField(record, field), condition));
+  });
   return query.limit === undefined ? matching : matching.slice(0, query.limit);
 }

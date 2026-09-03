@@ -44,11 +44,11 @@ export function serializeImapCursor(cursor: $ImapCursor): string {
 
 export function toParties(input: AddressObject | AddressObject[] | undefined): MailParty[] {
   const objects = input === undefined ? [] : [input].flat();
-  return objects.flatMap((entry) =>
-    entry.value.map(({ address, name }) =>
-      name === '' ? { address: address ?? '' } : { address: address ?? '', name }
-    )
-  );
+  return objects.flatMap((entry) => {
+    return entry.value.map(({ address, name }) => {
+      return name === '' ? { address: address ?? '' } : { address: address ?? '', name };
+    });
+  });
 }
 
 export function toSenderPartyFromParsed(parsed: ParsedMail): MailParty {
