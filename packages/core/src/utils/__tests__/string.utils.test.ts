@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { removeTrailingSlash, uncapitalize } from '../string.utils.ts';
+import { format, removeTrailingSlash, uncapitalize } from '../string.utils.ts';
+
+describe('format', () => {
+  it('should fill each placeholder, however often it appears', () => {
+    expect(format('{greeting}, {name}. {greeting}!', { greeting: 'Hello', name: 'Mira' })).toBe('Hello, Mira. Hello!');
+  });
+});
 
 describe('removeTrailingSlash', () => {
   it('should remove a trailing slash, if one exists', () => {

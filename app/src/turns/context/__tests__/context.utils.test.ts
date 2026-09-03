@@ -3,8 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 
-import { renderSystemPrompt, toCompletionMessages } from '../context.utils.ts';
-import { renderPreamble } from '../preamble.renderer.ts';
+import { renderPreamble, renderSystemPrompt, toCompletionMessages } from '../context.utils.ts';
 
 const event = (payload: PrismaJson.TurnEventPayload): WindowEntry => ({
   event: { createdAt: new Date(0), id: 'event-1', kind: payload.kind, payload, sequence: 0, turnId: 'turn-1' },
@@ -94,6 +93,14 @@ describe('toCompletionMessages', () => {
     expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
       { content: 'checking\n[called skills__load({"name":"handing-work-to-a-peer"})]', role: 'assistant' }
     ]);
+  });
+});
+
+describe('renderPreamble', () => {
+  it('should state the configured budget and the calls exempt from it', () => {
+    const preamble = renderPreamble({ actionBudget: 7, budgetExemptToolNames: ['builtins__now', 'skills__load'] });
+    expect(preamble).toContain('Each turn has a budget of 7 tool calls.');
+    expect(preamble).toContain('Calls to builtins__now and skills__load do not.');
   });
 });
 
