@@ -1,6 +1,7 @@
 import type { $Config } from '@collegium/config';
 import type { Result } from '@collegium/core/utils';
 import { removeTrailingSlash } from '@collegium/core/utils';
+import type { CommandSurfaceDeclaration } from '@collegium/mattermost';
 
 import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
@@ -12,13 +13,7 @@ import { MattermostTransport } from './mattermost.transport.ts';
 import { createAuthorClassifier, toChatResult } from './mattermost.utils.ts';
 
 import type { ChatTransport } from '../chat.transport.ts';
-import type {
-  AgentConnection,
-  ChatFailure,
-  CommandSurfaceDeclaration,
-  PostFile,
-  SystemPostReceipt
-} from '../chat.types.ts';
+import type { AgentConnection, ChatFailure, PostFile, SystemPostReceipt } from '../chat.types.ts';
 
 export class MattermostGateway extends ChatGateway {
   private readonly agentUsernames: ReadonlySet<string>;

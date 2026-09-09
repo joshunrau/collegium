@@ -1,5 +1,7 @@
 import { lookup } from 'node:dns/promises';
 
+import type { $MattermostServerSettings } from './mattermost-admin.schemas.ts';
+
 /** loopback, private, and link-local ranges — what Mattermost holds untrusted unless the host is listed */
 const PRIVATE_IPV6 = /^(::1|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
 
@@ -40,4 +42,35 @@ export async function refusesCallbacks(params: { allowed: readonly string[]; pub
     .then(({ address }) => address)
     .catch(() => undefined);
   return address !== undefined && isPrivateAddress(address);
+}
+
+/**
+ * Refuses a server whose settings cannot carry this deployment, naming each one, before anything
+ * is created. Three of them stop provisioning at its first write; the fourth stops nothing at all —
+ * an unreachable app is a Mattermost that accepts every approval click and delivers none.
+ */
+export async function assertServerSupportsDeployment(params: {
+  publicUrl: string;
+  settings: $MattermostServerSettings;
+}): Promise<void> {
+  const { PluginSettings, ServiceSettings } = params.settings;
+  const refusals: string[] = [];
+  if (!PluginSettings.Enable) {
+    refusals.push('PluginSettings.Enable, without which the plugin that holds /collegium cannot run');
+  }
+  if (!ServiceSettings.EnableBotAccountCreation) {
+    refusals.push('ServiceSettings.EnableBotAccountCreation, without which no agent account can exist');
+  }
+  if (!ServiceSettings.EnableUserAccessTokens) {
+    refusals.push('ServiceSettings.EnableUserAccessTokens, without which no account can hold the token it posts with');
+  }
+  const allowed = ServiceSettings.AllowedUntrustedInternalConnections;
+  if (await refusesCallbacks({ allowed, publicUrl: params.publicUrl })) {
+    refusals.push(
+      `ServiceSettings.AllowedUntrustedInternalConnections, which must list ${new URL(params.publicUrl).hostname} for approval decisions, slash commands, and triggers to reach the app`
+    );
+  }
+  if (refusals.length > 0) {
+    throw new Error(`Mattermost is missing settings this deployment needs: ${refusals.join('; ')}`);
+  }
 }

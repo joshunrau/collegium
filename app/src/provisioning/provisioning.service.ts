@@ -10,6 +10,7 @@ import { MAIL_TOOLSET } from '@/mail/mail.toolset.ts';
 import { resolveGrantedToolsetSettings } from '@/tools/tools.settings.ts';
 
 import { MattermostAdminClient } from './adapters/mattermost-admin.client.ts';
+import { assertServerSupportsDeployment } from './adapters/mattermost-admin.utils.ts';
 import { PROVISIONING_PING } from './provisioning.constants.ts';
 
 /**
@@ -34,11 +35,15 @@ export class ProvisioningService {
   async reconcile(credentials: AdminCredentials): Promise<void> {
     await this.adminClient.waitUntilReachable(PROVISIONING_PING);
     await this.adminClient.authenticate(credentials);
-    await this.adminClient.assertServerSupportsDeployment({ publicUrl: this.envService.get('APP_PUBLIC_URL') });
+    const settings = await this.adminClient.readServerSettings();
+    await assertServerSupportsDeployment({ publicUrl: this.envService.get('APP_PUBLIC_URL'), settings });
 
-    // §8.4 — the plugin holds /collegium for the team; the app declares its subcommands to it at boot
     const bundle = readMattermostPluginBundle();
-    const plugin = await this.adminClient.ensurePlugin({ ...bundle, id: MATTERMOST_PLUGIN_ID });
+    const plugin = await this.adminClient.ensurePlugin({
+      ...bundle,
+      id: MATTERMOST_PLUGIN_ID,
+      uploadsEnabled: settings.PluginSettings.EnableUploads
+    });
     this.loggingService.log(`provisioning plugin ${MATTERMOST_PLUGIN_ID}@${bundle.version}: ${plugin}`);
 
     const teamName = this.envService.get('MATTERMOST_TEAM');

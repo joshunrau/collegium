@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isPrivateAddress, refusesCallbacks } from '../mattermost-admin.utils.ts';
+import { assertServerSupportsDeployment, isPrivateAddress, refusesCallbacks } from '../mattermost-admin.utils.ts';
 
 describe('isPrivateAddress', () => {
   it('should hold loopback, private, and link-local addresses private', () => {
@@ -32,5 +32,32 @@ describe('refusesCallbacks', () => {
 
   it('should accept an unlisted public address, which the server never consults its list for', async () => {
     await expect(refusesCallbacks({ allowed: [], publicUrl: 'http://8.8.8.8:3000' })).resolves.toBe(false);
+  });
+});
+
+describe('assertServerSupportsDeployment', () => {
+  const supportive = {
+    PluginSettings: { Enable: true, EnableUploads: false },
+    ServiceSettings: {
+      AllowedUntrustedInternalConnections: ['app'],
+      EnableBotAccountCreation: true,
+      EnableUserAccessTokens: true
+    }
+  };
+
+  it('should accept a server holding every setting the deployment needs', async () => {
+    await expect(assertServerSupportsDeployment({ publicUrl: 'http://app:3000', settings: supportive })).resolves.toBe(
+      undefined
+    );
+  });
+
+  it('should name every missing setting in one refusal', async () => {
+    const settings = {
+      PluginSettings: { Enable: false, EnableUploads: false },
+      ServiceSettings: { ...supportive.ServiceSettings, EnableBotAccountCreation: false }
+    };
+    await expect(assertServerSupportsDeployment({ publicUrl: 'http://app:3000', settings })).rejects.toThrow(
+      /PluginSettings\.Enable.*EnableBotAccountCreation/
+    );
   });
 });

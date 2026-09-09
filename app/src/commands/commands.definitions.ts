@@ -1,3 +1,5 @@
+import type { SubcommandDeclaration } from '@collegium/mattermost';
+
 type CommandDefinition = {
   /** argument shape after the subcommand — drives the autocomplete hint and usage refusals; '' when none */
   readonly hint: string;
@@ -40,12 +42,8 @@ export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefin
 /** the one path the plugin forwards every execution to; the declaration composes APP_PUBLIC_URL with this */
 export const COMMANDS_PATH = '/commands';
 
-/** one subcommand as the plugin is told of it: what it autocompletes, in the order declared */
-export type CommandDeclaration = {
-  readonly hint: string;
-  readonly purpose: string;
-  readonly trigger: CommandTrigger;
-};
+/** one subcommand as the plugin is told of it, with the trigger narrowed to the declared set */
+export type CommandDeclaration = Omit<SubcommandDeclaration, 'trigger'> & { readonly trigger: CommandTrigger };
 
 export function describeCommandSurface(): readonly CommandDeclaration[] {
   return COMMAND_TRIGGERS.map((trigger) => ({ ...COMMAND_DEFINITIONS[trigger], trigger }));
@@ -56,17 +54,19 @@ export function renderCommandName(trigger: CommandTrigger): string {
   return `/${COMMAND_TRIGGER} ${trigger}`;
 }
 
+/** the command name followed by its argument hint, e.g. `/collegium memory {agent} [prune {reference}]` */
+export function renderInvocation(trigger: CommandTrigger): string {
+  return `${renderCommandName(trigger)} ${COMMAND_DEFINITIONS[trigger].hint}`.trim();
+}
+
 export function renderUsage(trigger: CommandTrigger): string {
-  return `Usage: ${renderCommandName(trigger)} ${COMMAND_DEFINITIONS[trigger].hint}`.trim();
+  return `Usage: ${renderInvocation(trigger)}`;
 }
 
 /** the answer to a bare `/collegium`, or a subcommand nothing declares */
 export function renderSurfaceUsage(): string {
   return [
     `Usage: /${COMMAND_TRIGGER} {subcommand}`,
-    ...COMMAND_TRIGGERS.map((trigger) => {
-      const { hint, purpose } = COMMAND_DEFINITIONS[trigger];
-      return `- ${`${renderCommandName(trigger)} ${hint}`.trim()} — ${purpose}`;
-    })
+    ...COMMAND_TRIGGERS.map((trigger) => `- ${renderInvocation(trigger)} — ${COMMAND_DEFINITIONS[trigger].purpose}`)
   ].join('\n');
 }

@@ -5,6 +5,9 @@ import { ChatGateway } from '@/chat/chat.gateway.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 
+import { renderSurfaceUsage } from './commands.definitions.ts';
+import { CommandRegistry } from './commands.registry.ts';
+
 import type { CommandHandler } from './commands.handler.ts';
 import type { CommandInput, CommandResponse } from './commands.types.ts';
 
@@ -26,21 +29,19 @@ const SILENT: InvokerResponse = { responseType: 'ephemeral', text: '' };
 export class CommandsService {
   constructor(
     private readonly chatGateway: ChatGateway,
+    private readonly commandRegistry: CommandRegistry,
     private readonly loggingService: LoggingService,
     private readonly rosterService: RosterService,
     private readonly transportRegistry: TransportRegistry
   ) {}
 
-  async run(handler: CommandHandler, input: CommandInput): Promise<InvokerResponse> {
-    const response = await handler.handle(input);
-    if (response.audience === 'invoker') {
-      return { responseType: 'ephemeral', text: response.text };
+  /** the text after `/collegium` as the plugin forwards it; a bare or undeclared subcommand is answered with the surface */
+  async execute(input: CommandInput): Promise<InvokerResponse> {
+    const resolved = this.commandRegistry.resolve(input.text);
+    if (!resolved) {
+      return { responseType: 'ephemeral', text: renderSurfaceUsage() };
     }
-    const announced = await this.announce(input.channelId, response);
-    await response.afterAnnouncing?.();
-    // A4 — an interrupt notice is the only record a stopped turn leaves (the engine posts none of
-    // its own), so one that reached no channel is told to the invoker rather than lost
-    return announced ? SILENT : { responseType: 'ephemeral', text: response.text };
+    return this.run(resolved.handler, { ...input, text: resolved.text });
   }
 
   /**
@@ -65,5 +66,17 @@ export class CommandsService {
       return false;
     }
     return true;
+  }
+
+  private async run(handler: CommandHandler, input: CommandInput): Promise<InvokerResponse> {
+    const response = await handler.handle(input);
+    if (response.audience === 'invoker') {
+      return { responseType: 'ephemeral', text: response.text };
+    }
+    const announced = await this.announce(input.channelId, response);
+    await response.afterAnnouncing?.();
+    // A4 — an interrupt notice is the only record a stopped turn leaves (the engine posts none of
+    // its own), so one that reached no channel is told to the invoker rather than lost
+    return announced ? SILENT : { responseType: 'ephemeral', text: response.text };
   }
 }

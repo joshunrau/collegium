@@ -39,39 +39,33 @@ describe('CommandRegistry', () => {
 
 describe('CommandsController', () => {
   let commandsController: CommandsController;
-  let run: Mock<(handler: CommandHandler, input: CommandInput) => Promise<{ responseType: string; text: string }>>;
+  let execute: Mock<(input: CommandInput) => Promise<{ responseType: string; text: string }>>;
 
   beforeEach(async () => {
-    run = vi.fn(() => Promise.resolve({ responseType: 'ephemeral', text: 'stopping' }));
+    execute = vi.fn(() => Promise.resolve({ responseType: 'ephemeral', text: 'stopping' }));
     const moduleRef = await Test.createTestingModule({
       controllers: [CommandsController],
-      providers: [
-        { provide: CommandRegistry, useValue: new CommandRegistry(COMMAND_TRIGGERS.map(createHandlerStub)) },
-        { provide: CommandsService, useValue: { run } }
-      ]
+      providers: [{ provide: CommandsService, useValue: { execute } }]
     }).compile();
     commandsController = moduleRef.get(CommandsController);
   });
 
-  it('should bind the parsed body and dispatch to the subcommand’s handler', async () => {
+  it('should bind the parsed body and delegate to the service', async () => {
     const response = await commandsController.handle({
       channel_id: 'channel-1',
       text: 'memory mira prune ref-1',
       user_name: 'casey'
     });
-    expect(run).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'memory' }), {
+    expect(execute).toHaveBeenCalledExactlyOnceWith({
       channelId: 'channel-1',
-      text: 'mira prune ref-1',
+      text: 'memory mira prune ref-1',
       username: 'casey'
     });
     expect(response).toStrictEqual({ response_type: 'ephemeral', text: 'stopping' });
   });
 
-  it('should answer a bare or unknown subcommand with the surface usage', async () => {
-    const response = await commandsController.handle({ channel_id: 'channel-1', text: 'halt', user_name: 'casey' });
-    expect(response.response_type).toBe('ephemeral');
-    expect(response.text).toContain('Usage: /collegium {subcommand}');
-    expect(response.text).toContain('- /collegium stop — Abort current turns');
-    expect(run).not.toHaveBeenCalled();
+  it('should refuse a body without the fields the plugin forwards', async () => {
+    await expect(commandsController.handle({ text: 'stop' })).rejects.toThrow();
+    expect(execute).not.toHaveBeenCalled();
   });
 });

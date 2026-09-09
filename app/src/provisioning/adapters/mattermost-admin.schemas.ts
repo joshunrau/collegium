@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const $MattermostInstalledPlugin = z.object({ id: z.string().min(1), version: z.string() });
+
 /** every created or fetched resource is read for its id alone; nothing here reads the rest */
 export type $MattermostIdentified = z.infer<typeof $MattermostIdentified>;
 export const $MattermostIdentified = z.object({
@@ -38,7 +40,6 @@ export type $MattermostServerSettings = z.infer<typeof $MattermostServerSettings
 export const $MattermostServerSettings = z.object({
   PluginSettings: z.object({
     Enable: z.boolean(),
-    /** off by default on a server someone else runs; read only when the plugin actually needs installing */
     EnableUploads: z.boolean()
   }),
   ServiceSettings: z.object({
@@ -52,6 +53,6 @@ export const $MattermostServerSettings = z.object({
 /** `/api/v4/plugins`: every installed plugin by state, read for the one this deployment ships */
 export type $MattermostPluginListing = z.infer<typeof $MattermostPluginListing>;
 export const $MattermostPluginListing = z.object({
-  active: z.array(z.object({ id: z.string().min(1), version: z.string() })),
-  inactive: z.array(z.object({ id: z.string().min(1), version: z.string() }))
+  active: z.array($MattermostInstalledPlugin),
+  inactive: z.array($MattermostInstalledPlugin)
 });

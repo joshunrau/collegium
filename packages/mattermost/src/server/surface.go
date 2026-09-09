@@ -14,6 +14,9 @@ const Trigger = "collegium"
 
 const surfaceKeyPrefix = "surface:"
 
+// declareSurfacePattern is the one route the app calls, beneath /plugins/{id}
+const declareSurfacePattern = "PUT /api/v1/teams/{teamId}/commands"
+
 var subcommandPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 // Command is one subcommand as the app declares it: the wire shape of PUT /api/v1/teams/{teamId}/commands.

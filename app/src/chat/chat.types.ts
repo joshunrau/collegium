@@ -94,12 +94,6 @@ export type OutgoingChatMessage = {
   text: string;
 };
 
-/** §8.4 — what the team's `/collegium` forwards, and the subcommands it autocompletes, in order */
-export type CommandSurfaceDeclaration = {
-  readonly callbackUrl: string;
-  readonly commands: readonly { readonly hint: string; readonly purpose: string; readonly trigger: string }[];
-};
-
 /** content too large for a post, travelling whole as a real upload beside it (§6.2, §4.2, §8.3) */
 export type PostFile = {
   readonly content: string;

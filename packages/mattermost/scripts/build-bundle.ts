@@ -14,10 +14,13 @@ const PACKAGE_DIR = path.resolve(import.meta.dirname, '..');
 const SERVER_DIR = path.join(PACKAGE_DIR, 'src', 'server');
 const DIST_DIR = path.dirname(BUNDLE_DIR);
 
-const PLATFORMS = [
-  { arch: 'amd64', os: 'linux' },
-  { arch: 'arm64', os: 'linux' }
-] as const;
+/** keyed as the manifest's `server.executables` names a platform */
+const PLATFORMS = {
+  'linux-amd64': { arch: 'amd64', os: 'linux' },
+  'linux-arm64': { arch: 'arm64', os: 'linux' }
+} as const;
+
+type Platform = keyof typeof PLATFORMS;
 
 const { version } = JSON.parse(fs.readFileSync(path.resolve(PACKAGE_DIR, '..', '..', 'package.json'), 'utf-8')) as {
   version: string;
@@ -25,16 +28,21 @@ const { version } = JSON.parse(fs.readFileSync(path.resolve(PACKAGE_DIR, '..', '
 
 fs.mkdirSync(path.join(BUNDLE_DIR, 'server', 'dist'), { recursive: true });
 
-const executables: { [platform: string]: string } = {};
-for (const { arch, os } of PLATFORMS) {
-  const executable = `server/dist/plugin-${os}-${arch}`;
+function buildServer(platform: Platform): string {
+  const { arch, os } = PLATFORMS[platform];
+  const executable = `server/dist/plugin-${platform}`;
   execFileSync('go', ['build', '-trimpath', '-ldflags=-s -w', '-o', path.join(BUNDLE_DIR, executable), '.'], {
     cwd: SERVER_DIR,
     env: { ...process.env, CGO_ENABLED: '0', GOARCH: arch, GOOS: os },
     stdio: 'inherit'
   });
-  executables[`${os}-${arch}`] = executable;
+  return executable;
 }
+
+const executables: { readonly [TPlatform in Platform]: string } = {
+  'linux-amd64': buildServer('linux-amd64'),
+  'linux-arm64': buildServer('linux-arm64')
+};
 
 fs.writeFileSync(
   path.join(BUNDLE_DIR, 'plugin.json'),
@@ -58,6 +66,4 @@ execFileSync(
   ['--no-xattrs', '-czf', path.join(DIST_DIR, `${MATTERMOST_PLUGIN_ID}.tar.gz`), '-C', DIST_DIR, MATTERMOST_PLUGIN_ID],
   { env: { ...process.env, COPYFILE_DISABLE: '1' }, stdio: 'inherit' }
 );
-process.stdout.write(
-  `built ${MATTERMOST_PLUGIN_ID}@${version} for ${PLATFORMS.map(({ arch, os }) => `${os}-${arch}`).join(', ')}\n`
-);
+process.stdout.write(`built ${MATTERMOST_PLUGIN_ID}@${version} for ${Object.keys(PLATFORMS).join(', ')}\n`);

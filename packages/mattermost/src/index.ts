@@ -7,8 +7,23 @@ const PACKAGE_DIR = path.resolve(import.meta.dirname, '..');
 /** the id Mattermost knows the plugin by: the bundle directory, the KV namespace, and the `/plugins/{id}` route */
 export const MATTERMOST_PLUGIN_ID = 'sh.collegium';
 
-/** the route under `/plugins/{id}` that declares a team's command surface, with `{teamId}` to fill */
-export const COMMAND_SURFACE_ROUTE = '/api/v1/teams/{teamId}/commands';
+/** one subcommand as the plugin autocompletes it: the wire shape of `PUT .../teams/{teamId}/commands` */
+export type SubcommandDeclaration = {
+  readonly hint: string;
+  readonly purpose: string;
+  readonly trigger: string;
+};
+
+/** what one deployment declares for its team: where to forward executions, and the subcommands, in order */
+export type CommandSurfaceDeclaration = {
+  readonly callbackUrl: string;
+  readonly commands: readonly SubcommandDeclaration[];
+};
+
+/** the path beneath the server URL that declares a team's command surface */
+export function commandSurfaceRoute(teamId: string): string {
+  return `/plugins/${MATTERMOST_PLUGIN_ID}/api/v1/teams/${teamId}/commands`;
+}
 
 export type MattermostPluginBundle = {
   /** the tar.gz Mattermost installs, holding the manifest and one server binary per platform */

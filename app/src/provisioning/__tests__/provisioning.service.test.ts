@@ -20,6 +20,16 @@ vi.mock('@collegium/mattermost', () => ({
   readMattermostPluginBundle: () => ({ bundlePath: '/srv/sh.collegium.tar.gz', version: '1.2.3' })
 }));
 
+/** what a bundled Mattermost holds: every setting the deployment needs, with the app's own host listed */
+const SERVER_SETTINGS = {
+  PluginSettings: { Enable: true, EnableUploads: true },
+  ServiceSettings: {
+    AllowedUntrustedInternalConnections: ['localhost'],
+    EnableBotAccountCreation: true,
+    EnableUserAccessTokens: true
+  }
+};
+
 const ADMIN = { email: 'ops@example.org', kind: 'password', password: 'secret', username: 'ops' } as const;
 
 const agent = (username: string, overrides: Partial<AgentDefinition> = {}): AgentDefinition => ({
@@ -61,6 +71,7 @@ describe('ProvisioningService', () => {
     });
     adminClient.mintAccessToken.mockResolvedValue('minted');
     adminClient.ensurePlugin.mockResolvedValue('present');
+    adminClient.readServerSettings.mockResolvedValue(SERVER_SETTINGS);
     credentialsService = MockFactory.createMock(CredentialsService);
     credentialsService.ensure.mockImplementation(({ mint }) => mint());
 
@@ -97,12 +108,10 @@ describe('ProvisioningService', () => {
     expect(adminClient.authenticate).toHaveBeenCalledWith(ADMIN);
   });
 
-  it('should refuse a server whose settings cannot carry the deployment before creating anything', () => {
-    expect(adminClient.authenticate).toHaveBeenCalledBefore(adminClient.assertServerSupportsDeployment);
-    expect(adminClient.assertServerSupportsDeployment).toHaveBeenCalledBefore(adminClient.ensureTeam);
-    expect(adminClient.assertServerSupportsDeployment).toHaveBeenCalledExactlyOnceWith({
-      publicUrl: 'http://localhost:3000'
-    });
+  it('should read the server settings once, after authenticating and before creating anything', () => {
+    expect(adminClient.authenticate).toHaveBeenCalledBefore(adminClient.readServerSettings);
+    expect(adminClient.readServerSettings).toHaveBeenCalledBefore(adminClient.ensureTeam);
+    expect(adminClient.readServerSettings).toHaveBeenCalledOnce();
   });
 
   // §8.4 — the plugin must hold /collegium before the app can declare its subcommands at boot
@@ -110,6 +119,7 @@ describe('ProvisioningService', () => {
     expect(adminClient.ensurePlugin).toHaveBeenCalledExactlyOnceWith({
       bundlePath: '/srv/sh.collegium.tar.gz',
       id: 'sh.collegium',
+      uploadsEnabled: true,
       version: '1.2.3'
     });
     expect(adminClient.ensurePlugin).toHaveBeenCalledBefore(adminClient.ensureTeam);

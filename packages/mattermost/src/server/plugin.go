@@ -27,14 +27,18 @@ type Plugin struct {
 
 	forwarder *http.Client
 	mu        sync.RWMutex
+	routes    *http.ServeMux
 	surfaces  map[string]Surface
 }
 
 func NewPlugin() *Plugin {
-	return &Plugin{
+	p := &Plugin{
 		forwarder: &http.Client{Timeout: forwardTimeout},
+		routes:    http.NewServeMux(),
 		surfaces:  map[string]Surface{},
 	}
+	p.routes.HandleFunc(declareSurfacePattern, p.handleDeclareSurface)
+	return p
 }
 
 // OnActivate re-registers every persisted surface: registrations live in server memory and a
@@ -74,9 +78,7 @@ func (p *Plugin) OnActivate() error {
 // there takes, and what the app's system bot holds as a team administrator, so nothing new is
 // granted for the plugin. (manage_slash_commands is deprecated and granted to no role.)
 func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Request) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("PUT /api/v1/teams/{teamId}/commands", p.handleDeclareSurface)
-	mux.ServeHTTP(w, r)
+	p.routes.ServeHTTP(w, r)
 }
 
 func (p *Plugin) handleDeclareSurface(w http.ResponseWriter, r *http.Request) {
@@ -143,6 +145,17 @@ type forwardedResponse struct {
 	Text         string `json:"text"`
 }
 
+// the app's answer is relayed as a command response, whose type Mattermost renders by; anything
+// else would reach the client as a response it does not draw
+func (r forwardedResponse) Validate() error {
+	switch r.ResponseType {
+	case model.CommandResponseTypeEphemeral, model.CommandResponseTypeInChannel:
+		return nil
+	default:
+		return fmt.Errorf("response_type must be %q or %q, got %q", model.CommandResponseTypeEphemeral, model.CommandResponseTypeInChannel, r.ResponseType)
+	}
+}
+
 // ExecuteCommand forwards the execution to the app and relays its answer. Every failure is told to
 // the invoker alone: a command that cannot reach the app is still a human asking, and silence would
 // read as the app having heard.
@@ -185,6 +198,9 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 	}
 	var answer forwardedResponse
 	if err := json.Unmarshal(body, &answer); err != nil {
+		return ephemeral(fmt.Sprintf("Collegium's answer could not be read: %s", err.Error())), nil
+	}
+	if err := answer.Validate(); err != nil {
 		return ephemeral(fmt.Sprintf("Collegium's answer could not be read: %s", err.Error())), nil
 	}
 	return &model.CommandResponse{ResponseType: answer.ResponseType, Text: answer.Text}, nil

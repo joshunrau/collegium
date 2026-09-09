@@ -1,13 +1,8 @@
 import type { Result } from '@collegium/core/utils';
+import type { CommandSurfaceDeclaration } from '@collegium/mattermost';
 
 import type { ChatTransport } from './chat.transport.ts';
-import type {
-  AgentConnection,
-  ChatFailure,
-  CommandSurfaceDeclaration,
-  PostFile,
-  SystemPostReceipt
-} from './chat.types.ts';
+import type { AgentConnection, ChatFailure, PostFile, SystemPostReceipt } from './chat.types.ts';
 
 /**
  * The command-surface operations throw rather than return Result: they run only during §8.4 boot

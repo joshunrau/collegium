@@ -1,4 +1,5 @@
-import { COMMAND_SURFACE_ROUTE, MATTERMOST_PLUGIN_ID } from '@collegium/mattermost';
+import { commandSurfaceRoute, MATTERMOST_PLUGIN_ID } from '@collegium/mattermost';
+import type { CommandSurfaceDeclaration } from '@collegium/mattermost';
 import { Client4, ClientError } from '@mattermost/client';
 
 import {
@@ -12,7 +13,7 @@ import {
   $MattermostUserProfile
 } from './mattermost.schemas.ts';
 
-import type { CommandSurfaceDeclaration, DialogRequest, MessageAttachment } from '../chat.types.ts';
+import type { DialogRequest, MessageAttachment } from '../chat.types.ts';
 import type { MattermostChannelType } from './mattermost.constants.ts';
 import type { $MattermostRestPost } from './mattermost.schemas.ts';
 
@@ -50,8 +51,7 @@ export class MattermostClient {
    * are named here, because "404" says nothing about a plugin that was never installed.
    */
   async declarePluginCommandSurface(params: CommandSurfaceDeclaration & { teamId: string }): Promise<void> {
-    const route = COMMAND_SURFACE_ROUTE.replace('{teamId}', params.teamId);
-    const response = await fetch(`${this.sdk.getUrl()}/plugins/${MATTERMOST_PLUGIN_ID}${route}`, {
+    const response = await fetch(`${this.sdk.getUrl()}${commandSurfaceRoute(params.teamId)}`, {
       body: JSON.stringify({ callbackUrl: params.callbackUrl, commands: params.commands }),
       headers: { authorization: `Bearer ${this.sdk.getToken()}`, 'content-type': 'application/json' },
       method: 'PUT'

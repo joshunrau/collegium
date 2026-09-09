@@ -14,7 +14,6 @@ import {
   $MattermostServerSettings,
   $MattermostUser
 } from './mattermost-admin.schemas.ts';
-import { refusesCallbacks } from './mattermost-admin.utils.ts';
 
 const NOT_FOUND = 404;
 
@@ -52,36 +51,6 @@ export class MattermostAdminClient {
    */
   private static asHydrated<TResource>(creationFields: Partial<TResource>): TResource {
     return creationFields as TResource;
-  }
-
-  /**
-   * Refuses a server whose settings cannot carry this deployment, naming each one, before anything
-   * is created. Two of them stop provisioning at its first write; the third stops nothing at all —
-   * an unreachable app is a Mattermost that accepts every approval click and delivers none.
-   */
-  async assertServerSupportsDeployment(params: { publicUrl: string }): Promise<void> {
-    const { PluginSettings, ServiceSettings } = $MattermostServerSettings.parse(await this.sdk.getConfig());
-    const refusals: string[] = [];
-    if (!PluginSettings.Enable) {
-      refusals.push('PluginSettings.Enable, without which the plugin that holds /collegium cannot run');
-    }
-    if (!ServiceSettings.EnableBotAccountCreation) {
-      refusals.push('ServiceSettings.EnableBotAccountCreation, without which no agent account can exist');
-    }
-    if (!ServiceSettings.EnableUserAccessTokens) {
-      refusals.push(
-        'ServiceSettings.EnableUserAccessTokens, without which no account can hold the token it posts with'
-      );
-    }
-    const allowed = ServiceSettings.AllowedUntrustedInternalConnections;
-    if (await refusesCallbacks({ allowed, publicUrl: params.publicUrl })) {
-      refusals.push(
-        `ServiceSettings.AllowedUntrustedInternalConnections, which must list ${new URL(params.publicUrl).hostname} for approval decisions, slash commands, and triggers to reach the app`
-      );
-    }
-    if (refusals.length > 0) {
-      throw new Error(`Mattermost is missing settings this deployment needs: ${refusals.join('; ')}`);
-    }
   }
 
   /**
@@ -143,7 +112,9 @@ export class MattermostAdminClient {
    * plugin at that version is left alone, enabled if it is not; any other is replaced. Uploading
    * is the one step a server may forbid, so that refusal names the manual alternative.
    */
-  async ensurePlugin(params: MattermostPluginBundle & { id: string }): Promise<'enabled' | 'installed' | 'present'> {
+  async ensurePlugin(
+    params: MattermostPluginBundle & { id: string; uploadsEnabled: boolean }
+  ): Promise<'enabled' | 'installed' | 'present'> {
     const { active, inactive } = $MattermostPluginListing.parse(await this.sdk.getPlugins());
     if (active.some((plugin) => plugin.id === params.id && plugin.version === params.version)) {
       return 'present';
@@ -152,8 +123,7 @@ export class MattermostAdminClient {
       await this.sdk.enablePlugin(params.id);
       return 'enabled';
     }
-    const { PluginSettings } = $MattermostServerSettings.parse(await this.sdk.getConfig());
-    if (!PluginSettings.EnableUploads) {
+    if (!params.uploadsEnabled) {
       throw new Error(
         `Mattermost holds no ${params.id}@${params.version}, and PluginSettings.EnableUploads is off, so provisioning cannot install it — turn uploads on, or install ${path.basename(params.bundlePath)} from the release by hand`
       );
@@ -184,6 +154,11 @@ export class MattermostAdminClient {
   async mintAccessToken(userId: string): Promise<string> {
     const minted = await this.sdk.createUserAccessToken(userId, BOT_DESCRIPTION);
     return $MattermostAccessToken.parse(minted).token;
+  }
+
+  /** the settings of `/api/v4/config` this deployment reads, parsed once per provisioning run */
+  async readServerSettings(): Promise<$MattermostServerSettings> {
+    return $MattermostServerSettings.parse(await this.sdk.getConfig());
   }
 
   async waitUntilReachable(params: { attempts: number; intervalMs: number }): Promise<void> {
