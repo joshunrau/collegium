@@ -17,13 +17,22 @@ export class MemoryService {
     @InjectModel('Memory') private readonly memories: Model<'Memory'>
   ) {}
 
-  async delete(agentUsername: string, reference: string): Promise<Result<void, MemoryFailure.Unresolved>> {
-    const memory = await this.read(agentUsername, reference);
-    if (!memory.success) {
-      return Result.err(memory.error);
-    }
-    await this.memories.deleteMany({ where: { id: memory.value.id } });
-    return Result.ok();
+  /**
+   * Ungated like a write (§3.6), and disclosed the same way. Takes the per-agent lock so a delete
+   * cannot land inside a concurrent write's count-then-evict and cost that write an extra entry.
+   */
+  async delete(
+    agentUsername: string,
+    reference: string
+  ): Promise<Result<ModelRow<'Memory'>, MemoryFailure.Unresolved>> {
+    return this.locks.run(agentUsername, async () => {
+      const memory = await this.read(agentUsername, reference);
+      if (!memory.success) {
+        return Result.err(memory.error);
+      }
+      await this.memories.deleteMany({ where: { id: memory.value.id } });
+      return Result.ok(memory.value);
+    });
   }
 
   /** oldest first; loaded into the system prompt on every turn, which is why bodies are not selected (§3.6) */

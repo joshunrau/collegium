@@ -172,7 +172,8 @@ export class ToolExecutor {
     return {
       kind: 'continue',
       output: output.text,
-      ...(output.disclosure && { disclosure: output.disclosure })
+      ...(output.disclosure && { disclosure: output.disclosure }),
+      ...(output.forgottenDescription !== undefined && { forgottenDescription: output.forgottenDescription })
     };
   }
 

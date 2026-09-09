@@ -34,7 +34,7 @@ export class MemoryHandler extends CommandHandler {
       return {
         audience: 'invoker',
         text: deleted.success
-          ? `Deleted memory ${reference}.`
+          ? `Deleted memory ${reference}: ${deleted.value.description}`
           : `${renderUnresolvedReference(deleted.error)} for ${agentUsername}.`
       };
     }

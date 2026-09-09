@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   renderProviderRejectionNotice,
+  renderRecordForgottenLine,
   renderRecordWriteLine,
   renderStatusPost,
   renderSupersededLine,
@@ -62,6 +63,12 @@ describe('renderRecordWriteLine', () => {
     expect(renderRecordWriteLine({ body: 'x'.repeat(121), description: 'a long one' })).toBe(
       `📝 _recorded: a long one — ${'x'.repeat(120)}…_`
     );
+  });
+});
+
+describe('renderRecordForgottenLine', () => {
+  it('names the description, which outlives the reference the delete resolved', () => {
+    expect(renderRecordForgottenLine('casey on formatting')).toBe('🗑️ _forgot: casey on formatting_');
   });
 });
 

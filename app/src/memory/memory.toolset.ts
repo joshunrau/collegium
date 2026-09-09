@@ -8,6 +8,27 @@ import { renderUnresolvedReference } from './memory.utils.ts';
 export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
   services: { memory: MEMORY_SERVICE_TOKEN },
   tools: {
+    // §3.6 — ungated for the same reason a write is; the disclosure names the description because
+    // the reference the model passed resolves to nothing once the row is gone
+    delete: {
+      description: 'Forget one of your memories. Correct a memory by forgetting it and saving a new one.',
+      execute: async (args, context) => {
+        const deleted = await context.memory.delete(context.turn.agentUsername, args.reference);
+        if (!deleted.success) {
+          return Result.err({ kind: 'invalid-arguments', message: renderUnresolvedReference(deleted.error) });
+        }
+        return Result.ok({
+          forgottenDescription: deleted.value.description,
+          text: `memory ${args.reference} forgotten: ${deleted.value.description}`
+        });
+      },
+      parameters: z.object({
+        reference: z.string().min(1).describe('The reference of the memory entry, as listed beside its description')
+      }),
+      /** a repeat resolves to deleted-or-not-found, and both end states are the entry being absent */
+      retryable: true,
+      traceDetail: (args) => args.reference
+    },
     read: {
       budgetExempt: true,
       description: 'Read the full body of one of your memories.',

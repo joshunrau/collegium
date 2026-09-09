@@ -81,6 +81,11 @@ export function renderRecordWriteLine(input: { body: string; description: string
   return `📝 _recorded: ${input.description} — ${body}_`;
 }
 
+/** §3.6 — a record the agent deliberately dropped, named by description because its reference no longer resolves */
+export function renderRecordForgottenLine(description: string): string {
+  return `🗑️ _forgot: ${description}_`;
+}
+
 /** §3.6 — a superseded record is disclosed beside the write that displaced it */
 export function renderSupersededLine(description: string): string {
   return `♻️ _superseded: ${description}_`;

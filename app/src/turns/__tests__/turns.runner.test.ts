@@ -590,6 +590,18 @@ describe('TurnRunner', () => {
     expect(statusHandle.appendTrace).toHaveBeenCalledWith('♻️ _superseded: an ancient note_');
   });
 
+  it('should name a forgotten record in the trace, since its reference no longer resolves (§3.6)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['memory__delete'])));
+    complete.mockResolvedValueOnce(Result.ok(text('forgotten')));
+    toolExecutor.execute.mockResolvedValueOnce({
+      forgottenDescription: 'tooling preference',
+      kind: 'continue',
+      output: 'ok'
+    });
+    await run();
+    expect(statusHandle.appendTrace).toHaveBeenCalledWith('🗑️ _forgot: tooling preference_');
+  });
+
   it('should thread the turn’s own event appender into tool execution and approval requests', async () => {
     toolExecutor.execute.mockImplementation(async ({ appendEvent }) => {
       await appendEvent({ content: 'from the tool', kind: 'assistant_message', toolCalls: [] });

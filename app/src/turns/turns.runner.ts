@@ -43,6 +43,7 @@ import {
   renderExtensionPrompt,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
+  renderRecordForgottenLine,
   renderRecordWriteLine,
   renderSemanticErrorNotice,
   renderSideEffectAmbiguityNotice,
@@ -406,6 +407,9 @@ export class TurnRunner {
       state.messages.push({ content: attempt.output, role: 'tool', toolCallId: call.id });
       if (attempt.disclosure) {
         await this.discloseRecord(state, attempt.disclosure);
+      }
+      if (attempt.forgottenDescription !== undefined) {
+        await state.status.appendTrace(renderRecordForgottenLine(attempt.forgottenDescription));
       }
     }
     return undefined;

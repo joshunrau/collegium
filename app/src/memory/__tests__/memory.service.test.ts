@@ -122,10 +122,18 @@ describe('MemoryService', () => {
   });
 
   describe('delete', () => {
-    it('should remove the agent’s own entry by reference', async () => {
-      await write();
-      expect((await memoryService.delete('mira', 'memory-0')).success).toBe(true);
+    it('should remove the agent’s own entry by reference and report what it removed', async () => {
+      await write({ description: 'stale' });
+      const deleted = await memoryService.delete('mira', 'memory-0');
+      expect(deleted.value?.description).toBe('stale');
       expect(table.rows).toHaveLength(0);
+    });
+
+    it('should hold the per-agent lock, so a delete racing a write at the cap evicts nothing extra', async () => {
+      await write({ description: 'first' });
+      await write({ description: 'second' });
+      await Promise.all([memoryService.delete('mira', 'memory-0'), write({ description: 'third' })]);
+      expect(table.rows.map((row) => row.description)).toStrictEqual(['second', 'third']);
     });
 
     it('should refuse to delete another agent’s entry', async () => {

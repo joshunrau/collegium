@@ -7,6 +7,8 @@ export declare namespace ToolAttempt {
   type Continue = {
     /** a durable record the call created, for the turn to write into the event trail and trace (§3) */
     disclosure?: ToolDisclosure;
+    /** a durable record the call removed, for the turn to name in the status post (§3.6) */
+    forgottenDescription?: string;
     kind: 'continue';
     output: string;
   };

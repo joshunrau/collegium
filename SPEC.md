@@ -163,16 +163,17 @@ Where step ordering is load-bearing — check the database _before_ drafting, lo
 A `memories` table in SQLite, accessible to agents only through a tool, never through raw SQL. Each entry has a **description** (the trigger) and a **body** (the content).
 
 - **Descriptions are loaded into the system prompt on every turn.** Bodies are loaded on demand.
-- **Writes are ungated** — the single exception to A5.
+- **Writes and deletes are ungated** — the single exception to A5.
 - Entry count, description size, and body size are all capped, by the memory toolset's settings (§3.4). An over-length description or body is refused, never truncated; a write at the entry cap evicts the oldest entry.
 - Every entry carries provenance: written-at timestamp and originating post ID. Entries are shown to the agent, in the trace, and to `/collegium memory` by a **reference** — the first eight characters of the id — which the store resolves back, refusing rather than guessing if it ever matched two.
+- An entry is deleted, never edited in place. Correcting a memory is forgetting it and writing a new one, which mints a new reference — so a correction reads as a correction in the listing an operator saw yesterday, rather than a stable reference quietly changing meaning.
 - Memory is per-agent and never shared between agents.
 
-_Why ungated:_ gating a memory write would block an entire turn on a triviality — an agent stalling for hours because it wanted to record a phone preference. Memory formation cannot sit behind human latency or it will not happen.
+_Why ungated:_ gating a memory write would block an entire turn on a triviality — an agent stalling for hours because it wanted to record a phone preference. Memory formation cannot sit behind human latency or it will not happen. Deletion inherits the exemption: an agent that cannot retract a fact it now knows to be wrong carries that fact into the system prompt of every later turn, and gating the retraction while leaving the write ungated would make the wrong state the cheap one.
 
-_Compensating control:_ the write tool returns a disclosure — description, body, the record's reference, anything superseded — and the turn writes it into the trace and a status-post line. This is **detection, not prevention** — the write has already happened.
+_Compensating control:_ the write tool returns a disclosure — description, body, the record's reference, anything superseded — and the turn writes it into the trace and a status-post line. A delete discloses the description of what it removed, because the reference the model passed resolves to nothing once the row is gone. This is **detection, not prevention** — the write has already happened.
 
-Because turns are per-channel (§5.1), an agent may have concurrent turns writing memory. Memory writes therefore take a **per-agent lock**, since the entry cap is a read-modify-write.
+Because turns are per-channel (§5.1), an agent may have concurrent turns writing memory. Memory writes and deletes therefore take a **per-agent lock**, since the entry cap is a read-modify-write and a delete landing inside one would cost that write an entry.
 
 Memory is also the one path by which information crosses channels: something learned in channel A appears in the system prompt for channel B. This is intentional but worth knowing, since context is otherwise strictly channel-scoped.
 
@@ -539,7 +540,7 @@ Either command also resolves a pending approval in the channel as **cancelled**:
 
 _Why not stream every tool call as a separate post:_ a ten-call turn would produce ten posts of machinery around one post of substance, and approval prompts live in the same channel — noise in the supervision channel degrades the gate (A5).
 
-Every memory write — and any eviction it causes — emits a disclosure line here (§3.6), the untruncated content of which can be viewed with `/collegium trace`.
+Every memory write — and any eviction it causes — emits a disclosure line here (§3.6), the untruncated content of which can be viewed with `/collegium trace`. A memory delete emits one too, naming the description of the entry that left.
 
 Queued messages are acknowledged with a 👀 reaction (§5.2). This and the typing indicator below are the only signals the framework emits without posting.
 
