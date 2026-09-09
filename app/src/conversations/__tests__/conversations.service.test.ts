@@ -27,7 +27,11 @@ const createPostTable = () => {
   return createModelTable<PostRow>({
     defaults: (sequence) => ({ authoringTurnId: null, isForgotten: false, observedAt: new Date(sequence) }),
     relations: {
-      authoringTurn: (row) => (row.authoringTurnId === null ? undefined : { depth: AUTHORING_TURN_DEPTH })
+      authoringTurn: (row) => {
+        return row.authoringTurnId === null
+          ? undefined
+          : { channelId: 'channel-1', depth: AUTHORING_TURN_DEPTH, id: row.authoringTurnId };
+      }
     },
     uniqueFields: ['id']
   });
@@ -89,11 +93,11 @@ describe('ConversationsService', () => {
   });
 
   describe('findAuthoringTurn', () => {
-    it('should resolve a post to the turn that authored it and the channel it sits in', async () => {
+    it('should resolve a post to the row of the turn that authored it', async () => {
       await conversationsService.record(post(), 'turn-1');
-      expect(await conversationsService.findAuthoringTurn('post-1')).toStrictEqual({
+      expect(await conversationsService.findAuthoringTurn('post-1')).toMatchObject({
         channelId: 'channel-1',
-        turnId: 'turn-1'
+        id: 'turn-1'
       });
     });
 

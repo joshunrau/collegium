@@ -2,6 +2,7 @@ import { renderToolDisplayName } from '@collegium/core/tools';
 import { match } from 'ts-pattern';
 
 import type { ModelRow } from '@/prisma/prisma.types.ts';
+import type { Turn } from '@/turns/turns.types.ts';
 
 /** the trace is human-facing, so a structural name renders in display form (§1) */
 function toDisplayName(name: PrismaJson.RecordedToolName): string {
@@ -34,12 +35,14 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload): string {
     .exhaustive();
 }
 
-export function renderTrace(turnId: string, events: ModelRow<'TurnEvent'>[]): string {
+/** the turn's own row leads: a failed or tool-less turn has no events, and its status is the whole story */
+export function renderTrace(turn: Turn, events: ModelRow<'TurnEvent'>[]): string {
+  const heading = `turn ${turn.id} (${turn.agentUsername} on ${turn.modelName}, ${turn.status})`;
   if (events.length === 0) {
-    return `Turn ${turnId} recorded no events.`;
+    return `${heading[0]!.toUpperCase()}${heading.slice(1)} recorded no events: no tool call, approval, or record.`;
   }
   return [
-    `Trace for turn ${turnId}:`,
+    `Trace for ${heading}:`,
     ...events.map((event, index) => `${index + 1}. ${renderEventLine(event.payload)}`)
   ].join('\n');
 }

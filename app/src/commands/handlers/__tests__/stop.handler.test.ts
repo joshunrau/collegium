@@ -32,7 +32,7 @@ describe('StopHandler', () => {
     const response = await stopHandler.handle({ channelId: 'channel-1', text: '', username: 'casey' });
     expect(turnControlRegistry.abortChannel).toHaveBeenCalledWith('channel-1', 'stopped');
     expect(approvalsService.cancelPendingIn).toHaveBeenCalledWith('channel-1', 'stop');
-    expect(response).toStrictEqual({ audience: 'channel', text: '⏹️ Stopping 2 turn(s) — no further actions.' });
+    expect(response).toStrictEqual({ audience: 'channel', text: '⏹️ Stopped 2 turn(s) before any further tool call.' });
   });
 
   it('should say nothing is running when no turn was flagged', async () => {

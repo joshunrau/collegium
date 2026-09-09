@@ -32,6 +32,7 @@ import { WebService } from '@/web/web.service.ts';
 import { ActionBudget } from './budget/action.budget.ts';
 import { renderExtensionDenialResult } from './budget/budget.renderer.ts';
 import { ContextAssembler } from './context/context.assembler.ts';
+import { containsToolCallTranscript } from './context/context.utils.ts';
 import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
 import {
@@ -338,7 +339,12 @@ export class TurnRunner {
         toolName: recordedNameOf(call)
       }))
     });
-    state.messages.push({ content: completion.content, role: 'assistant', toolCalls: completion.toolCalls });
+    state.messages.push({
+      content: completion.content,
+      role: 'assistant',
+      toolCalls: completion.toolCalls,
+      ...(completion.reasoningContent !== undefined && { reasoningContent: completion.reasoningContent })
+    });
     if (completion.content !== '') {
       await state.status.setTransient(this.multiMentionPolicy.stripAgentMentions(completion.content));
     }
@@ -510,12 +516,24 @@ export class TurnRunner {
     }
   }
 
-  private refusesFinalOutput(input: RunInput, content: string): boolean {
-    return this.multiMentionPolicy.refuses({
+  /**
+   * Why a final output cannot post as-is, or nothing. Neither is a semantic failure: the model
+   * produced valid output that breaks a framework rule it cannot see (§4.5), or wrote a tool call
+   * as text where only a real call runs anything, and one retry is cheap either way.
+   */
+  private rejectionOf(input: RunInput, content: string): string | undefined {
+    const refused = this.multiMentionPolicy.refuses({
       authorUsername: input.profile.username,
       channelId: input.channelId,
       mentionedUsernames: extractMentionedUsernames(content)
     });
+    if (refused) {
+      return 'post rejected: multiple agent mentions';
+    }
+    if (containsToolCallTranscript(content)) {
+      return 'post rejected: a tool call written as text runs nothing — invoke the tool instead';
+    }
+    return undefined;
   }
 
   /** everything here may throw; run() owns the boundary so no exit can leave the turn 'running' */
@@ -556,10 +574,10 @@ export class TurnRunner {
       }
       if (completion.value.kind === 'text') {
         const content = await this.enforceDepthLimit(input, state, completion.value.content);
-        if (!this.refusesFinalOutput(input, content)) {
+        let rejection = this.rejectionOf(input, content);
+        if (rejection === undefined) {
           return this.closeWithFinalOutput(input, state, content);
         }
-        let rejection = 'post rejected: multiple agent mentions';
         if (state.budget.trySpendOnRejectedPost() === 'exhausted') {
           const exhaustion = await this.handleExhaustion(input, state);
           if (exhaustion.kind === 'ended') {
@@ -573,9 +591,14 @@ export class TurnRunner {
           }
         }
         // fed back as a user message — the final-output branch carries no tool call for a tool
-        // result to reference (§4.5). Not a semantic failure: the model produced valid output
-        // violating a framework rule it cannot see, and one retry is cheap.
-        state.messages.push({ content, role: 'assistant' });
+        // result to reference (§4.5)
+        state.messages.push({
+          content,
+          role: 'assistant',
+          ...(completion.value.reasoningContent !== undefined && {
+            reasoningContent: completion.value.reasoningContent
+          })
+        });
         state.messages.push({ content: rejection, role: 'user' });
         continue;
       }

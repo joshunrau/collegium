@@ -5,8 +5,17 @@ import { ConversationsService } from '@/conversations/conversations.service.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
+import type { Turn } from '@/turns/turns.types.ts';
 
 import { TraceHandler } from '../trace.handler.ts';
+
+const TURN = {
+  agentUsername: 'mira',
+  channelId: 'channel-1',
+  id: 'turn-1',
+  modelName: 'deepseek-v4-flash',
+  status: 'completed'
+} as Turn;
 
 const EVENTS = [
   {
@@ -41,10 +50,11 @@ describe('TraceHandler', () => {
   });
 
   it('should render the full event sequence, ephemerally', async () => {
-    conversationsService.findAuthoringTurn.mockResolvedValue({ channelId: 'channel-1', turnId: 'turn-1' });
+    conversationsService.findAuthoringTurn.mockResolvedValue(TURN);
     turnsService.listEvents.mockResolvedValue(EVENTS as never);
     const response = await traceHandler.handle({ channelId: 'channel-1', text: 'post-9', username: 'casey' });
     expect(response.audience).toBe('invoker');
+    expect(response.text).toContain('Trace for turn turn-1 (mira on deepseek-v4-flash, completed):');
     expect(response.text).toContain('1. called `write_file` with {"path":"a.md"}');
     expect(response.text).toContain('2. `write_file` → wrote 5 bytes');
     expect(response.text).toContain('3. assistant: done');
@@ -57,7 +67,7 @@ describe('TraceHandler', () => {
   });
 
   it('should refuse a post whose turn ran in another channel', async () => {
-    conversationsService.findAuthoringTurn.mockResolvedValue({ channelId: 'channel-9', turnId: 'turn-1' });
+    conversationsService.findAuthoringTurn.mockResolvedValue({ ...TURN, channelId: 'channel-9' });
     const response = await traceHandler.handle({ channelId: 'channel-1', text: 'post-9', username: 'casey' });
     expect(response).toStrictEqual({
       audience: 'invoker',

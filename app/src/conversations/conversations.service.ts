@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
-import type { Model } from '@/prisma/prisma.types.ts';
+import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
 import type { ActivationSource, RecordablePost } from './conversations.types.ts';
@@ -26,16 +26,10 @@ export class ConversationsService {
     };
   }
 
-  /** which turn authored this post, and where — how /trace resolves a post id and scopes it (§8.3) */
-  async findAuthoringTurn(postId: string): Promise<undefined | { channelId: string; turnId: string }> {
-    const post = await this.posts.findUnique({
-      select: { authoringTurnId: true, channelId: true },
-      where: { id: postId }
-    });
-    if (!post?.authoringTurnId) {
-      return undefined;
-    }
-    return { channelId: post.channelId, turnId: post.authoringTurnId };
+  /** the turn that authored this post — how /trace resolves a post id and scopes it to the turn's channel (§8.3) */
+  async findAuthoringTurn(postId: string): Promise<ModelRow<'Turn'> | undefined> {
+    const post = await this.posts.findUnique({ include: { authoringTurn: true }, where: { id: postId } });
+    return post?.authoringTurn ?? undefined;
   }
 
   /** when the store last saw the world — the start of the downtime window a boot notice states (§7.3) */

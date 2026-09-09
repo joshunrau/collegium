@@ -32,9 +32,6 @@ export class TraceHandler extends CommandHandler {
     if (turn?.channelId !== input.channelId) {
       return { audience: 'invoker', text: `No turn authored post ${postId} in this channel.` };
     }
-    return {
-      audience: 'invoker',
-      text: renderTrace(turn.turnId, await this.turnsService.listEvents(turn.turnId))
-    };
+    return { audience: 'invoker', text: renderTrace(turn, await this.turnsService.listEvents(turn.id)) };
   }
 }

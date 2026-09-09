@@ -17,7 +17,7 @@ export class StopHandler extends ChannelInterruptHandler {
   }
 
   protected renderInterrupted(flagged: number): string {
-    return `⏹️ Stopping ${flagged} turn(s) — no further actions.`;
+    return `⏹️ Stopped ${flagged} turn(s) before any further tool call.`;
   }
 
   protected renderNothingRunning(): string {

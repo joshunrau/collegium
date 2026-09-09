@@ -4,11 +4,18 @@ import type { CompletionMessage, CompletionRequest, ToolCall } from '../inferenc
 
 function toWireMessage(message: CompletionMessage) {
   switch (message.role) {
-    case 'assistant':
+    case 'assistant': {
+      const reasoning = message.reasoningContent === undefined ? {} : { reasoning_content: message.reasoningContent };
       if (!message.toolCalls || message.toolCalls.length === 0) {
-        return { content: message.content, role: message.role };
+        return { content: message.content, role: message.role, ...reasoning };
       }
-      return { content: message.content, role: message.role, tool_calls: message.toolCalls.map(toWireToolCall) };
+      return {
+        content: message.content,
+        role: message.role,
+        tool_calls: message.toolCalls.map(toWireToolCall),
+        ...reasoning
+      };
+    }
     case 'tool':
       return { content: message.content, role: message.role, tool_call_id: message.toolCallId };
     case 'user':

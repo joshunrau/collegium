@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 
-import { renderPreamble, renderSystemPrompt, toCompletionMessages } from '../context.utils.ts';
+import {
+  containsToolCallTranscript,
+  renderPreamble,
+  renderSystemPrompt,
+  toCompletionMessages
+} from '../context.utils.ts';
 
 const event = (payload: PrismaJson.TurnEventPayload): WindowEntry => ({
   event: { createdAt: new Date(0), id: 'event-1', kind: payload.kind, payload, sequence: 0, turnId: 'turn-1' },
@@ -143,5 +148,16 @@ Colleagues in this channel. Hand work to one by mentioning them, one per message
 
 - @tess — scheduling`
     );
+  });
+});
+
+describe('containsToolCallTranscript', () => {
+  it('should recognise the replayed call form, including a fabricated tool name', () => {
+    expect(containsToolCallTranscript('[called web__navigate({"url":"http://x"})]')).toBe(true);
+    expect(containsToolCallTranscript('Sure.\n[called read_memory({"id":"m1"})]')).toBe(true);
+  });
+
+  it('should leave prose that merely mentions a tool alone', () => {
+    expect(containsToolCallTranscript('I called web__navigate and it worked')).toBe(false);
   });
 });

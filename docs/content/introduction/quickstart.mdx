@@ -83,4 +83,15 @@ docker compose down
 
 State persists under `./state`: the Mattermost data, the conversation store, and Clara's workspace. Starting again resumes the deployment.
 
+## Upgrading
+
+A restart re-reads `config.json` but keeps the image it already has. To run a newer release, pull the image and recreate the container:
+
+```sh
+docker compose pull app
+docker compose up -d app
+```
+
+If a tool or behavior from a recent release is missing, the running image predates it.
+
 Next: [Next Steps](/docs/introduction/next-steps).

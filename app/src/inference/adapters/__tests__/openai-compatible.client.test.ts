@@ -54,6 +54,19 @@ describe('OpenAICompatibleClient', () => {
     expect(result.value).toStrictEqual({ content: 'Hello there', kind: 'text', usage: undefined });
   });
 
+  it('carries reasoning content a thinking-mode provider returns, and omits it when absent', async () => {
+    fetchMock.mockResolvedValueOnce(completionResponse({ content: 'Hello', reasoning_content: 'because' }));
+
+    const result = await client.complete(completionRequest);
+
+    expect(result.value).toStrictEqual({
+      content: 'Hello',
+      kind: 'text',
+      reasoningContent: 'because',
+      usage: undefined
+    });
+  });
+
   it('carries provider-reported token usage', async () => {
     fetchMock.mockResolvedValueOnce(
       completionResponse({ content: 'Hello there' }, { completion_tokens: 3, prompt_tokens: 12, total_tokens: 15 })

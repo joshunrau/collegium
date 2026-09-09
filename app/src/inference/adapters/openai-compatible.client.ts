@@ -58,6 +58,7 @@ export class OpenAICompatibleClient extends InferenceClient {
       return Result.err(MALFORMED_COMPLETION);
     }
     const usage = parsed.data.usage;
+    const reasoning = message.reasoningContent ? { reasoningContent: message.reasoningContent } : {};
     if (message.toolCalls.length > 0) {
       return Result.ok({
         content: message.content ?? '',
@@ -67,13 +68,14 @@ export class OpenAICompatibleClient extends InferenceClient {
           id: call.id,
           name: call.function.name
         })),
-        usage
+        usage,
+        ...reasoning
       } satisfies CompletionResult.ToolUse);
     }
     if (!message.content || message.content.trim() === '') {
       return Result.err({ kind: 'malformed', message: 'completion returned empty content' });
     }
-    return Result.ok({ content: message.content, kind: 'text', usage } satisfies CompletionResult.Text);
+    return Result.ok({ content: message.content, kind: 'text', usage, ...reasoning } satisfies CompletionResult.Text);
   }
 
   private async post(request: CompletionRequest): Promise<Result<Response, InferenceFailure.Transport>> {

@@ -13,6 +13,7 @@ const $ToolCall = z.object({
 const $Choice = z.object({
   message: z.object({
     content: z.string().nullable().default(null),
+    reasoningContent: z.string().nullable().default(null),
     toolCalls: z.array($ToolCall).default([])
   })
 });

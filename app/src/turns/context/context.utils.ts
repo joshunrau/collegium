@@ -33,6 +33,12 @@ function toWireName(name: PrismaJson.RecordedToolName): string {
   return typeof name === 'string' ? name : renderToolWireName(name);
 }
 
+const TOOL_CALL_TRANSCRIPT = /^\[called [^\s(]+\([\s\S]*\)\]$/mu;
+
+function renderToolCallTranscript(call: { args: unknown; toolName: PrismaJson.RecordedToolName }): string {
+  return `[called ${toWireName(call.toolName)}(${JSON.stringify(call.args)})]`;
+}
+
 /**
  * Replayed trace renders as plain text rather than native tool-call messages: history routinely
  * holds dangling calls — a denied approval or an abandoned turn records a call with no result —
@@ -49,9 +55,7 @@ function renderEvent(event: ModelRow<'TurnEvent'>): CompletionMessage | undefine
       role: 'user'
     }))
     .with({ kind: 'assistant_message' }, (payload): CompletionMessage | undefined => {
-      const calls = payload.toolCalls.map(
-        (call) => `[called ${toWireName(call.toolName)}(${JSON.stringify(call.args)})]`
-      );
+      const calls = payload.toolCalls.map(renderToolCallTranscript);
       const content = [payload.content, ...calls].filter((part) => part !== '').join('\n');
       return content === '' ? undefined : { content, role: 'assistant' };
     })
@@ -113,4 +117,13 @@ export function renderSystemPrompt(input: {
     );
   }
   return sections.join('\n\n');
+}
+
+/**
+ * Whether output imitates the replayed transcript form instead of making a call. A model that has read
+ * its own history in that form sometimes writes it back as an answer; posted, it runs nothing and
+ * reads as a completed action.
+ */
+export function containsToolCallTranscript(text: string): boolean {
+  return TOOL_CALL_TRANSCRIPT.test(text);
 }

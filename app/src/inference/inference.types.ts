@@ -15,8 +15,13 @@ export type ToolCall = {
   readonly name: string;
 };
 
+/**
+ * Reasoning rides only on the in-memory messages of the turn that produced it: a thinking-mode
+ * provider rejects a replayed tool call without it, and §3.12 forbids it anywhere durable — never
+ * copy it into a TurnEvent, a post, or a log line.
+ */
 export type CompletionMessage =
-  | { content: string; role: 'assistant'; toolCalls?: readonly ToolCall[] }
+  | { content: string; reasoningContent?: string; role: 'assistant'; toolCalls?: readonly ToolCall[] }
   | { content: string; role: 'tool'; toolCallId: string }
   | { content: string; role: 'user' };
 
@@ -32,12 +37,14 @@ export declare namespace CompletionResult {
   type Text = {
     content: string;
     kind: 'text';
+    reasoningContent?: string;
     usage: TokenUsage | undefined;
   };
   /** text alongside tool calls is transient status, not output (§3.3) */
   type ToolUse = {
     content: string;
     kind: 'tool-use';
+    reasoningContent?: string;
     toolCalls: readonly ToolCall[];
     usage: TokenUsage | undefined;
   };

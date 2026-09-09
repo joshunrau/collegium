@@ -406,6 +406,31 @@ describe('TurnRunner', () => {
     });
   });
 
+  it('should reject a tool call written as text and retry, posting the real answer (§3.3)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(text('[called triggers__resolve({"id":"s8a15c97"})]')));
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['triggers__resolve'])));
+    complete.mockResolvedValueOnce(Result.ok(text('resolved')));
+    const outcome = await run();
+    expect(outcome.status).toBe('completed');
+    expect(sends.map((send) => send.text)).toStrictEqual(['resolved']);
+    expect(complete.mock.calls[1]![0].messages[2]).toStrictEqual({
+      content: 'post rejected: a tool call written as text runs nothing — invoke the tool instead',
+      role: 'user'
+    });
+  });
+
+  it('should replay reasoning with the tool call it produced, and keep it out of the trace (§3.12)', async () => {
+    complete.mockResolvedValueOnce(
+      Result.ok({ ...toolUse(['write_file']), reasoningContent: 'private thoughts' } satisfies CompletionResult)
+    );
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    const followUp = complete.mock.calls[1]![0].messages;
+    expect(followUp.at(-2)).toMatchObject({ reasoningContent: 'private thoughts', role: 'assistant' });
+    expect(JSON.stringify(turnsService.appendEvent.mock.calls)).not.toContain('private thoughts');
+    expect(JSON.stringify(sends)).not.toContain('private thoughts');
+  });
+
   it('should end the turn as semantic_error on malformed model output, never feeding it back', async () => {
     complete.mockResolvedValueOnce(
       Result.err({ kind: 'malformed', message: 'bad json' } satisfies InferenceFailure.Malformed)
