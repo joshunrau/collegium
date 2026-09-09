@@ -108,6 +108,11 @@ export class ToolRegistry {
       .map((tool) => tool.wireName);
   }
 
+  /** every tool an agent may call, core included, by identity — what an operator inspecting the agent sees (§8.4) */
+  listFor(profile: AgentProfile): readonly ToolId[] {
+    return Array.from(this.toolsFor(profile).values(), (tool) => tool.id);
+  }
+
   /** fails loudly on a name outside the agent's set (§6.1) — never falls back */
   resolveFor(profile: AgentProfile, name: string): Result<ResolvedTool, ToolFailure.UnknownTool> {
     const tool = this.toolsFor(profile).get(name);

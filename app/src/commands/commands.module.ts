@@ -16,9 +16,9 @@ import { CommandsController } from './commands.controller.ts';
 import { CommandRegistry } from './commands.registry.ts';
 import { CommandsService } from './commands.service.ts';
 import { ForgetHandler } from './handlers/forget.handler.ts';
+import { InspectHandler } from './handlers/inspect.handler.ts';
 import { KillHandler } from './handlers/kill.handler.ts';
 import { MemoryHandler } from './handlers/memory.handler.ts';
-import { PromptHandler } from './handlers/prompt.handler.ts';
 import { QueueHandler } from './handlers/queue.handler.ts';
 import { ResetHandler } from './handlers/reset.handler.ts';
 import { ResumeHandler } from './handlers/resume.handler.ts';
@@ -32,9 +32,9 @@ import type { CommandHandler } from './commands.handler.ts';
 /** the module's one list of handler classes — the registry's boot check makes omissions loud */
 const COMMAND_HANDLER_CLASSES = [
   ForgetHandler,
+  InspectHandler,
   KillHandler,
   MemoryHandler,
-  PromptHandler,
   QueueHandler,
   ResetHandler,
   ResumeHandler,

@@ -12,6 +12,12 @@ import { FRAMEWORK_TOOLSETS } from '@/tools/tools.toolsets.ts';
 
 import { loadPluginSkillLibrary, loadSkillLibrary } from './skills.utils.ts';
 
+export type SkillListing = {
+  readonly description: string;
+  /** the name the agent pulls it by: bare for a framework skill, `ns::skill` for a toolset's */
+  readonly name: string;
+};
+
 @Injectable()
 export class SkillsService {
   /** the framework library, every toolset's shipped skills under `ns::skill` names, and the plugins' */
@@ -48,10 +54,18 @@ export class SkillsService {
     return Result.ok(`# ${skill.title}\n\n${skill.body}`);
   }
 
-  /** the manifest injected into the system prompt every turn: core skills always, then the agent's grants (§3.5, §9) */
+  /** every skill an agent holds: core skills always, then the agent's grants, each under its qualified name (§3.5, §9) */
+  listFor(profile: AgentProfile): readonly SkillListing[] {
+    return [...BUILTIN_CORE_SKILL_NAMES, ...profile.skills].map((name) => ({
+      description: this.require(name).description,
+      name
+    }));
+  }
+
+  /** the manifest injected into the system prompt every turn */
   renderManifest(profile: AgentProfile): string {
-    return [...BUILTIN_CORE_SKILL_NAMES, ...profile.skills]
-      .map((name) => `- ${name}: ${this.require(name).description}`)
+    return this.listFor(profile)
+      .map((skill) => `- ${skill.name}: ${skill.description}`)
       .join('\n');
   }
 

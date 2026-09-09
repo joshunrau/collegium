@@ -71,6 +71,19 @@ describe('SkillsService', () => {
     });
   });
 
+  describe('listFor', () => {
+    it('should list the core skill, then the grants, each with its description', async () => {
+      const skillsService = await buildService([]);
+      expect(skillsService.listFor(buildAgentProfile({ skills: ['bookmark::saving-bookmarks'] }))).toStrictEqual([
+        {
+          description: 'How to hand a task to another agent so it arrives with everything that agent needs to act.',
+          name: 'handing-work-to-a-peer'
+        },
+        { description: 'How to bookmark.', name: 'bookmark::saving-bookmarks' }
+      ]);
+    });
+  });
+
   describe('renderManifest', () => {
     it('should carry the core skill for every agent, then its grants (§9)', async () => {
       const skillsService = await buildService([]);

@@ -121,4 +121,14 @@ describe('ToolRegistry', () => {
     const registry = new ToolRegistry(LIBRARY, [profile]);
     expect(registry.listBudgetExemptFor(profile)).toStrictEqual(['skills__load']);
   });
+
+  it('lists every tool an agent may call by identity, core first (§8.4)', () => {
+    const profile = buildAgentProfile({ tools: ['notes::add'] });
+    const registry = new ToolRegistry(LIBRARY, [profile]);
+    expect(registry.listFor(profile)).toStrictEqual([
+      ['skills', 'load'],
+      ['triggers', 'resolve'],
+      ['notes', 'add']
+    ]);
+  });
 });

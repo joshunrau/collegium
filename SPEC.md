@@ -588,7 +588,7 @@ Every command is a subcommand of one slash command, `/collegium`, so typing `/co
 - **`/collegium queue {agent}`** — show pending depth and the oldest unprocessed post. Ephemeral.
 - **`/collegium triggers {agent}`** — list outstanding triggers. Ephemeral.
 - **`/collegium memory {agent}`** — inspect and prune an agent's memories. Ephemeral.
-- **`/collegium prompt {agent}`** — show an agent's system prompt verbatim. Ephemeral.
+- **`/collegium inspect {agent}`** — show an agent's model, tools, skills and system prompt. Ephemeral.
 
 A bare `/collegium`, or a subcommand nothing declares, answers the invoker with the list above.
 

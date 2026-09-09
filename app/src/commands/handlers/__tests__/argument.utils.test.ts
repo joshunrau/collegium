@@ -51,7 +51,7 @@ describe('requireAgentName', () => {
   });
 
   it('should resolve the full profile when asked for it', () => {
-    expect(requireAgentProfile(agentRegistry, ' mira ', 'prompt').value?.systemPrompt).toBe('You are Mira');
+    expect(requireAgentProfile(agentRegistry, ' mira ', 'inspect').value?.systemPrompt).toBe('You are Mira');
   });
 });
 

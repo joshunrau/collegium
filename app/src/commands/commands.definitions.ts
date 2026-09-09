@@ -13,9 +13,9 @@ export const COMMAND_TRIGGER = 'collegium';
 /** the §8.4 command surface — the one list every other representation derives from */
 export const COMMAND_TRIGGERS = [
   'forget',
+  'inspect',
   'kill',
   'memory',
-  'prompt',
   'queue',
   'reset',
   'resume',
@@ -28,9 +28,9 @@ export type CommandTrigger = (typeof COMMAND_TRIGGERS)[number];
 
 export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefinition } = {
   forget: { hint: '{post-id}', purpose: 'Remove a post from agent context' },
+  inspect: { hint: '{agent}', purpose: "Show an agent's model, tools, skills and system prompt" },
   kill: { hint: '', purpose: 'Abandon current turns in this channel immediately' },
   memory: { hint: '{agent} [prune {reference}]', purpose: "Inspect or prune an agent's memories" },
-  prompt: { hint: '{agent}', purpose: "Show an agent's system prompt verbatim" },
   queue: { hint: '{agent}', purpose: 'Show pending depth and the oldest unprocessed post' },
   reset: { hint: '{agent}', purpose: 'Mark an episode boundary' },
   resume: { hint: '', purpose: 'Clear a global halt' },

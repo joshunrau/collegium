@@ -10,3 +10,12 @@ export function assertSkillName(value: string): void {
 export function renderQualifiedSkillName(namespace: string, skillName: string): string {
   return `${namespace}::${skillName}`;
 }
+
+/** the inverse of renderQualifiedSkillName: a framework skill has no namespace */
+export function parseQualifiedSkillName(qualifiedName: string): { namespace: string | undefined; skillName: string } {
+  const separator = qualifiedName.indexOf('::');
+  if (separator === -1) {
+    return { namespace: undefined, skillName: qualifiedName };
+  }
+  return { namespace: qualifiedName.slice(0, separator), skillName: qualifiedName.slice(separator + 2) };
+}
