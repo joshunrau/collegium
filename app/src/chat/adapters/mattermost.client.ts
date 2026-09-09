@@ -1,3 +1,4 @@
+import { COMMAND_SURFACE_ROUTE, MATTERMOST_PLUGIN_ID } from '@collegium/mattermost';
 import { Client4, ClientError } from '@mattermost/client';
 
 import {
@@ -11,7 +12,7 @@ import {
   $MattermostUserProfile
 } from './mattermost.schemas.ts';
 
-import type { DialogRequest, MessageAttachment, SlashCommandRegistration } from '../chat.types.ts';
+import type { CommandSurfaceDeclaration, DialogRequest, MessageAttachment } from '../chat.types.ts';
 import type { MattermostChannelType } from './mattermost.constants.ts';
 import type { $MattermostRestPost } from './mattermost.schemas.ts';
 
@@ -44,8 +45,33 @@ export class MattermostClient {
     return $MattermostCreatedPost.parse(created);
   }
 
-  async createSlashCommand(params: SlashCommandRegistration & { teamId: string }): Promise<void> {
-    await this.sdk.addCommand(this.toWireCommand(params));
+  /**
+   * §8.4 — the plugin's own route, which Client4 has no wrapper for. The refusals a boot can meet
+   * are named here, because "404" says nothing about a plugin that was never installed.
+   */
+  async declarePluginCommandSurface(params: CommandSurfaceDeclaration & { teamId: string }): Promise<void> {
+    const route = COMMAND_SURFACE_ROUTE.replace('{teamId}', params.teamId);
+    const response = await fetch(`${this.sdk.getUrl()}/plugins/${MATTERMOST_PLUGIN_ID}${route}`, {
+      body: JSON.stringify({ callbackUrl: params.callbackUrl, commands: params.commands }),
+      headers: { authorization: `Bearer ${this.sdk.getToken()}`, 'content-type': 'application/json' },
+      method: 'PUT'
+    });
+    if (response.ok) {
+      return;
+    }
+    if (response.status === 404) {
+      throw new Error(
+        `the Collegium plugin (${MATTERMOST_PLUGIN_ID}) is not installed or not enabled on this Mattermost, so /collegium cannot be registered — provisioning installs it when plugin uploads are allowed`
+      );
+    }
+    if (response.status === 403) {
+      throw new Error(
+        'the system bot lacks manage_own_slash_commands on the team, which declaring /collegium requires'
+      );
+    }
+    throw new Error(
+      `the Collegium plugin refused the command surface with status ${response.status}: ${await response.text()}`
+    );
   }
 
   async deleteSlashCommand(commandId: string): Promise<void> {
@@ -166,10 +192,6 @@ export class MattermostClient {
     });
   }
 
-  async updateSlashCommand(params: SlashCommandRegistration & { commandId: string; teamId: string }): Promise<void> {
-    await this.sdk.editCommand({ ...this.toWireCommand(params), id: params.commandId });
-  }
-
   /** one text file into the channel's store; the returned id attaches it to a post */
   async uploadFile(params: { channelId: string; content: string; filename: string }): Promise<string> {
     const formData = new FormData();
@@ -186,28 +208,5 @@ export class MattermostClient {
   private toOrderedPosts(pageBody: unknown): $MattermostRestPost[] {
     const page = $MattermostPostList.parse(pageBody);
     return page.order.map((id) => page.posts[id]).filter((post) => post !== undefined);
-  }
-
-  /** the server owns creator/token/timestamps; zero values here are placeholders it overwrites */
-  private toWireCommand(params: SlashCommandRegistration & { teamId: string }) {
-    return {
-      auto_complete: true,
-      auto_complete_desc: params.description,
-      auto_complete_hint: params.autoCompleteHint,
-      create_at: 0,
-      creator_id: '',
-      delete_at: 0,
-      description: params.description,
-      display_name: params.displayName,
-      icon_url: '',
-      id: '',
-      method: 'P' as const,
-      team_id: params.teamId,
-      token: '',
-      trigger: params.trigger,
-      update_at: 0,
-      url: params.url,
-      username: ''
-    };
   }
 }

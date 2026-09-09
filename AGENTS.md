@@ -12,7 +12,9 @@ Package manager is pnpm (>=11). Node version: see `.nvmrc`. The repository is a 
 `packages/core/`), `@collegium/config` (the deployment's declared inputs, in `packages/config/` —
 schemas the app parses at boot and the docs site generates its reference from),
 `@collegium/sdk` (the sole import surface for plugins, published to npm so one can be written
-outside this repository, in `packages/sdk/`), and the example plugin under `plugins/*`. Dependencies
+outside this repository, in `packages/sdk/`), `@collegium/mattermost` (the Go plugin Mattermost runs,
+holding the `/collegium` slash command and forwarding it to the app, in `packages/mattermost/`),
+and the example plugin under `plugins/*`. Dependencies
 point one way: plugins → sdk → core ← config ← app. The app depends on the SDK without importing it —
 the edge is what carries it through `turbo prune` into the image, where the plugin compiler resolves
 it by specifier — and never imports a plugin at all. The root scripts below run

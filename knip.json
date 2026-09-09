@@ -12,6 +12,10 @@
       "ignore": ["src/prisma/generated/**", "src/testing/**", "src/**/__tests__/*.fixtures.ts"],
       "ignoreDependencies": ["@collegium/sdk", "@prisma/client", "prisma"]
     },
+    "packages/mattermost": {
+      "entry": ["src/index.ts!", "scripts/build-bundle.ts"],
+      "project": ["src/**/*.ts!"]
+    },
     "docs": {
       "entry": ["src/pages/**/*.{ts,astro}!", "src/reference/reference.loader.ts!"],
       "project": ["src/**/*.{ts,tsx,js,astro}!"]

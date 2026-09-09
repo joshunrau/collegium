@@ -3,6 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { toErrorMessage } from '@collegium/core/utils';
+import { MATTERMOST_PLUGIN_ID, readMattermostPluginBundle } from '@collegium/mattermost';
+import { Client4 } from '@mattermost/client';
 
 import { E2E_RESOURCE_PREFIX } from './constants.ts';
 import { exec } from './utils/exec.utils.ts';
@@ -97,6 +99,19 @@ async function bootstrapCluster(mmctl: MmctlRunner): Promise<void> {
   await mmctl(['team', 'users', 'add', CLUSTER_FIXTURE.team.name, CLUSTER_FIXTURE.admin.username]);
 }
 
+/**
+ * §8.4 — the plugin that holds `/collegium`, installed once per cluster as the administrator; each
+ * harness's app then declares its own subcommands and callback for the shared team at boot.
+ */
+async function installPlugin(): Promise<void> {
+  const client = new Client4();
+  client.setUrl(CLUSTER_FIXTURE.url);
+  await client.login(CLUSTER_FIXTURE.admin.username, CLUSTER_FIXTURE.admin.password);
+  const { bundlePath } = readMattermostPluginBundle();
+  await client.uploadPlugin(new File([fs.readFileSync(bundlePath)], path.basename(bundlePath)), true);
+  await client.enablePlugin(MATTERMOST_PLUGIN_ID);
+}
+
 /** the image compose then runs: tagged by the hash of its build context, so a rebuild is never repeated */
 async function ensureImage(): Promise<void> {
   const exists = await runDocker(['image', 'inspect', IMAGE_TAG], CLUSTER_TIMEOUTS.command).then(
@@ -156,6 +171,7 @@ class MattermostCluster {
     const containerId = await this.readContainerId();
     await waitUntilAvailable(containerId);
     await bootstrapCluster((args) => mmctl(containerId, args));
+    await installPlugin();
     return {
       admin: {
         password: CLUSTER_FIXTURE.admin.password,

@@ -1,10 +1,15 @@
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+
 import type { AdminCredentials } from '@collegium/config';
+import type { MattermostPluginBundle } from '@collegium/mattermost';
 import { Client4, ClientError } from '@mattermost/client';
 
 import {
   $MattermostAccessToken,
   $MattermostBot,
   $MattermostIdentified,
+  $MattermostPluginListing,
   $MattermostRoles,
   $MattermostServerSettings,
   $MattermostUser
@@ -55,8 +60,11 @@ export class MattermostAdminClient {
    * an unreachable app is a Mattermost that accepts every approval click and delivers none.
    */
   async assertServerSupportsDeployment(params: { publicUrl: string }): Promise<void> {
-    const { ServiceSettings } = $MattermostServerSettings.parse(await this.sdk.getConfig());
+    const { PluginSettings, ServiceSettings } = $MattermostServerSettings.parse(await this.sdk.getConfig());
     const refusals: string[] = [];
+    if (!PluginSettings.Enable) {
+      refusals.push('PluginSettings.Enable, without which the plugin that holds /collegium cannot run');
+    }
     if (!ServiceSettings.EnableBotAccountCreation) {
       refusals.push('ServiceSettings.EnableBotAccountCreation, without which no agent account can exist');
     }
@@ -130,6 +138,32 @@ export class MattermostAdminClient {
     await this.sdk.addToChannel(params.userId, params.channelId);
   }
 
+  /**
+   * §8.4 — the plugin that holds `/collegium`, at the version this release ships. An installed
+   * plugin at that version is left alone, enabled if it is not; any other is replaced. Uploading
+   * is the one step a server may forbid, so that refusal names the manual alternative.
+   */
+  async ensurePlugin(params: MattermostPluginBundle & { id: string }): Promise<'enabled' | 'installed' | 'present'> {
+    const { active, inactive } = $MattermostPluginListing.parse(await this.sdk.getPlugins());
+    if (active.some((plugin) => plugin.id === params.id && plugin.version === params.version)) {
+      return 'present';
+    }
+    if (inactive.some((plugin) => plugin.id === params.id && plugin.version === params.version)) {
+      await this.sdk.enablePlugin(params.id);
+      return 'enabled';
+    }
+    const { PluginSettings } = $MattermostServerSettings.parse(await this.sdk.getConfig());
+    if (!PluginSettings.EnableUploads) {
+      throw new Error(
+        `Mattermost holds no ${params.id}@${params.version}, and PluginSettings.EnableUploads is off, so provisioning cannot install it — turn uploads on, or install ${path.basename(params.bundlePath)} from the release by hand`
+      );
+    }
+    const bundle = new File([await fs.readFile(params.bundlePath)], path.basename(params.bundlePath));
+    await this.sdk.uploadPlugin(bundle, true);
+    await this.sdk.enablePlugin(params.id);
+    return 'installed';
+  }
+
   async ensureTeam(handle: string): Promise<string> {
     return this.ensureIdentified({
       create: () => {
@@ -141,7 +175,7 @@ export class MattermostAdminClient {
     });
   }
 
-  /** §8.4 — the system bot reconciles the team's slash commands, which takes manage_slash_commands */
+  /** §8.4 — the system bot declares the team's /collegium subcommands, which takes manage_own_slash_commands */
   async ensureTeamAdmin(params: { teamId: string; userId: string }): Promise<void> {
     await this.sdk.updateTeamMemberSchemeRoles(params.teamId, params.userId, true, true);
   }

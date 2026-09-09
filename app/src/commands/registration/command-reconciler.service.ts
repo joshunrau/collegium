@@ -2,19 +2,16 @@ import { removeTrailingSlash } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { ChatGateway } from '@/chat/chat.gateway.ts';
-import type { SlashCommandRegistration } from '@/chat/chat.types.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 
-import { COMMAND_DEFINITIONS, COMMAND_TRIGGERS, COMMANDS_PATH, renderCommandTrigger } from '../commands.definitions.ts';
-import { planSlashCommandReconciliation } from './command-reconciler.utils.ts';
-
-import type { SlashCommandReconciliationPlan } from './command-reconciler.utils.ts';
+import { COMMAND_TRIGGER, COMMANDS_PATH, describeCommandSurface } from '../commands.definitions.ts';
 
 /**
- * §8.4 — the framework registers its own command surface at boot. Every failure here throws and
- * boot refuses: a framework that starts without its stop switch is worse than one that does not
- * start. Runs before any agent transport connects, so /collegium.stop is registered before any turn can start.
+ * §8.4 — the framework declares its own command surface at boot, to the Mattermost plugin that
+ * holds `/collegium` for the team. Every failure here throws and boot refuses: a framework that
+ * starts without its stop switch is worse than one that does not start. Runs before any agent
+ * transport connects, so /collegium stop is registered before any turn can start.
  */
 @Injectable()
 export class CommandReconcilerService {
@@ -29,43 +26,11 @@ export class CommandReconcilerService {
   }
 
   async reconcile(): Promise<void> {
-    const surface = await this.chatGateway.snapshotSlashCommandSurface();
-    const plan = planSlashCommandReconciliation({ desired: this.desiredRegistrations(), surface });
-    if (plan.collisions.length > 0) {
-      const named = plan.collisions
-        .map((command) => `/${command.trigger} (created by @${command.creatorUsername})`)
-        .join(', ');
-      throw new Error(
-        `slash commands held by accounts this app does not own: ${named} — an unresolvable collision (§8.4). ` +
-          'If a previous system bot account created them, delete them and reboot.'
-      );
-    }
-    for (const command of plan.deletes) {
-      await this.chatGateway.deleteSlashCommand(command.id);
-    }
-    for (const correction of plan.corrections) {
-      await this.chatGateway.correctSlashCommand(correction.commandId, correction.registration);
-    }
-    for (const registration of plan.creates) {
-      await this.chatGateway.createSlashCommand(registration);
-    }
-    this.loggingService.log(this.summarize(plan));
-  }
-
-  private desiredRegistrations(): SlashCommandRegistration[] {
-    return COMMAND_TRIGGERS.map((trigger) => ({
-      autoCompleteHint: COMMAND_DEFINITIONS[trigger].hint,
-      description: COMMAND_DEFINITIONS[trigger].purpose,
-      displayName: renderCommandTrigger(trigger),
-      trigger: renderCommandTrigger(trigger),
-      url: this.callbackUrl
-    }));
-  }
-
-  private summarize({ corrections, creates, deletes }: SlashCommandReconciliationPlan): string {
-    if (creates.length === 0 && corrections.length === 0 && deletes.length === 0) {
-      return `reconciled ${COMMAND_TRIGGERS.length} slash commands: all current`;
-    }
-    return `reconciled ${COMMAND_TRIGGERS.length} slash commands: ${creates.length} created, ${corrections.length} corrected, ${deletes.length} removed`;
+    const commands = describeCommandSurface();
+    await this.chatGateway.declareCommandSurface({ callbackUrl: this.callbackUrl, commands });
+    // a release before the plugin registered one dotted command per subcommand under this account
+    const relics = await this.chatGateway.deleteOwnedSlashCommands();
+    const removed = relics > 0 ? `, removed ${relics} relic slash command(s)` : '';
+    this.loggingService.log(`declared /${COMMAND_TRIGGER} with ${commands.length} subcommands${removed}`);
   }
 }

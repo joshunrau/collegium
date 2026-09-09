@@ -15,9 +15,8 @@ import type { ChatTransport } from '../chat.transport.ts';
 import type {
   AgentConnection,
   ChatFailure,
+  CommandSurfaceDeclaration,
   PostFile,
-  SlashCommandRegistration,
-  SlashCommandSurface,
   SystemPostReceipt
 } from '../chat.types.ts';
 
@@ -61,16 +60,18 @@ export class MattermostGateway extends ChatGateway {
     });
   }
 
-  async correctSlashCommand(commandId: string, registration: SlashCommandRegistration): Promise<void> {
-    await this.systemClient.updateSlashCommand({ ...registration, commandId, teamId: await this.resolveTeamId() });
+  async declareCommandSurface(declaration: CommandSurfaceDeclaration): Promise<void> {
+    await this.systemClient.declarePluginCommandSurface({ ...declaration, teamId: await this.resolveTeamId() });
   }
 
-  async createSlashCommand(registration: SlashCommandRegistration): Promise<void> {
-    await this.systemClient.createSlashCommand({ ...registration, teamId: await this.resolveTeamId() });
-  }
-
-  async deleteSlashCommand(commandId: string): Promise<void> {
-    await this.systemClient.deleteSlashCommand(commandId);
+  async deleteOwnedSlashCommands(): Promise<number> {
+    const [teamId, ownProfile] = await Promise.all([this.resolveTeamId(), this.systemClient.getOwnProfile()]);
+    const commands = await this.systemClient.getTeamSlashCommands(teamId);
+    const owned = commands.filter((command) => command.creatorId === ownProfile.id);
+    for (const command of owned) {
+      await this.systemClient.deleteSlashCommand(command.id);
+    }
+    return owned.length;
   }
 
   maxPostSizeChars(): Promise<Result<number, ChatFailure>> {
@@ -127,21 +128,6 @@ export class MattermostGateway extends ChatGateway {
       this.channelIds.set(handle, channelId);
     }
     return channelId;
-  }
-
-  async snapshotSlashCommandSurface(): Promise<SlashCommandSurface> {
-    const [teamId, ownProfile] = await Promise.all([this.resolveTeamId(), this.systemClient.getOwnProfile()]);
-    const commands = await this.systemClient.getTeamSlashCommands(teamId);
-    const creatorUsernames = await this.systemClient.getUsernamesByIds([
-      ...new Set(commands.map((command) => command.creatorId))
-    ]);
-    return {
-      commands: commands.map((command) => ({
-        ...command,
-        creatorUsername: creatorUsernames.get(command.creatorId) ?? command.creatorId
-      })),
-      ownUserId: ownProfile.id
-    };
   }
 
   private async assertConfigured(

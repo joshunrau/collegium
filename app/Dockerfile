@@ -37,6 +37,9 @@ ENV DATABASE_URL="file:/dev/null"
 # better-sqlite3 publishes no bundled binary for arm64 and compiles from source when its download comes up
 # empty; the toolchain serves that fallback alone and stays behind in this stage.
 RUN apt-get update && apt-get install --yes --no-install-recommends g++ make python3 && rm -rf /var/lib/apt/lists/*
+# the Mattermost plugin is Go, cross-compiled for every server platform inside the same turbo build
+COPY --from=golang:1.25-trixie /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:$PATH"
 COPY --from=prune /srv/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=prune /srv/out/full/ .

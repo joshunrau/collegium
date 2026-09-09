@@ -3,14 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MattermostClient } from '../mattermost.client.ts';
 
-import type { SlashCommandRegistration } from '../../chat.types.ts';
-
 const sdk = vi.hoisted(() => ({
-  addCommand: vi.fn(),
   addReaction: vi.fn(),
   createPost: vi.fn(),
   deleteCommand: vi.fn(),
-  editCommand: vi.fn(),
   getBaseRoute: vi.fn(() => 'https://mattermost.test/api/v4'),
   getChannel: vi.fn(),
   getChannelByName: vi.fn(),
@@ -25,6 +21,7 @@ const sdk = vi.hoisted(() => ({
   getProfilesByIds: vi.fn(),
   getTeamByName: vi.fn(),
   getToken: vi.fn(() => 'bot-token'),
+  getUrl: vi.fn(() => 'https://mattermost.test'),
   getUser: vi.fn(),
   patchPost: vi.fn(),
   setToken: vi.fn(),
@@ -40,14 +37,6 @@ vi.mock('@mattermost/client', async (importOriginal) => {
   };
   return { ...actual, Client4: Client4 as unknown as typeof actual.Client4 };
 });
-
-const REGISTRATION: SlashCommandRegistration = {
-  autoCompleteHint: '[agent]',
-  description: 'stop the turn',
-  displayName: 'Stop',
-  trigger: 'stop',
-  url: 'https://app.test/commands'
-};
 
 const restPost = (id: string) => ({
   channel_id: 'channel-1',
@@ -104,34 +93,28 @@ describe('MattermostClient', () => {
     });
   });
 
-  it('should register a slash command with the server-owned fields left blank', async () => {
-    await client.createSlashCommand({ ...REGISTRATION, teamId: 'team-1' });
-    expect(sdk.addCommand).toHaveBeenCalledWith({
-      auto_complete: true,
-      auto_complete_desc: 'stop the turn',
-      auto_complete_hint: '[agent]',
-      create_at: 0,
-      creator_id: '',
-      delete_at: 0,
-      description: 'stop the turn',
-      display_name: 'Stop',
-      icon_url: '',
-      id: '',
-      method: 'P',
-      team_id: 'team-1',
-      token: '',
-      trigger: 'stop',
-      update_at: 0,
-      url: 'https://app.test/commands',
-      username: ''
-    });
-  });
+  describe('declarePluginCommandSurface', () => {
+    const declaration = { callbackUrl: 'https://app.test/commands', commands: [], teamId: 'team-1' };
 
-  it('should edit a slash command under its existing id', async () => {
-    await client.updateSlashCommand({ ...REGISTRATION, commandId: 'command-1', teamId: 'team-1' });
-    expect(sdk.editCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'command-1', team_id: 'team-1', trigger: 'stop' })
-    );
+    it("should PUT the surface to the plugin's team route as the bot", async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
+      await client.declarePluginCommandSurface(declaration);
+      expect(fetch).toHaveBeenCalledWith('https://mattermost.test/plugins/sh.collegium/api/v1/teams/team-1/commands', {
+        body: JSON.stringify({ callbackUrl: 'https://app.test/commands', commands: [] }),
+        headers: { authorization: 'Bearer bot-token', 'content-type': 'application/json' },
+        method: 'PUT'
+      });
+    });
+
+    it('should name the missing plugin when the route does not exist', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('not found', { status: 404 }));
+      await expect(client.declarePluginCommandSurface(declaration)).rejects.toThrow('sh.collegium');
+    });
+
+    it('should name the missing grant when the plugin refuses', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('forbidden', { status: 403 }));
+      await expect(client.declarePluginCommandSurface(declaration)).rejects.toThrow('manage_own_slash_commands');
+    });
   });
 
   it('should delete a slash command by id', async () => {
@@ -208,17 +191,7 @@ describe('MattermostClient', () => {
       }
     ]);
     await expect(client.getTeamSlashCommands('team-1')).resolves.toStrictEqual([
-      {
-        autoComplete: true,
-        autoCompleteHint: '[agent]',
-        creatorId: 'user-1',
-        description: 'stop the turn',
-        displayName: 'Stop',
-        id: 'command-1',
-        method: 'P',
-        trigger: 'stop',
-        url: 'https://app.test/commands'
-      }
+      { creatorId: 'user-1', id: 'command-1' }
     ]);
   });
 

@@ -1,7 +1,7 @@
 import type { AgentDefinition } from '@collegium/config';
 import type { $MailSettings } from '@collegium/core/toolsets';
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
@@ -14,6 +14,11 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 
 import { MattermostAdminClient } from '../adapters/mattermost-admin.client.ts';
 import { ProvisioningService } from '../provisioning.service.ts';
+
+vi.mock('@collegium/mattermost', () => ({
+  MATTERMOST_PLUGIN_ID: 'sh.collegium',
+  readMattermostPluginBundle: () => ({ bundlePath: '/srv/sh.collegium.tar.gz', version: '1.2.3' })
+}));
 
 const ADMIN = { email: 'ops@example.org', kind: 'password', password: 'secret', username: 'ops' } as const;
 
@@ -55,6 +60,7 @@ describe('ProvisioningService', () => {
       return Promise.resolve(`user-${username}`);
     });
     adminClient.mintAccessToken.mockResolvedValue('minted');
+    adminClient.ensurePlugin.mockResolvedValue('present');
     credentialsService = MockFactory.createMock(CredentialsService);
     credentialsService.ensure.mockImplementation(({ mint }) => mint());
 
@@ -97,6 +103,16 @@ describe('ProvisioningService', () => {
     expect(adminClient.assertServerSupportsDeployment).toHaveBeenCalledExactlyOnceWith({
       publicUrl: 'http://localhost:3000'
     });
+  });
+
+  // §8.4 — the plugin must hold /collegium before the app can declare its subcommands at boot
+  it('should install the shipped plugin before creating anything in the team', () => {
+    expect(adminClient.ensurePlugin).toHaveBeenCalledExactlyOnceWith({
+      bundlePath: '/srv/sh.collegium.tar.gz',
+      id: 'sh.collegium',
+      version: '1.2.3'
+    });
+    expect(adminClient.ensurePlugin).toHaveBeenCalledBefore(adminClient.ensureTeam);
   });
 
   it('should provision the system bot and one account per declared agent', () => {

@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
@@ -20,19 +19,21 @@ const createHandlerStub = (trigger: CommandTrigger): CommandHandler => ({
 describe('CommandRegistry', () => {
   it('should refuse to assemble without a handler for every declared trigger', () => {
     const incomplete = COMMAND_TRIGGERS.filter((trigger) => trigger !== 'stop').map(createHandlerStub);
-    expect(() => new CommandRegistry(incomplete)).toThrow('/collegium.stop');
+    expect(() => new CommandRegistry(incomplete)).toThrow('/collegium stop');
   });
 
   it('should refuse two handlers claiming one trigger', () => {
     const doubled = [...COMMAND_TRIGGERS.map(createHandlerStub), createHandlerStub('stop')];
-    expect(() => new CommandRegistry(doubled)).toThrow('/collegium.stop');
+    expect(() => new CommandRegistry(doubled)).toThrow('/collegium stop');
   });
 
-  it('should resolve only the wire form Mattermost sends', () => {
+  it('should resolve the leading subcommand and hand the rest to its handler', () => {
     const registry = new CommandRegistry(COMMAND_TRIGGERS.map(createHandlerStub));
-    expect(registry.resolve('/collegium.stop')?.trigger).toBe('stop');
-    expect(registry.resolve('stop')).toBeUndefined();
-    expect(registry.resolve('/stop')).toBeUndefined();
+    const resolved = registry.resolve('  memory mira  prune ref-1 ');
+    expect(resolved?.handler.trigger).toBe('memory');
+    expect(resolved?.text).toBe('mira prune ref-1');
+    expect(registry.resolve('')).toBeUndefined();
+    expect(registry.resolve('/collegium stop')).toBeUndefined();
   });
 });
 
@@ -52,11 +53,10 @@ describe('CommandsController', () => {
     commandsController = moduleRef.get(CommandsController);
   });
 
-  it('should bind the parsed body and dispatch to the command’s handler', async () => {
+  it('should bind the parsed body and dispatch to the subcommand’s handler', async () => {
     const response = await commandsController.handle({
       channel_id: 'channel-1',
-      command: '/collegium.memory',
-      text: 'mira prune ref-1',
+      text: 'memory mira prune ref-1',
       user_name: 'casey'
     });
     expect(run).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'memory' }), {
@@ -67,10 +67,11 @@ describe('CommandsController', () => {
     expect(response).toStrictEqual({ response_type: 'ephemeral', text: 'stopping' });
   });
 
-  it('should refuse a command no handler declares', async () => {
-    await expect(
-      commandsController.handle({ channel_id: 'channel-1', command: '/stop', text: '', user_name: 'casey' })
-    ).rejects.toThrow(BadRequestException);
+  it('should answer a bare or unknown subcommand with the surface usage', async () => {
+    const response = await commandsController.handle({ channel_id: 'channel-1', text: 'halt', user_name: 'casey' });
+    expect(response.response_type).toBe('ephemeral');
+    expect(response.text).toContain('Usage: /collegium {subcommand}');
+    expect(response.text).toContain('- /collegium stop — Abort current turns');
     expect(run).not.toHaveBeenCalled();
   });
 });

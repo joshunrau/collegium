@@ -94,33 +94,10 @@ export type OutgoingChatMessage = {
   text: string;
 };
 
-/** what registering one slash command requires — everything else about the wire is the adapter's */
-export type SlashCommandRegistration = {
-  readonly autoCompleteHint: string;
-  readonly description: string;
-  readonly displayName: string;
-  readonly trigger: string;
-  readonly url: string;
-};
-
-/** one command as the team currently holds it, with its creator resolved for the §8.4 refusal text */
-export type RegisteredSlashCommand = {
-  readonly autoComplete: boolean;
-  readonly autoCompleteHint: string;
-  readonly creatorId: string;
-  readonly creatorUsername: string;
-  readonly description: string;
-  readonly displayName: string;
-  readonly id: string;
-  readonly method: string;
-  readonly trigger: string;
-  readonly url: string;
-};
-
-/** everything §8.4 reconciliation needs in one read: the team's commands and who this app is */
-export type SlashCommandSurface = {
-  readonly commands: readonly RegisteredSlashCommand[];
-  readonly ownUserId: string;
+/** §8.4 — what the team's `/collegium` forwards, and the subcommands it autocompletes, in order */
+export type CommandSurfaceDeclaration = {
+  readonly callbackUrl: string;
+  readonly commands: readonly { readonly hint: string; readonly purpose: string; readonly trigger: string }[];
 };
 
 /** content too large for a post, travelling whole as a real upload beside it (§6.2, §4.2, §8.3) */

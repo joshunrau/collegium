@@ -2,42 +2,18 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ChatGateway } from '@/chat/chat.gateway.ts';
-import type { RegisteredSlashCommand } from '@/chat/chat.types.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 
-import { COMMAND_DEFINITIONS, COMMAND_TRIGGERS, renderCommandTrigger } from '../../commands.definitions.ts';
+import { COMMAND_DEFINITIONS, COMMAND_TRIGGERS } from '../../commands.definitions.ts';
 import { CommandReconcilerService } from '../command-reconciler.service.ts';
-
-import type { CommandTrigger } from '../../commands.definitions.ts';
-
-const OWN_USER_ID = 'system-bot';
-const CALLBACK_URL = 'https://collegium.example.com/commands';
-
-const held = (trigger: CommandTrigger, overrides: Partial<RegisteredSlashCommand> = {}): RegisteredSlashCommand => ({
-  autoComplete: true,
-  autoCompleteHint: COMMAND_DEFINITIONS[trigger].hint,
-  creatorId: OWN_USER_ID,
-  creatorUsername: 'collegium',
-  description: COMMAND_DEFINITIONS[trigger].purpose,
-  displayName: renderCommandTrigger(trigger),
-  id: `cmd-${trigger}`,
-  method: 'P',
-  trigger: renderCommandTrigger(trigger),
-  url: CALLBACK_URL,
-  ...overrides
-});
 
 describe('CommandReconcilerService', () => {
   let commandReconcilerService: CommandReconcilerService;
   let chatGateway: MockedInstance<ChatGateway>;
   let loggingService: MockedInstance<LoggingService>;
-
-  const surface = (commands: readonly RegisteredSlashCommand[]) => {
-    chatGateway.snapshotSlashCommandSurface.mockResolvedValue({ commands, ownUserId: OWN_USER_ID });
-  };
 
   beforeEach(async () => {
     // a public URL with a trailing slash must not compose a double-slashed callback
@@ -54,63 +30,29 @@ describe('CommandReconcilerService', () => {
     commandReconcilerService = moduleRef.get(CommandReconcilerService);
     chatGateway = moduleRef.get(ChatGateway);
     loggingService = moduleRef.get(LoggingService);
+    chatGateway.deleteOwnedSlashCommands.mockResolvedValue(0);
   });
 
-  it('should create every declared trigger against the callback url when the team holds none', async () => {
-    surface([]);
+  it('should declare every subcommand against the callback url', async () => {
     await commandReconcilerService.reconcile();
-    expect(chatGateway.createSlashCommand).toHaveBeenCalledTimes(COMMAND_TRIGGERS.length);
-    expect(chatGateway.createSlashCommand).toHaveBeenCalledWith({
-      autoCompleteHint: '',
-      description: COMMAND_DEFINITIONS.stop.purpose,
-      displayName: 'collegium.stop',
-      trigger: 'collegium.stop',
-      url: CALLBACK_URL
+    expect(chatGateway.declareCommandSurface).toHaveBeenCalledExactlyOnceWith({
+      callbackUrl: 'https://collegium.example.com/commands',
+      commands: COMMAND_TRIGGERS.map((trigger) => ({ ...COMMAND_DEFINITIONS[trigger], trigger }))
     });
-    expect(loggingService.log).toHaveBeenCalledWith(
-      `reconciled ${COMMAND_TRIGGERS.length} slash commands: ${COMMAND_TRIGGERS.length} created, 0 corrected, 0 removed`
-    );
+    expect(loggingService.log).toHaveBeenCalledWith(`declared /collegium with ${COMMAND_TRIGGERS.length} subcommands`);
   });
 
-  it('should change nothing when every declared trigger is already current', async () => {
-    surface(COMMAND_TRIGGERS.map((trigger) => held(trigger)));
+  it('should remove the dotted commands a release before the plugin registered', async () => {
+    chatGateway.deleteOwnedSlashCommands.mockResolvedValue(10);
     await commandReconcilerService.reconcile();
-    expect(chatGateway.createSlashCommand).not.toHaveBeenCalled();
-    expect(chatGateway.correctSlashCommand).not.toHaveBeenCalled();
-    expect(chatGateway.deleteSlashCommand).not.toHaveBeenCalled();
     expect(loggingService.log).toHaveBeenCalledWith(
-      `reconciled ${COMMAND_TRIGGERS.length} slash commands: all current`
+      `declared /collegium with ${COMMAND_TRIGGERS.length} subcommands, removed 10 relic slash command(s)`
     );
   });
 
-  it('should correct a drifted trigger and remove one the app no longer declares', async () => {
-    const orphan = { ...held('stop'), id: 'cmd-bare-stop', trigger: 'stop' };
-    surface([
-      ...COMMAND_TRIGGERS.map((trigger) => {
-        return trigger === 'stop' ? held(trigger, { url: 'https://old-host.example.com/commands' }) : held(trigger);
-      }),
-      orphan
-    ]);
-    await commandReconcilerService.reconcile();
-    expect(chatGateway.deleteSlashCommand).toHaveBeenCalledWith('cmd-bare-stop');
-    expect(chatGateway.correctSlashCommand).toHaveBeenCalledWith(
-      'cmd-stop',
-      expect.objectContaining({ url: CALLBACK_URL })
-    );
-    expect(chatGateway.createSlashCommand).not.toHaveBeenCalled();
-    expect(loggingService.log).toHaveBeenCalledWith(
-      `reconciled ${COMMAND_TRIGGERS.length} slash commands: 0 created, 1 corrected, 1 removed`
-    );
-  });
-
-  it('should refuse boot naming a declared trigger held by an account it does not own', async () => {
-    surface([held('stop', { creatorId: 'other-bot', creatorUsername: 'jira' })]);
-    await expect(commandReconcilerService.reconcile()).rejects.toThrow('/collegium.stop (created by @jira)');
-    expect(chatGateway.createSlashCommand).not.toHaveBeenCalled();
-  });
-
-  it("should fail loudly when it lacks authority to read the team's slash commands", async () => {
-    chatGateway.snapshotSlashCommandSurface.mockRejectedValue(new Error('403 forbidden'));
-    await expect(commandReconcilerService.reconcile()).rejects.toThrow('403 forbidden');
+  it('should refuse boot when the plugin refuses the declaration', async () => {
+    chatGateway.declareCommandSurface.mockRejectedValue(new Error('the Collegium plugin is not installed'));
+    await expect(commandReconcilerService.reconcile()).rejects.toThrow('not installed');
+    expect(chatGateway.deleteOwnedSlashCommands).not.toHaveBeenCalled();
   });
 });

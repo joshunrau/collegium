@@ -1,7 +1,6 @@
 import { Client4 } from '@mattermost/client';
 
 import { MattermostChannelType } from '@/chat/adapters/mattermost.constants.ts';
-import { COMMAND_TRIGGERS, renderCommandTrigger } from '@/commands/commands.definitions.ts';
 
 import { WorkspaceSocket } from './socket.ts';
 import { createWorkspaceId, toBotUsername, toChannelName } from './utils/naming.utils.ts';
@@ -60,7 +59,7 @@ class Workspace {
     const handshakeChannel = await this.createPublicChannel(client, team.id, workspaceId, HANDSHAKE_CHANNEL_NAME);
 
     const systemBot = await this.createBot(client, team.id, toBotUsername(workspaceId, SYSTEM_BOT_NAME));
-    // the app registers the slash commands itself at boot (§8.4), which takes manage_slash_commands
+    // the app declares its command surface to the plugin at boot (§8.4), which takes manage_own_slash_commands
     await client.updateTeamMemberSchemeRoles(team.id, systemBot.userId, true, true);
     const agents = new Map(
       await Promise.all(
@@ -88,7 +87,6 @@ class Workspace {
       )
     );
 
-    await this.clearStaleSlashCommands(client, team.id);
     const limits = await this.readLimits(client);
     const socket = await WorkspaceSocket.connect({ token: client.getToken(), url: connection.url });
 
@@ -114,20 +112,6 @@ class Workspace {
     for (const bot of bots) {
       await client.addToChannel(bot.userId, channel.id);
     }
-  }
-
-  /**
-   * The app registers its own slash commands at boot (§8.4), owned by this run's system bot. That
-   * account dies with the run, so an aborted run leaves commands a fresh boot would refuse as
-   * foreign collisions — commands are per team and every harness shares one, hence the sweep by
-   * trigger, before boot and again on dispose.
-   */
-  private static async clearStaleSlashCommands(client: Client4, teamId: string): Promise<void> {
-    const stale = new Set<string>(COMMAND_TRIGGERS.map(renderCommandTrigger));
-    const existing = await client.getCustomTeamCommands(teamId);
-    await Promise.all(
-      existing.filter((command) => stale.has(command.trigger)).map((command) => client.deleteCommand(command.id))
-    );
   }
 
   private static async createBot(client: Client4, teamId: string, username: string): Promise<AgentBot> {
@@ -202,9 +186,9 @@ class Workspace {
     return bot;
   }
 
-  async dispose(): Promise<void> {
+  dispose(): Promise<void> {
     this.socket.close();
-    await Workspace.clearStaleSlashCommands(this.client, this.teamId);
+    return Promise.resolve();
   }
 }
 

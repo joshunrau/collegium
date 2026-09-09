@@ -9,11 +9,12 @@ Prerequisites: a Mattermost server, an account on it with the System Admin role,
 
 ## 1. Prepare the Server
 
-Set three things in the System Console. Boot refuses and names any that are missing, so you can also skip ahead and let it tell you.
+Set four things in the System Console. Boot refuses and names any that are missing, so you can also skip ahead and let it tell you.
 
 - **Integrations > Bot Accounts > Enable Bot Account Creation**. Each agent posts as a bot account.
 - **Integrations > Personal Access Tokens > Enable Personal Access Tokens**. Every bot holds one, minted at each start.
 - **Environment > Developer > Allow untrusted internal connections**. Add the host of `APP_PUBLIC_URL` from step 3. Mattermost needs this only when that address is private, and refuses to call one that is not listed. Approval buttons fail with `address forbidden` when it is missing.
+- **Plugins > Plugin Management > Enable Plugins** and **Enable Plugin Uploads**. The `/collegium` command is held by a small plugin the stack ships, which provisioning uploads at each start. To keep uploads off, download `sh.collegium.tar.gz` from the release matching your image, upload it once by hand under Plugin Management, and enable it. Provisioning then leaves it alone until the version changes.
 
 ## 2. Create an Administrator Token
 
@@ -62,6 +63,7 @@ Everything below happens on each start, and nothing outside the team you named i
 - One open channel per channel your `config.json` declares, holding the system bot. Every agent joins the main
   channel, and a mailbox owner joins the channel its arrivals are announced to. Which agents belong anywhere else
   is yours to set in Mattermost.
-- The Team Admin role on the system bot, which reconciles the team's slash commands.
+- The Collegium plugin, installed or updated to the version the image ships. It holds `/collegium` for the team.
+- The Team Admin role on the system bot, which declares the team's `/collegium` subcommands to that plugin at each boot.
 
 Give the deployment a team of its own if that last grant is more than you want on a shared one.

@@ -52,6 +52,8 @@ services:
       # approval button click fails as `address forbidden`
       MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS: app
       MM_SERVICESETTINGS_ENABLEBOTACCOUNTCREATION: 'true'
+      # provisioning installs the plugin that holds /collegium (§8.4), which is an upload
+      MM_PLUGINSETTINGS_ENABLEUPLOADS: 'true'
       MM_SERVICESETTINGS_ENABLEUSERACCESSTOKENS: 'true'
       MM_SERVICESETTINGS_SITEURL: http://localhost:${MATTERMOST_PORT:-8065}
       MM_SQLSETTINGS_DATASOURCE: postgres://collegium:${POSTGRES_PASSWORD:-postgres}@postgres:5432/mattermost?sslmode=disable&connect_timeout=10

@@ -8,7 +8,9 @@ services:
     environment:
       MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS: 'false'
       MM_LOGSETTINGS_CONSOLELEVEL: ERROR
-      MM_PLUGINSETTINGS_ENABLE: 'false'
+      # the suite installs the Collegium plugin once per cluster, which holds /collegium (§8.4)
+      MM_PLUGINSETTINGS_ENABLE: 'true'
+      MM_PLUGINSETTINGS_ENABLEUPLOADS: 'true'
       # Mattermost refuses to call a private address unless it is listed here — without it every
       # approval button click fails as `address forbidden`
       MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS: host.docker.internal 127.0.0.1

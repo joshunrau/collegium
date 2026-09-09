@@ -17,7 +17,7 @@
     "knip": "DATABASE_URL=file:/dev/null knip --production",
     "lint": "node scripts/check-module-map.js && turbo run lint",
     "prepare": "husky",
-    "test": "vitest --project unit --project packages --project plugins --project docs",
+    "test": "vitest --project unit --project packages --project plugins --project docs && pnpm --filter @collegium/mattermost test",
     "test:coverage": "vitest --project unit --project packages --project plugins --project docs --coverage",
     "test:e2e": "turbo run test:e2e"
   },

@@ -12,8 +12,6 @@ import { MattermostChannelType } from '../mattermost.constants.ts';
 import { MattermostGateway } from '../mattermost.gateway.ts';
 import { MattermostTransport } from '../mattermost.transport.ts';
 
-import type { SlashCommandRegistration } from '../../chat.types.ts';
-
 const vendor = vi.hoisted(() => {
   /** the missing-member error Mattermost answers a membership probe with, the one shape the seam decodes */
   class ClientError extends Error {
@@ -30,10 +28,8 @@ const vendor = vi.hoisted(() => {
   };
 
   class Client4 {
-    addCommand = vi.fn();
     createPost = vi.fn();
     deleteCommand = vi.fn();
-    editCommand = vi.fn();
     getChannel = vi.fn();
     // the fixture's channel ids are their handles, so what a caller asked for stays legible downstream
     getChannelByName = vi.fn((teamId: string, handle: string) => {
@@ -51,8 +47,10 @@ const vendor = vi.hoisted(() => {
     getMe = vi.fn(() => Promise.resolve(mattermost.profilesByToken.get(this.token)));
     getProfilesByIds = vi.fn();
     getTeamByName = vi.fn(() => Promise.resolve({ id: 'team-1' }));
-    uploadFile = vi.fn();
+    getToken = vi.fn(() => this.token);
     url = '';
+    getUrl = vi.fn(() => this.url);
+    uploadFile = vi.fn();
     constructor() {
       clients.push(this);
     }
@@ -100,14 +98,6 @@ const definition = (username: string): AgentDefinition => ({
   toolSettings: {},
   username
 });
-
-const REGISTRATION: SlashCommandRegistration = {
-  autoCompleteHint: '[agent]',
-  description: 'Stop the current turn',
-  displayName: 'Stop',
-  trigger: 'stop',
-  url: 'http://localhost:3000/commands'
-};
 
 const wireCommand = (overrides: { creator_id: string; id: string; trigger: string }) => ({
   auto_complete: true,
@@ -234,41 +224,33 @@ describe('MattermostGateway', () => {
     });
   });
 
-  describe('slash commands', () => {
-    it('should create a missing command on the configured team', async () => {
-      await mattermostGateway.createSlashCommand(REGISTRATION);
-      expect(systemClient().addCommand).toHaveBeenCalledWith(
-        expect.objectContaining({ team_id: 'team-1', trigger: 'stop', url: REGISTRATION.url })
+  describe('command surface', () => {
+    const declaration = { callbackUrl: 'http://localhost:3000/commands', commands: [] };
+
+    it('should declare the surface on the configured team as the system bot', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
+      await mattermostGateway.declareCommandSurface(declaration);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/plugins/sh.collegium/api/v1/teams/team-1/commands'),
+        expect.objectContaining({ method: 'PUT' })
       );
     });
 
-    it('should correct a drifted command in place', async () => {
-      await mattermostGateway.correctSlashCommand('command-1', REGISTRATION);
-      expect(systemClient().editCommand).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'command-1', team_id: 'team-1', trigger: 'stop' })
-      );
-    });
-
-    it('should delete a command by id', async () => {
-      await mattermostGateway.deleteSlashCommand('command-1');
-      expect(systemClient().deleteCommand).toHaveBeenCalledWith('command-1');
-    });
-
-    it('should resolve the team once and share it across registrations', async () => {
-      await mattermostGateway.createSlashCommand(REGISTRATION);
-      await mattermostGateway.correctSlashCommand('command-1', REGISTRATION);
-      expect(systemClient().getTeamByName).toHaveBeenCalledOnce();
-    });
-
-    it("should snapshot the team's commands with their creators resolved", async () => {
+    it('should delete only the slash commands this account created', async () => {
       systemClient().getCustomTeamCommands.mockResolvedValue([
-        wireCommand({ creator_id: 'system-user-id', id: 'command-1', trigger: 'stop' }),
-        wireCommand({ creator_id: 'ghost-user-id', id: 'command-2', trigger: 'kill' })
+        wireCommand({ creator_id: 'system-user-id', id: 'command-1', trigger: 'collegium.stop' }),
+        wireCommand({ creator_id: 'ghost-user-id', id: 'command-2', trigger: 'jira' })
       ]);
-      systemClient().getProfilesByIds.mockResolvedValue([{ id: 'system-user-id', username: 'collegium' }]);
-      const surface = await mattermostGateway.snapshotSlashCommandSurface();
-      expect(surface.ownUserId).toBe('system-user-id');
-      expect(surface.commands.map((command) => command.creatorUsername)).toStrictEqual(['collegium', 'ghost-user-id']);
+      await expect(mattermostGateway.deleteOwnedSlashCommands()).resolves.toBe(1);
+      expect(systemClient().deleteCommand).toHaveBeenCalledExactlyOnceWith('command-1');
+    });
+
+    it('should resolve the team once and share it across calls', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
+      systemClient().getCustomTeamCommands.mockResolvedValue([]);
+      await mattermostGateway.declareCommandSurface(declaration);
+      await mattermostGateway.deleteOwnedSlashCommands();
+      expect(systemClient().getTeamByName).toHaveBeenCalledOnce();
     });
   });
 

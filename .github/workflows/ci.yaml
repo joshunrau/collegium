@@ -46,6 +46,11 @@ jobs:
         with:
           cache: 'pnpm'
           node-version-file: '.nvmrc'
+      # the Mattermost plugin that holds /collegium is Go (§8.4)
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'packages/mattermost/src/server/go.mod'
       # the app's postinstall fetches the browser from the GitHub releases API, which is rate
       # limited per runner IP until a token raises it to the repository's own allowance
       - name: Install Dependencies
@@ -75,6 +80,7 @@ jobs:
             assert.ok(existsSync('packages/sdk/dist/index.d.ts'), 'the sdk declarations were not emitted');
             assert.ok(existsSync('packages/sdk/dist/testing.js'), 'the sdk testing bundle was not emitted');
             assert.ok(existsSync('packages/sdk/dist/testing.d.ts'), 'the sdk testing declarations were not emitted');
+            assert.ok(existsSync('packages/mattermost/dist/sh.collegium.tar.gz'), 'the Mattermost plugin bundle was not emitted');
           "
 
       # the image is assembled from the pruned workspace, and the app depends on the SDK without
@@ -114,6 +120,10 @@ jobs:
         with:
           cache: 'pnpm'
           node-version-file: '.nvmrc'
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'packages/mattermost/src/server/go.mod'
       # the app's postinstall fetches the browser from the GitHub releases API, which is rate
       # limited per runner IP until a token raises it to the repository's own allowance
       - name: Install Dependencies
@@ -330,7 +340,26 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v5
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          cache: 'pnpm'
+          node-version-file: '.nvmrc'
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'packages/mattermost/src/server/go.mod'
+      # an operator who keeps plugin uploads off installs this bundle by hand from the release (§8.4);
+      # only the plugin's own closure is installed, since the app's postinstall fetches a browser
+      - name: Build the Mattermost Plugin Bundle
+        run: |
+          pnpm install --frozen-lockfile --filter=@collegium/mattermost...
+          pnpm exec turbo run build --filter=@collegium/mattermost...
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          files: packages/mattermost/dist/sh.collegium.tar.gz
+          fail_on_unmatched_files: true
           tag_name: v${{ needs.configure.outputs.release_version }}

@@ -83,18 +83,12 @@ export const $MattermostChannel = z.object({
   type: z.enum(MattermostChannelType)
 });
 
+/** a REST-registered slash command, read only to remove the relics a release before the plugin created */
 export type $MattermostSlashCommand = z.infer<typeof $MattermostSlashCommand>;
 export const $MattermostSlashCommand = $$CamelCased(
   z.object({
-    autoComplete: z.boolean().default(false),
-    autoCompleteHint: z.string().default(''),
     creatorId: z.string().min(1),
-    description: z.string().default(''),
-    displayName: z.string().default(''),
-    id: z.string().min(1),
-    method: z.string().default(''),
-    trigger: z.string().min(1),
-    url: z.string()
+    id: z.string().min(1)
   })
 );
 

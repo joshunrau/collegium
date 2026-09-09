@@ -1,4 +1,5 @@
 import type { AdminCredentials, AgentDefinition } from '@collegium/config';
+import { MATTERMOST_PLUGIN_ID, readMattermostPluginBundle } from '@collegium/mattermost';
 import { Injectable } from '@nestjs/common';
 
 import { ConfigService } from '@/config/config.service.ts';
@@ -34,6 +35,11 @@ export class ProvisioningService {
     await this.adminClient.waitUntilReachable(PROVISIONING_PING);
     await this.adminClient.authenticate(credentials);
     await this.adminClient.assertServerSupportsDeployment({ publicUrl: this.envService.get('APP_PUBLIC_URL') });
+
+    // §8.4 — the plugin holds /collegium for the team; the app declares its subcommands to it at boot
+    const bundle = readMattermostPluginBundle();
+    const plugin = await this.adminClient.ensurePlugin({ ...bundle, id: MATTERMOST_PLUGIN_ID });
+    this.loggingService.log(`provisioning plugin ${MATTERMOST_PLUGIN_ID}@${bundle.version}: ${plugin}`);
 
     const teamName = this.envService.get('MATTERMOST_TEAM');
     const teamId = await this.adminClient.ensureTeam(teamName);

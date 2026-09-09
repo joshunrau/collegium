@@ -4,21 +4,21 @@ import type { ChatTransport } from './chat.transport.ts';
 import type {
   AgentConnection,
   ChatFailure,
+  CommandSurfaceDeclaration,
   PostFile,
-  SlashCommandRegistration,
-  SlashCommandSurface,
   SystemPostReceipt
 } from './chat.types.ts';
 
 /**
- * The slash-command operations throw rather than return Result: they run only during §8.4 boot
+ * The command-surface operations throw rather than return Result: they run only during §8.4 boot
  * reconciliation, where every failure is a boot refusal and no caller ever branches.
  */
 export abstract class ChatGateway {
   abstract connect(connection: AgentConnection): Promise<ChatTransport>;
-  abstract correctSlashCommand(commandId: string, registration: SlashCommandRegistration): Promise<void>;
-  abstract createSlashCommand(registration: SlashCommandRegistration): Promise<void>;
-  abstract deleteSlashCommand(commandId: string): Promise<void>;
+  /** tells the team's `/collegium` where to forward and what to autocomplete; refuses without the plugin */
+  abstract declareCommandSurface(declaration: CommandSurfaceDeclaration): Promise<void>;
+  /** removes every slash command this account created — relics of a release before the plugin; returns how many */
+  abstract deleteOwnedSlashCommands(): Promise<number>;
   /** §6.2 — the substrate's own post-size limit, read from the server so nothing hardcodes it */
   abstract maxPostSizeChars(): Promise<Result<number, ChatFailure>>;
   /** the main-channel notice path — fixed strings only, never an agent thinking (§3.2) */
@@ -38,5 +38,4 @@ export abstract class ChatGateway {
    * refusal rather than a channel that silently never triggers.
    */
   abstract resolveChannelId(handle: string): Promise<string>;
-  abstract snapshotSlashCommandSurface(): Promise<SlashCommandSurface>;
 }

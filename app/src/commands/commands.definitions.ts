@@ -1,12 +1,12 @@
 type CommandDefinition = {
-  /** argument shape after the trigger — drives the autocomplete hint and usage refusals; '' when none */
+  /** argument shape after the subcommand — drives the autocomplete hint and usage refusals; '' when none */
   readonly hint: string;
-  /** one line for Mattermost's description and autocomplete fields */
+  /** one line for Mattermost's autocomplete help */
   readonly purpose: string;
 };
 
-/** every trigger is namespaced, so `/coll` autocompletes the whole surface and no generic word is claimed */
-const COMMAND_NAMESPACE = 'collegium';
+/** the one slash command the Mattermost plugin registers; every command below is a subcommand of it */
+export const COMMAND_TRIGGER = 'collegium';
 
 /** the §8.4 command surface — the one list every other representation derives from */
 export const COMMAND_TRIGGERS = [
@@ -37,19 +37,36 @@ export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefin
   triggers: { hint: '{agent}', purpose: 'List outstanding triggers' }
 };
 
-/** the one path every slash command posts to; registration composes APP_PUBLIC_URL with this */
+/** the one path the plugin forwards every execution to; the declaration composes APP_PUBLIC_URL with this */
 export const COMMANDS_PATH = '/commands';
 
-/** the trigger word Mattermost holds, e.g. `collegium.stop` */
-export function renderCommandTrigger(trigger: CommandTrigger): string {
-  return `${COMMAND_NAMESPACE}.${trigger}`;
+/** one subcommand as the plugin is told of it: what it autocompletes, in the order declared */
+export type CommandDeclaration = {
+  readonly hint: string;
+  readonly purpose: string;
+  readonly trigger: CommandTrigger;
+};
+
+export function describeCommandSurface(): readonly CommandDeclaration[] {
+  return COMMAND_TRIGGERS.map((trigger) => ({ ...COMMAND_DEFINITIONS[trigger], trigger }));
 }
 
-/** what Mattermost posts in `command`, e.g. `/collegium.stop` */
+/** what a human types, e.g. `/collegium stop` */
 export function renderCommandName(trigger: CommandTrigger): string {
-  return `/${renderCommandTrigger(trigger)}`;
+  return `/${COMMAND_TRIGGER} ${trigger}`;
 }
 
 export function renderUsage(trigger: CommandTrigger): string {
   return `Usage: ${renderCommandName(trigger)} ${COMMAND_DEFINITIONS[trigger].hint}`.trim();
+}
+
+/** the answer to a bare `/collegium`, or a subcommand nothing declares */
+export function renderSurfaceUsage(): string {
+  return [
+    `Usage: /${COMMAND_TRIGGER} {subcommand}`,
+    ...COMMAND_TRIGGERS.map((trigger) => {
+      const { hint, purpose } = COMMAND_DEFINITIONS[trigger];
+      return `- ${`${renderCommandName(trigger)} ${hint}`.trim()} — ${purpose}`;
+    })
+  ].join('\n');
 }

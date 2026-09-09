@@ -22,3 +22,4 @@ app/src/prisma/generated
 !packages/*/tsconfig.json
 !packages/*/tsconfig.build.json
 !packages/*/tsdown.config.ts
+packages/mattermost/src/server/*_test.go
