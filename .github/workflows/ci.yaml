@@ -39,6 +39,9 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v5
+        with:
+          # commitlint walks every commit the pull request adds
+          fetch-depth: 0
       - name: Setup PNPM
         uses: pnpm/action-setup@v4
       - name: Setup Node
@@ -61,6 +64,10 @@ jobs:
         run: pnpm db:generate
       - name: Lint
         run: pnpm lint
+      # a push straight to main was already checked by the local commit-msg hook
+      - name: Commit Messages
+        if: github.event_name == 'pull_request'
+        run: pnpm exec commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
       - name: Unit Tests
         run: pnpm test
       - name: Knip
@@ -357,9 +364,13 @@ jobs:
         run: |
           pnpm install --frozen-lockfile --filter=@collegium/mattermost...
           pnpm exec turbo run build --filter=@collegium/mattermost...
+      # the body is the section `increment-version` wrote for this version; a release it never wrote fails here
+      - name: Read the Release Notes
+        run: node scripts/changelog.js "${{ needs.configure.outputs.release_version }}" > "${RUNNER_TEMP}/release-notes.md"
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: ${{ runner.temp }}/release-notes.md
           files: packages/mattermost/dist/sh.collegium.tar.gz
           fail_on_unmatched_files: true
           tag_name: v${{ needs.configure.outputs.release_version }}

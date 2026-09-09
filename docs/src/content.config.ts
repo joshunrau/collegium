@@ -26,42 +26,52 @@ const docs = defineCollection({
   schema: $Frontmatter
 });
 
-const specPath = fileURLToPath(new URL('../../SPEC.md', import.meta.url));
-
 /**
- * The specification page is the repository's SPEC.md, loaded directly rather than copied into the
- * content tree: the site never holds its own copy of the spec, so it cannot drift. `renderMarkdown`
- * runs the project's markdown pipeline, so the fumadocs plugins supply heading ids and highlighting
- * exactly as they do for the written pages.
+ * Pages that are documents at the repository root, loaded directly rather than copied into the
+ * content tree: the site never holds its own copy of the spec or the changelog, so neither can
+ * drift. `renderMarkdown` runs the project's markdown pipeline, so the fumadocs plugins supply
+ * heading ids and highlighting exactly as they do for the written pages.
  */
-const spec = defineCollection({
+const REPOSITORY_DOCUMENTS = [
+  {
+    description: 'The design axioms and execution model the implementation answers to.',
+    id: 'specification',
+    path: fileURLToPath(new URL('../../SPEC.md', import.meta.url)),
+    title: 'Specification'
+  },
+  {
+    description: 'What each release changed, written from the commits it shipped.',
+    id: 'changelog',
+    path: fileURLToPath(new URL('../../CHANGELOG.md', import.meta.url)),
+    title: 'Changelog'
+  }
+];
+
+const repository = defineCollection({
   loader: {
     load: async (context) => {
-      const sync = async () => {
-        // The document h1 is dropped: the docs template renders the page title itself.
-        const body = (await fs.readFile(specPath, 'utf8')).replace(/^# .+\n+/, '');
+      const sync = async ({ description, id, path: documentPath, title }: (typeof REPOSITORY_DOCUMENTS)[number]) => {
+        // A document h1 is dropped: the docs template renders the page title itself.
+        const body = (await fs.readFile(documentPath, 'utf8')).replace(/^# .+\n+/, '');
         context.store.set({
           body,
-          data: await context.parseData({
-            data: {
-              description: 'The design axioms and execution model the implementation answers to.',
-              title: 'Specification'
-            },
-            id: 'specification'
-          }),
-          id: 'specification',
+          data: await context.parseData({ data: { description, title }, id }),
+          id,
           rendered: await context.renderMarkdown(body)
         });
       };
-      await sync();
-      context.watcher?.add(specPath);
+      await Promise.all(REPOSITORY_DOCUMENTS.map(sync));
+      for (const document of REPOSITORY_DOCUMENTS) {
+        context.watcher?.add(document.path);
+      }
       context.watcher?.on('change', (changed) => {
-        if (changed === specPath) {
-          void sync();
+        const document = REPOSITORY_DOCUMENTS.find(({ path: documentPath }) => documentPath === changed);
+        if (document) {
+          void sync(document);
         }
       });
     },
-    name: 'spec'
+    name: 'repository'
   },
   schema: $Frontmatter
 });
@@ -75,5 +85,5 @@ const reference = defineCollection({
 export const collections = {
   docs,
   reference,
-  spec
+  repository
 };

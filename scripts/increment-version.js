@@ -15,6 +15,7 @@ import * as readline from 'node:readline/promises';
 
 import { inc, valid } from 'semver';
 
+import { CHANGELOG_PATH, prependReleaseSection, renderReleaseSection } from './changelog.js';
 import { listPublishable } from './list-publishable.js';
 
 const ROOT_MANIFEST = path.resolve(import.meta.dirname, '..', 'package.json');
@@ -50,11 +51,12 @@ const choices = RELEASES.map((release) => {
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 // a closed input — Ctrl-D, Ctrl-C, a pipe running dry — leaves every pending question unsettled,
-// so the process would hang holding an unbumped tree rather than say it is doing nothing
+// so the process would hang rather than say what state it left the tree in
 let answered = false;
+let written = false;
 rl.on('close', () => {
   if (!answered) {
-    process.stdout.write('\nAborted.\n');
+    process.stdout.write(written ? '\nLeft the bump uncommitted.\n' : '\nAborted.\n');
     process.exit(0);
   }
 });
@@ -88,11 +90,6 @@ if (!AFFIRMATIVE.test(confirmation.trim())) {
   process.exit(0);
 }
 
-const commitAnswer = await rl.question('Commit the bump? [y/N] ');
-answered = true;
-rl.close();
-const shouldCommit = AFFIRMATIVE.test(commitAnswer.trim());
-
 const manifestPaths = [ROOT_MANIFEST, ...listPublishable().map((entry) => entry.manifestPath)];
 for (const manifestPath of manifestPaths) {
   const contents = fs.readFileSync(manifestPath, 'utf-8');
@@ -103,16 +100,33 @@ for (const manifestPath of manifestPaths) {
   fs.writeFileSync(manifestPath, updated);
   process.stdout.write(`${path.relative(path.dirname(ROOT_MANIFEST), manifestPath)} -> ${selected.version}\n`);
 }
+written = true;
 
-if (shouldCommit) {
-  // the pathspec is what keeps the commit to the manifests this script wrote: anything else the
+// release tags are minted by CI, so a local tag set that has not seen the last release would fold
+// two releases into one section
+try {
+  execFileSync('git', ['fetch', '--tags', '--quiet'], { cwd: path.dirname(ROOT_MANIFEST), stdio: 'inherit' });
+} catch {
+  process.stdout.write('Could not fetch tags; the changelog section may reach back past the last release.\n');
+}
+prependReleaseSection(await renderReleaseSection());
+process.stdout.write(`${path.relative(path.dirname(ROOT_MANIFEST), CHANGELOG_PATH)} -> ${selected.version}\n\n`);
+process.stdout.write('Review the changelog section before committing.\n');
+
+const commitAnswer = await rl.question('Commit the bump? [y/N] ');
+answered = true;
+rl.close();
+
+if (AFFIRMATIVE.test(commitAnswer.trim())) {
+  const committedPaths = [...manifestPaths, CHANGELOG_PATH];
+  // the pathspec is what keeps the commit to the files this script wrote: anything else the
   // working tree or the index is holding stays where it is
   try {
-    execFileSync('git', ['commit', '--message', `chore(release): ${selected.version}`, '--', ...manifestPaths], {
+    execFileSync('git', ['commit', '--message', `chore(release): ${selected.version}`, '--', ...committedPaths], {
       cwd: path.dirname(ROOT_MANIFEST),
       stdio: 'inherit'
     });
   } catch {
-    fail('the manifests were written but committing them failed — commit them yourself');
+    fail('the release files were written but committing them failed — commit them yourself');
   }
 }

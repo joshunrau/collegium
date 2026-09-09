@@ -5,8 +5,8 @@ import type { CollectionEntry } from 'astro:content';
 import { loader } from 'fumadocs-core/source';
 import type { StaticSource } from 'fumadocs-core/source';
 
-/** A renderable docs entry: a written page under `content`, a generated reference page, or the spec loaded from SPEC.md. */
-type DocEntry = CollectionEntry<'docs'> | CollectionEntry<'reference'> | CollectionEntry<'spec'>;
+/** A renderable docs entry: a written page under `content`, a generated reference page, or a document loaded from the repository root. */
+type DocEntry = CollectionEntry<'docs'> | CollectionEntry<'reference'> | CollectionEntry<'repository'>;
 
 /**
  * The sidebar, top to bottom: each section's folder with its pages in order, then the root-level
@@ -33,7 +33,7 @@ const NAVIGATION = {
       title: 'Reference'
     }
   ],
-  root: ['specification']
+  root: ['specification', 'changelog']
 };
 
 /**
@@ -47,9 +47,9 @@ async function collectPages() {
     entry,
     path: `${entry.id}${path.extname(entry.filePath!)}`
   }));
-  // Neither the spec nor the reference pages have a file under `content` (content.config.ts
-  // generates them), so they have no source extension to read.
-  const generated = [...(await getCollection('reference')), ...(await getCollection('spec'))].map((entry) => ({
+  // Neither the repository documents nor the reference pages have a file under `content`
+  // (content.config.ts generates them), so they have no source extension to read.
+  const generated = [...(await getCollection('reference')), ...(await getCollection('repository'))].map((entry) => ({
     entry,
     path: `${entry.id}.md`
   }));

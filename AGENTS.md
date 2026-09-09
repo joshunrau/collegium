@@ -138,6 +138,13 @@ generated union is what the rest of the codebase imports. The column is `TEXT` w
 constraint, so the guarantee is the client's — enough, because nothing writes to this database except
 through that client.
 
+Commit messages follow Conventional Commits and are checked by commitlint in a `commit-msg` hook:
+`type(scope): subject`, subject lowercase and imperative, header at most 100 characters. Scopes are
+free-form. `feat`, `fix`, `perf`, `refactor` and `revert` commits appear in the changelog, so their
+subjects are written for the reader of a release; other types do not. `CHANGELOG.md` is written by
+`pnpm increment-version` from the commits since the last release tag — never by hand — and is what
+the docs site and the GitHub release body show.
+
 ## Types
 
 Strict mode; no casting at call sites. No loose records where a closed key set is known. If only a subset of keys is known, type those keys and add an index signature. Type safety takes precedence over convenience.
