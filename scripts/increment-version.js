@@ -8,6 +8,7 @@
  * deployment it was written for (§3.14) — two version lines would make that range mean nothing.
  */
 
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as readline from 'node:readline/promises';
@@ -24,6 +25,8 @@ const RELEASES = ['prerelease', 'patch', 'minor', 'major'];
 // naming the identifier is what keeps a prerelease bump inside the release tag grammar CI matches:
 // without it semver produces `0.0.2-0`, which is valid semver and not a version this project ships
 const PRERELEASE_IDENTIFIER = 'beta';
+
+const AFFIRMATIVE = /^y(es)?$/i;
 
 /** @param {string} message */
 function fail(message) {
@@ -78,14 +81,20 @@ while (!selected) {
 }
 
 const confirmation = await rl.question(`Bump ${currentVersion} -> ${selected.version}? [y/N] `);
-answered = true;
-rl.close();
-if (!/^y(es)?$/i.test(confirmation.trim())) {
+if (!AFFIRMATIVE.test(confirmation.trim())) {
+  answered = true;
+  rl.close();
   process.stdout.write('Aborted.\n');
   process.exit(0);
 }
 
-for (const manifestPath of [ROOT_MANIFEST, ...listPublishable().map((entry) => entry.manifestPath)]) {
+const commitAnswer = await rl.question('Commit the bump? [y/N] ');
+answered = true;
+rl.close();
+const shouldCommit = AFFIRMATIVE.test(commitAnswer.trim());
+
+const manifestPaths = [ROOT_MANIFEST, ...listPublishable().map((entry) => entry.manifestPath)];
+for (const manifestPath of manifestPaths) {
   const contents = fs.readFileSync(manifestPath, 'utf-8');
   const updated = contents.replace(/("version":\s*)"[^"]*"/, `$1"${selected.version}"`);
   if (updated === contents) {
@@ -93,4 +102,17 @@ for (const manifestPath of [ROOT_MANIFEST, ...listPublishable().map((entry) => e
   }
   fs.writeFileSync(manifestPath, updated);
   process.stdout.write(`${path.relative(path.dirname(ROOT_MANIFEST), manifestPath)} -> ${selected.version}\n`);
+}
+
+if (shouldCommit) {
+  // the pathspec is what keeps the commit to the manifests this script wrote: anything else the
+  // working tree or the index is holding stays where it is
+  try {
+    execFileSync('git', ['commit', '--message', `chore(release): ${selected.version}`, '--', ...manifestPaths], {
+      cwd: path.dirname(ROOT_MANIFEST),
+      stdio: 'inherit'
+    });
+  } catch {
+    fail('the manifests were written but committing them failed — commit them yourself');
+  }
 }
