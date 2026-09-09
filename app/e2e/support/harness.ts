@@ -122,7 +122,7 @@ async function startHarness<const S extends Scenario>(scenario: S): Promise<Star
           }),
           credentials: [workspace.systemBot, ...workspace.agents.values()],
           databaseTemplate,
-          mattermost: { teamName: cluster.teamName, url: cluster.url },
+          mattermost: { teamName: workspace.teamName, url: cluster.url },
           port,
           publicHost: cluster.publicHost
         });

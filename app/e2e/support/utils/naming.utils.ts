@@ -26,3 +26,7 @@ export function toBotUsername(workspaceId: string, name: string): string {
 export function toChannelName(workspaceId: string, name: string): string {
   return `${E2E_RESOURCE_PREFIX}-${workspaceId}-${name}`;
 }
+
+export function toTeamName(workspaceId: string): string {
+  return `${E2E_RESOURCE_PREFIX}-${workspaceId}`;
+}

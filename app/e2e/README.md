@@ -12,6 +12,12 @@ also works on Linux. This is the one deployment where the address the app binds 
 it is reached at, so the harness sets `APP_PUBLIC_URL` to that name; approval callbacks and slash
 commands travel back over it.
 
+Test files run in parallel against that one cluster. Each harness provisions its own team, bots,
+and channels, boots its own app process on a free port, and talks to its own inference stub, so
+nothing a file does is visible to another. The team is per harness rather than shared because the
+Mattermost plugin holds one `/collegium` command surface per team: two apps alive at once in a
+shared team would each overwrite the other's callback.
+
 The Mattermost image is built from `docker/mattermost` by `e2e/support/cluster.ts` — the same image the
 shipped stack runs — and tagged with the hash of its build
 context, so it is rebuilt only when that context changes.

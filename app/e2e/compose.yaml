@@ -8,7 +8,7 @@ services:
     environment:
       MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS: 'false'
       MM_LOGSETTINGS_CONSOLELEVEL: ERROR
-      # the suite installs the Collegium plugin once per cluster, which holds /collegium (§8.4)
+      # the suite installs the Collegium plugin once per cluster; it holds /collegium per team (§8.4)
       MM_PLUGINSETTINGS_ENABLE: 'true'
       MM_PLUGINSETTINGS_ENABLEUPLOADS: 'true'
       # Mattermost refuses to call a private address unless it is listed here — without it every
@@ -20,8 +20,6 @@ services:
       MM_SERVICESETTINGS_LISTENADDRESS: ':${E2E_MATTERMOST_PORT}'
       MM_SERVICESETTINGS_SITEURL: 'http://127.0.0.1:${E2E_MATTERMOST_PORT}'
       MM_SQLSETTINGS_DATASOURCE: 'postgres://collegium_e2e:e2e-password@postgres:5432/mattermost?sslmode=disable&connect_timeout=10'
-      # every harness provisions fresh bots into the shared team; the 50-member default caps the suite
-      MM_TEAMSETTINGS_MAXUSERSPERTEAM: '1000'
     # the app under test runs on the host, and this is the only name that reaches it from here
     extra_hosts:
       - host.docker.internal:host-gateway

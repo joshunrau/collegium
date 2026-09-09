@@ -101,7 +101,7 @@ async function bootstrapCluster(mmctl: MmctlRunner): Promise<void> {
 
 /**
  * §8.4 — the plugin that holds `/collegium`, installed once per cluster as the administrator; each
- * harness's app then declares its own subcommands and callback for the shared team at boot.
+ * harness's app then declares its own subcommands and callback for its own team at boot.
  */
 async function installPlugin(): Promise<void> {
   const client = new Client4();

@@ -1,9 +1,10 @@
 import { Client4 } from '@mattermost/client';
+import { z } from 'zod';
 
 import { MattermostChannelType } from '@/chat/adapters/mattermost.constants.ts';
 
 import { WorkspaceSocket } from './socket.ts';
-import { createWorkspaceId, toBotUsername, toChannelName } from './utils/naming.utils.ts';
+import { createWorkspaceId, toBotUsername, toChannelName, toTeamName } from './utils/naming.utils.ts';
 
 import type { ClusterConnection } from './cluster.ts';
 import type { Scenario } from './scenario.ts';
@@ -13,6 +14,9 @@ const HANDSHAKE_CHANNEL_NAME = 'handshake';
 const SYSTEM_BOT_NAME = 'system';
 
 const WORKSPACE_BOT_DESCRIPTION = 'Collegium end-to-end fixture';
+
+type $CreatedTeam = z.infer<typeof $CreatedTeam>;
+const $CreatedTeam = z.object({ id: z.string().min(1), name: z.string().min(1) });
 
 type AgentBot = {
   token: string;
@@ -46,6 +50,7 @@ class Workspace {
     readonly socket: WorkspaceSocket,
     readonly systemBot: AgentBot,
     readonly teamId: string,
+    readonly teamName: string,
     readonly workspaceId: string
   ) {}
 
@@ -55,7 +60,9 @@ class Workspace {
     client.setUrl(connection.url);
     const admin = await client.login(connection.admin.username, connection.admin.password);
 
-    const team = await client.getTeamByName(connection.teamName);
+    // its own team: the plugin holds one command surface per team (§8.4), so two apps alive at once
+    // in a shared team would each overwrite the other's /collegium callback
+    const team = await this.createTeam(client, toTeamName(workspaceId));
     const handshakeChannel = await this.createPublicChannel(client, team.id, workspaceId, HANDSHAKE_CHANNEL_NAME);
 
     const systemBot = await this.createBot(client, team.id, toBotUsername(workspaceId, SYSTEM_BOT_NAME));
@@ -100,6 +107,7 @@ class Workspace {
       socket,
       systemBot,
       team.id,
+      team.name,
       workspaceId
     );
   }
@@ -167,6 +175,19 @@ class Workspace {
       type: MattermostChannelType.Open
     });
     return { id: channel.id, name: channelName };
+  }
+
+  /** the SDK's createTeam demands a whole Team where the server wants three fields, so this one goes over fetch */
+  private static async createTeam(client: Client4, name: string): Promise<$CreatedTeam> {
+    const response = await fetch(client.getTeamsRoute(), {
+      body: JSON.stringify({ display_name: name, name, type: 'O' }),
+      headers: { Authorization: `Bearer ${client.getToken()}`, 'Content-Type': 'application/json' },
+      method: 'POST'
+    });
+    if (!response.ok) {
+      throw new Error(`creating team "${name}" failed with ${response.status}: ${await response.text()}`);
+    }
+    return $CreatedTeam.parse(await response.json());
   }
 
   private static async readLimits(client: Client4): Promise<WorkspaceLimits> {
