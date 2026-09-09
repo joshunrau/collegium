@@ -569,7 +569,7 @@ _Accepted losses:_ editing a post in the client does not correct what an agent b
 
 ### **8.3 Trace**
 
-The complete tool trace — every call, arguments, and results — is retrievable via `/collegium.trace {post-id}`. **The response is ephemeral, visible only to the invoker**, because trace output contains file contents and email bodies verbatim, and everyone in a channel can also approve agents.
+The complete tool trace — every call, arguments, and results — is retrievable via `/collegium.trace {post-id}`, where the post is named by its id or by its permalink, since `Copy Link` is the only place the client exposes one. **The response is ephemeral, visible only to the invoker**, because trace output contains file contents and email bodies verbatim, and everyone in a channel can also approve agents.
 
 A trace carrying those payloads runs into the same substrate limit §6.2 does, and takes the same answer: where it exceeds what a single post can carry, it is delivered as an attachment, still ephemeral. One rule for content larger than a post, in both places it arises.
 

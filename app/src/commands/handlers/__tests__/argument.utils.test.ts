@@ -60,6 +60,10 @@ describe('requirePostId', () => {
     expect(requirePostId(' post-9 ', 'forget').value).toBe('post-9');
   });
 
+  it('should read the post id out of a permalink', () => {
+    expect(requirePostId('https://chat.example.com/team/pl/post-9', 'trace').value).toBe('post-9');
+  });
+
   it('should refuse blank text with the usage line', () => {
     expect(requirePostId('   ', 'forget').error).toStrictEqual({
       audience: 'invoker',

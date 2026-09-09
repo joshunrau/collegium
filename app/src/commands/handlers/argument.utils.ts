@@ -8,6 +8,9 @@ import { renderUsage } from '../commands.definitions.ts';
 import type { CommandTrigger } from '../commands.definitions.ts';
 import type { CommandResponse } from '../commands.types.ts';
 
+/** the client exposes a post's id only through its permalink (`Copy Link` → `.../pl/{post-id}`) */
+const PERMALINK_POST_ID = /\/pl\/([^\s/?#]+)/u;
+
 /** the shared refusal for a command that names no known agent */
 export function requireAgentName(
   agentRegistry: AgentRegistry,
@@ -32,11 +35,11 @@ export function requireAgentProfile(
   return Result.ok(profile);
 }
 
-/** the shared refusal for a command that names no post */
+/** the shared refusal for a command that names no post; a permalink names one as well as a bare id */
 export function requirePostId(text: string, trigger: CommandTrigger): Result<string, CommandResponse> {
-  const postId = text.trim();
-  if (postId === '') {
+  const argument = text.trim();
+  if (argument === '') {
     return Result.err({ audience: 'invoker', text: renderUsage(trigger) });
   }
-  return Result.ok(postId);
+  return Result.ok(PERMALINK_POST_ID.exec(argument)?.[1] ?? argument);
 }
