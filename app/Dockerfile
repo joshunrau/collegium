@@ -35,8 +35,10 @@ ARG TURBO_TELEMETRY_DISABLED=1
 # operator never set, and the entrypoint would take /dev for the store's directory.
 ENV DATABASE_URL="file:/dev/null"
 # better-sqlite3 publishes no bundled binary for arm64 and compiles from source when its download comes up
-# empty; the toolchain serves that fallback alone and stays behind in this stage.
-RUN apt-get update && apt-get install --yes --no-install-recommends g++ make python3 && rm -rf /var/lib/apt/lists/*
+# empty; the toolchain serves that fallback alone and stays behind in this stage. ca-certificates reads
+# as redundant beside a green pnpm install and is not: Node carries its own roots, Go reads the system
+# store, and without it the plugin's module fetch fails as an unknown certificate authority.
+RUN apt-get update && apt-get install --yes --no-install-recommends ca-certificates g++ make python3 && rm -rf /var/lib/apt/lists/*
 # the Mattermost plugin is Go, cross-compiled for every server platform inside the same turbo build
 COPY --from=golang:1.25-trixie /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:$PATH"
