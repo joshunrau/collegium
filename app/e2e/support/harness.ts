@@ -63,6 +63,7 @@ function toRecord<K extends string, V>(entries: readonly (readonly [string, V])[
 
 async function startHarness<const S extends Scenario>(scenario: S): Promise<StartedHarness<S>> {
   const cluster = inject('cluster');
+  const databaseTemplate = inject('databaseTemplate');
   const stack = new ResourceStack();
   try {
     // claimed before provisioning so APP_PUBLIC_URL names the port the app will bind
@@ -120,6 +121,7 @@ async function startHarness<const S extends Scenario>(scenario: S): Promise<Star
             systemBotUsername: workspace.systemBot.username
           }),
           credentials: [workspace.systemBot, ...workspace.agents.values()],
+          databaseTemplate,
           mattermost: { teamName: cluster.teamName, url: cluster.url },
           port,
           publicHost: cluster.publicHost

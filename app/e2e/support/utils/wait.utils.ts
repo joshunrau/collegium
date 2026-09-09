@@ -1,6 +1,6 @@
 import type { Promisable } from 'type-fest';
 
-const DEFAULT_INTERVAL_MS = 200;
+const DEFAULT_INTERVAL_MS = 50;
 
 export type Pending = typeof PENDING;
 

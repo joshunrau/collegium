@@ -79,7 +79,7 @@ export default defineConfig({
         extends: true,
         test: {
           fileParallelism: false,
-          globalSetup: ['app/e2e/setup/cluster.setup.ts'],
+          globalSetup: ['app/e2e/setup/cluster.setup.ts', 'app/e2e/setup/database.setup.ts'],
           hookTimeout: 600_000,
           include: ['app/e2e/**/*.e2e.test.ts'],
           name: 'e2e',

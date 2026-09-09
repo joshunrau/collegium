@@ -13,8 +13,8 @@ import { ProvisionModule } from '@/provision.module.ts';
 import { ProvisioningService } from '@/provisioning/provisioning.service.ts';
 
 import { E2E_RESOURCE_PREFIX } from './constants.ts';
+import { copyDatabaseTemplate } from './database.ts';
 import { REPOSITORY_PLUGINS_ROOT } from './env.ts';
-import { exec } from './utils/exec.utils.ts';
 import { createWorkspaceId } from './utils/naming.utils.ts';
 
 import type { HarnessEnv } from './env.ts';
@@ -53,6 +53,7 @@ function readCredentials(databasePath: string): ProvisionedCredential[] {
  */
 export function setupProvisioning(options: { runs: number }): Provisioning {
   const cluster = inject('cluster');
+  const databaseTemplate = inject('databaseTemplate');
   const workspaceId = createWorkspaceId();
   const usernames = { agent: `${workspaceId}-vera`, systemBot: `${workspaceId}-orch` };
 
@@ -81,7 +82,7 @@ export function setupProvisioning(options: { runs: number }): Provisioning {
         providers: { deepseek: { apiKey: 'never-called' } }
       })
     );
-    await exec('npx', ['prisma', 'migrate', 'deploy'], { env: { ...process.env, DATABASE_URL: databaseUrl } });
+    copyDatabaseTemplate(databaseTemplate, databasePath);
 
     // provisioning loads no plugin, but it parses the same environment the app does
     const env: Omit<HarnessEnv, 'APP_PUBLIC_URL'> = {

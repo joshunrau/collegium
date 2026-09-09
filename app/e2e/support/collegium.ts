@@ -12,12 +12,13 @@ import type { ConfigInput } from '@collegium/config';
 import { withTimeout } from '@collegium/core/utils';
 
 import { E2E_RESOURCE_PREFIX, PROJECT_ROOT } from './constants.ts';
+import { copyDatabaseTemplate } from './database.ts';
 import { REPOSITORY_PLUGINS_ROOT } from './env.ts';
 import { InferenceStub, textResponse } from './inference.ts';
-import { exec } from './utils/exec.utils.ts';
 import { PENDING, ProbeAbortError, waitFor } from './utils/wait.utils.ts';
 
 import type { Channel } from './channel.ts';
+import type { DatabaseTemplate } from './database.ts';
 import type { HarnessEnv } from './env.ts';
 import type { Scenario } from './scenario.ts';
 import type { AgentBot, WorkspaceChannel } from './workspace.ts';
@@ -64,6 +65,7 @@ type CollegiumProcessOptions = {
   config: ConfigInput;
   /** what the workspace minted: the app reads its tokens from the store provisioning writes */
   credentials: readonly AgentBot[];
+  databaseTemplate: DatabaseTemplate;
   mattermost: {
     teamName: string;
     url: string;
@@ -181,7 +183,7 @@ class CollegiumProcess {
   private readonly tmpDir: string;
   private readonly workspaceRoot: string;
 
-  constructor({ config, credentials, mattermost, port, publicHost }: CollegiumProcessOptions) {
+  constructor({ config, credentials, databaseTemplate, mattermost, port, publicHost }: CollegiumProcessOptions) {
     this.credentials = credentials;
     this.mattermost = mattermost;
     this.port = port;
@@ -192,6 +194,7 @@ class CollegiumProcess {
     this.configPath = path.join(this.tmpDir, COLLEGIUM_FIXTURE.configFilename);
     this.databasePath = path.join(this.tmpDir, COLLEGIUM_FIXTURE.databaseFilename);
     this.databaseUrl = pathToFileURL(this.databasePath).href;
+    copyDatabaseTemplate(databaseTemplate, this.databasePath);
   }
 
   get url(): string {
@@ -234,7 +237,6 @@ class CollegiumProcess {
   async start(): Promise<void> {
     try {
       await fs.promises.writeFile(this.configPath, JSON.stringify(this.config), { mode: 0o600 });
-      await this.migrate();
       this.seedCredentials();
       // the emitted JavaScript, not the source: running `src/main.ts` registers a TypeScript loader
       // (main.ts) that the shipped image has no equivalent of, and a suite that only ever exercises
@@ -285,13 +287,6 @@ class CollegiumProcess {
   /** where a test can assert file contents after approving and their absence after denying */
   workspaceDirFor(agentUsername: string): string {
     return path.join(this.workspaceRoot, agentUsername);
-  }
-
-  /** the app boots against this file, so its schema must exist before the process does */
-  private async migrate(): Promise<void> {
-    await exec('npx', ['prisma', 'migrate', 'deploy'], {
-      env: { ...process.env, DATABASE_URL: this.databaseUrl }
-    });
   }
 
   /**
