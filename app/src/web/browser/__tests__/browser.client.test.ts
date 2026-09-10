@@ -19,7 +19,9 @@ const FIXTURES_DIR = path.resolve(import.meta.dirname, '../../__tests__/fixtures
 const FIXTURE_BY_ROUTE: { [key: string]: string } = {
   '/': 'spa-marketing-site',
   '/gated-login': 'gated-login',
+  '/member-database': 'member-database',
   '/people': 'spa-marketing-site',
+  '/portal': 'portal-menu',
   '/searchable-directory': 'searchable-directory'
 };
 
@@ -152,6 +154,47 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     const result = await session.navigate('http://127.0.0.1:9/');
     expect(result.success).toBe(false);
     expect(result.error?.kind).toBe('navigation');
+  });
+
+  it('should mark a submenu ref CSS hides, then act on it once a hover reveals it', async () => {
+    const portal = (await session.navigate(`${baseUrl}/portal`)).unwrap();
+    const refFor = (html: string, label: string): string => {
+      const line = toMarkdown(html)
+        .split('\n')
+        .find((candidate) => candidate.includes(label));
+      const ref = line === undefined ? undefined : /⟨(e\d+)(?<hidden> hidden)?⟩/u.exec(line);
+      if (!ref) {
+        throw new Error(`no ref found for ${label}`);
+      }
+      return ref[0];
+    };
+    // the roster link is in the document from the start, so it is stamped — and unactionable
+    expect(refFor(portal.html, 'Répertoire des professeurs')).toMatch(/ hidden⟩$/u);
+    const menuRef = /⟨(e\d+)⟩/u.exec(refFor(portal.html, 'Équipe'))![1]!;
+    const revealed = (await session.hover(menuRef)).unwrap();
+    expect(refFor(revealed.html, 'Répertoire des professeurs')).not.toMatch(/ hidden⟩$/u);
+  });
+
+  it('should refuse a click on a ref CSS hides rather than time out unexplained', async () => {
+    const portal = (await session.navigate(`${baseUrl}/portal`)).unwrap();
+    const hidden = /⟨(e\d+) hidden⟩/u.exec(toMarkdown(portal.html));
+    if (!hidden) {
+      throw new Error('no hidden ref was marked on the portal fixture');
+    }
+    const refused = await session.click(hidden[1]!);
+    expect(refused.success).toBe(false);
+    expect(refused.error?.kind).toBe('not-visible');
+  });
+
+  it('should follow a target=_blank link into the tab it opens', async () => {
+    const portal = (await session.navigate(`${baseUrl}/portal`)).unwrap();
+    const menuRef = /\[Équipe\]\([^)]*\)⟨(e\d+)⟩/u.exec(toMarkdown(portal.html))![1]!;
+    const revealed = (await session.hover(menuRef)).unwrap();
+    const rosterRef = /\[Répertoire des professeurs\]\([^)]*\)⟨(e\d+)⟩/u.exec(toMarkdown(revealed.html))![1]!;
+    const opened = (await session.click(rosterRef)).unwrap();
+    expect(opened.url).toContain('/member-database');
+    expect(opened.status).toBe(200);
+    expect(toMarkdown(opened.html)).toContain('lachance@northmoor.example');
   });
 
   it('should hand back a 404 as a page with a status, not a failure', async () => {

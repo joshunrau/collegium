@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Portail Northmoor — Accueil</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        color: #16202c;
+      }
+      nav {
+        background: #16202c;
+        padding: 0 1rem;
+      }
+      nav ul {
+        display: flex;
+        gap: 1.5rem;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav > ul > li {
+        position: relative;
+        padding: 0.9rem 0;
+      }
+      nav a {
+        color: #fff;
+        text-decoration: none;
+      }
+      /* the submenu exists in the document from the start and is revealed only under the pointer */
+      .submenu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: #24313f;
+        list-style: none;
+        margin: 0;
+        min-width: 14rem;
+        padding: 0.5rem 0;
+      }
+      .has-submenu:hover .submenu {
+        display: block;
+      }
+      .submenu li {
+        padding: 0.4rem 1rem;
+      }
+      main {
+        padding: 2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/portal">Accueil</a></li>
+        <li class="has-submenu">
+          <a href="#equipe">Équipe</a>
+          <ul class="submenu">
+            <li><a href="/member-database" target="_blank">Répertoire des professeurs</a></li>
+            <li><a href="#administration">Administration</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+    <main>
+      <h1>Institut des sciences appliquées</h1>
+      <p>
+        Le répertoire complet du corps professoral est maintenu dans une base de données distincte, accessible depuis le
+        menu Équipe.
+      </p>
+    </main>
+  </body>
+</html>

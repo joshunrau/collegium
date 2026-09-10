@@ -29,6 +29,23 @@ function isPrivateHostname(hostname: string): boolean {
  * redirect is the browser's to follow; this bounds what may be *asked for*, not what DNS answers.
  */
 export function refuseUnbrowsableUrl(url: string): undefined | WebFailure.UrlRefused {
+  const scheme = refuseNonWebScheme(url);
+  if (scheme) {
+    return scheme;
+  }
+  if (isPrivateHostname(new URL(url).hostname)) {
+    return { kind: 'url-refused', reason: 'not-public-host', url };
+  }
+  return undefined;
+}
+
+/**
+ * The half of the rule above that still binds an address the model never asked for — a tab the page
+ * opened for itself. Which *host* such a tab names is the page's business, exactly as a redirect
+ * target is: the comment above draws that line, and a popup sits on the same side of it. Leaving
+ * the web entirely does not, so the scheme is judged and the host is not.
+ */
+export function refuseNonWebScheme(url: string): undefined | WebFailure.UrlRefused {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -37,9 +54,6 @@ export function refuseUnbrowsableUrl(url: string): undefined | WebFailure.UrlRef
   }
   if (!WEB_PROTOCOLS.has(parsed.protocol)) {
     return { kind: 'url-refused', reason: 'not-web-scheme', url };
-  }
-  if (isPrivateHostname(parsed.hostname)) {
-    return { kind: 'url-refused', reason: 'not-public-host', url };
   }
   return undefined;
 }
