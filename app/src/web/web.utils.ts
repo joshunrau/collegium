@@ -1,4 +1,5 @@
 import { NodeHtmlMarkdown } from 'node-html-markdown';
+import type { TranslatorConfigObject } from 'node-html-markdown';
 import { match } from 'ts-pattern';
 
 import { MARKDOWN_CAP_CHARS } from './web.constants.ts';
@@ -11,6 +12,83 @@ const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 // not redundant: node-html-markdown reads a doctype with a public identifier as text, and Zoho
 // still writes one (HTML 4.01 Transitional)
 const DOCTYPE = /^\s*<!DOCTYPE[^>]*>/i;
+
+const BASE_HREF = /<base\b[^>]*\bhref\s*=\s*["']([^"']+)["']/i;
+
+/** node-html-markdown's own escaping of a link target, so a resolved address renders as an authored one does */
+function encodeHref(href: string): string {
+  return href.replaceAll('(', '%28').replaceAll(')', '%29').replaceAll('_', '%5F').replaceAll('*', '%2A');
+}
+
+/** absolute as written, resolved when relative, and as authored when it will not parse at all */
+function resolveAgainst(base: undefined | URL, href: string): string {
+  if (base === undefined) {
+    return href;
+  }
+  try {
+    return new URL(href, base).href;
+  } catch {
+    return href;
+  }
+}
+
+/** the page's own address, or the one its `<base>` names instead, since that is what a browser resolves against */
+function resolveBase(html: string, pageUrl: string | undefined): undefined | URL {
+  if (pageUrl === undefined) {
+    return undefined;
+  }
+  let page: URL;
+  try {
+    page = new URL(pageUrl);
+  } catch {
+    return undefined;
+  }
+  const declared = BASE_HREF.exec(html)?.[1];
+  if (declared === undefined) {
+    return page;
+  }
+  try {
+    return new URL(declared, page);
+  } catch {
+    return page;
+  }
+}
+
+/**
+ * node-html-markdown's link and image translators, re-stated with one addition: an address is
+ * resolved against the page it came from, so a relative link the model reads is one it can hand
+ * straight to `web::fetch`. The library keeps its defaults private, so they are restated rather
+ * than wrapped.
+ */
+function linkTranslators(base: undefined | URL): TranslatorConfigObject {
+  return {
+    a: ({ node, options }) => {
+      const href = node.getAttribute('href');
+      if (!href) {
+        return {};
+      }
+      const target = encodeHref(resolveAgainst(base, href));
+      const title = node.getAttribute('title');
+      if (node.textContent === href && options.useInlineLinks) {
+        return { content: `<${target}>` };
+      }
+      return {
+        postfix: `](${target}${title ? ` "${title}"` : ''})`,
+        postprocess: ({ content }) => content.replaceAll(/(?:\r?\n)+/g, ' '),
+        prefix: '['
+      };
+    },
+    img: ({ node, options }) => {
+      const src = node.getAttribute('src') ?? '';
+      if (!src || (!options.keepDataImages && /^data:/i.test(src))) {
+        return { ignore: true };
+      }
+      const alt = node.getAttribute('alt') ?? '';
+      const title = node.getAttribute('title') ?? '';
+      return { content: `![${alt}](${resolveAgainst(base, src)}${title && ` "${title}"`})`, recurse: false };
+    }
+  };
+}
 
 /** §3.4 — a filled input says that it is filled, never with what; a select names its own option */
 function renderFormElement(element: FormElement): string {
@@ -47,9 +125,18 @@ function renderOpenedTab(url: string): string {
   return `The page opened a new tab to ${address}; it was closed — open it with web::navigate or web::fetch if it matters.`;
 }
 
-/** Cleaned, post-render HTML to the markdown a model reads. Tables survive as tables (§3.4). */
-export function toMarkdown(html: string): string {
-  return NodeHtmlMarkdown.translate(html.replace(DOCTYPE, '')).split('\n').map(collapseTableRow).join('\n').trim();
+/**
+ * Cleaned, post-render HTML to the markdown a model reads. Tables survive as tables (§3.4), and
+ * with the page's URL given, every link and image address is absolute. The library builds its
+ * table-cell translators from a private list that custom ones do not reach, so the link
+ * translator is set on that collection by hand — or a directory's email links would stay relative.
+ */
+export function toMarkdown(html: string, pageUrl?: string): string {
+  const translators = linkTranslators(resolveBase(html, pageUrl));
+  const converter = new NodeHtmlMarkdown({}, translators);
+  converter.tableCellTranslators.set('a', translators.a!, true);
+  converter.tableCellTranslators.set('img', translators.img!, true);
+  return converter.translate(html.replace(DOCTYPE, '')).split('\n').map(collapseTableRow).join('\n').trim();
 }
 
 /** A page past the guard is cut and says so — a truncation the model cannot see is one it reasons past. */

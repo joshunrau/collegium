@@ -38,6 +38,39 @@ describe('toMarkdown', () => {
     expect(toMarkdown(html)).toBe('Hello');
   });
 
+  it('should resolve link and image addresses against the page, leaving the rest as authored', () => {
+    const html = `<html><body>
+      <a href="/people/duval">Duval</a>
+      <a href="//cdn.northmoor.example/cv.pdf">CV</a>
+      <a href="#top">Top</a>
+      <a href="https://other.example/x">Other</a>
+      <a href="mailto:duval@northmoor.example">Mail</a>
+      <a href="javascript:Fiche(37)">Fiche</a>
+      <a href="http://[bad">Broken</a>
+      <img src="../img/duval.jpg" alt="Portrait" />
+      <table><tr><td><a href="profile?id=7">Row link</a></td></tr></table>
+    </body></html>`;
+    const markdown = toMarkdown(html, 'https://northmoor.example/dept/psychology/');
+    expect(markdown).toContain('[Duval](https://northmoor.example/people/duval)');
+    expect(markdown).toContain('[CV](https://cdn.northmoor.example/cv.pdf)');
+    expect(markdown).toContain('[Top](https://northmoor.example/dept/psychology/#top)');
+    expect(markdown).toContain('[Other](https://other.example/x)');
+    expect(markdown).toContain('[Mail](mailto:duval@northmoor.example)');
+    expect(markdown).toContain('[Fiche](javascript:Fiche%2837%29)');
+    expect(markdown).toContain('[Broken](http://[bad)');
+    expect(markdown).toContain('![Portrait](https://northmoor.example/dept/img/duval.jpg)');
+    expect(markdown).toContain('[Row link](https://northmoor.example/dept/psychology/profile?id=7)');
+  });
+
+  it('should resolve against a declared base, and leave addresses alone with no page URL', () => {
+    const html =
+      '<html><head><base href="https://cdn.northmoor.example/site/"></head><body><a href="a.html">A</a></body></html>';
+    expect(toMarkdown(html, 'https://northmoor.example/dept/')).toContain(
+      '[A](https://cdn.northmoor.example/site/a.html)'
+    );
+    expect(toMarkdown('<a href="a.html">A</a>')).toContain('[A](a.html)');
+  });
+
   /** the empty string is why the render assertion exists: an unrendered page reads as "no results" */
   it.each(['client-rendered-directory', 'spa-marketing-site'])(
     'should yield nothing at all from %s, since no script has run',

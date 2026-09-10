@@ -76,7 +76,7 @@ export class WebService {
     if (kind === 'text') {
       return Result.ok({ markdown: capMarkdown(body), status, title: new URL(finalUrl).pathname, url: finalUrl });
     }
-    const markdown = toMarkdown(body);
+    const markdown = toMarkdown(body, finalUrl);
     if (needsClientRendering(markdown)) {
       return Result.err({ kind: 'no-static-content', url: finalUrl });
     }
@@ -153,7 +153,7 @@ export class WebService {
     if (!rendered.success) {
       return rendered;
     }
-    const markdown = capMarkdown(toMarkdown(rendered.value.html));
+    const markdown = capMarkdown(toMarkdown(rendered.value.html, rendered.value.url));
     // a page that rendered nothing is indistinguishable from a page with nothing on it, and the
     // model cannot tell them apart — so it is never returned as content
     if (!markdown) {
