@@ -29,6 +29,8 @@ type HtmlInputElementType = LiteralUnion<
 
 export declare namespace FormElement {
   type Base<TKind extends keyof HTMLElementTagNameMap> = {
+    /** CSS hides it, so no click or fill lands until something reveals it */
+    readonly isHidden: boolean;
     readonly kind: TKind;
     readonly label: string;
     readonly ref: string;

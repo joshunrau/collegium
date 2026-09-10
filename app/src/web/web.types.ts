@@ -43,6 +43,11 @@ export declare namespace WebFailure {
   type NoSession = {
     kind: 'no-session';
   };
+  /** the ref is on the page but CSS hides it, so no click or fill can land until it is revealed */
+  type NotVisible = {
+    kind: 'not-visible';
+    ref: string;
+  };
   /** the HTML fetched without a browser reads as nothing — the page needs client rendering */
   type NoStaticContent = {
     kind: 'no-static-content';
@@ -76,6 +81,7 @@ export declare namespace WebFailure {
     | Navigation
     | NoSession
     | NoStaticContent
+    | NotVisible
     | StaleRef
     | Unreachable
     | UnsupportedContent

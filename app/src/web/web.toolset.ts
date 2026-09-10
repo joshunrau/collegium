@@ -91,6 +91,18 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       traceDetail: (args) =>
         `⟨${args.ref}⟩ with ${args.text.length} character(s)${args.pressEnter === true ? ' then press "Enter"' : ''}`
     },
+    hover: {
+      description:
+        `${DESCRIPTION_PREAMBLE}Move the pointer onto an element from the latest snapshot, to reveal what only ` +
+        'appears on hover — a drop-down menu, a submenu, a tooltip. A ref the snapshot marks `hidden` cannot be ' +
+        'clicked or filled until something reveals it; hovering its parent menu is usually what does.',
+      execute: async (args, context) => toSnapshotResult(await context.web.hover(context.turn.turnId, args.ref)),
+      parameters: z.object({
+        ref: $Ref.describe('An element ref (shown as ⟨eN⟩) from the latest snapshot')
+      }),
+      timeoutMs: WEB_TIMEOUT_MS,
+      traceDetail: (args) => `⟨${args.ref}⟩`
+    },
     navigate: {
       description: `${DESCRIPTION_PREAMBLE}Open a URL in this turn's page, replacing whatever it showed.`,
       execute: async (args, context) => toSnapshotResult(await context.web.navigate(context.turn.turnId, args.url)),

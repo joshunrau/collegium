@@ -9,10 +9,10 @@ import { WEB_TOOLSET } from '../web.toolset.ts';
 
 import type { WebPage, WebSnapshot } from '../web.types.ts';
 
-const { click, fetch, fill, navigate } = WEB_TOOLSET.tools;
+const { click, fetch, fill, hover, navigate } = WEB_TOOLSET.tools;
 
 const SNAPSHOT: WebSnapshot = {
-  formElements: [{ isFilled: false, kind: 'input', label: 'Search', ref: 'e1', type: 'text' }],
+  formElements: [{ isFilled: false, isHidden: false, kind: 'input', label: 'Search', ref: 'e1', type: 'text' }],
   markdown: '# Example Domain',
   status: 200,
   title: 'Example',
@@ -80,5 +80,13 @@ describe('WEB_TOOLSET', () => {
     expect('approval' in fetch).toBe(false);
     expect(fetch.retryable).toBe(true);
     expect(fetch.traceDetail?.({ url: 'https://example.org/' })).toBe('https://example.org/');
+  });
+
+  it('hovers a ref and returns the snapshot that reveals what the hover exposed', async () => {
+    const { context, web } = buildContext();
+    web.hover.mockResolvedValue(Result.ok(SNAPSHOT));
+    const result = await executeTool(hover, { ref: 'e4' }, context);
+    expect(web.hover).toHaveBeenCalledWith('turn-1', 'e4');
+    expect(result.unwrap().text).toContain('Example — https://example.org/ (HTTP 200)');
   });
 });

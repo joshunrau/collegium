@@ -94,6 +94,17 @@ export class WebService {
     return this.toSnapshot(await opened.value.fill(args.ref, args.text, args.pressEnter ?? false));
   }
 
+  async hover(
+    turnId: string,
+    ref: string
+  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
+    const opened = await this.sessions.get(turnId);
+    if (!opened?.success) {
+      return Result.err({ kind: 'no-session' });
+    }
+    return this.toSnapshot(await opened.value.hover(ref));
+  }
+
   /** the only action that opens a session — click and fill before any navigate are `no-session` */
   async navigate(
     turnId: string,

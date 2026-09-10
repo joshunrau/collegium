@@ -18,6 +18,18 @@ const loadDocument = (html: string): void => {
 };
 
 describe('captureSnapshot', () => {
+  it('should mark a ref CSS hides, so the model never spends a click on a guaranteed timeout', () => {
+    loadDocument(`<!doctype html><html><body>
+      <a id="open" href="/menu">Menu</a>
+      <a id="buried" href="/people" style="visibility:hidden">Faculty</a>
+    </body></html>`);
+    const capture = captureSnapshot(0);
+    const refOf = (id: string): string => document.getElementById(id)!.getAttribute('data-collegium-ref')!;
+    expect(capture.html).toContain(`⟨${refOf('buried')} hidden⟩`);
+    expect(capture.html).toContain(`⟨${refOf('open')}⟩`);
+    expect(capture.html).not.toContain(`⟨${refOf('open')} hidden⟩`);
+  });
+
   it('should stamp every interactable with a unique ref and advance the index', () => {
     loadDocument(fixture('static-directory'));
     const capture = captureSnapshot(0);
@@ -82,6 +94,7 @@ describe('captureSnapshot', () => {
     // credentials as often as not
     expect(capture.formElements).toContainEqual({
       isFilled: true,
+      isHidden: false,
       kind: 'input',
       label: 'Search people',
       ref: expect.stringMatching(/^e\d+$/),

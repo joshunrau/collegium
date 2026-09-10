@@ -4,7 +4,9 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
-import { capMarkdown, renderWebFailure, toMarkdown } from '../web.utils.ts';
+import { capMarkdown, renderWebFailure, renderWebSnapshot, toMarkdown } from '../web.utils.ts';
+
+import type { WebSnapshot } from '../web.types.ts';
 
 const fixture = (name: string): string => {
   return fs.readFileSync(path.resolve(import.meta.dirname, 'fixtures', `${name}.html`), 'utf-8');
@@ -71,5 +73,22 @@ describe('renderWebFailure', () => {
         url: 'https://northmoor.example/a.pdf'
       })
     ).toBe('https://northmoor.example/a.pdf is application/pdf, which this tool cannot read as text');
+  });
+
+  it('should name hover as the way out of a ref CSS hides', () => {
+    expect(renderWebFailure({ kind: 'not-visible', ref: 'e12' })).toContain('web::hover');
+  });
+});
+
+describe('renderWebSnapshot', () => {
+  it('should mark a hidden form control so its ref is not read as actionable', () => {
+    const snapshot: WebSnapshot = {
+      formElements: [{ isFilled: false, isHidden: true, kind: 'input', label: 'Search', ref: 'e1', type: 'text' }],
+      markdown: '# Faculty',
+      status: 200,
+      title: 'Faculty',
+      url: 'https://northmoor.example/'
+    };
+    expect(renderWebSnapshot(snapshot)).toContain('⟨e1⟩ input[type=text] "Search" (hidden — reveal it before acting)');
   });
 });

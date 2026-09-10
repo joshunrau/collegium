@@ -30,7 +30,12 @@ export class BrowserSession {
 
   async click(
     ref: string
-  ): Promise<Result<RenderedCapture, WebFailure.Navigation | WebFailure.StaleRef | WebFailure.Unreachable>> {
+  ): Promise<
+    Result<
+      RenderedCapture,
+      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
+    >
+  > {
     return this.act(ref, (locator) => locator.click({ timeout: ACTION_TIMEOUT_MS }));
   }
 
@@ -47,13 +52,29 @@ export class BrowserSession {
     ref: string,
     text: string,
     pressEnter = false
-  ): Promise<Result<RenderedCapture, WebFailure.Navigation | WebFailure.StaleRef | WebFailure.Unreachable>> {
+  ): Promise<
+    Result<
+      RenderedCapture,
+      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
+    >
+  > {
     return this.act(ref, async (locator) => {
       await locator.fill(text, { timeout: ACTION_TIMEOUT_MS });
       if (pressEnter) {
         await locator.press('Enter', { timeout: ACTION_TIMEOUT_MS });
       }
     });
+  }
+
+  async hover(
+    ref: string
+  ): Promise<
+    Result<
+      RenderedCapture,
+      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
+    >
+  > {
+    return this.act(ref, (locator) => locator.hover({ timeout: ACTION_TIMEOUT_MS }));
   }
 
   async navigate(url: string): Promise<Result<RenderedCapture, WebFailure.Navigation | WebFailure.Unreachable>> {
@@ -73,15 +94,25 @@ export class BrowserSession {
   private async act(
     ref: string,
     action: (locator: Locator) => Promise<void>
-  ): Promise<Result<RenderedCapture, WebFailure.Navigation | WebFailure.StaleRef | WebFailure.Unreachable>> {
+  ): Promise<
+    Result<
+      RenderedCapture,
+      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
+    >
+  > {
+    const locator = this.page.locator(`[data-collegium-ref="${ref}"]`);
     try {
-      const locator = this.page.locator(`[data-collegium-ref="${ref}"]`);
       if ((await locator.count()) === 0) {
         return Result.err({ kind: 'stale-ref', ref });
       }
       await action(locator);
     } catch (error) {
-      return Result.err(this.asFailure(error));
+      // an action that timed out on a ref CSS hides is the one failure the model can act on itself,
+      // so it must not arrive as an indistinguishable page failure
+      if (await locator.isVisible().catch(() => true)) {
+        return Result.err(this.asFailure(error));
+      }
+      return Result.err({ kind: 'not-visible', ref });
     }
     return this.capture();
   }

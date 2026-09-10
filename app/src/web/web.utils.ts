@@ -24,7 +24,8 @@ function renderFormElement(element: FormElement): string {
       : element.value
         ? ` = "${element.value}"`
         : '';
-  return `- ⟨${element.ref}⟩ ${kind}${label}${state}`;
+  const hidden = element.isHidden ? ' (hidden — reveal it before acting)' : '';
+  return `- ⟨${element.ref}⟩ ${kind}${label}${state}${hidden}`;
 }
 
 /**
@@ -60,6 +61,9 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     .with({ kind: 'empty-render' }, ({ url }) => `the page at ${url} rendered no readable content`)
     .with({ kind: 'navigation' }, ({ message }) => `the page could not be loaded: ${message}`)
     .with({ kind: 'no-session' }, () => 'no page is open in this turn — navigate to a URL first')
+    .with({ kind: 'not-visible' }, ({ ref }) => {
+      return `⟨${ref}⟩ is on the page but CSS hides it, so no click or fill can land — reveal it first, e.g. web::hover on the menu or control that opens it`;
+    })
     .with({ kind: 'no-static-content' }, ({ url }) => {
       return `the page at ${url} has no readable content without JavaScript — open it with web::navigate instead`;
     })

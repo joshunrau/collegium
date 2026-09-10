@@ -23,22 +23,39 @@ export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
     );
   };
 
-  const refByElement = new Map<Element, string>();
-  const interactables = document.querySelectorAll(
+  /**
+   * Playwright's own actionability test: an element with no box, or one CSS has turned invisible,
+   * can be clicked by no action. Stamping it anyway is right — a hover on its parent may reveal it —
+   * but the model has to be told, or it spends a click on a guaranteed timeout.
+   */
+  const isHidden = (element: Element): boolean => {
+    return element.getClientRects().length === 0 || getComputedStyle(element).visibility === 'hidden';
+  };
+
+  const candidates: Element[] = [];
+  for (const element of document.querySelectorAll(
     'a[href], button, input, select, textarea, [role=button], [role=link]'
-  );
-  for (const element of interactables) {
-    if (isExcluded(element)) {
-      continue;
+  )) {
+    if (!isExcluded(element)) {
+      candidates.push(element);
     }
+  }
+  // every read before the first write: stamping between two `getClientRects` calls would force one
+  // reflow per element, and a faculty directory carries hundreds
+  const hiddenFlags = candidates.map((element) => isHidden(element));
+
+  const refByElement = new Map<Element, string>();
+  const hiddenRefs = new Set<string>();
+  for (const [index, element] of candidates.entries()) {
     const existing = element.getAttribute(REF_ATTRIBUTE);
-    if (existing) {
-      refByElement.set(element, existing);
-    } else {
-      const ref = `e${refIndex}`;
+    const ref = existing ?? `e${refIndex}`;
+    if (!existing) {
       refIndex += 1;
       element.setAttribute(REF_ATTRIBUTE, ref);
-      refByElement.set(element, ref);
+    }
+    refByElement.set(element, ref);
+    if (hiddenFlags[index]) {
+      hiddenRefs.add(ref);
     }
   }
 
@@ -66,17 +83,31 @@ export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
   };
 
   const describeControl = (element: Element, ref: string): FormElement | null => {
+    const isHiddenRef = hiddenRefs.has(ref);
     if (element instanceof HTMLInputElement) {
-      return { isFilled: element.value !== '', kind: 'input', label: controlLabel(element), ref, type: element.type };
+      return {
+        isFilled: element.value !== '',
+        isHidden: isHiddenRef,
+        kind: 'input',
+        label: controlLabel(element),
+        ref,
+        type: element.type
+      };
     }
     if (element instanceof HTMLButtonElement) {
-      return { kind: 'button', label: controlLabel(element), ref, value: element.value };
+      return { isHidden: isHiddenRef, kind: 'button', label: controlLabel(element), ref, value: element.value };
     }
     if (element instanceof HTMLSelectElement) {
-      return { kind: 'select', label: controlLabel(element), ref, value: element.value };
+      return { isHidden: isHiddenRef, kind: 'select', label: controlLabel(element), ref, value: element.value };
     }
     if (element instanceof HTMLTextAreaElement) {
-      return { isFilled: element.value !== '', kind: 'textarea', label: controlLabel(element), ref };
+      return {
+        isFilled: element.value !== '',
+        isHidden: isHiddenRef,
+        kind: 'textarea',
+        label: controlLabel(element),
+        ref
+      };
     }
     return null;
   };
@@ -94,7 +125,8 @@ export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
     throw new Error('cloning the document element did not produce an element');
   }
   for (const stamped of clone.querySelectorAll(`[${REF_ATTRIBUTE}]`)) {
-    const marker = document.createTextNode(`⟨${stamped.getAttribute(REF_ATTRIBUTE)}⟩`);
+    const ref = stamped.getAttribute(REF_ATTRIBUTE) ?? '';
+    const marker = document.createTextNode(hiddenRefs.has(ref) ? `⟨${ref} hidden⟩` : `⟨${ref}⟩`);
     stamped.parentNode?.insertBefore(marker, stamped.nextSibling);
   }
 

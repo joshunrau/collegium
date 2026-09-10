@@ -25,7 +25,7 @@ export const TRIGGERS_TOOLSET_DEF = { name: 'triggers', tools: ['resolve'] } as 
 
 export const WEB_TOOLSET_DEF = {
   name: 'web',
-  tools: ['click', 'fetch', 'fill', 'navigate']
+  tools: ['click', 'fetch', 'fill', 'hover', 'navigate']
 } as const satisfies ToolsetDef;
 
 export const WORKSPACE_TOOLSET_DEF = { name: 'workspace', tools: ['write'] } as const satisfies ToolsetDef;
