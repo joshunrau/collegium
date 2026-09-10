@@ -10,6 +10,16 @@ import type { ActivationSource, RecordablePost } from './conversations.types.ts'
 export class ConversationsService {
   constructor(@InjectModel('Post') private readonly posts: Model<'Post'>) {}
 
+  /** which of the named posts the channel saw first, on Mattermost's clock; undefined when none is stored */
+  async earliestOf(postIds: readonly string[]): Promise<string | undefined> {
+    const earliest = await this.posts.findFirst({
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true },
+      where: { id: { in: [...postIds] } }
+    });
+    return earliest?.id;
+  }
+
   /** what a post's origin implies for §7.4 depth and §4.4 folding: who authored it, and its authoring turn's depth */
   async findActivationSource(postId: string): Promise<ActivationSource | undefined> {
     const post = await this.posts.findUnique({

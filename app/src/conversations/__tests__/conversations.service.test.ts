@@ -152,4 +152,15 @@ describe('ConversationsService', () => {
       expect(table.rows[0]?.message).toBe('done');
     });
   });
+
+  describe('earliestOf', () => {
+    it('should name the post the channel saw first among those given, ignoring unknown ids', async () => {
+      await conversationsService.record(post({ createdAt: new Date(2000), id: 'post-later' }));
+      await conversationsService.record(post({ createdAt: new Date(1000), id: 'post-earlier' }));
+      expect(await conversationsService.earliestOf(['post-later', 'post-missing', 'post-earlier'])).toBe(
+        'post-earlier'
+      );
+      expect(await conversationsService.earliestOf(['post-missing'])).toBeUndefined();
+    });
+  });
 });

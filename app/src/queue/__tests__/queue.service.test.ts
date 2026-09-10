@@ -52,6 +52,15 @@ describe('QueueService', () => {
                   );
                 }) ?? null
               );
+            },
+            updateMany: ({ data, where }: any) => {
+              const matching = rows.filter(
+                (row) => row.agentUsername === where.agentUsername && row.channelId === where.channelId
+              );
+              for (const row of matching) {
+                Object.assign(row, data);
+              }
+              return Promise.resolve({ count: matching.length });
             }
           }
         }
@@ -85,6 +94,12 @@ describe('QueueService', () => {
     await queueService.enqueue('mira', 'channel-1', 'post-1');
     await queueService.enqueue('owen', 'channel-2', 'post-2');
     expect((await queueService.listAll()).map((entry) => entry.agentUsername)).toStrictEqual(['mira', 'owen']);
+  });
+
+  it('should move a standing pointer to the post the caller names', async () => {
+    await queueService.enqueue('mira', 'channel-1', 'post-9');
+    await queueService.pointAt('mira', 'channel-1', 'post-1');
+    expect(rows.map((row) => row.earliestUnprocessedPostId)).toStrictEqual(['post-1']);
   });
 
   it('should hold pointers alone, rebuilding from a fresh enqueue after a drain', async () => {

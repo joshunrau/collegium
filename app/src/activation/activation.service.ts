@@ -24,8 +24,9 @@ import { DebounceService } from './debounce/debounce.service.ts';
 
 /**
  * §7.1 — the queue drains only into a turn that can plausibly make progress. After a provider
- * outage, semantic error, or side-effect ambiguity it is left standing: a drain would start a turn
- * that inherits the same failure, looping until the hourly ceiling halts everything.
+ * outage or rejection, semantic error, side-effect ambiguity, or delivery failure it is left
+ * standing: a drain would start a turn that inherits the same failure, looping until the hourly
+ * ceiling halts everything.
  */
 const PROGRESS_EXITS: ReadonlySet<TurnStatus> = new Set<TurnStatus>([
   'budget_exhausted',
@@ -271,6 +272,31 @@ export class ActivationService {
   }
 
   /**
+   * §7.1 — a failed exit leaves the queue standing, and the row was consumed when this turn
+   * started, so the post it started from is pointed at again. Still under the lock, because a post
+   * arriving during the turn went through enqueueBusy and may hold the row already; a duplicate
+   * insert is ignored by design, so the pointer is then moved back to whichever post is earlier.
+   * A failure here is logged, not thrown: the lock must be released whatever happens.
+   */
+  private async leaveStanding(profile: AgentProfile, channelId: string, postId: string): Promise<void> {
+    try {
+      await this.queueService.enqueue(profile.username, channelId, postId);
+      const standing = await this.queueService.peek(profile.username, channelId);
+      if (!standing || standing.earliestUnprocessedPostId === postId) {
+        return;
+      }
+      const earliest = await this.conversationsService.earliestOf([standing.earliestUnprocessedPostId, postId]);
+      if (earliest === postId) {
+        await this.queueService.pointAt(profile.username, channelId, postId);
+      }
+    } catch (error) {
+      this.loggingService.error(
+        new Error(`failed to leave the queue for "${profile.username}" in ${channelId} standing`, { cause: error })
+      );
+    }
+  }
+
+  /**
    * §4.4 — a fragment that missed the window folds into the turn already answering that human,
    * which has not yet acted on its first completion. The reply is the acknowledgement, so an
    * absorbed fragment gets neither a queue entry nor a 👀 (§5.2).
@@ -323,15 +349,20 @@ export class ActivationService {
       status = outcome.status;
     } catch (error) {
       this.loggingService.error(
-        new Error(
-          `a turn for "${profile.username}" threw past the runner — its queue and triggers stand until /collegium resume or the next post`,
-          { cause: error }
-        )
+        new Error(`a turn for "${profile.username}" threw past the runner and is treated as a failed exit`, {
+          cause: error
+        })
       );
+    }
+    const progressed = status !== undefined && PROGRESS_EXITS.has(status);
+    try {
+      if (!progressed) {
+        await this.leaveStanding(profile, input.channelId, input.drainedFromPostId ?? input.triggeringPostId);
+      }
     } finally {
       input.lock.release();
     }
-    if (status !== undefined && PROGRESS_EXITS.has(status)) {
+    if (progressed) {
       await this.drainQueue(profile, input.channelId);
       await this.flushTriggersIfIdle(input.channelId);
     }

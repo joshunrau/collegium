@@ -171,6 +171,25 @@ describe('TurnRunner', () => {
     );
   });
 
+  it('should check the window’s reach again after a fold rebuilds it', async () => {
+    complete.mockImplementationOnce(() => {
+      offerFragment('post-2');
+      return Promise.resolve(Result.ok(text('half')));
+    });
+    complete.mockResolvedValueOnce(Result.ok(text('all of it')));
+    await turnRunner.run({
+      channelId: 'channel-1',
+      depth: 0,
+      drainedFromPostId: 'post-out-of-reach',
+      foldAuthorUsername: 'casey',
+      profile: PROFILE
+    });
+    const shortfalls = statusHandle.appendTrace.mock.calls.filter(
+      ([line]: [string]) => line === '⚠️ _context could not reach back to the earliest queued message_'
+    );
+    expect(shortfalls).toHaveLength(2);
+  });
+
   it('should signal typing for the duration of a completion and no longer', async () => {
     complete.mockImplementationOnce(() => {
       expect(typingIndicatorService.start).toHaveBeenCalledWith({

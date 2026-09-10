@@ -45,6 +45,11 @@ export class QueueService {
     return this.find(agentUsername, channelId);
   }
 
+  /** moves a standing pointer; the caller has established the post is earlier than the one it names now (§7.1) */
+  async pointAt(agentUsername: string, channelId: string, postId: string): Promise<void> {
+    await this.entries.updateMany({ data: { earliestUnprocessedPostId: postId }, where: { agentUsername, channelId } });
+  }
+
   private async find(agentUsername: string, channelId: string): Promise<QueueEntry | undefined> {
     const entry = await this.entries.findUnique({
       where: { agentUsername_channelId: { agentUsername, channelId } }

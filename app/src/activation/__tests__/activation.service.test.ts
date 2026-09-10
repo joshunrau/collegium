@@ -72,6 +72,7 @@ describe('ActivationService', () => {
     queueService.peek.mockResolvedValue(undefined);
     queueService.drain.mockResolvedValue(undefined);
     queueService.listAll.mockResolvedValue([]);
+    queueService.pointAt.mockResolvedValue(undefined);
     reactions = [];
     typingSignals = [];
     transportRegistry = MockFactory.createMock(TransportRegistry);
@@ -327,14 +328,45 @@ describe('ActivationService', () => {
     });
   });
 
-  it('should leave the queue standing when the turn exit cannot make progress', async () => {
+  it('should point the queue back at the post that started a turn whose exit cannot make progress', async () => {
     turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
     queueService.drain.mockResolvedValueOnce(undefined);
+    queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-1' } as never);
     await activationService.onPost(PROFILE, post());
     await settle();
-    expect(queueService.peek).not.toHaveBeenCalled();
+    expect(queueService.enqueue).toHaveBeenCalledWith('mira', 'channel-1', 'post-1');
+    expect(queueService.pointAt).not.toHaveBeenCalled();
     expect(turnRunner.run).toHaveBeenCalledTimes(1);
     expect(triggersService.peekPending).not.toHaveBeenCalled();
+  });
+
+  it('should point back at the earliest post the failed turn drained from, not the one that started it', async () => {
+    turnRunner.run.mockResolvedValue({ status: 'provider_rejected', turnId: 'turn-1' });
+    queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
+    await activationService.onPost(PROFILE, post());
+    await settle();
+    expect(queueService.enqueue).toHaveBeenCalledWith('mira', 'channel-1', 'post-7');
+  });
+
+  it('should move a pointer a later post claimed during the failed turn back to the earlier post', async () => {
+    turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
+    queueService.drain.mockResolvedValueOnce(undefined);
+    queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-9' } as never);
+    conversationsService.earliestOf.mockResolvedValue('post-1');
+    await activationService.onPost(PROFILE, post());
+    await settle();
+    expect(conversationsService.earliestOf).toHaveBeenCalledWith(['post-9', 'post-1']);
+    expect(queueService.pointAt).toHaveBeenCalledWith('mira', 'channel-1', 'post-1');
+  });
+
+  it('should leave a pointer alone when the post it names is already the earlier one', async () => {
+    turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
+    queueService.drain.mockResolvedValueOnce(undefined);
+    queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-0' } as never);
+    conversationsService.earliestOf.mockResolvedValue('post-0');
+    await activationService.onPost(PROFILE, post());
+    await settle();
+    expect(queueService.pointAt).not.toHaveBeenCalled();
   });
 
   it('should leave the queue standing when a halt was raised while the turn ran', async () => {

@@ -55,6 +55,7 @@ import { StatusPostService } from './status/status-post.service.ts';
 import { TurnsService } from './turns.service.ts';
 import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
 
+import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle } from './status/status-post.service.ts';
@@ -510,6 +511,13 @@ export class TurnRunner {
     );
   }
 
+  /** §5.2 — checked on every assembly, since a fold rebuilds the window and can lose the reach the first one had */
+  private async noteShortfall(input: RunInput, state: TurnState, assembled: AssembledContext): Promise<void> {
+    if (input.drainedFromPostId !== undefined && !assembled.windowPostIds.has(input.drainedFromPostId)) {
+      await state.status.appendTrace(renderContextShortfallLine());
+    }
+  }
+
   /** §7.1's human-visible notices: deterministic strings posted under the agent's name (§3.2) */
   private async postNotice(input: RunInput, state: TurnState, text: string): Promise<void> {
     try {
@@ -559,9 +567,7 @@ export class TurnRunner {
     const { channelId, profile } = input;
     let assembled = await this.contextAssembler.assemble({ channelId, profile });
     state.messages.push(...assembled.request.messages);
-    if (input.drainedFromPostId !== undefined && !assembled.windowPostIds.has(input.drainedFromPostId)) {
-      await state.status.appendTrace(renderContextShortfallLine());
-    }
+    await this.noteShortfall(input, state, assembled);
     const client = this.inferenceRegistry.getClientForModel(profile.model);
     let folds = 0;
     for (;;) {
@@ -588,6 +594,7 @@ export class TurnRunner {
         folds += 1;
         assembled = await this.contextAssembler.assemble({ channelId, profile });
         state.messages.splice(0, state.messages.length, ...assembled.request.messages);
+        await this.noteShortfall(input, state, assembled);
         continue;
       }
       if (completion.value.kind === 'text') {
