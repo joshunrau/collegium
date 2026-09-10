@@ -9,6 +9,8 @@ import { ConversationsModule } from '@/conversations/conversations.module.ts';
 import { HaltModule } from '@/halt/halt.module.ts';
 import { MemoryModule } from '@/memory/memory.module.ts';
 import { QueueModule } from '@/queue/queue.module.ts';
+import { SkillsModule } from '@/skills/skills.module.ts';
+import { ToolsModule } from '@/tools/tools.module.ts';
 import { TriggersModule } from '@/triggers/triggers.module.ts';
 import { TurnsModule } from '@/turns/turns.module.ts';
 
@@ -56,6 +58,8 @@ const COMMAND_HANDLER_CLASSES = [
     HaltModule,
     MemoryModule,
     QueueModule,
+    SkillsModule,
+    ToolsModule,
     TriggersModule,
     TurnsModule
   ],
