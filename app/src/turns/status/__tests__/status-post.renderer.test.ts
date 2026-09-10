@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   renderProviderRejectionNotice,
-  renderRecordForgottenLine,
+  renderRecordDeletedLine,
   renderRecordWriteLine,
   renderStatusPost,
   renderSupersededLine,
@@ -66,9 +66,9 @@ describe('renderRecordWriteLine', () => {
   });
 });
 
-describe('renderRecordForgottenLine', () => {
+describe('renderRecordDeletedLine', () => {
   it('names the description, which outlives the reference the delete resolved', () => {
-    expect(renderRecordForgottenLine('casey on formatting')).toBe('🗑️ _forgot: casey on formatting_');
+    expect(renderRecordDeletedLine('casey on formatting')).toBe('🗑️ _deleted: casey on formatting_');
   });
 });
 

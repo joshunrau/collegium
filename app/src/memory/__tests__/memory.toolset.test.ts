@@ -8,7 +8,7 @@ import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.f
 import { MemoryService } from '../memory.service.ts';
 import { MEMORY_TOOLSET } from '../memory.toolset.ts';
 
-const { delete: forget, read, write } = MEMORY_TOOLSET.tools;
+const { delete: deleteTool, read, write } = MEMORY_TOOLSET.tools;
 
 function buildContext() {
   const memory = MockFactory.createMock(MemoryService);
@@ -76,21 +76,21 @@ describe('MEMORY_TOOLSET', () => {
     });
   });
 
-  it('forgets an entry and names what left, since its reference no longer resolves (§3.6)', async () => {
+  it('deletes an entry and names what left, since its reference no longer resolves (§3.6)', async () => {
     const { context, memory } = buildContext();
     memory.delete.mockResolvedValue(Result.ok({ description: 'a stale fact' } as never));
-    const result = await executeTool(forget, { reference: 'mem-1' }, context);
+    const result = await executeTool(deleteTool, { reference: 'mem-1' }, context);
     expect(memory.delete).toHaveBeenCalledWith('mira', 'mem-1');
     expect(result.unwrap()).toStrictEqual({
-      forgottenDescription: 'a stale fact',
-      text: 'memory mem-1 forgotten: a stale fact'
+      deletedDescription: 'a stale fact',
+      text: 'memory mem-1 deleted: a stale fact'
     });
   });
 
   it('returns an unknown reference on delete as the model’s own recoverable mistake', async () => {
     const { context, memory } = buildContext();
     memory.delete.mockResolvedValue(Result.err({ kind: 'not-found', reference: 'mem-9' }));
-    const result = await executeTool(forget, { reference: 'mem-9' }, context);
+    const result = await executeTool(deleteTool, { reference: 'mem-9' }, context);
     expect(result.error).toStrictEqual({
       kind: 'invalid-arguments',
       message: 'no memory entry with reference "mem-9" exists'
@@ -102,7 +102,7 @@ describe('MEMORY_TOOLSET', () => {
     expect(read.retryable).toBe(true);
     expect(write.budgetExempt).toBeUndefined();
     expect(write.retryable).toBeUndefined();
-    expect(forget.budgetExempt).toBeUndefined();
-    expect(forget.retryable).toBe(true);
+    expect(deleteTool.budgetExempt).toBeUndefined();
+    expect(deleteTool.retryable).toBe(true);
   });
 });

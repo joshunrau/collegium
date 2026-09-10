@@ -11,15 +11,15 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
     // §3.6 — ungated for the same reason a write is; the disclosure names the description because
     // the reference the model passed resolves to nothing once the row is gone
     delete: {
-      description: 'Forget one of your memories. Correct a memory by forgetting it and saving a new one.',
+      description: 'Delete one of your memories. Correct a memory by deleting it and saving a new one.',
       execute: async (args, context) => {
         const deleted = await context.memory.delete(context.turn.agentUsername, args.reference);
         if (!deleted.success) {
           return Result.err({ kind: 'invalid-arguments', message: renderUnresolvedReference(deleted.error) });
         }
         return Result.ok({
-          forgottenDescription: deleted.value.description,
-          text: `memory ${args.reference} forgotten: ${deleted.value.description}`
+          deletedDescription: deleted.value.description,
+          text: `memory ${args.reference} deleted: ${deleted.value.description}`
         });
       },
       parameters: z.object({

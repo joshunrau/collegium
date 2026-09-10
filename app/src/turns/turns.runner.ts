@@ -43,7 +43,7 @@ import {
   renderExtensionPrompt,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
-  renderRecordForgottenLine,
+  renderRecordDeletedLine,
   renderRecordWriteLine,
   renderSemanticErrorNotice,
   renderSideEffectAmbiguityNotice,
@@ -408,8 +408,8 @@ export class TurnRunner {
       if (attempt.disclosure) {
         await this.discloseRecord(state, attempt.disclosure);
       }
-      if (attempt.forgottenDescription !== undefined) {
-        await state.status.appendTrace(renderRecordForgottenLine(attempt.forgottenDescription));
+      if (attempt.deletedDescription !== undefined) {
+        await state.status.appendTrace(renderRecordDeletedLine(attempt.deletedDescription));
       }
     }
     return undefined;
