@@ -1,14 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentProfile } from '@/agents/agents.types.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 
-import {
-  containsToolCallTranscript,
-  renderPreamble,
-  renderSystemPrompt,
-  toCompletionMessages
-} from '../context.utils.ts';
+import { containsToolCallTranscript, toCompletionMessages } from '../context.utils.ts';
 
 const event = (payload: PrismaJson.TurnEventPayload): WindowEntry => ({
   event: { createdAt: new Date(0), id: 'event-1', kind: payload.kind, payload, sequence: 0, turnId: 'turn-1' },
@@ -29,16 +23,6 @@ const post = (authorUsername: string, message: string): WindowEntry => ({
     observedAt: new Date(0)
   }
 });
-
-const PEER = { expertise: 'scheduling', username: 'tess' } as AgentProfile;
-
-const PROFILE = { expertise: 'testing', systemPrompt: 'You are Mira.', username: 'mira' } as AgentProfile;
-
-const PREAMBLE = {
-  actionBudget: 10,
-  budgetExemptToolNames: ['builtins__now', 'skills__load'],
-  contextBudgetTokens: 8000
-};
 
 describe('toCompletionMessages', () => {
   it('should attribute a peer post and speak the agent own observed posts as the assistant', () => {
@@ -176,61 +160,6 @@ describe('toCompletionMessages', () => {
     expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
       { content: '[recorded: casey on formatting]', role: 'user' }
     ]);
-  });
-});
-
-describe('renderPreamble', () => {
-  it('should state the configured budget and the calls exempt from it', () => {
-    const preamble = renderPreamble({
-      actionBudget: 7,
-      budgetExemptToolNames: ['builtins__now', 'skills__load'],
-      contextBudgetTokens: 12_000
-    });
-    expect(preamble).toContain('Each turn has a budget of 7 tool calls.');
-    expect(preamble).toContain('Calls to builtins__now and skills__load do not.');
-    expect(preamble).toContain('fits your context to about 12000 tokens');
-  });
-});
-
-describe('renderSystemPrompt', () => {
-  it('should carry the agent prompt and the preamble alone when it has no skills, memories, or peers', () => {
-    expect(
-      renderSystemPrompt({ memories: [], peers: [], preamble: PREAMBLE, profile: PROFILE, skillManifest: '' })
-    ).toBe(`You are Mira.\n\n${renderPreamble(PREAMBLE)}`);
-  });
-
-  it('should append the skills, memories, and peers sections in §3.8 order', () => {
-    expect(
-      renderSystemPrompt({
-        memories: [{ description: 'casey prefers bullet points', reference: 'memory-1' }],
-        peers: [PEER],
-        preamble: PREAMBLE,
-        profile: PROFILE,
-        skillManifest: '- handing-work-to-a-peer: How to hand work over.'
-      })
-    ).toBe(
-      `You are Mira.
-
-${renderPreamble(PREAMBLE)}
-
-## Skills
-
-Procedures you can pull into context with skills__load when they apply:
-
-- handing-work-to-a-peer: How to hand work over.
-
-## Memories
-
-Your saved memories; read a full body with memory__read when it matters:
-
-- [memory-1] casey prefers bullet points
-
-## Peers
-
-Colleagues in this channel:
-
-- @tess — scheduling`
-    );
   });
 });
 

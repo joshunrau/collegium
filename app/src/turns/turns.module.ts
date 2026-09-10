@@ -11,6 +11,7 @@ import { ToolsModule } from '@/tools/tools.module.ts';
 import { WebModule } from '@/web/web.module.ts';
 
 import { ContextAssembler } from './context/context.assembler.ts';
+import { SystemPromptRenderer } from './context/system-prompt.renderer.ts';
 import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
 import { StatusPostService } from './status/status-post.service.ts';
@@ -19,7 +20,7 @@ import { TurnsService } from './turns.service.ts';
 import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
 
 @Module({
-  exports: [ContextAssembler, TurnControlRegistry, TurnFoldRegistry, TurnRunner, TurnsService],
+  exports: [ContextAssembler, SystemPromptRenderer, TurnControlRegistry, TurnFoldRegistry, TurnRunner, TurnsService],
   imports: [
     ApprovalsModule,
     ChannelsModule,
@@ -34,6 +35,7 @@ import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
   providers: [
     ContextAssembler,
     StatusPostService,
+    SystemPromptRenderer,
     TurnControlRegistry,
     TurnFoldRegistry,
     TurnRunner,

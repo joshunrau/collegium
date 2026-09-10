@@ -1,13 +1,9 @@
 import { renderToolWireName } from '@collegium/core/tools';
-import { format } from '@collegium/core/utils';
 import { match } from 'ts-pattern';
 
-import type { AgentProfile } from '@/agents/agents.types.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import type { CompletionMessage } from '@/inference/inference.types.ts';
 import type { ModelRow } from '@/prisma/prisma.types.ts';
-
-import { CONJUNCTION, PREAMBLE } from './context.constants.ts';
 
 /** replayed history is model-facing, so a structural name renders in wire form — never a second spelling (§1) */
 function toWireName(name: PrismaJson.RecordedToolName): string {
@@ -116,46 +112,6 @@ export function toCompletionMessages(entries: readonly WindowEntry[], selfUserna
   return entries.flatMap((entry) => {
     return entry.kind === 'post' ? [renderPost(entry.post, selfUsername)] : renderEvent(entry.event, results);
   });
-}
-
-export type PreambleInput = {
-  readonly actionBudget: number;
-  readonly budgetExemptToolNames: readonly string[];
-  readonly contextBudgetTokens: number;
-};
-
-export function renderPreamble(input: PreambleInput): string {
-  return format(PREAMBLE, {
-    actionBudget: input.actionBudget,
-    budgetExemptCalls: CONJUNCTION.format(input.budgetExemptToolNames),
-    contextBudgetTokens: input.contextBudgetTokens
-  });
-}
-
-export function renderSystemPrompt(input: {
-  memories: readonly { description: string; reference: string }[];
-  peers: readonly AgentProfile[];
-  preamble: PreambleInput;
-  profile: AgentProfile;
-  skillManifest: string;
-}): string {
-  const sections = [input.profile.systemPrompt, renderPreamble(input.preamble)];
-  if (input.skillManifest !== '') {
-    sections.push(
-      `## Skills\n\nProcedures you can pull into context with skills__load when they apply:\n\n${input.skillManifest}`
-    );
-  }
-  if (input.memories.length > 0) {
-    const listing = input.memories.map((memory) => `- [${memory.reference}] ${memory.description}`).join('\n');
-    sections.push(
-      `## Memories\n\nYour saved memories; read a full body with memory__read when it matters:\n\n${listing}`
-    );
-  }
-  if (input.peers.length > 0) {
-    const listing = input.peers.map((peer) => `- @${peer.username} — ${peer.expertise}`).join('\n');
-    sections.push(`## Peers\n\nColleagues in this channel:\n\n${listing}`);
-  }
-  return sections.join('\n\n');
 }
 
 /**

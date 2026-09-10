@@ -7,21 +7,21 @@ import { buildAgentProfile } from '@/testing/factories/agent-profile.factory.ts'
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
-import { ContextAssembler } from '@/turns/context/context.assembler.ts';
+import { SystemPromptRenderer } from '@/turns/context/system-prompt.renderer.ts';
 
 import { InspectHandler } from '../inspect.handler.ts';
 
 const MIRA = buildAgentProfile();
 
 describe('InspectHandler', () => {
-  let contextAssembler: MockedInstance<ContextAssembler>;
+  let systemPromptRenderer: MockedInstance<SystemPromptRenderer>;
   let inspectHandler: InspectHandler;
 
   beforeEach(async () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.get.mockImplementation((username: string) => (username === 'mira' ? MIRA : undefined));
-    contextAssembler = MockFactory.createMock(ContextAssembler);
-    contextAssembler.renderPromptFor.mockResolvedValue('You are Mira.');
+    systemPromptRenderer = MockFactory.createMock(SystemPromptRenderer);
+    systemPromptRenderer.render.mockResolvedValue('You are Mira.');
     const skillsService = MockFactory.createMock(SkillsService);
     skillsService.listFor.mockReturnValue([{ description: 'How to hand work over.', name: 'handing-work-to-a-peer' }]);
     const toolRegistry = MockFactory.createMock(ToolRegistry);
@@ -33,7 +33,7 @@ describe('InspectHandler', () => {
       providers: [
         InspectHandler,
         { provide: AgentRegistry, useValue: agentRegistry },
-        { provide: ContextAssembler, useValue: contextAssembler },
+        { provide: SystemPromptRenderer, useValue: systemPromptRenderer },
         { provide: SkillsService, useValue: skillsService },
         { provide: ToolRegistry, useValue: toolRegistry }
       ]
@@ -43,7 +43,7 @@ describe('InspectHandler', () => {
 
   it('should report the agent with the prompt it would receive in this channel, to the caller alone', async () => {
     const response = await inspectHandler.handle({ channelId: 'channel-1', text: ' mira ', username: 'casey' });
-    expect(contextAssembler.renderPromptFor).toHaveBeenCalledWith({ channelId: 'channel-1', profile: MIRA });
+    expect(systemPromptRenderer.render).toHaveBeenCalledWith({ channelId: 'channel-1', profile: MIRA });
     expect(response).toStrictEqual({
       audience: 'invoker',
       text: [

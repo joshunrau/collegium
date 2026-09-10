@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
-import { ContextAssembler } from '@/turns/context/context.assembler.ts';
+import { SystemPromptRenderer } from '@/turns/context/system-prompt.renderer.ts';
 
 import { renderUsage } from '../commands.definitions.ts';
 import { CommandHandler } from '../commands.handler.ts';
@@ -19,8 +19,8 @@ export class InspectHandler extends CommandHandler {
 
   constructor(
     private readonly agentRegistry: AgentRegistry,
-    private readonly contextAssembler: ContextAssembler,
     private readonly skillsService: SkillsService,
+    private readonly systemPromptRenderer: SystemPromptRenderer,
     private readonly toolRegistry: ToolRegistry
   ) {
     super();
@@ -36,7 +36,7 @@ export class InspectHandler extends CommandHandler {
       return named.error;
     }
     const profile = named.value;
-    const prompt = await this.contextAssembler.renderPromptFor({ channelId: input.channelId, profile });
+    const prompt = await this.systemPromptRenderer.render({ channelId: input.channelId, profile });
     return {
       audience: 'invoker',
       text: renderInspectResponse({
