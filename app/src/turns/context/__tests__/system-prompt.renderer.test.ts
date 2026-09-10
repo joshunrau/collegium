@@ -54,20 +54,23 @@ describe('SystemPromptRenderer', () => {
 
   const render = () => systemPromptRenderer.render({ channelId: 'channel-1', profile: PROFILE });
 
-  it('should carry the agent prompt and the preamble alone when it has no skills, memories, or peers', async () => {
+  it('should include the behavioral baseline without an optional personality', async () => {
     const prompt = await render();
-    expect(prompt.startsWith('You are Mira.\n\n## How this works\n\n')).toBe(true);
+    expect(prompt.startsWith('You are Mira.\n\n## How you work\n\nBegin work when')).toBe(true);
+    expect(prompt.indexOf('## How this works')).toBeGreaterThan(prompt.indexOf('## How you work'));
+    expect(prompt).not.toContain('## Personality');
     expect(prompt).not.toContain('## Skills');
     expect(prompt).not.toContain('## Memories');
     expect(prompt).not.toContain('## Peers');
   });
 
-  it('should place the personality between the agent prompt and the preamble when one is set', async () => {
+  it('should place an optional personality between the behavioral baseline and the preamble', async () => {
     const prompt = await systemPromptRenderer.render({
       channelId: 'channel-1',
       profile: { ...PROFILE, personality: 'candid' }
     });
-    expect(prompt.startsWith('You are Mira.\n\n## Personality\n\n')).toBe(true);
+    expect(prompt.startsWith('You are Mira.\n\n## How you work\n\nBegin work when')).toBe(true);
+    expect(prompt.indexOf('## Personality')).toBeGreaterThan(prompt.indexOf('## How you work'));
     expect(prompt.indexOf('## Personality')).toBeLessThan(prompt.indexOf('## How this works'));
     expect(prompt).toContain('Never apologize for disagreeing.');
   });

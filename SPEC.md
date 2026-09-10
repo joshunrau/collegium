@@ -202,7 +202,13 @@ Each turn assembles context fresh from SQLite:
 5. Tool definitions
 6. **Channel window** — recent posts from the current channel, interleaved with the trace of this agent's own turns there (§8.2), walked backwards until a token budget is exhausted. The trace is never a peer's: an agent reads its colleagues through their posts alone.
 
-**The system prompt is the agent's own, then its personality if one is set, followed by a framework preamble.** A personality is one of a fixed set of stances the framework ships as prose and an operator selects by name, per agent or for every agent through `agentDefaults`. It is the one place for guidance about how the model ought to behave, and it is code rather than configuration so the set is versioned and documented with the framework. The preamble is code, not configuration: a fixed account of how the runtime behaves — posting, approval, the action budget and what is exempt from it, memory, peers, triggers, the prohibition on self-modification — written in Simplified Technical English and rendered on every turn with the deployment's actual budget. Every sentence in it states what the framework does, never what the model ought to do, so each holds whether or not the model complies; an instruction the model could decline does not belong there. It is what separates a runtime the model can reason about from the advisory prompts of §1.1. Deployment-wide guidance an operator wants every agent to carry is a different thing: it is a personality, or the agent's own prompt, and never part of the preamble.
+**The system prompt contains the agent's own prompt, the shared behavioral baseline, its optional personality, and the framework preamble.**
+
+The framework renders the behavioral baseline for every agent on every turn. It covers task intent, routine autonomy, scope changes, proportionate verification, collaboration, progress updates, reusable memory, and disagreement. These are advisory instructions about how the model should work, separate from runtime facts and optional tone.
+
+A personality adds a stance to that baseline. You select one of the framework's fixed personalities per agent or through `agentDefaults`. The baseline and personalities live in code and share the framework's version history.
+
+The preamble describes runtime behavior in Simplified Technical English, using the deployment's actual budgets and exemptions. It covers posting, approvals, memory, peers, triggers, and the prohibition on self-modification. Every sentence states a runtime fact that holds whether or not the model complies. This separates the runtime guarantees from the advisory instructions of §1.1. Additional deployment guidance belongs in a personality or an agent's own prompt.
 
 The token budget is a character-ratio estimate (~4 characters per token) behind a named seam. There is no tokenizer dependency.
 

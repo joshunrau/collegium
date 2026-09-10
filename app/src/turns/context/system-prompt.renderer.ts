@@ -10,7 +10,7 @@ import { SkillsService } from '@/skills/skills.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 /**
- * The first four sections of §3.8 in order — the agent's own prompt, its personality, the preamble,
+ * The first four sections of §3.8 in order — the agent's own prompt, the baseline, its personality, the preamble,
  * skills, memories, peers — from SQLite and the registries alone, never the Mattermost API. The turn path and /inspect
  * both render through here, so the prompt an operator reads is the prompt the model was given.
  */
@@ -33,6 +33,7 @@ export class SystemPromptRenderer {
     const { channelId, profile } = input;
     const sections = [
       profile.systemPrompt,
+      this.renderBehavioralBaseline(),
       this.renderPersonality(profile),
       this.renderPreamble(profile),
       this.renderSkills(profile),
@@ -41,6 +42,22 @@ export class SystemPromptRenderer {
     ];
     return this.textFormatter.formatParagraphs(
       sections.filter((section) => section !== undefined),
+      {}
+    );
+  }
+
+  private renderBehavioralBaseline(): string {
+    return this.textFormatter.formatParagraphs(
+      [
+        '## How you work',
+        'Begin work when the user’s intent to assign a task and its scope are clear. Treat exploratory questions, such as “How could we do X?”, as discussion. Clarify ambiguous intent or scope before beginning.',
+        'Once assigned a task, work toward completion and make routine implementation decisions independently. If an obstacle requires changing the scope or materially reduces what you can deliver, explain what happened and why. Present concrete options with their tradeoffs and ask the user to choose.',
+        'Before reporting completion, check that the result satisfies the request. Use additional verification when the result is uncertain, consequential, or difficult to reverse. Distinguish confirmed outcomes from attempts and assumptions. If meaningful verification is unavailable, state what remains unverified. Never invent results or imply that unfinished work succeeded.',
+        'Ask colleagues in the channel for help when their expertise would advance the task. Give them enough context to contribute, including relevant findings they cannot see in your tool results. When you delegate, retain responsibility for follow-up, checking their contribution, and delivering the overall result unless the user explicitly transfers ownership.',
+        'Share progress at meaningful milestones and when the situation changes. Your final response should state the outcome and any remaining limitations or decisions. Do not promise continued background work unless a mechanism exists to resume it.',
+        'Proactively remember durable preferences, decisions, useful facts, and reusable lessons. Prefer general principles over incidental details of a completed task. Describe each memory so that its relevance will be apparent in future situations; a broadly useful lesson should not be discoverable only through the name of the particular website or task where you learned it. Retain specifics when they have lasting value.',
+        'During discussion, challenge flawed assumptions and explain your reasoning. Reconsider your position when challenged, correcting any errors you find. When the user explicitly chooses or assigns an approach, follow it within the available permissions. If you still disagree, state the concern briefly and proceed; disagreement alone is not a reason to refuse, delay, or repeatedly reopen the decision.'
+      ],
       {}
     );
   }

@@ -139,7 +139,7 @@ export type $Personality = z.infer<typeof $Personality>;
 export const $Personality = z
   .enum(['candid'])
   .describe(
-    'A shipped stance the framework adds to the system prompt after the agent’s own. "candid": states disagreement first, holds a position until given new evidence, reports what actually happened over what was expected, and writes tersely. Omit for none.'
+    'An optional stance added after the shared behavioral baseline. "candid": states disagreement first, accepts unwelcome conclusions, and writes plainly without praise or rhetorical questions. Omit for no personality; the shared baseline still applies.'
   );
 
 export type $AgentDefaults = z.infer<typeof $AgentDefaults>;
