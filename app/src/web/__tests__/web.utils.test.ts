@@ -85,10 +85,25 @@ describe('renderWebSnapshot', () => {
     const snapshot: WebSnapshot = {
       formElements: [{ isFilled: false, isHidden: true, kind: 'input', label: 'Search', ref: 'e1', type: 'text' }],
       markdown: '# Faculty',
+      openedUrls: [],
       status: 200,
       title: 'Faculty',
       url: 'https://northmoor.example/'
     };
     expect(renderWebSnapshot(snapshot)).toContain('⟨e1⟩ input[type=text] "Search" (hidden — reveal it before acting)');
+  });
+
+  it('should name a tab the page opened, and say when it had no address yet', () => {
+    const snapshot: WebSnapshot = {
+      formElements: [],
+      markdown: '# Faculty',
+      openedUrls: ['https://northmoor.example/members', 'about:blank'],
+      status: 200,
+      title: 'Faculty',
+      url: 'https://northmoor.example/'
+    };
+    const rendered = renderWebSnapshot(snapshot);
+    expect(rendered).toContain('The page opened a new tab to https://northmoor.example/members; it was closed');
+    expect(rendered).toContain('The page opened a new tab to an address it had not yet loaded; it was closed');
   });
 });

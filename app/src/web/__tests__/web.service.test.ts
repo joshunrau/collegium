@@ -24,6 +24,7 @@ const fixture = (name: string): string => {
 const rendered = (over: Partial<RenderedCapture>): RenderedCapture => ({
   formElements: [],
   html: '<h1>Faculty</h1>',
+  openedUrls: [],
   status: 200,
   title: 'Faculty',
   url: 'https://northmoor.example/people/',

@@ -14,6 +14,7 @@ const { click, fetch, fill, hover, navigate } = WEB_TOOLSET.tools;
 const SNAPSHOT: WebSnapshot = {
   formElements: [{ isFilled: false, isHidden: false, kind: 'input', label: 'Search', ref: 'e1', type: 'text' }],
   markdown: '# Example Domain',
+  openedUrls: [],
   status: 200,
   title: 'Example',
   url: 'https://example.org/'
@@ -70,7 +71,7 @@ describe('WEB_TOOLSET', () => {
     const detail = fill.traceDetail?.({ pressEnter: true, ref: 'e1', text: 'hunter2' });
     expect(detail).toBe('⟨e1⟩ with 7 character(s) then press "Enter"');
     expect(detail).not.toContain('hunter2');
-    for (const tool of [click, fill, navigate]) {
+    for (const tool of [click, fill, hover, navigate]) {
       expect('approval' in tool).toBe(false);
       expect(tool.retryable).toBeUndefined();
     }

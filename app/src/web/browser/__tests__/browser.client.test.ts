@@ -162,22 +162,22 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
       const line = toMarkdown(html)
         .split('\n')
         .find((candidate) => candidate.includes(label));
-      const ref = line === undefined ? undefined : /⟨(e\d+)(?<hidden> hidden)?⟩/u.exec(line);
+      const ref = line === undefined ? undefined : /⟨(e\d+)⟩(?<hidden> \(hidden\))?/u.exec(line);
       if (!ref) {
         throw new Error(`no ref found for ${label}`);
       }
       return ref[0];
     };
     // the roster link is in the document from the start, so it is stamped — and unactionable
-    expect(refFor(portal.html, 'Répertoire des professeurs')).toMatch(/ hidden⟩$/u);
+    expect(refFor(portal.html, 'Répertoire des professeurs')).toMatch(/\(hidden\)$/u);
     const menuRef = /⟨(e\d+)⟩/u.exec(refFor(portal.html, 'Équipe'))![1]!;
     const revealed = (await session.hover(menuRef)).unwrap();
-    expect(refFor(revealed.html, 'Répertoire des professeurs')).not.toMatch(/ hidden⟩$/u);
+    expect(refFor(revealed.html, 'Répertoire des professeurs')).not.toMatch(/\(hidden\)$/u);
   });
 
   it('should refuse a click on a ref CSS hides rather than time out unexplained', async () => {
     const portal = (await session.navigate(`${baseUrl}/portal`)).unwrap();
-    const hidden = /⟨(e\d+) hidden⟩/u.exec(toMarkdown(portal.html));
+    const hidden = /⟨(e\d+)⟩ \(hidden\)/u.exec(toMarkdown(portal.html));
     if (!hidden) {
       throw new Error('no hidden ref was marked on the portal fixture');
     }
@@ -186,15 +186,17 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     expect(refused.error?.kind).toBe('not-visible');
   });
 
-  it('should follow a target=_blank link into the tab it opens', async () => {
+  it('should stay on the page when a link opens a tab, reporting the address it was closed at', async () => {
     const portal = (await session.navigate(`${baseUrl}/portal`)).unwrap();
     const menuRef = /\[Équipe\]\([^)]*\)⟨(e\d+)⟩/u.exec(toMarkdown(portal.html))![1]!;
     const revealed = (await session.hover(menuRef)).unwrap();
     const rosterRef = /\[Répertoire des professeurs\]\([^)]*\)⟨(e\d+)⟩/u.exec(toMarkdown(revealed.html))![1]!;
-    const opened = (await session.click(rosterRef)).unwrap();
-    expect(opened.url).toContain('/member-database');
-    expect(opened.status).toBe(200);
-    expect(toMarkdown(opened.html)).toContain('lachance@northmoor.example');
+    const after = (await session.click(rosterRef)).unwrap();
+    expect(after.url).toContain('/portal');
+    expect(after.openedUrls).toStrictEqual([`${baseUrl}/member-database`]);
+    const roster = (await session.navigate(after.openedUrls[0]!)).unwrap();
+    expect(roster.openedUrls).toStrictEqual([]);
+    expect(toMarkdown(roster.html)).toContain('lachance@northmoor.example');
   });
 
   it('should hand back a 404 as a page with a status, not a failure', async () => {

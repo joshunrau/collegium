@@ -4,6 +4,8 @@ import type { FormElement } from './snapshot/snapshot.types.ts';
 export type RenderedCapture = {
   readonly formElements: readonly FormElement[];
   readonly html: string;
+  /** addresses of tabs the page opened during the action, closed unvisited and left for the model to open itself */
+  readonly openedUrls: readonly string[];
   readonly status: number;
   readonly title: string;
   /** after redirects — not necessarily what was asked for */
@@ -22,6 +24,7 @@ export type WebPage = {
 /** one rendered page state: a page plus the controls a later action may target */
 export type WebSnapshot = WebPage & {
   readonly formElements: readonly FormElement[];
+  readonly openedUrls: readonly string[];
 };
 
 export declare namespace WebFailure {

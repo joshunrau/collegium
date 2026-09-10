@@ -11,7 +11,8 @@ import type { FormElement, SnapshotCapture } from './snapshot.types.ts';
  * Stamps every interactable in the live document with a `data-collegium-ref` attribute — reusing
  * existing stamps so a ref handed to the model can never come to mean a different element — then
  * serializes a clone with a visible `⟨eN⟩` marker beside each stamped element, leaving the live
- * document unmarked for the next action to target.
+ * document unmarked for the next action to target. A hidden element's mark reads `⟨eN⟩ (hidden)`:
+ * the delimiters hold the ref alone, since that is the token the model copies into an action.
  */
 export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
   const REF_ATTRIBUTE = 'data-collegium-ref';
@@ -24,9 +25,10 @@ export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
   };
 
   /**
-   * Playwright's own actionability test: an element with no box, or one CSS has turned invisible,
-   * can be clicked by no action. Stamping it anyway is right — a hover on its parent may reveal it —
-   * but the model has to be told, or it spends a click on a guaranteed timeout.
+   * Playwright's visibility test — no box, or CSS has turned it invisible — which is the check an
+   * action fails first; an element under an overlay passes it and still cannot be clicked. Stamping
+   * a hidden one is right — a hover on its parent may reveal it — but the model has to be told, or
+   * it spends a click on a guaranteed timeout.
    */
   const isHidden = (element: Element): boolean => {
     return element.getClientRects().length === 0 || getComputedStyle(element).visibility === 'hidden';
@@ -126,7 +128,7 @@ export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
   }
   for (const stamped of clone.querySelectorAll(`[${REF_ATTRIBUTE}]`)) {
     const ref = stamped.getAttribute(REF_ATTRIBUTE) ?? '';
-    const marker = document.createTextNode(hiddenRefs.has(ref) ? `⟨${ref} hidden⟩` : `⟨${ref}⟩`);
+    const marker = document.createTextNode(hiddenRefs.has(ref) ? `⟨${ref}⟩ (hidden)` : `⟨${ref}⟩`);
     stamped.parentNode?.insertBefore(marker, stamped.nextSibling);
   }
 

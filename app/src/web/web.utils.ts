@@ -41,6 +41,12 @@ function collapseTableRow(line: string): string {
   return TABLE_SEPARATOR_ROW.test(collapsed) ? collapsed.replaceAll(/-{2,}/g, '---') : collapsed;
 }
 
+/** a tab the page opened is closed unvisited; naming its address hands the choice, and the URL policy, back to the model */
+function renderOpenedTab(url: string): string {
+  const address = url === 'about:blank' ? 'an address it had not yet loaded' : url;
+  return `The page opened a new tab to ${address}; it was closed — open it with web::navigate or web::fetch if it matters.`;
+}
+
 /** Cleaned, post-render HTML to the markdown a model reads. Tables survive as tables (§3.4). */
 export function toMarkdown(html: string): string {
   return NodeHtmlMarkdown.translate(html.replace(DOCTYPE, '')).split('\n').map(collapseTableRow).join('\n').trim();
@@ -85,5 +91,6 @@ export function renderWebPage(page: WebPage): string {
 export function renderWebSnapshot(snapshot: WebSnapshot): string {
   const controls = snapshot.formElements.map((element) => renderFormElement(element));
   const formBlock = controls.length > 0 ? `\n\nForm controls:\n${controls.join('\n')}` : '';
-  return `${renderWebPage(snapshot)}${formBlock}`;
+  const tabsBlock = snapshot.openedUrls.length > 0 ? `\n\n${snapshot.openedUrls.map(renderOpenedTab).join('\n')}` : '';
+  return `${renderWebPage(snapshot)}${formBlock}${tabsBlock}`;
 }

@@ -11,6 +11,13 @@ export const MARKDOWN_CAP_CHARS = 1_000_000;
 /** the ceiling on one navigation — generous, because slow public sites are the normal case, not the exception */
 export const NAVIGATION_TIMEOUT_MS = 30_000;
 
+/**
+ * How long a capture waits for a tab the page opened to commit a navigation, so its address can be
+ * reported. Short, because the tab is closed regardless and the wait sits inside the action's
+ * timeout; a popup that has not committed by then is reported without an address.
+ */
+export const OPENED_TAB_URL_TIMEOUT_MS = 2_000;
+
 /** how long a click or fill waits for its element to become actionable before the failure is reported */
 export const ACTION_TIMEOUT_MS = 5_000;
 

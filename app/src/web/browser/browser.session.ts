@@ -9,24 +9,23 @@ import {
   DOM_SETTLE_MIN_MS,
   DOM_SETTLE_TIMEOUT_MS,
   NAVIGATION_TIMEOUT_MS,
-  NETWORK_IDLE_TIMEOUT_MS
+  NETWORK_IDLE_TIMEOUT_MS,
+  OPENED_TAB_URL_TIMEOUT_MS
 } from '../web.constants.ts';
-import { refuseNonWebScheme } from '../web.policy.ts';
 
 import type { RenderedCapture, WebFailure } from '../web.types.ts';
 
 /**
  * One live page and its ref numbering. The counter is held here — not in the page — so it
- * survives navigations and the adoption below: refs stay monotonic across the whole session, which
- * is what guarantees a stale ref can never alias onto a different element.
+ * survives navigations: refs stay monotonic across the whole session, which is what guarantees a
+ * stale ref can never alias onto a different element.
  */
 export class BrowserSession {
   private lastStatus = 0;
   private nextRefIndex = 0;
-  /** pages this context opened on its own — a `target=_blank` link, a `window.open` */
+  /** tabs this context opened on its own — a `target=_blank` link, a `window.open` — reported and closed by the next capture */
   private readonly opened: Page[] = [];
-  private page: Page;
-  private readonly statusByOpenedPage = new WeakMap<Page, number>();
+  private readonly page: Page;
 
   constructor(
     private readonly context: BrowserContext,
@@ -35,11 +34,6 @@ export class BrowserSession {
     this.page = page;
     context.on('page', (popup) => {
       this.opened.push(popup);
-      popup.on('response', (response) => {
-        if (response.request().isNavigationRequest() && response.frame() === popup.mainFrame()) {
-          this.statusByOpenedPage.set(popup, response.status());
-        }
-      });
     });
   }
 
@@ -103,8 +97,6 @@ export class BrowserSession {
     } catch (error) {
       return Result.err(this.asFailure(error));
     }
-    // a tab this navigation opened by itself is a popunder, not somewhere the model asked to be
-    this.opened.length = 0;
     return this.capture();
   }
 
@@ -134,35 +126,6 @@ export class BrowserSession {
     return this.capture();
   }
 
-  /**
-   * A click that opens a new tab leaves the model reading the page it clicked away from — the
-   * content it asked for is in a tab this seam cannot see. The newest tab becomes the session's
-   * page instead, which is where a person would be looking.
-   *
-   * Which host such a tab names is the page's business, as a redirect target is — §3.4's host rule
-   * bounds what the model may ask for, and this address it never asked for. The scheme is still
-   * judged, because leaving the web is not something a redirect can do either. A tab that is
-   * refused, or that never loaded, is closed and the session stays where it was.
-   *
-   * Called from `capture` rather than from the action, because the `page` event arrives a tick
-   * after the click resolves — by the time the settle waits below have run, it is here.
-   */
-  private async adoptOpenedPage(): Promise<boolean> {
-    const candidate = this.opened.splice(0).at(-1);
-    if (!candidate) {
-      return false;
-    }
-    await candidate.waitForLoadState('domcontentloaded', { timeout: NAVIGATION_TIMEOUT_MS }).catch(() => undefined);
-    const url = candidate.url();
-    if (url === 'about:blank' || refuseNonWebScheme(url) !== undefined) {
-      await candidate.close().catch(() => undefined);
-      return false;
-    }
-    this.page = candidate;
-    this.lastStatus = this.statusByOpenedPage.get(candidate) ?? this.lastStatus;
-    return true;
-  }
-
   private asFailure(error: unknown): WebFailure.Navigation | WebFailure.Unreachable {
     const message = error instanceof Error ? error.message : String(error);
     if (this.page.isClosed() || this.context.browser()?.isConnected() === false) {
@@ -174,15 +137,13 @@ export class BrowserSession {
   private async capture(): Promise<Result<RenderedCapture, WebFailure.Navigation | WebFailure.Unreachable>> {
     try {
       await this.settle(this.page);
-      // only a tab that was actually adopted pays for a second settle
-      if (await this.adoptOpenedPage()) {
-        await this.settle(this.page);
-      }
+      const openedUrls = await this.closeOpenedTabs();
       const snapshot = await this.page.evaluate(captureSnapshot, this.nextRefIndex);
       this.nextRefIndex = snapshot.nextRefIndex;
       return Result.ok({
         formElements: snapshot.formElements,
         html: snapshot.html,
+        openedUrls,
         status: this.lastStatus,
         title: await this.page.title(),
         url: this.page.url()
@@ -190,6 +151,24 @@ export class BrowserSession {
     } catch (error) {
       return Result.err(this.asFailure(error));
     }
+  }
+
+  /**
+   * A tab the page opened is never followed: the session stays on the page the model asked for,
+   * and the tab's address is reported so the model can open it with navigate or fetch, where the
+   * §3.4 URL policy judges it like any other. The wait is for the address alone — a popup's URL
+   * is `about:blank` until its navigation commits — and is short, since the tab is closed either
+   * way; one that never committed is reported as such.
+   */
+  private async closeOpenedTabs(): Promise<string[]> {
+    const tabs = this.opened.splice(0);
+    const urls: string[] = [];
+    for (const tab of tabs) {
+      await tab.waitForLoadState('domcontentloaded', { timeout: OPENED_TAB_URL_TIMEOUT_MS }).catch(() => undefined);
+      urls.push(tab.url());
+      await tab.close().catch(() => undefined);
+    }
+    return urls;
   }
 
   private async settle(page: Page): Promise<void> {

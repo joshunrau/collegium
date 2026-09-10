@@ -25,9 +25,9 @@ describe('captureSnapshot', () => {
     </body></html>`);
     const capture = captureSnapshot(0);
     const refOf = (id: string): string => document.getElementById(id)!.getAttribute('data-collegium-ref')!;
-    expect(capture.html).toContain(`⟨${refOf('buried')} hidden⟩`);
+    expect(capture.html).toContain(`⟨${refOf('buried')}⟩ (hidden)`);
     expect(capture.html).toContain(`⟨${refOf('open')}⟩`);
-    expect(capture.html).not.toContain(`⟨${refOf('open')} hidden⟩`);
+    expect(capture.html).not.toContain(`⟨${refOf('open')}⟩ (hidden)`);
   });
 
   it('should stamp every interactable with a unique ref and advance the index', () => {

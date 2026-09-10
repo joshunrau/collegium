@@ -162,6 +162,7 @@ export class WebService {
     return Result.ok({
       formElements: rendered.value.formElements,
       markdown,
+      openedUrls: rendered.value.openedUrls,
       status: rendered.value.status,
       title: rendered.value.title,
       url: rendered.value.url
