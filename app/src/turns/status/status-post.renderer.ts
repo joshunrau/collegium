@@ -60,8 +60,12 @@ export function renderBudgetExhaustedNotice(limit: number): string {
 }
 
 /** §5.3 — unbounded extensions, but the human in the loop is the control and the control needs the number */
-export function renderExtensionPrompt(input: { attemptsSoFar: number; extensionNumber: number }): string {
-  return `I have used all my action attempts and would like to keep going. This would be extension ${input.extensionNumber}; ${input.attemptsSoFar} attempts so far. Approving grants another ten.`;
+export function renderExtensionPrompt(input: {
+  attemptsSoFar: number;
+  extensionNumber: number;
+  grant: number;
+}): string {
+  return `I have used all my action attempts and would like to keep going. This would be extension ${input.extensionNumber}; ${input.attemptsSoFar} attempts so far. Approving grants another ${input.grant}.`;
 }
 
 /** §7.4 — enforcement is in the framework, not the prompt; the visible line is fixed by the spec */

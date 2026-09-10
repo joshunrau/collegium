@@ -20,6 +20,10 @@ export class ActionBudget {
     return !this.extensionsRefused;
   }
 
+  get baseCount(): number {
+    return this.base;
+  }
+
   get extensionCount(): number {
     return this.extensions;
   }

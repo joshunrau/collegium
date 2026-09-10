@@ -146,9 +146,7 @@ export function renderSystemPrompt(input: {
   }
   if (input.peers.length > 0) {
     const listing = input.peers.map((peer) => `- @${peer.username} — ${peer.expertise}`).join('\n');
-    sections.push(
-      `## Peers\n\nColleagues in this channel. Hand work to one by mentioning them, one per message:\n\n${listing}`
-    );
+    sections.push(`## Peers\n\nColleagues in this channel:\n\n${listing}`);
   }
   return sections.join('\n\n');
 }

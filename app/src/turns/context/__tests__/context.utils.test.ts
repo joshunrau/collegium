@@ -195,7 +195,7 @@ Your saved memories; read a full body with memory__read when it matters:
 
 ## Peers
 
-Colleagues in this channel. Hand work to one by mentioning them, one per message:
+Colleagues in this channel:
 
 - @tess — scheduling`
     );

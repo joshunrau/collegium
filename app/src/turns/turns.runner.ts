@@ -446,7 +446,7 @@ export class TurnRunner {
   }
 
   /**
-   * §5.3 — on exhaustion the turn blocks on an approval to extend. Approving grants a further ten
+   * §5.3 — on exhaustion the turn blocks on an approval to extend. Approving grants a further batch of
    * attempts against the context accumulated so far; a bare denial ends the turn; a denial carrying
    * a reason ends the turn's actions but not its voice, so the reason comes back for the agent to
    * conclude in words. A turn whose extensions were already refused is never prompted twice.
@@ -471,7 +471,11 @@ export class TurnRunner {
       args: { attemptsSoFar: state.budget.spentCount, extensionNumber },
       channelId: input.channelId,
       payloadPresentation: 'collapse',
-      payloadText: renderExtensionPrompt({ attemptsSoFar: state.budget.spentCount, extensionNumber }),
+      payloadText: renderExtensionPrompt({
+        attemptsSoFar: state.budget.spentCount,
+        extensionNumber,
+        grant: state.budget.baseCount
+      }),
       toolName: 'extend_budget',
       toolNamespace: null,
       turnId: state.turn.id
