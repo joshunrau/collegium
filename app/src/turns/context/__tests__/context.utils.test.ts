@@ -34,7 +34,11 @@ const PEER = { expertise: 'scheduling', username: 'tess' } as AgentProfile;
 
 const PROFILE = { expertise: 'testing', systemPrompt: 'You are Mira.', username: 'mira' } as AgentProfile;
 
-const PREAMBLE = { actionBudget: 10, budgetExemptToolNames: ['builtins__now', 'skills__load'] };
+const PREAMBLE = {
+  actionBudget: 10,
+  budgetExemptToolNames: ['builtins__now', 'skills__load'],
+  contextBudgetTokens: 8000
+};
 
 describe('toCompletionMessages', () => {
   it('should attribute a peer post and speak the agent own observed posts as the assistant', () => {
@@ -177,9 +181,14 @@ describe('toCompletionMessages', () => {
 
 describe('renderPreamble', () => {
   it('should state the configured budget and the calls exempt from it', () => {
-    const preamble = renderPreamble({ actionBudget: 7, budgetExemptToolNames: ['builtins__now', 'skills__load'] });
+    const preamble = renderPreamble({
+      actionBudget: 7,
+      budgetExemptToolNames: ['builtins__now', 'skills__load'],
+      contextBudgetTokens: 12_000
+    });
     expect(preamble).toContain('Each turn has a budget of 7 tool calls.');
     expect(preamble).toContain('Calls to builtins__now and skills__load do not.');
+    expect(preamble).toContain('fits your context to about 12000 tokens');
   });
 });
 

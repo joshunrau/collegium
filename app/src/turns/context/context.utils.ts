@@ -118,17 +118,24 @@ export function toCompletionMessages(entries: readonly WindowEntry[], selfUserna
   });
 }
 
-export function renderPreamble(input: { actionBudget: number; budgetExemptToolNames: readonly string[] }): string {
+export type PreambleInput = {
+  readonly actionBudget: number;
+  readonly budgetExemptToolNames: readonly string[];
+  readonly contextBudgetTokens: number;
+};
+
+export function renderPreamble(input: PreambleInput): string {
   return format(PREAMBLE, {
     actionBudget: input.actionBudget,
-    budgetExemptCalls: CONJUNCTION.format(input.budgetExemptToolNames)
+    budgetExemptCalls: CONJUNCTION.format(input.budgetExemptToolNames),
+    contextBudgetTokens: input.contextBudgetTokens
   });
 }
 
 export function renderSystemPrompt(input: {
   memories: readonly { description: string; reference: string }[];
   peers: readonly AgentProfile[];
-  preamble: { actionBudget: number; budgetExemptToolNames: readonly string[] };
+  preamble: PreambleInput;
   profile: AgentProfile;
   skillManifest: string;
 }): string {

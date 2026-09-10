@@ -66,7 +66,8 @@ export class ContextAssembler {
       peers: this.rosterService.getPeers(channelId, profile.username),
       preamble: {
         actionBudget: this.actionBudget,
-        budgetExemptToolNames: this.toolRegistry.listBudgetExemptFor(profile)
+        budgetExemptToolNames: this.toolRegistry.listBudgetExemptFor(profile),
+        contextBudgetTokens: profile.contextBudgetTokens
       },
       profile,
       skillManifest: this.skillsService.renderManifest(profile)
