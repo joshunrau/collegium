@@ -127,7 +127,7 @@ describe('TurnRunner', () => {
         TurnControlRegistry,
         TurnFoldRegistry,
         { provide: ApprovalsService, useValue: approvalsService },
-        { provide: ConfigService, useValue: createConfigServiceMock() },
+        { provide: ConfigService, useValue: createConfigServiceMock({ turns: { actionBudget: 10 } }) },
         { provide: ContextAssembler, useValue: contextAssembler },
         { provide: ConversationsService, useValue: conversationsService },
         { provide: InferenceRegistry, useValue: inferenceRegistry },

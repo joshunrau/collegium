@@ -89,7 +89,7 @@ describe('$Config', () => {
       notifications: { lifecycle: true },
       plugins: [],
       providers: { deepseek: { baseUrl: 'https://api.deepseek.com' } },
-      turns: { actionBudget: 10, delegationDepthLimit: 10, hourlyCeiling: 250 }
+      turns: { actionBudget: 25, delegationDepthLimit: 10, hourlyCeiling: 500 }
     });
   });
 

@@ -33,8 +33,8 @@ export const CONFIG_DEFAULTS = {
     openrouter: { baseUrl: 'https://openrouter.ai/api/v1' }
   },
   turns: {
-    actionBudget: 10,
+    actionBudget: 25,
     delegationDepthLimit: 10,
-    hourlyCeiling: 250
+    hourlyCeiling: 500
   }
 } as const;

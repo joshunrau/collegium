@@ -384,7 +384,7 @@ An unaddressed fragment the running turn absorbs (§4.4) is neither queued nor a
 
 ### **5.3 Action Budget**
 
-**Ten action attempts per turn** (`turns.actionBudget`). An action attempt is one model-emitted tool invocation, _including invocations denied before execution._ Not counted: framework transport retries, framework posting, and the tools declared budget-exempt (§3.4) — `skills::load` and `memory::read`, the exemption being for loading context the framework already holds. A plugin cannot declare one.
+**Twenty-five action attempts per turn** (`turns.actionBudget`). An action attempt is one model-emitted tool invocation, _including invocations denied before execution._ Not counted: framework transport retries, framework posting, and the tools declared budget-exempt (§3.4) — `skills::load` and `memory::read`, the exemption being for loading context the framework already holds. A plugin cannot declare one.
 
 On exhaustion the agent posts what it has and requests approval to extend. Approving grants a further ten attempts and preserves accumulated context. Extensions are unbounded in number, but each prompt carries the running count — _extension 4; 40 attempts so far_ — because the human in the loop is the control, and the control needs the number.
 
@@ -508,7 +508,7 @@ Agent-to-agent mentions make unbounded chains possible: each turn is individuall
 
 Enforcement is in the framework, not the prompt. Prompt-level constraints are advisory, and advisory constraints are what produced Hermes.
 
-**Global ceiling: 250 turns per hour, framework-wide** (`turns.hourlyCeiling`). Breach halts all agents, posts prominently, and requires an explicit `/collegium resume`. A halt invalidates pending approval prompts, as a restart does. While a halt stands, queues do not drain and triggers are not flushed — a trigger posted into a halted channel would strand, the exact outcome idle-gating exists to prevent. On clearing, `/collegium resume` runs the same drain-and-flush sweep boot performs.
+**Global ceiling: 500 turns per hour, framework-wide** (`turns.hourlyCeiling`). Breach halts all agents, posts prominently, and requires an explicit `/collegium resume`. A halt invalidates pending approval prompts, as a restart does. While a halt stands, queues do not drain and triggers are not flushed — a trigger posted into a halted channel would strand, the exact outcome idle-gating exists to prevent. On clearing, `/collegium resume` runs the same drain-and-flush sweep boot performs.
 
 **`/collegium resume` refuses only what it can objectively re-check.** A §3.10 topology violation is a fact about membership, so a halt raised by one stands until membership is fixed. A ceiling halt clears on the human's authority: the rolling window is reset and a fresh allowance begins. The halt exists to stop a chain and put a human in front of it; once they have looked, their judgement is the control the system was routing to, and a check that overrides it while offering no way to say _"I have seen it and it is fine"_ turns an emergency brake into a timer — which is not something a human can be accountable for.
 
