@@ -55,6 +55,8 @@ enum TurnStatus {
   halted
   killed
   provider_outage
+  provider_rejected
+  delivery_failure
   running
   semantic_error
   side_effect_ambiguous

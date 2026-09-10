@@ -131,12 +131,11 @@ describe('ContextAssembler', () => {
     expect(request.messages).toStrictEqual([
       { content: '@casey: hello @mira', role: 'user' },
       { content: 'on it', role: 'assistant' },
-      { content: 'checking', role: 'assistant' },
-      { content: '[read_memory result] the body', role: 'user' }
+      { content: 'checking', role: 'assistant' }
     ]);
   });
 
-  it('should render a dangling tool call as text rather than a native call a provider would reject', async () => {
+  it('should drop a call history cannot answer rather than send a native call a provider would reject', async () => {
     windowService.build.mockResolvedValue([
       event(
         {
@@ -149,9 +148,6 @@ describe('ContextAssembler', () => {
       event({ approvalId: 'a1', byUsername: 'casey', decision: 'denied', kind: 'approval_decided' }, 2000)
     ]);
     const request = await assemble();
-    expect(request.messages).toStrictEqual([
-      { content: '[called write_file({"path":"notes.md"})]', role: 'assistant' },
-      { content: '[approval denied]', role: 'user' }
-    ]);
+    expect(request.messages).toStrictEqual([{ content: '[approval denied]', role: 'user' }]);
   });
 });

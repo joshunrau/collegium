@@ -99,6 +99,7 @@ export class ToolExecutor {
       agentUsername: input.turn.agentUsername,
       appendEvent: input.appendEvent,
       args,
+      callId: input.call.id,
       channelId: input.turn.channelId,
       payloadPresentation: payload.presentation,
       payloadText: payload.body,
@@ -163,7 +164,7 @@ export class ToolExecutor {
     return {
       detail: `the approval prompt could not be delivered: ${JSON.stringify(failure)}`,
       kind: 'terminal',
-      status: 'provider_outage'
+      status: 'delivery_failure'
     };
   }
 

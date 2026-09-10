@@ -74,7 +74,11 @@ export class WindowService {
     });
   }
 
-  /** every entry costs at least one token, so a fetch this size can never cut the walk short */
+  /**
+   * Every entry costs at least one token, so a fetch this size can never cut the walk short. A post
+   * the reading agent's own turn authored is left out: the turn's final `assistant_message` event
+   * already carries that text with the reasoning behind it, and a notice is the framework speaking.
+   */
   private newestPosts(input: WindowInput, boundary: undefined | WindowBoundary): Promise<ModelRow<'Post'>[]> {
     return this.posts.findMany({
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -82,6 +86,7 @@ export class WindowService {
       where: {
         channelId: input.channelId,
         isForgotten: false,
+        NOT: { authoringTurnId: { not: null }, authorUsername: input.agentUsername },
         ...(boundary && { createdAt: { gt: boundary.postsAfter } })
       }
     });

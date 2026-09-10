@@ -131,6 +131,7 @@ describe('ToolExecutor', () => {
     const attempt = await execute('fixture__gated', { value: 'deploy' });
     expect(approvalsService.request).toHaveBeenCalledWith(
       expect.objectContaining({
+        callId: 'call-1',
         payloadPresentation: 'verbatim',
         payloadText: 'run deploy',
         toolName: 'gated',

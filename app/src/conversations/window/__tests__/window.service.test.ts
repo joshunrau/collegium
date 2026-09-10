@@ -10,6 +10,8 @@ import { EpisodesService } from '../../episodes/episodes.service.ts';
 import { WindowService } from '../window.service.ts';
 
 type PostRow = {
+  authoringTurnId: null | string;
+  authorUsername: string;
   channelId: string;
   createdAt: Date;
   id: string;
@@ -21,6 +23,8 @@ type TurnRef = { agentUsername: string; channelId: string };
 type EventRow = { createdAt: Date; id: string; payload: unknown; sequence: number; turn: TurnRef };
 
 const post = (id: string, at: number, overrides: Partial<PostRow> = {}): PostRow => ({
+  authoringTurnId: null,
+  authorUsername: 'casey',
   channelId: 'channel-1',
   createdAt: new Date(at),
   id,
@@ -94,6 +98,16 @@ describe('WindowService', () => {
     const posts = [post('post-1', 1000), post('post-2', 2000, { isForgotten: true }), post('post-3', 3000)];
     const entries = await build(posts, []);
     expect(identify(entries)).toStrictEqual(['post-1', 'post-3']);
+  });
+
+  it("should leave out the posts the reading agent's own turns authored, keeping ones it merely observed", async () => {
+    const posts = [
+      post('post-1', 1000, { authoringTurnId: 'turn-1', authorUsername: 'mira' }),
+      post('post-2', 2000, { authorUsername: 'mira' }),
+      post('post-3', 3000, { authoringTurnId: 'turn-2', authorUsername: 'tess' })
+    ];
+    const entries = await build(posts, []);
+    expect(identify(entries)).toStrictEqual(['post-2', 'post-3']);
   });
 
   it("should interleave the reading agent's own turn trace in time order, never a peer's", async () => {

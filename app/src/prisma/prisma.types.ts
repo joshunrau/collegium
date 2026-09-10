@@ -15,16 +15,20 @@ type TurnEventPayloadByKind = {
   approval_decided: {
     approvalId: string;
     byUsername: string;
+    /** the tool call the approval gated; absent for a framework action such as the budget extension */
+    callId?: string;
     decision: ApprovalDecisionStatus;
     reason?: string;
   };
   approval_requested: {
     approvalId: string;
+    callId?: string;
     payloadText: string;
     toolName: PrismaJson.RecordedToolName;
   };
   assistant_message: {
     content: string;
+    reasoningContent?: string;
     toolCalls: RecordedToolCall[];
   };
   record_written: {

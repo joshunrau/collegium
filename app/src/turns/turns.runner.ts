@@ -39,6 +39,7 @@ import {
   renderBudgetExhaustedNotice,
   renderContextShortfallLine,
   renderDelegationLimitNotice,
+  renderDeliveryFailureNotice,
   renderDenialNotice,
   renderExtensionPrompt,
   renderProviderOutageNotice,
@@ -207,9 +208,11 @@ export class TurnRunner {
       await this.postNotice(input, state, renderSemanticErrorNotice('my reply could not be understood'));
       return this.close(state, 'semantic_error');
     }
-    const notice =
-      failure.kind === 'provider' ? renderProviderRejectionNotice(failure.status) : renderProviderOutageNotice();
-    await this.postNotice(input, state, notice);
+    if (failure.kind === 'provider') {
+      await this.postNotice(input, state, renderProviderRejectionNotice(failure.status));
+      return this.close(state, 'provider_rejected');
+    }
+    await this.postNotice(input, state, renderProviderOutageNotice());
     return this.close(state, 'provider_outage');
   }
 
@@ -228,8 +231,8 @@ export class TurnRunner {
       });
     }
     const notice = match(attempt.status)
+      .with('delivery_failure', () => renderDeliveryFailureNotice())
       .with('denied', () => renderDenialNotice())
-      .with('provider_outage', () => renderProviderOutageNotice())
       .with('semantic_error', () => renderSemanticErrorNotice(attempt.detail))
       .with('side_effect_ambiguous', () => renderSideEffectAmbiguityNotice(call.displayName))
       // §7.5 — a cancellation posts no follow-up; the command or halt already spoke
@@ -242,17 +245,27 @@ export class TurnRunner {
   }
 
   /**
-   * A reply that could not be posted is not a completion: §7.1 defines normal completion as
-   * visible as the final post. The turn closes as an outage — a non-progress exit, so the queue
-   * is left standing rather than drained into the same dead substrate — and the undelivered text
-   * is recorded in the trace so it exists somewhere.
+   * The final completion is recorded as an event whether or not it posts: with its reasoning, it is
+   * what the window replays, and the post is only the channel's copy. A reply that could not be
+   * posted is not a completion — §7.1 defines normal completion as visible as the final post — so
+   * the turn closes as a delivery failure, a non-progress exit.
    */
-  private async closeWithFinalOutput(input: RunInput, state: TurnState, content: string): Promise<TurnOutcome> {
+  private async closeWithFinalOutput(
+    input: RunInput,
+    state: TurnState,
+    content: string,
+    reasoningContent: string | undefined
+  ): Promise<TurnOutcome> {
+    await this.turnsService.appendEvent(state.turn.id, {
+      content,
+      kind: 'assistant_message',
+      toolCalls: [],
+      ...(reasoningContent !== undefined && { reasoningContent })
+    });
     const sent = await state.transport.send({ channelId: input.channelId, text: content });
     if (!sent.success) {
       this.loggingService.error(new Error(`failed to post final output: ${sent.error.message}`));
-      await this.turnsService.appendEvent(state.turn.id, { content, kind: 'assistant_message', toolCalls: [] });
-      return this.close(state, 'provider_outage');
+      return this.close(state, 'delivery_failure');
     }
     await this.conversationsService.record(
       {
@@ -338,7 +351,8 @@ export class TurnRunner {
         args: call.arguments,
         callId: call.id,
         toolName: recordedNameOf(call)
-      }))
+      })),
+      ...(completion.reasoningContent !== undefined && { reasoningContent: completion.reasoningContent })
     });
     state.messages.push({
       content: completion.content,
@@ -462,7 +476,7 @@ export class TurnRunner {
       turnId: state.turn.id
     });
     if (!decision.success) {
-      return { kind: 'ended', outcome: await this.close(state, 'provider_outage') };
+      return { kind: 'ended', outcome: await this.close(state, 'delivery_failure') };
     }
     return (
       match<ApprovalDecision, Promise<Exhaustion>>(decision.value)
@@ -580,7 +594,7 @@ export class TurnRunner {
         const content = await this.enforceDepthLimit(input, state, completion.value.content);
         let rejection = this.rejectionOf(input, content);
         if (rejection === undefined) {
-          return this.closeWithFinalOutput(input, state, content);
+          return this.closeWithFinalOutput(input, state, content, completion.value.reasoningContent);
         }
         if (state.budget.trySpendOnRejectedPost() === 'exhausted') {
           const exhaustion = await this.handleExhaustion(input, state);

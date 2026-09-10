@@ -34,7 +34,7 @@ export type ModelTable<TRow extends object> = {
 /**
  * An in-memory stand-in for one Prisma model delegate, implementing only the query surface the
  * services actually use: equality/`in`/`startsWith`/date-range where-matching, nested relation conditions,
- * ordered `orderBy`, `select` projection, `include` attachment, and P2002 emulation on create.
+ * `AND`/`OR`/`NOT`, ordered `orderBy`, `select` projection, `include` attachment, and P2002 emulation on create.
  */
 export function createModelTable<TRow extends object>(options: ModelTableOptions<TRow> = {}): ModelTable<TRow> {
   const rows: TRow[] = [];
@@ -104,9 +104,21 @@ export function createModelTable<TRow extends object>(options: ModelTableOptions
     if (!where) {
       return true;
     }
-    return Object.entries(where).every(
-      ([field, condition]) => condition === undefined || matchesCondition(resolveField(row, field), condition)
-    );
+    return Object.entries(where).every(([field, condition]) => {
+      if (condition === undefined) {
+        return true;
+      }
+      if (field === 'AND') {
+        return [condition].flat().every((clause) => matchesWhere(row, clause as object));
+      }
+      if (field === 'OR') {
+        return [condition].flat().some((clause) => matchesWhere(row, clause as object));
+      }
+      if (field === 'NOT') {
+        return ![condition].flat().some((clause) => matchesWhere(row, clause as object));
+      }
+      return matchesCondition(resolveField(row, field), condition);
+    });
   };
 
   const sorted = (matching: TRow[], orderBy: OrderByClause | OrderByClause[] | undefined): TRow[] => {

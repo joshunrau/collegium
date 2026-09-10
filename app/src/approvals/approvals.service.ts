@@ -129,8 +129,10 @@ export class ApprovalsService {
     }
     await this.approvals.updateMany({ data: { promptPostId: posted.value.postId }, where: { id: approvalId } });
     await this.rewriteIfResolvedMeanwhile(input, approvalId, posted.value.postId, pendingDecision);
+    const callId = input.callId === undefined ? {} : { callId: input.callId };
     await input.appendEvent({
       approvalId,
+      ...callId,
       kind: 'approval_requested',
       payloadText: input.payloadText,
       toolName: input.toolNamespace === null ? input.toolName : [input.toolNamespace, input.toolName]
@@ -140,6 +142,7 @@ export class ApprovalsService {
       await input.appendEvent({
         approvalId,
         byUsername: decision.byUsername,
+        ...callId,
         decision:
           decision.kind === 'approved' ? 'approved' : decision.kind === 'denied' ? 'denied' : 'denied_with_reason',
         kind: 'approval_decided',

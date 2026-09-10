@@ -79,6 +79,7 @@ describe('ApprovalsService', () => {
       return Promise.resolve();
     },
     args: { path: 'notes.md' },
+    callId: 'call-1',
     channelId: 'channel-1',
     payloadPresentation: 'collapse' as const,
     payloadText: 'write notes.md with 12 words',
@@ -105,6 +106,7 @@ describe('ApprovalsService', () => {
     expect(decision.value).toStrictEqual({ byUsername: 'casey', kind: 'approved' });
     expect(rows[0]).toMatchObject({ decidedByUsername: 'casey', status: 'approved' });
     expect(events.map((event) => event.kind)).toStrictEqual(['approval_requested', 'approval_decided']);
+    expect(events.map((event) => 'callId' in event && event.callId)).toStrictEqual(['call-1', 'call-1']);
     expect(updates.at(-1)?.text).toContain('**Approved** by @casey');
   });
 

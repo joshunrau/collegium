@@ -11,10 +11,12 @@ const OUTCOME_LINES: { readonly [K in Exclude<TurnStatus, 'running'>]: string } 
   abandoned: '⚪ _abandoned — the process restarted mid-turn_',
   budget_exhausted: '⏸️ _stopped — action budget exhausted_',
   completed: '✅ _done_',
+  delivery_failure: '⚠️ _stopped — the chat server refused a post_',
   denied: '🛑 _stopped — a human denied an action_',
   halted: '🛑 _stopped — global halt_',
   killed: '⏹️ _killed_',
   provider_outage: '⚠️ _stopped — the model provider failed_',
+  provider_rejected: '⚠️ _stopped — the model provider rejected the request_',
   semantic_error: '⚠️ _stopped — internal error_',
   side_effect_ambiguous: '⚠️ _stopped — a call timed out with its effect unconfirmed_',
   stopped: '⏹️ _stopped_'
@@ -93,6 +95,11 @@ export function renderSupersededLine(description: string): string {
 
 export function renderProviderOutageNotice(): string {
   return '⚠️ **Error**: Failed to reach the model provider';
+}
+
+/** §7.1 — the chat substrate, not the model provider, refused a post the turn had to make */
+export function renderDeliveryFailureNotice(): string {
+  return '⚠️ **Error**: The chat server refused a post I had to make';
 }
 
 /**

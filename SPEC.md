@@ -241,10 +241,10 @@ Private reasoning is any intermediate model computation that is not emitted as u
 - is never requested as part of an agent’s response;
 - is never posted to Mattermost;
 - is never included in an approval prompt;
-- is never stored in SQLite;
-- is never returned by `/collegium trace`;
+- is never returned by `/collegium trace` or `/collegium inspect`;
+- is never written to a log line.
 
-Where a model provider reports reasoning-token usage or similar accounting metadata, the framework may store the usage count, but not the reasoning content.
+It is stored in SQLite beside the completion that produced it, for one purpose: a thinking-mode provider refuses to continue from an assistant message whose reasoning it is not handed back, so the channel window replays it to the provider and to nothing else. Where a model provider reports reasoning-token usage or similar accounting metadata, the framework may store the usage count.
 
 ### **3.13 Mail**
 
@@ -454,13 +454,14 @@ Every way a turn can stop, and what the human sees:
 - **Semantic error** — a call whose _shape_ the model got wrong: unparseable arguments, a missing or mistyped field, an unknown tool, a tool exception. Ends immediately. Error posted under the agent's name. A well-formed call whose _value_ the domain refuses is not this (§7.2).
 - **Side-effect ambiguity** — a mutating call times out. Ends, with an explicit statement that completion cannot be confirmed.
 - **Provider outage** — completion fails after retries. Ends. Failure posted under the agent's name.
+- **Provider rejection** — the provider refused the request itself: a 4xx other than a rate limit, most often a request the framework built wrong. Ends. Never retried, since the same request would be refused again. Failure posted under the agent's name, naming the status code.
 - **Delivery failure** — the chat substrate refused a post the turn had to make. Ends, carrying the substrate's own reason. This is **not** a provider outage: naming the wrong system sends the reader to the wrong place. Where the refusal is total — an agent posting into a channel it does not belong to — there is no post to point at at all, which is A1's failure mode and must be loud in the operational record even though the channel stays silent.
 - **`/collegium stop`** — human command. Ends at the next iteration boundary. Stop notice posted.
 - **`/collegium kill`** — human command. Ends immediately; an in-flight tool may still complete.
 - **Global halt** — hourly ceiling breached. All agents stop; prominent post; requires `/collegium resume`.
 - **Restart** — deploy or crash. All in-flight turns abandoned; one system-bot notice in the main channel.
 
-In every case the channel lock is released. The queue drains into a fresh turn only when the exit allows progress — normal completion, denial, budget exhaustion, `/collegium stop`, `/collegium kill`. After a provider outage, semantic error, side-effect ambiguity, or delivery failure — and while a global halt stands — the queue is left standing: a fresh turn would inherit the same failure, and a drain loop bounded only by the hourly ceiling would halt the whole framework over one dead provider. A standing queue drains at the next human post, the next idle trigger flush, or the boot/`/collegium resume` sweep — all human-visible moments. There is no retry timer: a slow retry loop is still the graceful degradation A4 rejects.
+In every case the channel lock is released. The queue drains into a fresh turn only when the exit allows progress — normal completion, denial, budget exhaustion, `/collegium stop`, `/collegium kill`. After a provider outage or rejection, semantic error, side-effect ambiguity, or delivery failure — and while a global halt stands — the queue is left standing: a fresh turn would inherit the same failure, and a drain loop bounded only by the hourly ceiling would halt the whole framework over one dead provider. A standing queue drains at the next human post, the next idle trigger flush, or the boot/`/collegium resume` sweep — all human-visible moments. There is no retry timer: a slow retry loop is still the graceful degradation A4 rejects.
 
 ### **7.2 Retry Policy**
 

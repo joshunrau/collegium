@@ -74,6 +74,14 @@ describe('renderTrace', () => {
     expect(text).toContain('1. record m1 written: release cadence — ships on Fridays');
   });
 
+  it('should leave the reasoning behind a completion out of the trace (§3.12)', () => {
+    const text = renderTrace(TURN, [
+      event({ content: 'done', kind: 'assistant_message', reasoningContent: 'private thoughts', toolCalls: [] })
+    ]);
+    expect(text).toContain('1. assistant: done');
+    expect(text).not.toContain('private thoughts');
+  });
+
   it('should render a raw name for a call that resolved to no tool', () => {
     const text = renderTrace(TURN, [
       event({

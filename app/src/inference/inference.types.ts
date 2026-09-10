@@ -2,7 +2,7 @@ import type { $ModelRef } from '@collegium/config';
 
 import type { ToolSchema } from '@/core/core.types.ts';
 
-/** what a provider reports having spent; reasoning content itself is never stored (§3.12) */
+/** what a provider reports having spent */
 export type TokenUsage = {
   readonly completionTokens: number;
   readonly promptTokens: number;
@@ -16,9 +16,10 @@ export type ToolCall = {
 };
 
 /**
- * Reasoning rides only on the in-memory messages of the turn that produced it: a thinking-mode
- * provider rejects a replayed tool call without it, and §3.12 forbids it anywhere durable — never
- * copy it into a TurnEvent, a post, or a log line.
+ * Reasoning travels with the assistant message it produced, in memory within the turn and through
+ * the `assistant_message` event across turns, because a thinking-mode provider rejects a replayed
+ * assistant message without it. §3.12 keeps it off every other surface: never a post, a prompt, a
+ * trace, or a log line.
  */
 export type CompletionMessage =
   | { content: string; reasoningContent?: string; role: 'assistant'; toolCalls?: readonly ToolCall[] }

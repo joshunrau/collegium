@@ -82,6 +82,8 @@ export type ApprovalRequest = {
    */
   readonly appendEvent: (event: TurnEventInput) => Promise<void>;
   readonly args: unknown;
+  /** the tool call being gated, so its decision can be replayed as that call's result; absent for a framework action */
+  readonly callId?: string;
   readonly channelId: string;
   /** §6.2 — how the payload is shown, and whether an over-long one is refused rather than collapsed */
   readonly payloadPresentation: ApprovalPayloadPresentation;

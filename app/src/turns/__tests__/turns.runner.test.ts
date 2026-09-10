@@ -261,7 +261,8 @@ describe('TurnRunner', () => {
     expect(outcome.status).toBe('completed');
     expect(turnsService.appendEvent.mock.calls.map(([, event]: any) => event.kind)).toStrictEqual([
       'assistant_message',
-      'tool_result'
+      'tool_result',
+      'assistant_message'
     ]);
     const secondRequest = complete.mock.calls[1]![0];
     expect(secondRequest.messages.map((message: { role: string }) => message.role)).toStrictEqual([
@@ -419,7 +420,7 @@ describe('TurnRunner', () => {
     });
   });
 
-  it('should replay reasoning with the tool call it produced, and keep it out of the trace (§3.12)', async () => {
+  it('should replay reasoning with the tool call it produced and keep it on the event, never in a post (§3.12)', async () => {
     complete.mockResolvedValueOnce(
       Result.ok({ ...toolUse(['write_file']), reasoningContent: 'private thoughts' } satisfies CompletionResult)
     );
@@ -427,8 +428,22 @@ describe('TurnRunner', () => {
     await run();
     const followUp = complete.mock.calls[1]![0].messages;
     expect(followUp.at(-2)).toMatchObject({ reasoningContent: 'private thoughts', role: 'assistant' });
-    expect(JSON.stringify(turnsService.appendEvent.mock.calls)).not.toContain('private thoughts');
+    expect(turnsService.appendEvent.mock.calls[0]![1]).toMatchObject({
+      kind: 'assistant_message',
+      reasoningContent: 'private thoughts'
+    });
     expect(JSON.stringify(sends)).not.toContain('private thoughts');
+  });
+
+  it('should record the final completion as an assistant_message event with its reasoning', async () => {
+    complete.mockResolvedValueOnce(Result.ok({ ...text('done'), reasoningContent: 'that settles it' }));
+    await run();
+    expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
+      content: 'done',
+      kind: 'assistant_message',
+      reasoningContent: 'that settles it',
+      toolCalls: []
+    });
   });
 
   it('should end the turn as semantic_error on malformed model output, never feeding it back', async () => {
@@ -509,11 +524,11 @@ describe('TurnRunner', () => {
     expect(webService.endTurn).toHaveBeenCalledExactlyOnceWith('turn-1');
   });
 
-  it('should close as an outage rather than completed when the final output cannot be posted', async () => {
+  it('should close as a delivery failure rather than completed when the final output cannot be posted', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('lost reply')));
     transportSend.mockResolvedValueOnce(Result.err({ kind: 'api', message: 'mattermost is down' }));
     const outcome = await run();
-    expect(outcome.status).toBe('provider_outage');
+    expect(outcome.status).toBe('delivery_failure');
     expect(conversationsService.record).not.toHaveBeenCalled();
     expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
       content: 'lost reply',
@@ -548,24 +563,25 @@ describe('TurnRunner', () => {
     );
   });
 
-  it('should say the provider rejected the request, rather than blaming reachability', async () => {
+  it('should close as provider_rejected and say so, rather than blaming reachability', async () => {
     complete.mockResolvedValueOnce(
       Result.err({ kind: 'provider', message: 'deepseek responded with status 400: invalid schema', status: 400 })
     );
-    await run();
+    const outcome = await run();
+    expect(outcome.status).toBe('provider_rejected');
     expect(sends.at(-1)?.text).toContain('rejected');
   });
 
-  it('should end the turn as an outage when a tool exhausts its transport retries', async () => {
+  it('should end the turn as a delivery failure when an approval prompt cannot be posted', async () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
     toolExecutor.execute.mockResolvedValue({
       detail: 'the approval prompt could not be posted',
       kind: 'terminal',
-      status: 'provider_outage'
+      status: 'delivery_failure'
     } satisfies ToolAttempt);
     const outcome = await run();
-    expect(outcome.status).toBe('provider_outage');
-    expect(sends.at(-1)?.text).toContain('Failed to reach the model provider');
+    expect(outcome.status).toBe('delivery_failure');
+    expect(sends.at(-1)?.text).toContain('chat server refused');
   });
 
   it('should write a returned disclosure into the trace and the turn events (§3.6)', async () => {
@@ -639,13 +655,13 @@ describe('TurnRunner', () => {
     expect(statusHandle.close).toHaveBeenCalledWith('killed');
   });
 
-  it('should end the turn as an outage when the extension prompt cannot be delivered', async () => {
+  it('should end the turn as a delivery failure when the extension prompt cannot be delivered', async () => {
     approvalsService.request.mockResolvedValueOnce(
       Result.err({ kind: 'prompt-undeliverable', message: 'mattermost is down' })
     );
     complete.mockResolvedValueOnce(Result.ok(toolUse(Array.from({ length: 11 }, () => 'lookup_fixture'))));
     const outcome = await run();
-    expect(outcome.status).toBe('provider_outage');
+    expect(outcome.status).toBe('delivery_failure');
     expect(sends).toHaveLength(0);
   });
 

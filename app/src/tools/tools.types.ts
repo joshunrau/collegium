@@ -19,7 +19,10 @@ export declare namespace ToolAttempt {
   type Terminal = {
     detail: string;
     kind: 'terminal';
-    status: Exclude<TurnStatus, 'abandoned' | 'budget_exhausted' | 'completed' | 'running'>;
+    status: Exclude<
+      TurnStatus,
+      'abandoned' | 'budget_exhausted' | 'completed' | 'provider_outage' | 'provider_rejected' | 'running'
+    >;
   };
   type Any = Continue | Terminal;
 }

@@ -58,7 +58,7 @@ export class OpenAICompatibleClient extends InferenceClient {
       return Result.err(MALFORMED_COMPLETION);
     }
     const usage = parsed.data.usage;
-    const reasoning = message.reasoningContent ? { reasoningContent: message.reasoningContent } : {};
+    const reasoning = message.reasoningContent === null ? {} : { reasoningContent: message.reasoningContent };
     if (message.toolCalls.length > 0) {
       return Result.ok({
         content: message.content ?? '',

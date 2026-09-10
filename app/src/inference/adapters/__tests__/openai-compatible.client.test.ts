@@ -67,6 +67,14 @@ describe('OpenAICompatibleClient', () => {
     });
   });
 
+  it('keeps an empty reasoning string, since the request must still echo the field', async () => {
+    fetchMock.mockResolvedValueOnce(completionResponse({ content: 'Hello', reasoning_content: '' }));
+
+    const result = await client.complete(completionRequest);
+
+    expect(result.value).toMatchObject({ reasoningContent: '' });
+  });
+
   it('carries provider-reported token usage', async () => {
     fetchMock.mockResolvedValueOnce(
       completionResponse({ content: 'Hello there' }, { completion_tokens: 3, prompt_tokens: 12, total_tokens: 15 })
@@ -152,6 +160,7 @@ describe('OpenAICompatibleClient', () => {
         { content: 'Load the skill', role: 'user' },
         {
           content: 'Loading',
+          reasoning_content: ' ',
           role: 'assistant',
           tool_calls: [
             { function: { arguments: '{"name":"triage"}', name: 'load_skill' }, id: 'call-1', type: 'function' }

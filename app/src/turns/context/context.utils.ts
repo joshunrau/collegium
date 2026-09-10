@@ -35,38 +35,91 @@ function toWireName(name: PrismaJson.RecordedToolName): string {
 
 const TOOL_CALL_TRANSCRIPT = /^\[called [^\s(]+\([\s\S]*\)\]$/mu;
 
-function renderToolCallTranscript(call: { args: unknown; toolName: PrismaJson.RecordedToolName }): string {
-  return `[called ${toWireName(call.toolName)}(${JSON.stringify(call.args)})]`;
+function renderDenial(decision: { byUsername: string; reason?: string }): string {
+  return decision.reason === undefined
+    ? `denied by @${decision.byUsername}`
+    : `denied by @${decision.byUsername}: ${decision.reason}`;
 }
 
 /**
- * Replayed trace renders as plain text rather than native tool-call messages: history routinely
- * holds dangling calls — a denied approval or an abandoned turn records a call with no result —
- * and providers reject a tool message without its paired call. Text cannot be malformed.
+ * What history can answer for each call: the tool's own result, or the human decision that refused
+ * it — a bare denial ends the turn before any result exists, so the decision is the result. A call
+ * with neither (an abandoned turn, a window cut mid-batch) is dropped from its assistant message
+ * rather than sent unanswered, which providers reject.
  */
-function renderEvent(event: ModelRow<'TurnEvent'>): CompletionMessage | undefined {
+function collectCallResults(entries: readonly WindowEntry[]): ReadonlyMap<string, string> {
+  const results = new Map<string, string>();
+  const denials = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.kind !== 'event') {
+      continue;
+    }
+    const { payload } = entry.event;
+    if (payload.kind === 'tool_result') {
+      results.set(payload.callId, payload.output);
+    } else if (payload.kind === 'approval_decided' && payload.callId !== undefined && payload.decision !== 'approved') {
+      denials.set(payload.callId, renderDenial(payload));
+    }
+  }
+  for (const [callId, denial] of denials) {
+    if (!results.has(callId)) {
+      results.set(callId, denial);
+    }
+  }
+  return results;
+}
+
+function renderAssistantEvent(
+  payload: Extract<PrismaJson.TurnEventPayload, { kind: 'assistant_message' }>,
+  results: ReadonlyMap<string, string>
+): CompletionMessage[] {
+  const answered = payload.toolCalls.filter((call) => results.has(call.callId));
+  if (payload.content === '' && answered.length === 0) {
+    return [];
+  }
+  return [
+    {
+      content: payload.content,
+      role: 'assistant',
+      ...(payload.reasoningContent !== undefined && { reasoningContent: payload.reasoningContent }),
+      ...(answered.length > 0 && {
+        toolCalls: answered.map((call) => ({ arguments: call.args, id: call.callId, name: toWireName(call.toolName) }))
+      })
+    },
+    ...answered.map((call): CompletionMessage => ({
+      content: results.get(call.callId)!,
+      role: 'tool',
+      toolCallId: call.callId
+    }))
+  ];
+}
+
+/**
+ * The agent's own trace replays in the provider's native shape — assistant messages carrying their
+ * tool calls and reasoning, tool messages carrying the results — because that is the form the model
+ * produced it in. A result is emitted beside its call rather than where it fell in the trace, and
+ * an approval that names its call is folded into that call's result; only a framework action with
+ * no call (the budget extension) still reads as a line of transcript.
+ */
+function renderEvent(event: ModelRow<'TurnEvent'>, results: ReadonlyMap<string, string>): CompletionMessage[] {
   return match(event.payload)
-    .with({ kind: 'approval_decided' }, (payload): CompletionMessage => {
+    .with({ kind: 'approval_decided' }, (payload): CompletionMessage[] => {
+      if (payload.callId !== undefined) {
+        return [];
+      }
       const reason = payload.reason === undefined ? '' : `: ${payload.reason}`;
-      return { content: `[approval ${payload.decision}${reason}]`, role: 'user' };
+      return [{ content: `[approval ${payload.decision}${reason}]`, role: 'user' }];
     })
-    .with({ kind: 'approval_requested' }, (payload): CompletionMessage => ({
-      content: `[approval requested: ${toWireName(payload.toolName)}]`,
-      role: 'user'
-    }))
-    .with({ kind: 'assistant_message' }, (payload): CompletionMessage | undefined => {
-      const calls = payload.toolCalls.map(renderToolCallTranscript);
-      const content = [payload.content, ...calls].filter((part) => part !== '').join('\n');
-      return content === '' ? undefined : { content, role: 'assistant' };
+    .with({ kind: 'approval_requested' }, (payload): CompletionMessage[] => {
+      return payload.callId === undefined
+        ? [{ content: `[approval requested: ${toWireName(payload.toolName)}]`, role: 'user' }]
+        : [];
     })
-    .with({ kind: 'record_written' }, (payload): CompletionMessage => ({
-      content: `[recorded: ${payload.description}]`,
-      role: 'user'
-    }))
-    .with({ kind: 'tool_result' }, (payload): CompletionMessage => ({
-      content: `[${toWireName(payload.toolName)} result] ${payload.output}`,
-      role: 'user'
-    }))
+    .with({ kind: 'assistant_message' }, (payload) => renderAssistantEvent(payload, results))
+    .with({ kind: 'record_written' }, (payload): CompletionMessage[] => [
+      { content: `[recorded: ${payload.description}]`, role: 'user' }
+    ])
+    .with({ kind: 'tool_result' }, (): CompletionMessage[] => [])
     .exhaustive();
 }
 
@@ -78,9 +131,9 @@ function renderPost(post: ModelRow<'Post'>, selfUsername: string): CompletionMes
 }
 
 export function toCompletionMessages(entries: readonly WindowEntry[], selfUsername: string): CompletionMessage[] {
+  const results = collectCallResults(entries);
   return entries.flatMap((entry) => {
-    const message = entry.kind === 'post' ? renderPost(entry.post, selfUsername) : renderEvent(entry.event);
-    return message === undefined ? [] : [message];
+    return entry.kind === 'post' ? [renderPost(entry.post, selfUsername)] : renderEvent(entry.event, results);
   });
 }
 
