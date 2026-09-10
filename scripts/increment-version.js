@@ -109,7 +109,7 @@ try {
 } catch {
   process.stdout.write('Could not fetch tags; the changelog section may reach back past the last release.\n');
 }
-prependReleaseSection(await renderReleaseSection());
+await prependReleaseSection(await renderReleaseSection());
 process.stdout.write(`${path.relative(path.dirname(ROOT_MANIFEST), CHANGELOG_PATH)} -> ${selected.version}\n\n`);
 process.stdout.write('Review the changelog section before committing.\n');
 

@@ -15,6 +15,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { ConventionalChangelog } from 'conventional-changelog';
+import { format, resolveConfig } from 'prettier';
 
 const ROOT_DIR = path.resolve(import.meta.dirname, '..');
 const CHANGELOG_PATH = path.join(ROOT_DIR, 'CHANGELOG.md');
@@ -44,10 +45,17 @@ async function renderReleaseSection() {
   return section.trim();
 }
 
-/** @param {string} section */
-function prependReleaseSection(section) {
+/**
+ * Written already formatted: the release commit names its files by pathspec, so git commits from a
+ * temporary index, and a reformat by the pre-commit hook would reach the commit but not the real
+ * index or a clean working tree.
+ * @param {string} section
+ */
+async function prependReleaseSection(section) {
   const existing = fs.existsSync(CHANGELOG_PATH) ? fs.readFileSync(CHANGELOG_PATH, 'utf-8').trim() : '';
-  fs.writeFileSync(CHANGELOG_PATH, [section, existing].filter(Boolean).join('\n\n') + '\n');
+  const contents = [section, existing].filter(Boolean).join('\n\n') + '\n';
+  const options = await resolveConfig(CHANGELOG_PATH);
+  fs.writeFileSync(CHANGELOG_PATH, await format(contents, { ...options, filepath: CHANGELOG_PATH }));
 }
 
 /**
