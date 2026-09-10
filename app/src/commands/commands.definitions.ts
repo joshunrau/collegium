@@ -30,7 +30,10 @@ export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefin
   forget: { hint: '{post-id}', purpose: 'Remove a post from agent context' },
   inspect: { hint: '{agent}', purpose: "Show an agent's model, tools, skills and system prompt" },
   kill: { hint: '', purpose: 'Abandon current turns in this channel immediately' },
-  memory: { hint: '{agent} [prune {reference}]', purpose: "Inspect or prune an agent's memories" },
+  memory: {
+    hint: '{agent} [show {reference} | prune {reference}]',
+    purpose: "List, read or prune an agent's memories"
+  },
   queue: { hint: '{agent}', purpose: 'Show pending depth and the oldest unprocessed post' },
   reset: { hint: '{agent}', purpose: 'Mark an episode boundary' },
   resume: { hint: '', purpose: 'Clear a global halt' },

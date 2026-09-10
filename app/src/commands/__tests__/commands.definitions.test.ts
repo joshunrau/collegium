@@ -10,7 +10,7 @@ describe('renderCommandName', () => {
 
 describe('renderUsage', () => {
   it('should render the command name followed by its argument hint', () => {
-    expect(renderUsage('memory')).toBe('Usage: /collegium memory {agent} [prune {reference}]');
+    expect(renderUsage('memory')).toBe('Usage: /collegium memory {agent} [show {reference} | prune {reference}]');
   });
 
   it('should render an argument-less command without a trailing space', () => {
