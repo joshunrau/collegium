@@ -11,7 +11,7 @@ import { CONFIG_DEFAULTS } from '@collegium/config';
 import type { ConfigInput } from '@collegium/config';
 import { withTimeout } from '@collegium/core/utils';
 
-import { E2E_RESOURCE_PREFIX, PROJECT_ROOT } from './constants.ts';
+import { ACTION_BUDGET, E2E_RESOURCE_PREFIX, PROJECT_ROOT } from './constants.ts';
 import { copyDatabaseTemplate } from './database.ts';
 import { REPOSITORY_PLUGINS_ROOT } from './env.ts';
 import { InferenceStub, textResponse } from './inference.ts';
@@ -153,7 +153,10 @@ function buildCollegiumConfig({
         baseUrl: inference.baseUrl
       }
     },
-    turns: { hourlyCeiling: scenario.hourlyCeiling ?? CONFIG_DEFAULTS.turns.hourlyCeiling }
+    turns: {
+      actionBudget: ACTION_BUDGET,
+      hourlyCeiling: scenario.hourlyCeiling ?? CONFIG_DEFAULTS.turns.hourlyCeiling
+    }
   };
 }
 

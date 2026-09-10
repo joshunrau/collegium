@@ -204,8 +204,9 @@ describe('Approval resolution', () => {
     await channels.main.submitDialog(dialog, { reason: 'use a different name' });
     await channels.main.awaitReplyFrom('mira', { text: reply });
 
+    // earlier turns replay their tool results too, so the current turn's is the last one
     const retry = inference.requestsFor('mira').at(-1);
-    const toolResult = retry?.messages.find((message) => message.role === 'tool');
+    const toolResult = retry?.messages.findLast((message) => message.role === 'tool');
     expect(toolResult?.content).toBe('denied: use a different name');
   });
 
@@ -288,9 +289,12 @@ describe('Action budget', () => {
     await channels.main.clickAction(extension, 'approve');
     await channels.main.awaitReplyFrom('mira', { text: reply });
 
-    // the eleventh attempt ran against the context accumulated before the extension
+    // the eleventh attempt ran against the context accumulated before the extension; earlier turns
+    // replay their tool results too, so only the messages after this turn's mention are counted
     const finalRequest = inference.requestsFor('mira').at(-1);
-    expect(finalRequest?.messages.filter((message) => message.role === 'tool')).toHaveLength(11);
+    const messages = finalRequest?.messages ?? [];
+    const thisTurn = messages.slice(messages.findLastIndex((message) => message.role === 'user') + 1);
+    expect(thisTurn.filter((message) => message.role === 'tool')).toHaveLength(11);
   });
 
   it('ends the turn when the extension is denied (§5.3)', async () => {
