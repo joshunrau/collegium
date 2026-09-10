@@ -294,6 +294,22 @@ describe('TurnRunner', () => {
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'completed', expect.objectContaining({ actionCount: 1 }));
   });
 
+  it('should record the replay text a tool hands back beside its result, feeding the model the result itself', async () => {
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['skills__load'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', output: '# The skill', replay: '[loaded skill x]' });
+    await run();
+    expect(turnsService.appendEvent).toHaveBeenCalledWith(
+      'turn-1',
+      expect.objectContaining({ kind: 'tool_result', output: '# The skill', replay: '[loaded skill x]' })
+    );
+    expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+      content: '# The skill',
+      role: 'tool',
+      toolCallId: 'call-0'
+    });
+  });
+
   it('should trace a call by its display name with the detail the tool renders', async () => {
     toolRegistry.describeCall.mockReturnValue({
       detail: 'https://northmoor.example/',

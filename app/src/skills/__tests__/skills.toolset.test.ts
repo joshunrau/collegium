@@ -22,6 +22,7 @@ describe('SKILLS_TOOLSET', () => {
     const result = await executeTool(load, { name: 'handing-work-to-a-peer' }, context);
     expect(skills.getDocument).toHaveBeenCalledWith('handing-work-to-a-peer');
     expect(result.unwrap().text).toContain('# Handing Work To A Peer');
+    expect(result.unwrap().replay).toBe('[loaded skill handing-work-to-a-peer]');
   });
 
   it('returns an unknown name to the model as its own recoverable mistake', async () => {

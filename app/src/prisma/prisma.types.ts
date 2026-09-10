@@ -40,6 +40,8 @@ type TurnEventPayloadByKind = {
   tool_result: {
     callId: string;
     output: string;
+    /** what the window replays in place of the output; the trace still shows the output */
+    replay?: string;
     toolName: PrismaJson.RecordedToolName;
   };
 };

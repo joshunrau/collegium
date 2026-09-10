@@ -37,7 +37,7 @@ function collectCallResults(entries: readonly WindowEntry[]): ReadonlyMap<string
     }
     const { payload } = entry.event;
     if (payload.kind === 'tool_result') {
-      results.set(payload.callId, payload.output);
+      results.set(payload.callId, payload.replay ?? payload.output);
     } else if (payload.kind === 'approval_decided' && payload.callId !== undefined && payload.decision !== 'approved') {
       denials.set(payload.callId, renderDenial(payload));
     }

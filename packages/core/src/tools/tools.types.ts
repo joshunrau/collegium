@@ -45,6 +45,12 @@ export type ToolOutput = {
    */
   readonly deletedDescription?: string;
   readonly disclosure?: ToolDisclosure;
+  /**
+   * What later turns replay in place of `text`. The turn that made the call reads the text in
+   * full; a document the agent will load again anyway, or a page it has already acted on, need
+   * not be paid for on every turn whose window still holds the result.
+   */
+  readonly replay?: string;
   readonly text: string;
 };
 

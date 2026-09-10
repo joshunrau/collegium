@@ -66,6 +66,29 @@ describe('toCompletionMessages', () => {
     ]);
   });
 
+  it('should replay a result by its replay text when the tool gave one', () => {
+    const entries = [
+      event({
+        content: '',
+        kind: 'assistant_message',
+        toolCalls: [{ args: { name: 'managing-prospects' }, callId: 'c1', toolName: ['skills', 'load'] }]
+      }),
+      event({
+        callId: 'c1',
+        kind: 'tool_result',
+        output: '# Managing prospects\n\nA long document…',
+        replay: '[loaded skill managing-prospects]',
+        toolName: ['skills', 'load']
+      })
+    ];
+
+    expect(toCompletionMessages(entries, 'mira').at(-1)).toStrictEqual({
+      content: '[loaded skill managing-prospects]',
+      role: 'tool',
+      toolCallId: 'c1'
+    });
+  });
+
   it('should drop a call history cannot answer, and the message when nothing of it remains', () => {
     const entries = [
       event({

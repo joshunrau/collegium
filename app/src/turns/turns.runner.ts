@@ -417,7 +417,8 @@ export class TurnRunner {
         callId: call.id,
         kind: 'tool_result',
         output: attempt.output,
-        toolName: recordedNameOf(call)
+        toolName: recordedNameOf(call),
+        ...(attempt.replay !== undefined && { replay: attempt.replay })
       });
       state.messages.push({ content: attempt.output, role: 'tool', toolCallId: call.id });
       if (attempt.disclosure) {

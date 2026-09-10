@@ -16,7 +16,8 @@ export const SKILLS_TOOLSET = implementToolset(SKILLS_TOOLSET_DEF, {
         if (!document.success) {
           return Result.err({ kind: 'invalid-arguments', message: document.error.message });
         }
-        return Result.ok({ text: document.value });
+        // the agent loads a skill every turn it needs one, so an earlier load replays as a line
+        return Result.ok({ replay: `[loaded skill ${args.name}]`, text: document.value });
       },
       parameters: z.object({
         name: z.string().min(1).describe('The name of the skill, exactly as it appears in your skill manifest')

@@ -11,6 +11,8 @@ export declare namespace ToolAttempt {
     disclosure?: ToolDisclosure;
     kind: 'continue';
     output: string;
+    /** what later turns replay in place of the output */
+    replay?: string;
   };
   /**
    * The turn ends with this status: a §7.1 semantic error, an unconfirmed mutation (§7.2), a §5.4
