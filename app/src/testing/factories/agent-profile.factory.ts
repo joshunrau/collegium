@@ -5,6 +5,7 @@ export function buildAgentProfile(overrides: Partial<AgentProfile> = {}): AgentP
     contextBudgetTokens: 8000,
     expertise: 'end-to-end testing',
     model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
+    personality: undefined,
     skills: [],
     systemPrompt: 'You are Mira.',
     tools: [],

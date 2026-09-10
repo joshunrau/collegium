@@ -134,10 +134,19 @@ export const $SkillGrant = z.string().check((ctx) => {
   }
 });
 
+/** the stances the framework ships; each is prose in the app, injected after the agent's own prompt (§3.8) */
+export type $Personality = z.infer<typeof $Personality>;
+export const $Personality = z
+  .enum(['candid'])
+  .describe(
+    'A shipped stance the framework adds to the system prompt after the agent’s own. "candid": states disagreement first, holds a position until given new evidence, reports what actually happened over what was expected, and writes tersely. Omit for none.'
+  );
+
 export type $AgentDefaults = z.infer<typeof $AgentDefaults>;
 export const $AgentDefaults = z.strictObject({
   contextBudgetTokens: $ContextBudgetTokens.default(CONFIG_DEFAULTS.agentDefaults.contextBudgetTokens),
   model: $ModelRef.optional(),
+  personality: $Personality.optional(),
   toolSettings: $ToolSettings
     .default({})
     .describe(
@@ -158,6 +167,7 @@ export const $AgentDeclaration = z.strictObject({
       'What this agent should be contacted about, in a few words. Shown to every other agent so they know when to hand work over.'
     ),
   model: $ModelRef.optional().describe('Overrides agentDefaults.model. Required when no default is set.'),
+  personality: $Personality.optional().describe('Overrides agentDefaults.personality for this agent'),
   skills: z
     .array($SkillGrant)
     .default([])

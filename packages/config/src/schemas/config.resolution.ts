@@ -36,6 +36,7 @@ function resolveConfig(declaration: $ConfigDeclaration, issues: z.core.$ZodRawIs
       ...declared,
       contextBudgetTokens: declared.contextBudgetTokens ?? config.agentDefaults.contextBudgetTokens,
       model,
+      personality: declared.personality ?? config.agentDefaults.personality,
       username
     };
   }

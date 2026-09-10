@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
+import { PERSONALITY_PROMPTS } from '@/agents/personalities/personalities.constants.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
@@ -9,8 +10,8 @@ import { SkillsService } from '@/skills/skills.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 /**
- * The first four sections of §3.8 in order — the agent's own prompt, the preamble, skills, memories,
- * peers — from SQLite and the registries alone, never the Mattermost API. The turn path and /inspect
+ * The first four sections of §3.8 in order — the agent's own prompt, its personality, the preamble,
+ * skills, memories, peers — from SQLite and the registries alone, never the Mattermost API. The turn path and /inspect
  * both render through here, so the prompt an operator reads is the prompt the model was given.
  */
 @Injectable()
@@ -32,6 +33,7 @@ export class SystemPromptRenderer {
     const { channelId, profile } = input;
     const sections = [
       profile.systemPrompt,
+      this.renderPersonality(profile),
       this.renderPreamble(profile),
       this.renderSkills(profile),
       this.renderMemories(await this.memoryService.list(profile.username)),
@@ -65,6 +67,13 @@ export class SystemPromptRenderer {
     return this.textFormatter.formatParagraphs(['## Peers', 'Colleagues in this channel:', '{listing}'], {
       listing: this.textFormatter.formatBullets(peers.map((peer) => `@${peer.username} — ${peer.expertise}`))
     });
+  }
+
+  private renderPersonality(profile: AgentProfile): string | undefined {
+    if (profile.personality === undefined) {
+      return undefined;
+    }
+    return this.textFormatter.formatParagraphs(['## Personality', ...PERSONALITY_PROMPTS[profile.personality]], {});
   }
 
   /** §3.8 — every sentence states what the framework does, never what the model ought to do; an instruction does not belong here */

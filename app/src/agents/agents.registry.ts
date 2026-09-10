@@ -83,6 +83,7 @@ export class AgentRegistry {
       contextBudgetTokens: definition.contextBudgetTokens,
       expertise: definition.expertise,
       model: definition.model,
+      personality: definition.personality,
       skills: definition.skills,
       systemPrompt: definition.systemPrompt,
       tools: definition.tools,

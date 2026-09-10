@@ -62,6 +62,16 @@ describe('SystemPromptRenderer', () => {
     expect(prompt).not.toContain('## Peers');
   });
 
+  it('should place the personality between the agent prompt and the preamble when one is set', async () => {
+    const prompt = await systemPromptRenderer.render({
+      channelId: 'channel-1',
+      profile: { ...PROFILE, personality: 'candid' }
+    });
+    expect(prompt.startsWith('You are Mira.\n\n## Personality\n\n')).toBe(true);
+    expect(prompt.indexOf('## Personality')).toBeLessThan(prompt.indexOf('## How this works'));
+    expect(prompt).toContain('Never apologize for disagreeing.');
+  });
+
   it('should state the configured budgets and the calls exempt from them in the preamble', async () => {
     const prompt = await render();
     expect(prompt).toContain('fits your context to about 12000 tokens');

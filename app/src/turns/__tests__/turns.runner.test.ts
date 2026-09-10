@@ -36,6 +36,7 @@ const PROFILE = {
   contextBudgetTokens: 1000,
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
+  personality: undefined,
   skills: [],
   systemPrompt: 'You are Mira.',
   tools: [],

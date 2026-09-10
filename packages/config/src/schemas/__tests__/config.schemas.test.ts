@@ -111,6 +111,20 @@ describe('$Config', () => {
     });
   });
 
+  it('should resolve an agent’s personality from agentDefaults and let the agent override it', () => {
+    const parsed = $Config.parse({
+      ...config,
+      agentDefaults: { personality: 'candid' },
+      agents: { mira: declaration([]), tess: { ...declaration([]), personality: undefined } }
+    });
+    expect(parsed.agents.mira?.personality).toBe('candid');
+    expect(parsed.agents.tess?.personality).toBe('candid');
+  });
+
+  it('should leave personality undefined when neither place states one', () => {
+    expect($Config.parse(config).agents.mira?.personality).toBeUndefined();
+  });
+
   it('should let an agent override a default, and take the shipped budget when neither states one', () => {
     const parsed = $Config.parse({
       ...config,

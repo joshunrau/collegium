@@ -1,4 +1,4 @@
-import type { $ModelRef } from '@collegium/config';
+import type { $ModelRef, $Personality } from '@collegium/config';
 import type { BuiltinSkillName } from '@collegium/core/skills';
 import type { ToolGrant } from '@collegium/core/toolsets';
 import type { LiteralUnion } from 'type-fest';
@@ -15,6 +15,8 @@ export type AgentProfile = {
   readonly contextBudgetTokens: number;
   readonly expertise: string;
   readonly model: $ModelRef;
+  /** a shipped stance rendered after the agent's own prompt, or none (§3.8) */
+  readonly personality: $Personality | undefined;
   readonly skills: readonly LiteralUnion<BuiltinSkillName, string>[];
   readonly systemPrompt: string;
   /** grants exactly as config states them: namespaces and `ns::tool` refs, expanded by the registry (§8) */
