@@ -49,6 +49,12 @@ There is no entry file to declare and nothing to build. The framework compiles t
 import { defineConfig } from '@collegium/sdk';
 import { z } from 'zod';
 
+declare module '@collegium/sdk' {
+  interface Register {
+    config: typeof config;
+  }
+}
+
 const config = defineConfig({
   settings: z.strictObject({
     maxContacts: z.number().int().positive().default(200)
@@ -60,12 +66,6 @@ const config = defineConfig({
     })
   }
 });
-
-declare module '@collegium/sdk' {
-  interface Register {
-    config: typeof config;
-  }
-}
 
 export default config;
 ```
@@ -97,7 +97,9 @@ export default defineTool({
   description: 'Find saved contacts by name.',
   execute: async (args, { storage }) => {
     const matches = await storage.contacts.findMany({ where: { name: { contains: args.query } } });
-    if (matches.length === 0) return 'no contacts matched';
+    if (!matches.length) {
+      return 'no contacts matched';
+    }
     return matches.map(({ email, id, name }) => `- ${id}: ${name} <${email}>`).join('\n');
   },
   parameters: z.object({
@@ -214,7 +216,9 @@ Then grant it to Clara and set her settings for it:
 ```json
 "tools": ["web", "workspace", "memory", "contacts"],
 "toolSettings": {
-  "contacts": { "maxContacts": 500 }
+  "contacts": {
+    "maxContacts": 500
+  }
 }
 ```
 
