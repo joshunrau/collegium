@@ -3,7 +3,7 @@
 ### Features
 
 - hold `/collegium` in a Mattermost plugin and declare its subcommands at boot
-- accept a post permalink in `/collegium.forget` and `/collegium.trace`
+- accept a post permalink in `/collegium forget` and `/collegium trace`
 - add the framework preamble and the `builtins::now` core tool
 - read mentions with Mattermost's grammar, replay reasoning within a turn, and reject transcribed tool calls
 
