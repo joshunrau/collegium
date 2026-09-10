@@ -31,5 +31,9 @@ test('create takes the schema input with an optional id, and every read returns 
     z.input<typeof $Investigator> & { readonly id?: string }
   >();
   expectTypeOf<Awaited<ReturnType<Collection['findMany']>>>().toEqualTypeOf<Investigator[]>();
+  expectTypeOf<Awaited<ReturnType<Collection['findFirst']>>>().toEqualTypeOf<Investigator | null>();
+  expectTypeOf<Parameters<Collection['findFirst']>[0]>().toEqualTypeOf<
+    undefined | { readonly where?: CollectionWhere<Investigator> }
+  >();
   expectTypeOf<Parameters<Collection['updateById']>[1]>().toEqualTypeOf<Partial<z.input<typeof $Investigator>>>();
 });

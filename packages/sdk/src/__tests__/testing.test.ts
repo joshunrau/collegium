@@ -35,6 +35,8 @@ describe('createTestContext', () => {
     await storage.notes.create({ body: 'beta', id: 'b' });
     expect(await storage.notes.findMany({ where: { body: { contains: 'ALPHA' } } })).toMatchObject([{ id: 'a' }]);
     expect(await storage.notes.findMany({ limit: 1, where: { id: { in: ['a', 'b'] } } })).toHaveLength(1);
+    expect(await storage.notes.findFirst({ where: { body: { contains: 'BETA' } } })).toMatchObject({ id: 'b' });
+    expect(await storage.notes.findFirst({ where: { pinned: true } })).toBeNull();
   });
 
   it('updates by merging the patch and parsing the whole, or returns null', async () => {

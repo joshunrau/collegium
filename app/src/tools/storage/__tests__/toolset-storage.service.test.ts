@@ -98,8 +98,16 @@ describe('ToolsetStorageService', () => {
     expect(await investigators.findMany(query)).toStrictEqual(applyCollectionQuery(records, query));
   });
 
+  it('finds the earliest match of a query, or null', async () => {
+    expect(await investigators.findFirst()).toStrictEqual(records[0]);
+    expect(await investigators.findFirst({ where: { active: true, score: { in: [2, 7] } } })).toStrictEqual(records[0]);
+    expect(await investigators.findFirst({ where: { active: false } })).toStrictEqual(records[1]);
+    expect(await investigators.findFirst({ where: { name: 'nobody' } })).toBeNull();
+  });
+
   it('never reaches another collection through a query', async () => {
     expect(await other.findMany({ where: { name: { contains: 'a' } } })).toMatchObject([{ id: 'ana' }]);
+    expect(await other.findFirst({ where: { id: 'ben' } })).toBeNull();
   });
 
   it('updates by merging the patch and parsing the whole, or returns null', async () => {

@@ -38,6 +38,11 @@ function createCollection(schema: z.ZodObject): AnyToolsetCollection {
     },
     deleteById: (id) => Promise.try(() => rows.delete(id)),
     findById: (id) => Promise.try(() => (rows.has(id) ? toRecord(rows.get(id)!) : null)),
+    findFirst: (query = {}) => {
+      return Promise.try(
+        () => applyCollectionQuery([...rows.values()].map(toRecord), { ...query, limit: 1 })[0] ?? null
+      );
+    },
     findMany: (query = {}) => Promise.try(() => applyCollectionQuery([...rows.values()].map(toRecord), query)),
     updateById: (id, patch) => {
       return Promise.try(() => {

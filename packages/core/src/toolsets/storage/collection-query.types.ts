@@ -30,7 +30,10 @@ export type CollectionWhere<TRecord> = {
   readonly [K in keyof QueryableFields<TRecord>]?: CollectionFieldCondition<QueryableFields<TRecord>[K]>;
 };
 
-export type CollectionQuery<TRecord> = {
-  readonly limit?: number;
+export type CollectionFilter<TRecord> = {
   readonly where?: CollectionWhere<TRecord>;
+};
+
+export type CollectionQuery<TRecord> = CollectionFilter<TRecord> & {
+  readonly limit?: number;
 };

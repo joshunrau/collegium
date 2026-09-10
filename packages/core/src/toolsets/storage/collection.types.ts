@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 
-import type { CollectionQuery } from './collection-query.types.ts';
+import type { CollectionFilter, CollectionQuery } from './collection-query.types.ts';
 
 /** what the store stamps on every record beside the declared fields; a schema may not declare any of these */
 export type CollectionRecordStamp = {
@@ -21,6 +21,10 @@ export type ToolsetCollection<TSchema extends z.ZodObject> = {
   create(data: z.input<TSchema> & { readonly id?: string }): Promise<CollectionRecord<z.output<TSchema>>>;
   deleteById(id: string): Promise<boolean>;
   findById(id: string): Promise<CollectionRecord<z.output<TSchema>> | null>;
+  /** the earliest-inserted record the query matches, or null; without a query, the earliest record */
+  findFirst(
+    query?: CollectionFilter<CollectionRecord<z.output<TSchema>>>
+  ): Promise<CollectionRecord<z.output<TSchema>> | null>;
   /** without a query, every record in insertion order */
   findMany(
     query?: CollectionQuery<CollectionRecord<z.output<TSchema>>>

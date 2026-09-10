@@ -1,4 +1,4 @@
-import type { CollectionRecord, ToolsetCollection } from '@collegium/core/toolsets';
+import type { CollectionQuery, CollectionRecord, ToolsetCollection } from '@collegium/core/toolsets';
 import { Injectable } from '@nestjs/common';
 import type { z } from 'zod';
 
@@ -34,6 +34,11 @@ export class ToolsetStorageService {
       id: row.id,
       updatedAt: row.updatedAt
     });
+    const matchIds = async (query: CollectionQuery<CollectionRecord<z.output<TSchema>>>): Promise<string[]> => {
+      const { params, sql } = compileCollectionQuery({ collection, namespace }, query);
+      const matches = await this.prisma.$queryRawUnsafe<{ id: string }[]>(sql, ...params);
+      return matches.map((match) => match.id);
+    };
     return {
       create: async ({ id = createRecordId(), ...data }) => {
         const payload = { value: schema.parse(data) };
@@ -54,12 +59,19 @@ export class ToolsetStorageService {
         const row = await this.records.findUnique({ where: whereId(id) });
         return row === null ? null : toRecord(row);
       },
+      findFirst: async (query = {}) => {
+        const [id] = await matchIds({ ...query, limit: 1 });
+        if (id === undefined) {
+          return null;
+        }
+        const row = await this.records.findUnique({ where: whereId(id) });
+        return row === null ? null : toRecord(row);
+      },
       findMany: async (query = {}) => {
-        const { params, sql } = compileCollectionQuery({ collection, namespace }, query);
-        const matches = await this.prisma.$queryRawUnsafe<{ id: string }[]>(sql, ...params);
+        const ids = await matchIds(query);
         const rows = await this.records.findMany({
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          where: { collection, id: { in: matches.map((match) => match.id) }, namespace }
+          where: { collection, id: { in: ids }, namespace }
         });
         return rows.map(toRecord);
       },
