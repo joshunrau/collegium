@@ -1,3 +1,10 @@
+## [0.0.1-beta.13](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.12...v0.0.1-beta.13) (2026-09-13)
+
+### Features
+
+- **commands:** add usage command with cached and reasoning token counts ([0a2558b](https://github.com/joshunrau/collegium/commit/0a2558b696900b332f775c92b00b81e394751934))
+- **web:** add web::search backed by brave search ([f184f14](https://github.com/joshunrau/collegium/commit/f184f14c22fd4fe1b4bc0226fabd63285b8d0c04))
+
 ## [0.0.1-beta.12](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.11...v0.0.1-beta.12) (2026-09-10)
 
 ### Features
