@@ -21,7 +21,8 @@ export const COMMAND_TRIGGERS = [
   'resume',
   'stop',
   'trace',
-  'triggers'
+  'triggers',
+  'usage'
 ] as const;
 
 export type CommandTrigger = (typeof COMMAND_TRIGGERS)[number];
@@ -39,7 +40,8 @@ export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefin
   resume: { hint: '', purpose: 'Clear a global halt' },
   stop: { hint: '', purpose: 'Abort current turns in this channel at the next boundary' },
   trace: { hint: '{post-id}', purpose: 'Show the full tool trace for a turn' },
-  triggers: { hint: '{agent}', purpose: 'List outstanding triggers' }
+  triggers: { hint: '{agent}', purpose: 'List outstanding triggers' },
+  usage: { hint: '', purpose: 'Show token usage per agent and model over the last 24 hours' }
 };
 
 /** the one path the plugin forwards every execution to; the declaration composes APP_PUBLIC_URL with this */

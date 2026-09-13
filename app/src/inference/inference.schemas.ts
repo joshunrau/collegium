@@ -18,10 +18,21 @@ const $Choice = z.object({
   })
 });
 
-const $Usage = z.object({
-  completionTokens: z.number().int().nonnegative(),
-  promptTokens: z.number().int().nonnegative()
-});
+const $TokenCount = z.number().int().nonnegative();
+
+const $Usage = z
+  .object({
+    completionTokens: $TokenCount,
+    completionTokensDetails: z.object({ reasoningTokens: $TokenCount.optional() }).nullish(),
+    promptTokens: $TokenCount,
+    promptTokensDetails: z.object({ cachedTokens: $TokenCount.optional() }).nullish()
+  })
+  .transform(({ completionTokens, completionTokensDetails, promptTokens, promptTokensDetails }) => ({
+    cachedPromptTokens: promptTokensDetails?.cachedTokens,
+    completionTokens,
+    promptTokens,
+    reasoningTokens: completionTokensDetails?.reasoningTokens
+  }));
 
 export type $ChatCompletion = z.infer<typeof $ChatCompletion>;
 export const $ChatCompletion = $$CamelCased(

@@ -18,9 +18,10 @@ import type {
   CompletionRequest,
   CompletionResult,
   InferenceFailure,
+  TokenUsage,
   ToolCall
 } from '@/inference/inference.types.ts';
-import { describeInferenceFailure } from '@/inference/inference.utils.ts';
+import { addTokenUsage, describeInferenceFailure } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
@@ -93,7 +94,7 @@ type TurnState = {
   readonly status: StatusPostHandle;
   readonly transport: ChatTransport;
   readonly turn: Turn;
-  usage: undefined | { completionTokens: number; promptTokens: number };
+  usage: TokenUsage | undefined;
 };
 
 /**
@@ -590,10 +591,7 @@ export class TurnRunner {
         return this.closeOnInferenceFailure(input, state, completion.error);
       }
       if (completion.value.usage) {
-        state.usage = {
-          completionTokens: (state.usage?.completionTokens ?? 0) + completion.value.usage.completionTokens,
-          promptTokens: (state.usage?.promptTokens ?? 0) + completion.value.usage.promptTokens
-        };
+        state.usage = addTokenUsage(state.usage, completion.value.usage);
       }
       if (this.takesFurtherFragments(state, folds)) {
         folds += 1;

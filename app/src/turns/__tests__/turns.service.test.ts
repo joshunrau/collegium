@@ -31,6 +31,22 @@ describe('TurnsService', () => {
               turns.push(row);
               return Promise.resolve(row);
             },
+            groupBy: () => {
+              return Promise.resolve([
+                {
+                  _count: { _all: 3, cachedPromptTokens: 2, reasoningTokens: 0 },
+                  _sum: { cachedPromptTokens: 40, completionTokens: 12, promptTokens: 90, reasoningTokens: null },
+                  agentUsername: 'mira',
+                  modelName: 'deepseek-v4-flash'
+                },
+                {
+                  _count: { _all: 1, cachedPromptTokens: 0, reasoningTokens: 1 },
+                  _sum: { cachedPromptTokens: null, completionTokens: 8, promptTokens: 30, reasoningTokens: 5 },
+                  agentUsername: 'otto',
+                  modelName: 'gpt-5'
+                }
+              ]);
+            },
             update: ({ data, where }: any) => {
               const row = turns.find((turn) => turn.id === where.id);
               Object.assign(row!, data);
@@ -105,10 +121,49 @@ describe('TurnsService', () => {
     const turn = await open();
     await turnsService.close(turn.id, 'completed', {
       actionCount: 3,
-      usage: { completionTokens: 5, promptTokens: 7 }
+      usage: { cachedPromptTokens: 4, completionTokens: 5, promptTokens: 7, reasoningTokens: undefined }
     });
-    expect(turns[0]).toMatchObject({ actionCount: 3, completionTokens: 5, promptTokens: 7, status: 'completed' });
+    expect(turns[0]).toMatchObject({
+      actionCount: 3,
+      cachedPromptTokens: 4,
+      completionTokens: 5,
+      promptTokens: 7,
+      reasoningTokens: null,
+      status: 'completed'
+    });
     expect(turns[0]?.endedAt).toBeInstanceOf(Date);
+  });
+
+  it('should summarize usage per agent and model, with a total no more complete than its rows', async () => {
+    await expect(turnsService.summarizeTokenUsageEndedAfter(new Date(0))).resolves.toStrictEqual({
+      rows: [
+        {
+          agentUsername: 'mira',
+          cachedPromptTokens: { coverage: 'partial', total: 40 },
+          completionTokens: 12,
+          modelName: 'deepseek-v4-flash',
+          promptTokens: 90,
+          reasoningTokens: { coverage: 'none' },
+          turnCount: 3
+        },
+        {
+          agentUsername: 'otto',
+          cachedPromptTokens: { coverage: 'none' },
+          completionTokens: 8,
+          modelName: 'gpt-5',
+          promptTokens: 30,
+          reasoningTokens: { coverage: 'full', total: 5 },
+          turnCount: 1
+        }
+      ],
+      total: {
+        cachedPromptTokens: { coverage: 'partial', total: 40 },
+        completionTokens: 20,
+        promptTokens: 120,
+        reasoningTokens: { coverage: 'partial', total: 5 },
+        turnCount: 4
+      }
+    });
   });
 
   it('should retry the append when a concurrent write already took the sequence it read', async () => {

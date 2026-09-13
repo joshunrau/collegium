@@ -85,13 +85,15 @@ model Post {
 model Turn {
   id               String      @id @default(cuid(2))
   actionCount      Int         @default(0)
-  agentUsername    String
-  channelId        String
-  completionTokens Int?
+  agentUsername      String
+  cachedPromptTokens Int?
+  channelId          String
+  completionTokens   Int?
   depth            Int
   endedAt          DateTime?
   modelName        String
   promptTokens     Int?
+  reasoningTokens  Int?
   startedAt        DateTime    @default(now())
   status           TurnStatus
   statusPostId     String?

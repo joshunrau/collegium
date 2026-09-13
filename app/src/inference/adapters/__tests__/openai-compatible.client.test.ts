@@ -82,7 +82,35 @@ describe('OpenAICompatibleClient', () => {
 
     const result = await client.complete(completionRequest);
 
-    expect(result.value?.usage).toStrictEqual({ completionTokens: 3, promptTokens: 12 });
+    expect(result.value?.usage).toStrictEqual({
+      cachedPromptTokens: undefined,
+      completionTokens: 3,
+      promptTokens: 12,
+      reasoningTokens: undefined
+    });
+  });
+
+  it('carries the cached-prompt and reasoning breakdowns where the provider reports them', async () => {
+    fetchMock.mockResolvedValueOnce(
+      completionResponse(
+        { content: 'Hello there' },
+        {
+          completion_tokens: 30,
+          completion_tokens_details: { reasoning_tokens: 21 },
+          prompt_tokens: 120,
+          prompt_tokens_details: { cached_tokens: 96 }
+        }
+      )
+    );
+
+    const result = await client.complete(completionRequest);
+
+    expect(result.value?.usage).toStrictEqual({
+      cachedPromptTokens: 96,
+      completionTokens: 30,
+      promptTokens: 120,
+      reasoningTokens: 21
+    });
   });
 
   it('returns tool calls with decoded arguments, absent text becoming empty transient status', async () => {

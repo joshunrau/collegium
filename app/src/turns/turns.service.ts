@@ -5,7 +5,9 @@ import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow, TurnStatus } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
-import type { Turn, TurnEventInput } from './turns.types.ts';
+import { sumTokenUsageTotals, toReportedTokenCount } from './turns.utils.ts';
+
+import type { TokenUsageReport, Turn, TurnEventInput } from './turns.types.ts';
 
 @Injectable()
 export class TurnsService {
@@ -60,8 +62,10 @@ export class TurnsService {
         status,
         ...(summary.actionCount !== undefined && { actionCount: summary.actionCount }),
         ...(summary.usage && {
+          cachedPromptTokens: summary.usage.cachedPromptTokens ?? null,
           completionTokens: summary.usage.completionTokens,
-          promptTokens: summary.usage.promptTokens
+          promptTokens: summary.usage.promptTokens,
+          reasoningTokens: summary.usage.reasoningTokens ?? null
         })
       },
       where: { id: turnId }
@@ -105,5 +109,34 @@ export class TurnsService {
 
   async recordStatusPost(turnId: string, statusPostId: string): Promise<void> {
     await this.turns.update({ data: { statusPostId }, where: { id: turnId } });
+  }
+
+  /** framework-wide spend per agent and model, over turns that ended strictly after a moment with usage recorded */
+  async summarizeTokenUsageEndedAfter(moment: Date): Promise<TokenUsageReport> {
+    const groups = await this.turns.groupBy({
+      _count: { _all: true, cachedPromptTokens: true, reasoningTokens: true },
+      _sum: { cachedPromptTokens: true, completionTokens: true, promptTokens: true, reasoningTokens: true },
+      by: ['agentUsername', 'modelName'],
+      orderBy: [{ agentUsername: 'asc' }, { modelName: 'asc' }],
+      where: { endedAt: { gt: moment }, promptTokens: { not: null } }
+    });
+    const rows = groups.map((group) => ({
+      agentUsername: group.agentUsername,
+      cachedPromptTokens: toReportedTokenCount(
+        group._sum.cachedPromptTokens,
+        group._count.cachedPromptTokens,
+        group._count._all
+      ),
+      completionTokens: group._sum.completionTokens ?? 0,
+      modelName: group.modelName,
+      promptTokens: group._sum.promptTokens ?? 0,
+      reasoningTokens: toReportedTokenCount(
+        group._sum.reasoningTokens,
+        group._count.reasoningTokens,
+        group._count._all
+      ),
+      turnCount: group._count._all
+    }));
+    return { rows, total: sumTokenUsageTotals(rows) };
   }
 }

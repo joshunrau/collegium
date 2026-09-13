@@ -2,10 +2,12 @@ import type { $ModelRef } from '@collegium/config';
 
 import type { ToolSchema } from '@/core/core.types.ts';
 
-/** what a provider reports having spent */
+/** what a provider reports having spent; the breakdowns are subsets of their totals, absent where the provider does not report them */
 export type TokenUsage = {
+  readonly cachedPromptTokens: number | undefined;
   readonly completionTokens: number;
   readonly promptTokens: number;
+  readonly reasoningTokens: number | undefined;
 };
 
 /** one invocation requested by the model, its arguments JSON-decoded but not yet validated (§3.4) */

@@ -757,14 +757,32 @@ describe('TurnRunner', () => {
 
   it('should accumulate reported token usage across every completion in the turn', async () => {
     complete.mockResolvedValueOnce(
-      Result.ok(toolUse(['lookup_fixture'], '', { completionTokens: 2, promptTokens: 3 }))
+      Result.ok(
+        toolUse(['lookup_fixture'], '', {
+          cachedPromptTokens: undefined,
+          completionTokens: 2,
+          promptTokens: 3,
+          reasoningTokens: 1
+        })
+      )
     );
-    complete.mockResolvedValueOnce(Result.ok(text('done', { completionTokens: 5, promptTokens: 7 })));
+    complete.mockResolvedValueOnce(
+      Result.ok(
+        text('done', {
+          cachedPromptTokens: undefined,
+          completionTokens: 5,
+          promptTokens: 7,
+          reasoningTokens: undefined
+        })
+      )
+    );
     await run();
     expect(turnsService.close).toHaveBeenCalledWith(
       'turn-1',
       'completed',
-      expect.objectContaining({ usage: { completionTokens: 7, promptTokens: 10 } })
+      expect.objectContaining({
+        usage: { cachedPromptTokens: undefined, completionTokens: 7, promptTokens: 10, reasoningTokens: 1 }
+      })
     );
   });
 

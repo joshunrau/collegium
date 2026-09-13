@@ -27,6 +27,7 @@ import { ResumeHandler } from './handlers/resume.handler.ts';
 import { StopHandler } from './handlers/stop.handler.ts';
 import { TraceHandler } from './handlers/trace.handler.ts';
 import { TriggersHandler } from './handlers/triggers.handler.ts';
+import { UsageHandler } from './handlers/usage.handler.ts';
 import { CommandReconcilerService } from './registration/command-reconciler.service.ts';
 
 import type { CommandHandler } from './commands.handler.ts';
@@ -42,7 +43,8 @@ const COMMAND_HANDLER_CLASSES = [
   ResumeHandler,
   StopHandler,
   TraceHandler,
-  TriggersHandler
+  TriggersHandler,
+  UsageHandler
 ] as const;
 
 @Module({
