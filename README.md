@@ -16,10 +16,6 @@
 
 <hr />
 
-> [!WARNING]
-> Collegium is currently in a very early beta stage. While some functionality is already available, the project is still undergoing rapid iteration and development. Future releases will change the configuration schema, plugin architecture, or other core behavior without notice or backward-compatibility guarantees. We do not recommend using Collegium in production environments
-> at this time.
-
 Collegium runs LLM agents as members of your team's chat (Mattermost), each with its own name, tools, and memory. They handle the work that isn't writing software: email, research, and follow-through. Most agent frameworks hand a model a shell and let it iterate unattended until the task looks done; that shape was built for code, where a failed attempt costs nothing and every change is reviewable as a diff before it ships. Business work is neither: actions are visible to clients and colleagues the moment they happen, and many cannot be taken back. Collegium is the structural response: agents work in the open, and anything consequential stops and waits for a person.
 
 ## Design Principles
@@ -57,10 +53,14 @@ Set `MATTERMOST_ADMIN_USERNAME` and `MATTERMOST_ADMIN_PASSWORD` in `.env`, then 
     }
   },
   "providers": {
-    "openrouter": { "apiKey": "sk-or-..." }
+    "openrouter": {
+      "apiKey": "sk-or-..."
+    }
   }
 }
 ```
+
+Then, launch the application:
 
 ```sh
 docker compose up
