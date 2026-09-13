@@ -81,7 +81,7 @@ describe('$Config', () => {
   it('should apply the shipped defaults to every section', () => {
     expect($Config.parse(config)).toMatchObject({
       activation: { debounce: { ceilingMs: 15_000, windowMs: 750 }, foldLimit: 3 },
-      agentDefaults: { contextBudgetTokens: 8000, toolSettings: {} },
+      agentDefaults: { toolSettings: {} },
       display: { timezone: 'UTC' },
       inference: { retry: { backoffMs: 250, maxAttempts: 3 }, timeoutMs: 120_000 },
       logging: { level: 'info' },
@@ -125,13 +125,13 @@ describe('$Config', () => {
     expect($Config.parse(config).agents.mira?.personality).toBeUndefined();
   });
 
-  it('should let an agent override a default, and take the shipped budget when neither states one', () => {
+  it('should let an agent override a default, and take a share of its model’s window when neither states a budget', () => {
     const parsed = $Config.parse({
       ...config,
       agentDefaults: { model: { name: 'deepseek-v4-pro', provider: 'deepseek' } }
     });
     expect(parsed.agents.mira).toMatchObject({
-      contextBudgetTokens: 8000,
+      contextBudgetTokens: 250_000,
       model: { name: 'deepseek-v4-flash', provider: 'deepseek' }
     });
   });

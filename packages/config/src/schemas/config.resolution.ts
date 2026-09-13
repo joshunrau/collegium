@@ -1,5 +1,7 @@
+import { MODEL_CONTEXT_WINDOW_TOKENS } from '@collegium/core/common';
 import type { z } from 'zod';
 
+import { CONTEXT_BUDGET_WINDOW_SHARE } from '../constants.ts';
 import { $ConfigDeclaration } from './config.schemas.ts';
 
 import type { $AgentDeclaration, $ModelRef, $Username } from './config.schemas.ts';
@@ -34,7 +36,10 @@ function resolveConfig(declaration: $ConfigDeclaration, issues: z.core.$ZodRawIs
     }
     agents[username] = {
       ...declared,
-      contextBudgetTokens: declared.contextBudgetTokens ?? config.agentDefaults.contextBudgetTokens,
+      contextBudgetTokens:
+        declared.contextBudgetTokens ??
+        config.agentDefaults.contextBudgetTokens ??
+        Math.floor(MODEL_CONTEXT_WINDOW_TOKENS[model.name] * CONTEXT_BUDGET_WINDOW_SHARE),
       model,
       personality: declared.personality ?? config.agentDefaults.personality,
       username

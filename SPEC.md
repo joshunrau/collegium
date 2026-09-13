@@ -214,6 +214,8 @@ The preamble describes runtime behavior in Simplified Technical English, using t
 
 The token budget is a character-ratio estimate (~4 characters per token) behind a named seam. There is no tokenizer dependency.
 
+An agent's budget is the one it declares, else the one `agentDefaults` declares, else a quarter of its model's context window. The framework records each model's window, and a model cannot be offered without one. The quarter leaves the rest of the window to the system prompt, the tool definitions, and the tool results a turn accumulates.
+
 There is no threading. All posts are channel-level, so **context is pure recency**: no structural marker indicates where one piece of work ended and the next began. `/collegium reset {agent}` provides a manual episode boundary; context never reaches back past the most recent one.
 
 DM context follows the same mechanism as any other channel.

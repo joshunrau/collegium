@@ -15,7 +15,6 @@ const baseConfig = (): $Config => ({
     foldLimit: CONFIG_DEFAULTS.activation.foldLimit
   },
   agentDefaults: {
-    contextBudgetTokens: CONFIG_DEFAULTS.agentDefaults.contextBudgetTokens,
     toolSettings: {}
   },
   agents: {},

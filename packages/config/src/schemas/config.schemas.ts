@@ -11,7 +11,7 @@ import { isUnique } from '@collegium/core/utils';
 import type { LiteralUnion } from 'type-fest';
 import { z } from 'zod';
 
-import { CONFIG_DEFAULTS } from '../constants.ts';
+import { CONFIG_DEFAULTS, CONTEXT_BUDGET_WINDOW_SHARE } from '../constants.ts';
 import { schemaTable } from '../meta.ts';
 
 // After any change here, update the root config.json to match; `pnpm build` regenerates
@@ -144,7 +144,11 @@ export const $Personality = z
 
 export type $AgentDefaults = z.infer<typeof $AgentDefaults>;
 export const $AgentDefaults = z.strictObject({
-  contextBudgetTokens: $ContextBudgetTokens.default(CONFIG_DEFAULTS.agentDefaults.contextBudgetTokens),
+  contextBudgetTokens: $ContextBudgetTokens
+    .optional()
+    .describe(
+      `Every agent's budget unless it states its own. Omit to give each agent ${CONTEXT_BUDGET_WINDOW_SHARE * 100}% of its model's context window.`
+    ),
   model: $ModelRef.optional(),
   personality: $Personality.optional(),
   toolSettings: $ToolSettings

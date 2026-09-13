@@ -62,7 +62,7 @@ describe('ConfigService', () => {
 
   it('should hand out agents resolved against agentDefaults, keyed and named by username', () => {
     expect(configService.get('agents.mira')).toMatchObject({
-      contextBudgetTokens: 8000,
+      contextBudgetTokens: 250_000,
       model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
       username: 'mira'
     });

@@ -8,9 +8,6 @@ export const CONFIG_DEFAULTS = {
     debounce: { ceilingMs: 15_000, windowMs: 750 },
     foldLimit: 3
   },
-  agentDefaults: {
-    contextBudgetTokens: 8000
-  },
   display: {
     timezone: 'UTC'
   },
@@ -38,3 +35,6 @@ export const CONFIG_DEFAULTS = {
     hourlyCeiling: 500
   }
 } as const;
+
+/** the budget is channel history alone: the prompt, tool definitions, and in-turn tool results fill the rest of the window */
+export const CONTEXT_BUDGET_WINDOW_SHARE = 0.25;
