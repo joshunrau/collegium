@@ -25,9 +25,23 @@ const NOTES_TOOLSET = defineToolset({
   }
 });
 
+const MAPS_TOOLSET = defineToolset({
+  name: 'maps',
+  settings: z.object({ apiKey: z.string().optional() }),
+  tools: {
+    geocode: {
+      description: 'Geocode an address.',
+      execute: () => Result.ok({ text: '0,0' }),
+      isAvailableWith: (settings) => settings.apiKey !== undefined,
+      parameters: z.object({})
+    },
+    measure: { description: 'Measure a distance.', execute: () => Result.ok({ text: '0' }), parameters: z.object({}) }
+  }
+});
+
 const register = (declaration: AnyToolset): RegisteredToolset => ({ declaration, services: {}, storage: {} });
 
-const LIBRARY = [SKILLS_TOOLSET, TRIGGERS_TOOLSET, NOTES_TOOLSET].map(register);
+const LIBRARY = [SKILLS_TOOLSET, TRIGGERS_TOOLSET, NOTES_TOOLSET, MAPS_TOOLSET].map(register);
 
 describe('ToolRegistry', () => {
   it('expands a namespace grant to every tool it holds, keyed by wire name', () => {
@@ -47,6 +61,25 @@ describe('ToolRegistry', () => {
     const names = registry.describeFor(profile).map((schema) => schema.name);
     expect(names).toContain('notes__list');
     expect(names).not.toContain('notes__add');
+  });
+
+  it('leaves a tool out of a namespace grant until the agent’s settings enable it', () => {
+    const unset = buildAgentProfile({ tools: ['maps'], toolSettings: new Map([['maps', {}]]) });
+    const set = buildAgentProfile({
+      tools: ['maps'],
+      toolSettings: new Map([['maps', { apiKey: 'k' }]]),
+      username: 'owen'
+    });
+    const registry = new ToolRegistry(LIBRARY, [unset, set]);
+    expect(registry.listFor(unset)).not.toContainEqual(['maps', 'geocode']);
+    expect(registry.listFor(set)).toContainEqual(['maps', 'geocode']);
+  });
+
+  it('refuses an explicit grant of a tool the agent’s settings do not enable', () => {
+    const profile = buildAgentProfile({ tools: ['maps::geocode'], toolSettings: new Map([['maps', {}]]) });
+    expect(() => new ToolRegistry(LIBRARY, [profile])).toThrow(
+      'agent "mira" is configured with "maps::geocode", which its settings for "maps" do not enable'
+    );
   });
 
   it('includes the core tools for an agent granted nothing (§8)', () => {

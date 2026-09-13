@@ -89,6 +89,11 @@ export declare namespace ToolFailure {
 
 export type ToolFailure = ToolFailure.Any;
 
+/** the settings a toolset context carries, or `unknown` for a context declaring none */
+export type ToolContextSettings<TContext> = TContext extends { readonly settings: infer TSettings }
+  ? TSettings
+  : unknown;
+
 /** what an execution settles to; `execute` may return it sync or promised */
 export type ToolResult = Result<ToolOutput, ToolFailure>;
 
@@ -103,6 +108,12 @@ export type ToolDefinition<TContext, TParams extends z.ZodType> = {
   readonly budgetExempt?: boolean;
   readonly description: string;
   execute(args: z.infer<TParams>, context: TContext): Promisable<ToolResult>;
+  /**
+   * Whether the acting agent's effective settings let this tool work at all. False leaves it out
+   * of a namespace grant and refuses an explicit one at boot. Framework toolsets only; rejected at
+   * the plugin perimeter (§6).
+   */
+  isAvailableWith?(settings: ToolContextSettings<TContext>): boolean;
   readonly parameters: TParams;
   /** §7.2 — whether a timed-out call may be reported to the model as a plain failure; false ends the turn as unconfirmable */
   readonly retryable?: boolean;

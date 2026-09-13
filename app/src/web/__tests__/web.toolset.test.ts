@@ -4,12 +4,15 @@ import { describe, expect, it } from 'vitest';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
 
+import { SearchService } from '../search/search.service.ts';
 import { WebService } from '../web.service.ts';
 import { WEB_TOOLSET } from '../web.toolset.ts';
 
 import type { WebPage, WebSnapshot } from '../web.types.ts';
 
-const { click, fetch, fill, hover, navigate } = WEB_TOOLSET.tools;
+const { click, fetch, fill, hover, navigate, search } = WEB_TOOLSET.tools;
+
+const BRAVE = { apiKey: 'test-key', kind: 'brave' } as const;
 
 const SNAPSHOT: WebSnapshot = {
   formElements: [{ isFilled: false, isHidden: false, kind: 'input', label: 'Search', ref: 'e1', type: 'text' }],
@@ -23,9 +26,10 @@ const SNAPSHOT: WebSnapshot = {
 const PAGE: WebPage = { markdown: '# Example Domain', status: 200, title: 'Example', url: 'https://example.org/' };
 
 function buildContext() {
+  const search = MockFactory.createMock(SearchService);
   const web = MockFactory.createMock(WebService);
-  const context = { turn: buildToolTurnScope(), web };
-  return { context, web };
+  const context = { search, settings: { search: { provider: BRAVE } }, turn: buildToolTurnScope(), web };
+  return { context, search, web };
 }
 
 describe('WEB_TOOLSET', () => {
@@ -89,5 +93,35 @@ describe('WEB_TOOLSET', () => {
     const result = await executeTool(hover, { ref: 'e4' }, context);
     expect(web.hover).toHaveBeenCalledWith('turn-1', 'e4');
     expect(result.unwrap().text).toContain('Example — https://example.org/ (HTTP 200)');
+  });
+
+  it('searches with the configured provider and renders ranked summaries', async () => {
+    const { context, search: searchService } = buildContext();
+    searchService.search.mockResolvedValue(
+      Result.ok([{ age: '2 days ago', description: 'An example.', title: 'Example', url: 'https://example.org/' }])
+    );
+    const result = await executeTool(search, { count: 5, query: 'example' }, context);
+    expect(searchService.search).toHaveBeenCalledWith(BRAVE, { count: 5, query: 'example' });
+    expect(result.unwrap().text).toBe(
+      'Results for "example":\n\n1. Example — https://example.org/\n   2 days ago · An example.'
+    );
+  });
+
+  it('returns throttling as text the model can plan around', async () => {
+    const { context, search: searchService } = buildContext();
+    searchService.search.mockResolvedValue(Result.err({ kind: 'rate-limited' }));
+    const result = await executeTool(search, { count: 5, query: 'example' }, context);
+    expect(result.unwrap().text).toContain('rate-limiting');
+  });
+
+  it('is available only where web settings configure a search provider', () => {
+    expect(search.isAvailableWith?.({})).toBe(false);
+    expect(search.isAvailableWith?.({ search: { provider: BRAVE } })).toBe(true);
+  });
+
+  it('leaves search ungated and retryable, tracing the query', () => {
+    expect('approval' in search).toBe(false);
+    expect(search.retryable).toBe(true);
+    expect(search.traceDetail?.({ count: 10, query: 'example' })).toBe('"example"');
   });
 });

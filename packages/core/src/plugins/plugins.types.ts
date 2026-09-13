@@ -17,7 +17,7 @@ export type PluginToolErr = {
   unresolved(message: string): never;
 };
 
-/** one tool as a plugin declares it: the framework's tool minus `budgetExempt`, returning plain output */
+/** one tool as a plugin declares it: the framework's tool minus `budgetExempt` and `isAvailableWith`, returning plain output */
 export type PluginToolDeclaration<TContext, TParams extends z.ZodType> = {
   /** present ⇒ the tool always gates (§5); renders the payload the approver reads and cannot decline */
   approval?(args: z.infer<TParams>): ToolApprovalPayload;

@@ -125,7 +125,9 @@ export class ToolRegistry {
   /**
    * §8 — grants expand at boot: a namespace grant covers every tool the namespace holds now, so a
    * plugin update widens an existing grant with no config change; core toolsets join uninvited.
-   * Every failure names the agent and the grant, and naming a core capability is its own refusal.
+   * A tool the agent's settings leave unable to work is skipped by a namespace grant and refused
+   * when granted by name. Every failure names the agent and the grant, and naming a core capability
+   * is its own refusal.
    */
   private expandGrants(
     profile: AgentProfile,
@@ -134,10 +136,13 @@ export class ToolRegistry {
     coreNamespaces: ReadonlySet<string>
   ): ReadonlyMap<string, ResolvedTool> {
     const tools = new Map<string, ResolvedTool>();
+    const isAvailable = (tool: ResolvedTool) => {
+      return tool.definition.isAvailableWith?.(profile.toolSettings.get(tool.id[0])) ?? true;
+    };
     const includeNamespace = (declaration: AnyToolset) => {
       for (const name of Object.keys(declaration.tools)) {
         const tool = byRef.get(renderToolDisplayName([declaration.name, name]));
-        if (tool) {
+        if (tool && isAvailable(tool)) {
           tools.set(tool.wireName, tool);
         }
       }
@@ -158,6 +163,11 @@ export class ToolRegistry {
       }
       const single = byRef.get(grant);
       if (single) {
+        if (!isAvailable(single)) {
+          throw new Error(
+            `agent "${profile.username}" is configured with "${grant}", which its settings for "${single.id[0]}" do not enable`
+          );
+        }
         tools.set(single.wireName, single);
         continue;
       }

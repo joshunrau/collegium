@@ -1,12 +1,16 @@
 import type { ToolResult } from '@collegium/core/tools';
 import { implementToolset, WEB_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
+import { match } from 'ts-pattern';
 import { z } from 'zod';
 
+import { SEARCH_TIMEOUT_MS } from './search/search.constants.ts';
+import { renderSearchResults } from './search/search.utils.ts';
 import { FETCH_TIMEOUT_MS } from './web.constants.ts';
-import { WEB_SERVICE_TOKEN } from './web.tokens.ts';
+import { SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from './web.tokens.ts';
 import { renderWebFailure, renderWebPage, renderWebSnapshot } from './web.utils.ts';
 
+import type { SearchFailure, SearchResult } from './search/search.types.ts';
 import type { WebFailure, WebPage, WebSnapshot } from './web.types.ts';
 
 const REF_SHAPE = /^e\d+$/;
@@ -38,14 +42,32 @@ const toSnapshotResult = (result: Result<WebSnapshot, WebFailure>): ToolResult =
   return toPageResult(result, renderWebSnapshot);
 };
 
+/** throttling is weather the model can plan around; bad credentials or a dead provider end the turn loudly */
+function toSearchResult(query: string, result: Result<SearchResult[], SearchFailure>): ToolResult {
+  if (result.success) {
+    return Result.ok({ text: renderSearchResults(query, result.value) });
+  }
+  return match(result.error)
+    .with({ kind: 'rate-limited' }, (): ToolResult => {
+      return Result.ok({
+        text: 'The search provider is rate-limiting this deployment. Search again later in the turn, or read a page you already know with web::fetch.'
+      });
+    })
+    .with({ kind: 'rejected' }, ({ message }): ToolResult => Result.err({ kind: 'invalid-arguments', message }))
+    .with({ kind: 'auth' }, { kind: 'unavailable' }, ({ message }): ToolResult => {
+      return Result.err({ kind: 'exception', message });
+    })
+    .exhaustive();
+}
+
 /**
  * Ungated as a read instrument (§3.4): the per-agent grant decides who browses, the status post
  * traces every action. A click or fill may commit a side effect on the page, and even a navigation
  * can, so no browser tool is retryable: a timeout leaves us unable to say whether it landed (§7.2).
- * `fetch` is the exception — a scriptless GET commits nothing, so its timeout is a plain failure.
+ * `fetch` and `search` are the exceptions — a scriptless GET commits nothing, so a timeout is a plain failure.
  */
 export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
-  services: { web: WEB_SERVICE_TOKEN },
+  services: { search: SEARCH_SERVICE_TOKEN, web: WEB_SERVICE_TOKEN },
   tools: {
     click: {
       description: `${DESCRIPTION_PREAMBLE}Click an element from the latest snapshot, e.g. to follow a link or submit a form.`,
@@ -111,6 +133,26 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       }),
       timeoutMs: WEB_TIMEOUT_MS,
       traceDetail: (args) => args.url
+    },
+    search: {
+      description:
+        'Search the web and get back ranked results — a title, URL, and short snippet each, never the page itself. ' +
+        'Read a result with fetch, or navigate when it needs a browser. Search operators such as "quoted phrases" and site: work.',
+      execute: async (args, context) => {
+        const { search } = context.settings;
+        if (!search) {
+          throw new Error('web::search ran for an agent whose web settings configure no search provider');
+        }
+        return toSearchResult(args.query, await context.search.search(search.provider, args));
+      },
+      isAvailableWith: (settings) => settings.search !== undefined,
+      parameters: z.object({
+        count: z.number().int().min(1).max(20).default(10).describe('How many results to return'),
+        query: z.string().min(1).max(600).describe('What to search for')
+      }),
+      retryable: true,
+      timeoutMs: SEARCH_TIMEOUT_MS + 5_000,
+      traceDetail: (args) => `"${args.query}"`
     }
   }
 });

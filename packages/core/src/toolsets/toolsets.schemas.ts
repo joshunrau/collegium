@@ -70,6 +70,28 @@ export const $MailSettings = z
   })
   .describe('The one mailbox an agent granted mail acts as. Granting mail without these is a boot refusal (§8).');
 
+export type $BraveSearchProvider = z.infer<typeof $BraveSearchProvider>;
+export const $BraveSearchProvider = z.strictObject({
+  apiKey: z.string().min(1).describe('Brave Search API subscription token (https://api-dashboard.search.brave.com)'),
+  kind: z.literal('brave')
+});
+
+export type $WebSearchSettings = z.infer<typeof $WebSearchSettings>;
+export const $WebSearchSettings = z
+  .strictObject({
+    provider: z
+      .discriminatedUnion('kind', [$BraveSearchProvider])
+      .describe('Which search provider answers web::search, with its credentials')
+  })
+  .describe('The search provider behind web::search. Absent, the agent is not offered web::search.');
+
+export type $WebSettings = z.infer<typeof $WebSettings>;
+export const $WebSettings = z
+  .strictObject({
+    search: $WebSearchSettings.optional()
+  })
+  .describe('What the web toolset runs with. Every field is optional, so a bare grant works.');
+
 export type $MemorySettings = z.infer<typeof $MemorySettings>;
 export const $MemorySettings = z
   .strictObject({

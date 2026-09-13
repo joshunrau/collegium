@@ -1,5 +1,5 @@
 import { renderToolDisplayName } from '../tools.ts';
-import { $MailSettings, $MemorySettings } from './toolsets.schemas.ts';
+import { $MailSettings, $MemorySettings, $WebSettings } from './toolsets.schemas.ts';
 
 import type { ToolsetDef } from './toolsets.types.ts';
 
@@ -25,7 +25,8 @@ export const TRIGGERS_TOOLSET_DEF = { name: 'triggers', tools: ['resolve'] } as 
 
 export const WEB_TOOLSET_DEF = {
   name: 'web',
-  tools: ['click', 'fetch', 'fill', 'hover', 'navigate']
+  settings: $WebSettings,
+  tools: ['click', 'fetch', 'fill', 'hover', 'navigate', 'search']
 } as const satisfies ToolsetDef;
 
 export const WORKSPACE_TOOLSET_DEF = { name: 'workspace', tools: ['write'] } as const satisfies ToolsetDef;
