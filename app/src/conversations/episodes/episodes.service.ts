@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model } from '@/prisma/prisma.types.ts';
 
-import type { ConversationFailure } from '../conversations.types.ts';
+import type { ConversationFailure, EpisodeBoundary } from '../conversations.types.ts';
 
 @Injectable()
 export class EpisodesService {
@@ -22,13 +22,28 @@ export class EpisodesService {
     return Result.ok();
   }
 
-  async latestBoundaryPostId(agentUsername: string, channelId: string): Promise<string | undefined> {
+  /**
+   * Where the agent's context in this channel begins (§3.8), each side cut on its own clock:
+   * posts on Mattermost's, events on this host's. A boundary whose post is no longer stored
+   * bounds nothing.
+   */
+  async latestBoundary(agentUsername: string, channelId: string): Promise<EpisodeBoundary | undefined> {
     const latest = await this.episodes.findFirst({
       orderBy: { createdAt: 'desc' },
       select: { postId: true },
       where: { agentUsername, channelId }
     });
-    return latest?.postId;
+    if (latest === null) {
+      return undefined;
+    }
+    const boundaryPost = await this.posts.findFirst({
+      select: { createdAt: true, observedAt: true },
+      where: { id: latest.postId }
+    });
+    if (!boundaryPost) {
+      return undefined;
+    }
+    return { eventsAfter: boundaryPost.observedAt, postsAfter: boundaryPost.createdAt };
   }
 
   /** a manual episode boundary (§3.8) — context never reaches back past the most recent one */

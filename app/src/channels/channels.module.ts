@@ -6,12 +6,13 @@ import { ChatModule } from '@/chat/chat.module.ts';
 import { ConfigService } from '@/config/config.service.ts';
 
 import { ChannelsService } from './channels.service.ts';
+import { ROSTER_SERVICE_TOKEN } from './channels.tokens.ts';
 import { ChannelLockService } from './locks/channel-lock.service.ts';
 import { MultiMentionPolicy } from './refusals/multi-mention.policy.ts';
 import { RosterService } from './roster/roster.service.ts';
 
 @Module({
-  exports: [ChannelLockService, ChannelsService, MultiMentionPolicy, RosterService],
+  exports: [ChannelLockService, ChannelsService, MultiMentionPolicy, ROSTER_SERVICE_TOKEN, RosterService],
   imports: [AgentsModule, ChatModule],
   providers: [
     ChannelLockService,
@@ -28,7 +29,8 @@ import { RosterService } from './roster/roster.service.ts';
       }
     },
     MultiMentionPolicy,
-    RosterService
+    RosterService,
+    { provide: ROSTER_SERVICE_TOKEN, useExisting: RosterService }
   ]
 })
 export class ChannelsModule {}

@@ -6,12 +6,7 @@ import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
 import { EpisodesService } from '../episodes/episodes.service.ts';
 import { entryText, estimateTokens } from './window.utils.ts';
 
-import type { WindowEntry } from '../conversations.types.ts';
-
-type WindowBoundary = {
-  eventsAfter: Date;
-  postsAfter: Date;
-};
+import type { EpisodeBoundary, WindowEntry } from '../conversations.types.ts';
 
 type WindowInput = {
   agentUsername: string;
@@ -29,7 +24,7 @@ export class WindowService {
 
   /** newest-first walk under the token budget, returned oldest-first for the model (§3.8) */
   async build(input: WindowInput): Promise<WindowEntry[]> {
-    const boundary = await this.resolveBoundary(input);
+    const boundary = await this.episodesService.latestBoundary(input.agentUsername, input.channelId);
     const [posts, events] = await Promise.all([
       this.newestPosts(input, boundary),
       this.newestOwnEvents(input, boundary)
@@ -63,7 +58,7 @@ export class WindowService {
    * authority (§3.4), and a channel-scoped trace would feed private memory into every peer's
    * context (§3.6). Peers are read through their posts alone.
    */
-  private newestOwnEvents(input: WindowInput, boundary: undefined | WindowBoundary): Promise<ModelRow<'TurnEvent'>[]> {
+  private newestOwnEvents(input: WindowInput, boundary: EpisodeBoundary | undefined): Promise<ModelRow<'TurnEvent'>[]> {
     return this.events.findMany({
       orderBy: [{ createdAt: 'desc' }, { sequence: 'desc' }],
       take: input.budgetTokens + 1,
@@ -79,7 +74,7 @@ export class WindowService {
    * the reading agent's own turn authored is left out: the turn's final `assistant_message` event
    * already carries that text with the reasoning behind it, and a notice is the framework speaking.
    */
-  private newestPosts(input: WindowInput, boundary: undefined | WindowBoundary): Promise<ModelRow<'Post'>[]> {
+  private newestPosts(input: WindowInput, boundary: EpisodeBoundary | undefined): Promise<ModelRow<'Post'>[]> {
     return this.posts.findMany({
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: input.budgetTokens + 1,
@@ -90,21 +85,5 @@ export class WindowService {
         ...(boundary && { createdAt: { gt: boundary.postsAfter } })
       }
     });
-  }
-
-  /** each side of the boundary is cut on its own clock: posts on Mattermost's, events on this host's */
-  private async resolveBoundary(input: WindowInput): Promise<undefined | WindowBoundary> {
-    const boundaryPostId = await this.episodesService.latestBoundaryPostId(input.agentUsername, input.channelId);
-    if (boundaryPostId === undefined) {
-      return undefined;
-    }
-    const boundaryPost = await this.posts.findFirst({
-      select: { createdAt: true, observedAt: true },
-      where: { id: boundaryPostId }
-    });
-    if (!boundaryPost) {
-      return undefined;
-    }
-    return { eventsAfter: boundaryPost.observedAt, postsAfter: boundaryPost.createdAt };
   }
 }

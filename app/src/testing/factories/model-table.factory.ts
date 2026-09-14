@@ -16,6 +16,8 @@ type ModelTableOptions<TRow> = {
   uniqueFields?: readonly (keyof TRow & string)[];
 };
 
+const foldAsciiCase = (value: string): string => value.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+
 export type ModelTable<TRow extends object> = {
   count: (query: { where?: object }) => Promise<number>;
   create: (query: { data: object }) => Promise<TRow>;
@@ -33,7 +35,7 @@ export type ModelTable<TRow extends object> = {
 
 /**
  * An in-memory stand-in for one Prisma model delegate, implementing only the query surface the
- * services actually use: equality/`in`/`startsWith`/date-range where-matching, nested relation conditions,
+ * services actually use: equality/`in`/`startsWith`/`contains`/date-range where-matching, nested relation conditions,
  * `AND`/`OR`/`NOT`, ordered `orderBy`, `select` projection, `include` attachment, and P2002 emulation on create.
  */
 export function createModelTable<TRow extends object>(options: ModelTableOptions<TRow> = {}): ModelTable<TRow> {
@@ -71,6 +73,10 @@ export function createModelTable<TRow extends object>(options: ModelTableOptions
       }
       if ('startsWith' in clauses) {
         return typeof value === 'string' && value.startsWith(clauses.startsWith as string);
+      }
+      if ('contains' in clauses) {
+        // SQLite compiles `contains` to LIKE, which folds ASCII case only, so this evaluator folds the same
+        return typeof value === 'string' && foldAsciiCase(value).includes(foldAsciiCase(clauses.contains as string));
       }
       if ('gt' in clauses || 'gte' in clauses || 'lt' in clauses || 'lte' in clauses) {
         const actual = toComparable(value);

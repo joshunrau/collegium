@@ -83,7 +83,12 @@ describe('createModelTable', () => {
   });
 
   it('should throw when an unsupported operator meets a scalar', () => {
-    expect(() => table.count({ where: { channelId: { contains: 'c' } } })).toThrow(/unsupported where condition/);
+    expect(() => table.count({ where: { channelId: { endsWith: 'c' } } })).toThrow(/unsupported where condition/);
+  });
+
+  it('should match a substring without regard to ASCII case, as SQLite’s LIKE does', async () => {
+    const found = await table.findMany({ where: { channelId: { contains: 'C2' } } });
+    expect(ids(found)).toEqual(['row-1']);
   });
 
   it('should match a condition nested under a relation', async () => {

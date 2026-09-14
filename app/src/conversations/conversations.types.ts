@@ -1,3 +1,4 @@
+import type { ReachableChannel } from '@/channels/channels.types.ts';
 import type { AuthorKind, ModelRow } from '@/prisma/prisma.types.ts';
 
 export declare namespace ConversationFailure {
@@ -10,6 +11,32 @@ export declare namespace ConversationFailure {
 }
 
 export type ConversationFailure = ConversationFailure.Any;
+
+/** the most recent `/collegium reset` in a channel, as the instants context may not reach behind (§3.8) */
+export type EpisodeBoundary = {
+  readonly eventsAfter: Date;
+  readonly postsAfter: Date;
+};
+
+/** one post a search found, with its channel named as the model should see it (§3.8) */
+export type SearchHit = {
+  readonly authorUsername: string;
+  readonly channelName: string;
+  readonly createdAt: Date;
+  readonly id: string;
+  readonly message: string;
+};
+
+export type SearchInput = {
+  readonly agentUsername: string;
+  readonly authorUsername?: string;
+  /** the channels the roster allows from where the search is made (§3.8); nothing outside them is read */
+  readonly channels: readonly ReachableChannel[];
+  readonly from?: Date;
+  readonly limit: number;
+  readonly query: string;
+  readonly until?: Date;
+};
 
 /** what a post's origin implies about the turn it activates: §7.4 depth and §4.4 folding */
 export type ActivationSource = {

@@ -72,7 +72,7 @@ describe('WindowService', () => {
 
   beforeEach(() => {
     episodesService = MockFactory.createMock(EpisodesService);
-    episodesService.latestBoundaryPostId.mockResolvedValue(undefined);
+    episodesService.latestBoundary.mockResolvedValue(undefined);
   });
 
   it('should walk the channel backwards until the token budget is exhausted, returning oldest first', async () => {
@@ -82,16 +82,10 @@ describe('WindowService', () => {
   });
 
   it('should stop at the most recent episode boundary however much budget remains', async () => {
-    episodesService.latestBoundaryPostId.mockResolvedValue('post-2');
+    episodesService.latestBoundary.mockResolvedValue({ eventsAfter: new Date(2000), postsAfter: new Date(2000) });
     const posts = [post('post-1', 1000), post('post-2', 2000), post('post-3', 3000)];
     const entries = await build(posts, []);
     expect(identify(entries)).toStrictEqual(['post-3']);
-  });
-
-  it('should ignore an episode boundary whose post is no longer stored', async () => {
-    episodesService.latestBoundaryPostId.mockResolvedValue('post-forgotten');
-    const entries = await build([post('post-1', 1000)], []);
-    expect(identify(entries)).toStrictEqual(['post-1']);
   });
 
   it('should skip forgotten posts', async () => {

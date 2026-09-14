@@ -10,12 +10,15 @@ type EpisodeRow = { agentUsername: string; channelId: string; createdAt: Date; p
 describe('EpisodesService', () => {
   let episodesService: EpisodesService;
   let episodes: EpisodeRow[];
-  let posts: { id: string; isForgotten: boolean }[];
+  let posts: { createdAt: Date; id: string; isForgotten: boolean; observedAt: Date }[];
   let sequence: number;
 
   beforeEach(async () => {
     episodes = [];
-    posts = [{ id: 'post-1', isForgotten: false }];
+    posts = [
+      { createdAt: new Date(1000), id: 'post-1', isForgotten: false, observedAt: new Date(1001) },
+      { createdAt: new Date(2000), id: 'post-2', isForgotten: false, observedAt: new Date(2001) }
+    ];
     sequence = 0;
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -40,6 +43,7 @@ describe('EpisodesService', () => {
         {
           provide: getModelToken('Post'),
           useValue: {
+            findFirst: ({ where }: any) => Promise.resolve(posts.find((row) => row.id === where.id) ?? null),
             updateMany: ({ data, where }: any) => {
               const matching = posts.filter((row) => row.id === where.id);
               matching.forEach((row) => Object.assign(row, data));
@@ -56,8 +60,16 @@ describe('EpisodesService', () => {
     await episodesService.mark('mira', 'channel-1', 'post-1');
     await episodesService.mark('mira', 'channel-1', 'post-2');
     await episodesService.mark('tess', 'channel-1', 'post-3');
-    expect(await episodesService.latestBoundaryPostId('mira', 'channel-1')).toBe('post-2');
-    expect(await episodesService.latestBoundaryPostId('mira', 'channel-2')).toBeUndefined();
+    expect(await episodesService.latestBoundary('mira', 'channel-1')).toStrictEqual({
+      eventsAfter: new Date(2001),
+      postsAfter: new Date(2000)
+    });
+    expect(await episodesService.latestBoundary('mira', 'channel-2')).toBeUndefined();
+  });
+
+  it('should bound nothing by a boundary whose post is no longer stored', async () => {
+    await episodesService.mark('mira', 'channel-1', 'post-gone');
+    expect(await episodesService.latestBoundary('mira', 'channel-1')).toBeUndefined();
   });
 
   it('should mark a recorded post forgotten and refuse an unrecorded one', async () => {

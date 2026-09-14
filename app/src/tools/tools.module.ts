@@ -5,6 +5,8 @@ import { AgentsModule } from '@/agents/agents.module.ts';
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { ApprovalsModule } from '@/approvals/approvals.module.ts';
 import { BuiltinsModule } from '@/builtins/builtins.module.ts';
+import { ChannelsModule } from '@/channels/channels.module.ts';
+import { ConversationsModule } from '@/conversations/conversations.module.ts';
 import { MailModule } from '@/mail/mail.module.ts';
 import { MemoryModule } from '@/memory/memory.module.ts';
 import { PluginsModule } from '@/plugins/plugins.module.ts';
@@ -32,6 +34,8 @@ const SERVICE_TOKENS: readonly ServiceToken<unknown>[] = FRAMEWORK_TOOLSETS.flat
     AgentsModule,
     ApprovalsModule,
     BuiltinsModule,
+    ChannelsModule,
+    ConversationsModule,
     MailModule,
     MemoryModule,
     PluginsModule,

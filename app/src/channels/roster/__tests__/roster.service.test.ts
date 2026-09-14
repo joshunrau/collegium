@@ -43,9 +43,9 @@ describe('RosterService', () => {
   beforeEach(async () => {
     agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.list.mockReturnValue([profile('mira'), profile('tess')]);
-    agentRegistry.get.mockImplementation((username) =>
-      ['mira', 'tess'].includes(username) ? profile(username) : undefined
-    );
+    agentRegistry.get.mockImplementation((username) => {
+      return ['mira', 'tess'].includes(username) ? profile(username) : undefined;
+    });
     channelsService = MockFactory.createMock(ChannelsService);
     channelsService.listRespondToAllChannelIds.mockReturnValue([]);
     membershipFailure = undefined;
