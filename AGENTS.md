@@ -72,11 +72,11 @@ app/src/
   agents/         identity and policy — a passive profile registry holding grants and effective tool settings, no execution
   approvals/      approval lifecycle, pending-decision registry, prompt rendering
   builtins/       the framework's own small core tools, sharing one namespace rather than owning a module each: the clock
-  channels/       triggering mode, the channel lock, the peer roster cache, the multi-mention policy
+  channels/       triggering mode, the channel lock, the roster (membership, kind and name per channel, and which channels a search may reach), the multi-mention policy
   chat/           the Mattermost seam
   commands/       the slash-command entry layer and its handlers
   config/         the ConfigService and EnvService: config.json and process.env read and parsed against @collegium/config
-  conversations/  the post store, the channel window, episodes, forget, backfill
+  conversations/  the post store, the channel window, episodes, forget, backfill, and the conversations::search toolset
   core/           shared schema/type primitives
   credentials/    the Mattermost tokens provisioning minted, read by the app and written by nothing else
   formatting/     display formatting: the shared date formatter (fixed locale, operator timezone)

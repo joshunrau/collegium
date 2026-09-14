@@ -28,6 +28,7 @@ describe('SystemPromptRenderer', () => {
   let rosterService: MockedInstance<RosterService>;
   let skillsService: MockedInstance<SkillsService>;
   let systemPromptRenderer: SystemPromptRenderer;
+  let toolRegistry: MockedInstance<ToolRegistry>;
 
   beforeEach(async () => {
     memoryService = MockFactory.createMock(MemoryService);
@@ -36,8 +37,9 @@ describe('SystemPromptRenderer', () => {
     rosterService.getPeers.mockReturnValue([]);
     skillsService = MockFactory.createMock(SkillsService);
     skillsService.renderManifest.mockReturnValue('');
-    const toolRegistry = MockFactory.createMock(ToolRegistry);
+    toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listBudgetExemptFor.mockReturnValue(['builtins__now', 'skills__load']);
+    toolRegistry.listFor.mockReturnValue([]);
     const moduleRef = await Test.createTestingModule({
       providers: [
         SystemPromptRenderer,
@@ -80,6 +82,12 @@ describe('SystemPromptRenderer', () => {
     expect(prompt).toContain('fits your context to about 12000 tokens');
     expect(prompt).toContain('Each turn has a budget of 7 tool calls.');
     expect(prompt).toContain('Calls to builtins__now and skills__load do not.');
+  });
+
+  it('should state what conversations__search reaches only for an agent that holds it (§3.8)', async () => {
+    expect(await render()).not.toContain('conversations__search');
+    toolRegistry.listFor.mockReturnValue([['conversations', 'search']]);
+    expect(await render()).toContain('conversations__search finds past posts in the channels you are in.');
   });
 
   it('should append the skills, memories, and peers sections in §3.8 order', async () => {

@@ -95,6 +95,9 @@ export class SystemPromptRenderer {
 
   /** §3.8 — every sentence states what the framework does, never what the model ought to do; an instruction does not belong here */
   private renderPreamble(profile: AgentProfile): string {
+    const holdsSearch = this.toolRegistry
+      .listFor(profile)
+      .some(([namespace, tool]) => namespace === 'conversations' && tool === 'search');
     return this.textFormatter.formatParagraphs(
       [
         '## How this works',
@@ -103,7 +106,12 @@ export class SystemPromptRenderer {
         "The framework posts your reply. Text with no tool call is your final message. It goes to the channel and the turn stops. Text with a tool call is shown while the tool runs. Then it is removed. When your turn stops, the framework starts no further turn in this channel by itself. A person's post, a colleague's mention, or a trigger the framework posts starts the next one.",
         'Some tools need approval from a person before they run. The approval prompt shows the full payload to all persons in the channel. There is no timeout. If a person denies with no reason, the turn stops. If a person denies with a reason, the reason comes back as the tool result. The turn then continues with the same budget.',
         'Each turn has a budget of {actionBudget} tool calls. A denied call also uses the budget. Calls to {budgetExemptCalls} do not. When the budget is used, the framework asks a person for more. If the person approves, you get {actionBudget} more calls. If the person denies with no reason, the turn stops. If the person denies with a reason, the reason comes back as the tool result, no further call runs, and only your text is posted.',
-        'Your memories are the only data that goes with you between channels, and the only record that survives after the posts and results around them fall outside your context. A memory write and a memory delete need no approval. Each of them is shown in the channel immediately.',
+        'Your memories go with you between channels, and stay in your context after the posts and results around them have fallen outside it. A memory write and a memory delete need no approval. Each of them is shown in the channel immediately.',
+        ...(holdsSearch
+          ? [
+              'conversations__search finds past posts in the channels you are in. From a public channel it reaches public channels only. From a private channel or a direct message it also reaches private channels and direct messages whose members include everyone here. It does not reach past the most recent reset in a channel, and it does not return tool results.'
+            ]
+          : []),
         "The framework lists your skills each turn as names and descriptions. A skill's body is in your context only for the turn that loads it; a later turn sees one line saying it was loaded.",
         'When you mention a colleague, the colleague starts a turn in this channel. The colleague sees the channel posts only, not your tool results or your status text. If a post mentions two agents, the framework rejects it and tells you.',
         'When the system bot posts an item for you, the item stays open until you mark it with triggers__resolve.',
