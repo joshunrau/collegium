@@ -34,7 +34,7 @@ export class MattermostGateway extends ChatGateway {
     this.agentUsernames = new Set(Object.keys(configService.get('agents')));
     this.config = { mattermost: configService.get('mattermost') };
     this.teamName = envService.get('MATTERMOST_TEAM');
-    this.url = removeTrailingSlash(envService.get('MATTERMOST_URL'));
+    this.url = removeTrailingSlash(envService.get('MATTERMOST_LOCAL_URL'));
     this.systemClient = new MattermostClient({ token: options.systemBotToken, url: this.url });
   }
 

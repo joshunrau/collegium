@@ -12,8 +12,8 @@ const baseEnv = (): $Env => ({
   APP_PUBLIC_URL: 'http://localhost:3000',
   CONFIG_PATH: '/tmp/collegium-test/config.json',
   DATABASE_URL: 'file:///tmp/collegium-test/db.sqlite',
+  MATTERMOST_LOCAL_URL: 'http://localhost:8065',
   MATTERMOST_TEAM: 'collegium',
-  MATTERMOST_URL: 'http://localhost:8065',
   PLUGINS_ROOT: '/srv/plugins',
   WORKSPACE_ROOT: '/tmp/collegium-test-workspaces'
 });

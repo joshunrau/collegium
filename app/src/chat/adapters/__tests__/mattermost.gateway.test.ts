@@ -148,7 +148,7 @@ describe('MattermostGateway', () => {
       providers: [
         LoggerFactory,
         { provide: ConfigService, useValue: configService },
-        { provide: EnvService, useValue: createEnvServiceMock({ MATTERMOST_URL: 'http://localhost:8065/' }) }
+        { provide: EnvService, useValue: createEnvServiceMock({ MATTERMOST_LOCAL_URL: 'http://localhost:8065/' }) }
       ]
     }).compile();
     mattermostGateway = new MattermostGateway(

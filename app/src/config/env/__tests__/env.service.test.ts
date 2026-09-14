@@ -9,8 +9,8 @@ const mockEnv: Omit<{ [K in keyof $Env]: string }, 'APP_PUBLIC_URL'> = {
   APP_PORT: '3000',
   CONFIG_PATH: '/dev/null',
   DATABASE_URL: 'file:///dev/null',
+  MATTERMOST_LOCAL_URL: 'http://mattermost:8065',
   MATTERMOST_TEAM: 'collegium',
-  MATTERMOST_URL: 'http://mattermost:8065',
   PLUGINS_ROOT: '/srv/plugins',
   WORKSPACE_ROOT: '/tmp/collegium-test-workspaces'
 };

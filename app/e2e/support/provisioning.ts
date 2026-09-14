@@ -90,8 +90,8 @@ export function setupProvisioning(options: { runs: number }): Provisioning {
       APP_PORT: '3000',
       CONFIG_PATH: configPath,
       DATABASE_URL: databaseUrl,
+      MATTERMOST_LOCAL_URL: cluster.url,
       MATTERMOST_TEAM: cluster.teamName,
-      MATTERMOST_URL: cluster.url,
       PLUGINS_ROOT: REPOSITORY_PLUGINS_ROOT,
       WORKSPACE_ROOT: path.join(tmpDir, 'workspaces')
     };

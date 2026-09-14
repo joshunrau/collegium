@@ -20,7 +20,7 @@ services:
       - CONFIG_PATH=/app/config.json
       - DATABASE_URL=file:///data/prod.db
       - MATTERMOST_TEAM=${MATTERMOST_TEAM:?}
-      - MATTERMOST_URL=${MATTERMOST_URL:-http://mattermost:8065}
+      - MATTERMOST_LOCAL_URL=${MATTERMOST_LOCAL_URL:-http://mattermost:8065}
       - PLUGINS_ROOT=/srv/plugins
       - WORKSPACE_ROOT=/workspaces
     image: ghcr.io/joshunrau/collegium:latest
@@ -55,7 +55,9 @@ services:
       # provisioning installs the plugin that holds /collegium (§8.4), which is an upload
       MM_PLUGINSETTINGS_ENABLEUPLOADS: 'true'
       MM_SERVICESETTINGS_ENABLEUSERACCESSTOKENS: 'true'
-      MM_SERVICESETTINGS_SITEURL: http://localhost:${MATTERMOST_PORT:-8065}
+      # required, but enforced by the image's entrypoint: a `:?` here fails every deployment that
+      # leaves the bundled profile off, since Compose interpolates a service its profile excludes
+      MM_SERVICESETTINGS_SITEURL: ${MATTERMOST_PUBLIC_URL:-}
       MM_SQLSETTINGS_DATASOURCE: postgres://collegium:${POSTGRES_PASSWORD:-postgres}@postgres:5432/mattermost?sslmode=disable&connect_timeout=10
       # provisioning creates the administrator through the signup route, which both of these gate
       MM_EMAILSETTINGS_ENABLESIGNUPWITHEMAIL: 'true'

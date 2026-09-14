@@ -100,18 +100,18 @@ export const $Env = z
     DATABASE_URL: $SqliteFileUrl.describe(
       'A `file:` URL naming the SQLite store, absolute and without a host — `file:///data/prod.db`. Its parent directory is created and taken over on boot.'
     ),
+    // the websocket address is this one with its scheme rewritten, so anything but http(s) yields a
+    // transport that can never connect
+    MATTERMOST_LOCAL_URL: z
+      .url({ protocol: /^https?$/ })
+      .describe(
+        'Where the app reaches Mattermost, over http or https. Local names who uses it, not where the server is: for a server you already run it is usually the public address. Not where people open Mattermost, which is its Site URL — for the bundled Mattermost, `MATTERMOST_PUBLIC_URL`.'
+      ),
     MATTERMOST_TEAM: z
       .string()
       .min(1)
       .describe(
         'The team this deployment occupies, by handle — the name in its URL. Created on first start if absent.'
-      ),
-    // the websocket address is this one with its scheme rewritten, so anything but http(s) yields a
-    // transport that can never connect
-    MATTERMOST_URL: z
-      .url({ protocol: /^https?$/ })
-      .describe(
-        'Where the app reaches Mattermost, over http or https. Not where you reach it — under Compose these differ.'
       ),
     PLUGINS_ROOT: z
       .string()

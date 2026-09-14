@@ -14,7 +14,7 @@ import { ProvisioningService } from './provisioning.service.ts';
     {
       inject: [EnvService],
       provide: MattermostAdminClient,
-      useFactory: (envService: EnvService) => new MattermostAdminClient({ url: envService.get('MATTERMOST_URL') })
+      useFactory: (envService: EnvService) => new MattermostAdminClient({ url: envService.get('MATTERMOST_LOCAL_URL') })
     }
   ]
 })

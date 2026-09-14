@@ -7,8 +7,8 @@ const env: Omit<{ [K in keyof $Env]: string }, 'APP_PUBLIC_URL'> = {
   APP_PORT: '3000',
   CONFIG_PATH: '/etc/collegium/config.json',
   DATABASE_URL: 'file:///var/lib/collegium.db',
+  MATTERMOST_LOCAL_URL: 'http://mattermost:8065',
   MATTERMOST_TEAM: 'collegium',
-  MATTERMOST_URL: 'http://mattermost:8065',
   PLUGINS_ROOT: '/srv/plugins',
   WORKSPACE_ROOT: '/workspaces'
 };
@@ -78,7 +78,7 @@ describe('$Env', () => {
   });
 
   it('should reject a malformed Mattermost URL', () => {
-    expect($Env.safeParse({ ...env, MATTERMOST_URL: 'mattermost:8065' }).success).toBe(false);
+    expect($Env.safeParse({ ...env, MATTERMOST_LOCAL_URL: 'mattermost:8065' }).success).toBe(false);
   });
 });
 

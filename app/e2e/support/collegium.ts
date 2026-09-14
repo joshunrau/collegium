@@ -250,8 +250,8 @@ class CollegiumProcess {
         APP_PUBLIC_URL: this.publicUrl,
         CONFIG_PATH: this.configPath,
         DATABASE_URL: this.databaseUrl,
+        MATTERMOST_LOCAL_URL: this.mattermost.url,
         MATTERMOST_TEAM: this.mattermost.teamName,
-        MATTERMOST_URL: this.mattermost.url,
         PLUGINS_ROOT: REPOSITORY_PLUGINS_ROOT,
         WORKSPACE_ROOT: this.workspaceRoot
       };
