@@ -1,0 +1,1 @@
+export const MAIL_TEMPLATE_BODY_PLACEHOLDER = '{BODY}';

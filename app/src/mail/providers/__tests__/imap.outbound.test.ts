@@ -84,6 +84,13 @@ describe('ImapMailProvider outbound', () => {
     expect(client.append).toHaveBeenCalledWith('Sent Items', expect.any(Buffer), ['\\Seen']);
   });
 
+  it('should send a templated message with both an HTML and a plain-text part', async () => {
+    await provider.send({ ...OUTBOUND, html: '<p>The invoice</p>' });
+    const parsed = await sentRaw();
+    expect(parsed.html).toBe('<p>The invoice</p>');
+    expect(parsed.text).toBe('The invoice is scheduled for Friday.');
+  });
+
   it('should thread a reply from the original message headers', async () => {
     client.fetchOne.mockResolvedValue({ source: Buffer.from(ORIGINAL_EML), uid: 42 });
     expect((await provider.reply('7:42', OUTBOUND)).success).toBe(true);

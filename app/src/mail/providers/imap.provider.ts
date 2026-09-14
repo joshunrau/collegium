@@ -340,6 +340,7 @@ export class ImapMailProvider extends MailProvider {
       from: this.address,
       ...(threading?.inReplyTo === undefined ? {} : { inReplyTo: threading.inReplyTo }),
       ...(threading !== undefined && threading.references.length > 0 ? { references: threading.references } : {}),
+      ...(mail.html === undefined ? {} : { html: mail.html }),
       subject: mail.subject,
       text: mail.body,
       to: [...mail.to]

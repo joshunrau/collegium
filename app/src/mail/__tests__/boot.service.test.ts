@@ -28,7 +28,8 @@ describe('MailBootService', () => {
         agentUsername: 'tess',
         announcementChannelId: 'channel-mail',
         pollIntervalMs: 60_000,
-        provider: { address: 'tess@example.org', probe } as never
+        provider: { address: 'tess@example.org', probe } as never,
+        template: undefined
       }
     ]);
     mailOutageService = MockFactory.createMock(MailOutageService);

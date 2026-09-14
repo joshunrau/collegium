@@ -47,6 +47,17 @@ describe('ExchangeMailProvider outbound', () => {
     expect(requested(0).body).toBe(JSON.stringify({ message: GRAPH_OUTBOUND, saveToSentItems: true }));
   });
 
+  it('should send a templated message as an HTML body', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 202 }));
+    await provider.send({ ...OUTBOUND, html: '<p>The invoice</p>' });
+    expect(requested(0).body).toBe(
+      JSON.stringify({
+        message: { ...GRAPH_OUTBOUND, body: { content: '<p>The invoice</p>', contentType: 'html' } },
+        saveToSentItems: true
+      })
+    );
+  });
+
   it('should reply by overwriting the provider-built draft with the approved content, then sending it', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'draft-1' }, 201));
     fetchMock.mockResolvedValueOnce(jsonResponse({}, 200));

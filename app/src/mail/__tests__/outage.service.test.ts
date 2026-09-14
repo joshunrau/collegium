@@ -15,7 +15,8 @@ const MAILBOX: MailboxRuntime = {
   agentUsername: 'tess',
   announcementChannelId: 'channel-mail',
   pollIntervalMs: 60_000,
-  provider: { address: 'tess@example.org' } as never
+  provider: { address: 'tess@example.org' } as never,
+  template: undefined
 };
 
 describe('MailOutageService', () => {

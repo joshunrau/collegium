@@ -1,7 +1,9 @@
 import type { $MailSettings } from '@collegium/core/toolsets';
 
 import { ChatGateway } from '@/chat/chat.gateway.ts';
+import { ResourcesService } from '@/resources/resources.service.ts';
 
+import { $MailTemplate } from './compose/compose.schemas.ts';
 import { ExchangeAuth } from './providers/exchange.auth.ts';
 import { ExchangeMailProvider } from './providers/exchange.provider.ts';
 import { ImapMailProvider } from './providers/imap.provider.ts';
@@ -14,6 +16,7 @@ export type MailboxRuntime = {
   readonly announcementChannelId: string;
   readonly pollIntervalMs: number;
   readonly provider: MailProvider;
+  readonly template: $MailTemplate | undefined;
 };
 
 /** one agent's mail settings, as the settings mechanism resolved them at boot (§8) */
@@ -33,6 +36,7 @@ export class MailRegistry {
 
   static async resolve(
     chatGateway: Pick<ChatGateway, 'resolveChannelId'>,
+    resourcesService: Pick<ResourcesService, 'readText'>,
     mailboxes: readonly ResolvedMailbox[]
   ): Promise<MailRegistry> {
     MailRegistry.assertMailboxBoundaries(mailboxes);
@@ -47,7 +51,8 @@ export class MailRegistry {
             provider:
               settings.provider.kind === 'exchange'
                 ? new ExchangeMailProvider(settings.provider.address, new ExchangeAuth(settings.provider))
-                : new ImapMailProvider(settings.provider)
+                : new ImapMailProvider(settings.provider),
+            template: MailRegistry.readTemplate(resourcesService, agentUsername, settings)
           }
         ] as const;
       })
@@ -75,8 +80,29 @@ export class MailRegistry {
     }
   }
 
+  private static readTemplate(
+    resourcesService: Pick<ResourcesService, 'readText'>,
+    agentUsername: string,
+    settings: $MailSettings
+  ): $MailTemplate | undefined {
+    if (settings.template === undefined) {
+      return undefined;
+    }
+    const parsed = $MailTemplate.safeParse(resourcesService.readText(settings.template));
+    if (!parsed.success) {
+      throw new Error(
+        `agent "${agentUsername}" mail template "${settings.template}": ${parsed.error.issues.map(({ message }) => message).join('; ')}`
+      );
+    }
+    return parsed.data;
+  }
+
   list(): readonly MailboxRuntime[] {
     return Array.from(this.mailboxes.values());
+  }
+
+  mailboxFor(agentUsername: string): MailboxRuntime | undefined {
+    return this.mailboxes.get(agentUsername);
   }
 
   providerFor(agentUsername: string): MailProvider | undefined {

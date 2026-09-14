@@ -4,11 +4,11 @@ import { Result } from '@collegium/core/utils';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 
+import { composeOutboundMail } from './compose/compose.utils.ts';
 import { MAIL_REGISTRY_TOKEN } from './mail.tokens.ts';
-import { renderMailMessage, renderMailSummaries, renderOutboundPayload, toOutboundMail } from './mail.utils.ts';
+import { renderMailMessage, renderMailSummaries, renderOutboundPayload } from './mail.utils.ts';
 
-import type { MailProvider } from './mail.provider.ts';
-import type { MailRegistry } from './mail.registry.ts';
+import type { MailboxRuntime, MailRegistry } from './mail.registry.ts';
 import type { MailFailure } from './mail.types.ts';
 
 const MAIL_TIMEOUT_MS = 45_000;
@@ -24,15 +24,15 @@ const $Outbound = {
   to: z.array(z.email()).min(1).describe('Everyone the message goes to')
 };
 
-function withProvider(
+function withMailbox(
   context: { mail: MailRegistry; turn: ToolTurnScope },
-  run: (provider: MailProvider) => Promise<ToolResult>
+  run: (mailbox: MailboxRuntime) => Promise<ToolResult>
 ): Promise<ToolResult> | ToolResult {
-  const provider = context.mail.providerFor(context.turn.agentUsername);
-  if (!provider) {
+  const mailbox = context.mail.mailboxFor(context.turn.agentUsername);
+  if (!mailbox) {
     return Result.err({ kind: 'exception', message: 'no mailbox is configured for this agent' });
   }
-  return run(provider);
+  return run(mailbox);
 }
 
 /** a stale ref or refused query is the model's ordinary mistake; a dead provider ends the turn loudly */
@@ -81,7 +81,7 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
       description:
         'Gather the whole conversation a message belongs to, oldest first. Returns summaries only — only open returns a body.',
       execute: (args, context) => {
-        return withProvider(context, async (provider) => {
+        return withMailbox(context, async ({ provider }) => {
           return toReadResult(await provider.getConversation(args.ref), renderMailSummaries);
         });
       },
@@ -95,7 +95,7 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
     list: {
       description: 'List the most recent messages in your mailbox. Returns summaries only — only open returns a body.',
       execute: (args, context) => {
-        return withProvider(context, async (provider) => {
+        return withMailbox(context, async ({ provider }) => {
           return toReadResult(await provider.listRecent(args.count), renderMailSummaries);
         });
       },
@@ -111,7 +111,7 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
         'Open one message in full — the only mail action that returns a body. Attachments are described by name, ' +
         'type, and size; their content is not retrievable.',
       execute: (args, context) => {
-        return withProvider(context, async (provider) => {
+        return withMailbox(context, async ({ provider }) => {
           return toReadResult(await provider.open(args.ref), renderMailMessage);
         });
       },
@@ -133,8 +133,8 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
         'discloses every recipient, the subject, and the entire body; drafting wording in conversation needs no ' +
         'approval at all.',
       execute: (args, context) => {
-        return withProvider(context, async (provider) => {
-          return toSendResult(await provider.reply(args.ref, toOutboundMail(args)));
+        return withMailbox(context, async ({ provider, template }) => {
+          return toSendResult(await provider.reply(args.ref, composeOutboundMail(args, template)));
         });
       },
       parameters: z.object({
@@ -149,7 +149,7 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
       description:
         "Search your mailbox in the mail provider's own query grammar. Returns summaries only — only open returns a body.",
       execute: (args, context) => {
-        return withProvider(context, async (provider) => {
+        return withMailbox(context, async ({ provider }) => {
           return toReadResult(await provider.search(args.query, args.count), renderMailSummaries);
         });
       },
@@ -171,7 +171,9 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
         'Send a new message. Requires human approval, which discloses every recipient, the subject, and the entire ' +
         'body; drafting wording in conversation needs no approval at all.',
       execute: (args, context) => {
-        return withProvider(context, async (provider) => toSendResult(await provider.send(toOutboundMail(args))));
+        return withMailbox(context, async ({ provider, template }) => {
+          return toSendResult(await provider.send(composeOutboundMail(args, template)));
+        });
       },
       parameters: z.object($Outbound),
       timeoutMs: MAIL_TIMEOUT_MS,

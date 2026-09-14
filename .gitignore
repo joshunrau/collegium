@@ -9,6 +9,7 @@ data
 dist
 node_modules
 /plugins/*
+/resources
 !/plugins/bookmark
 scratch
 state

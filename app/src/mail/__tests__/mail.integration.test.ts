@@ -68,7 +68,8 @@ describe('mail inbound, end to end through triggers', () => {
         initializeCursor: vi.fn().mockResolvedValue(Result.ok('cursor-head')),
         markRead,
         pollNew
-      } as never
+      } as never,
+      template: undefined
     };
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.has.mockReturnValue(true);

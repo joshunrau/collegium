@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { $ChannelHandle } from '../common.ts';
+import { $ChannelHandle, $ResourcePath } from '../common.ts';
 
 export type $MailHost = z.infer<typeof $MailHost>;
 export const $MailHost = z.strictObject({
@@ -66,6 +66,11 @@ export const $MailSettings = z
       .discriminatedUnion('kind', [$ExchangeMailProvider, $ImapMailProvider])
       .describe(
         'Which kind of provider serves this mailbox, with its credentials: Exchange Online, or generic IMAP/SMTP.'
+      ),
+    template: $ResourcePath
+      .optional()
+      .describe(
+        'An HTML file beneath `RESOURCES_ROOT` that every message this mailbox sends is wrapped in, holding `{BODY}` exactly once where the body goes. The body is rendered from markdown, with any raw HTML in it escaped. Absent, mail is sent as plain text.'
       )
   })
   .describe('The one mailbox an agent granted mail acts as. Granting mail without these is a boot refusal (§8).');

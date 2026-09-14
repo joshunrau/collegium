@@ -56,13 +56,16 @@ export function serializeExchangeCursor(cursor: $ExchangeCursor): string {
 
 /** exactly the approved content in Graph's shape — recipients, subject, and body as given, nothing added */
 export function toGraphOutbound(mail: OutboundMail): {
-  body: { content: string; contentType: 'text' };
+  body: { content: string; contentType: 'html' | 'text' };
   ccRecipients: { emailAddress: { address: string } }[];
   subject: string;
   toRecipients: { emailAddress: { address: string } }[];
 } {
   return {
-    body: { content: mail.body, contentType: 'text' },
+    body:
+      mail.html === undefined
+        ? { content: mail.body, contentType: 'text' }
+        : { content: mail.html, contentType: 'html' },
     ccRecipients: mail.cc.map((address) => ({ emailAddress: { address } })),
     subject: mail.subject,
     toRecipients: mail.to.map((address) => ({ emailAddress: { address } }))

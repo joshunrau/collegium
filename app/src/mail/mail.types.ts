@@ -53,8 +53,10 @@ export type MailMessage = {
  * cannot see must not be possible, so the shape has nowhere to put one.
  */
 export type OutboundMail = {
+  /** the plain-text part, beside `html` when the mailbox wraps mail in a template */
   readonly body: string;
   readonly cc: readonly string[];
+  readonly html?: string;
   readonly subject: string;
   readonly to: readonly string[];
 };

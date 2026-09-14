@@ -119,6 +119,9 @@ export const $Env = z
       .describe(
         'The directory holding one plugin per subdirectory, each named for the plugin it holds. Mounted read-only: a plugin is code the operator installs, and nothing the framework runs writes here.'
       ),
+    RESOURCES_ROOT: $$Blankable(z.string().min(1)).describe(
+      'The directory holding the files `config.json` names by relative path, such as the HTML template outbound mail is wrapped in. Mounted read-only, and needed only when config names such a file.'
+    ),
     WORKSPACE_ROOT: z
       .string()
       .min(1)

@@ -45,7 +45,8 @@ describe('MailInboundService', () => {
       agentUsername: 'tess',
       announcementChannelId: 'channel-mail',
       pollIntervalMs: 60_000,
-      provider: { address: 'tess@example.org', ...provider } as never
+      provider: { address: 'tess@example.org', ...provider } as never,
+      template: undefined
     };
     const mailRegistry = MockFactory.createMock(MailRegistry);
     mailRegistry.list.mockReturnValue([mailbox]);

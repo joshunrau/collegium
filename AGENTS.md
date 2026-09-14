@@ -91,6 +91,7 @@ app/src/
   prisma/         the typed store client
   provisioning/   the admin seam: reconciles Mattermost onto what config.json declares, before the app boots
   queue/          the per (agent, channel) pending pointer
+  resources/      the one place a file config.json names beneath RESOURCES_ROOT is read off disk
   runtime/        boot orchestration, shutdown, crash handling
   shell/          the §A2 confinement seam: per-agent OS user derivation, sudo-scoped execution, boot probe
   skills/         the skill library and manifest, and the one place a skill document is read off disk

@@ -24,7 +24,7 @@ const SUMMARY: MailSummary = {
 function buildContext() {
   const provider = MockFactory.createMock(MailProvider);
   const registry = MockFactory.createMock(MailRegistry);
-  registry.providerFor.mockReturnValue(provider as never);
+  registry.mailboxFor.mockReturnValue({ provider, template: undefined } as never);
   const context = { mail: registry, turn: buildToolTurnScope() };
   return { context, provider };
 }
@@ -32,7 +32,7 @@ function buildContext() {
 describe('MAIL_TOOLSET', () => {
   it('fails with an exception when no mailbox is configured for the agent', async () => {
     const registry = MockFactory.createMock(MailRegistry);
-    registry.providerFor.mockReturnValue(undefined);
+    registry.mailboxFor.mockReturnValue(undefined);
     const result = await executeTool(list, { count: 10 }, { mail: registry, turn: buildToolTurnScope() });
     expect(result.error).toStrictEqual({ kind: 'exception', message: 'no mailbox is configured for this agent' });
   });
