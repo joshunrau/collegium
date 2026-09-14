@@ -17,9 +17,9 @@ export const CONVERSATIONS_TOOLSET = implementToolset(CONVERSATIONS_TOOLSET_DEF,
     // §3.8 — the roster decides which channels this turn may read from, never the model
     search: {
       description:
-        'Search past posts by people and colleagues, across the channels you are in whose readers include ' +
-        'everyone who can read this channel. Returns the newest matches first, each with its post id, channel, ' +
-        'author and time. Reaches back no further than the most recent reset in each channel.',
+        'Search past posts by text, including your own replies, across the channels you are in whose readers ' +
+        'include everyone who can read this channel. Returns the newest matches first, each with its post id, ' +
+        'channel, author and time. Reaches back no further than the most recent reset in each channel.',
       execute: async (args, context) => {
         const channels = context.roster.listReachableFrom(context.turn.agentUsername, context.turn.channelId);
         const hits = await context.search.find({

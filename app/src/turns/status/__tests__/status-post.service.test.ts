@@ -68,7 +68,7 @@ describe('StatusPostService', () => {
         id: 'status-1',
         message: '⏳ _working…_\n→ `read_memory`'
       },
-      'turn-1'
+      { kind: 'status', turnId: 'turn-1' }
     );
     expect(turnsService.recordStatusPost).toHaveBeenCalledExactlyOnceWith('turn-1', 'status-1');
   });

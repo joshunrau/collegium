@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AuthorKind } from '@/prisma/prisma.types.ts';
+import type { AuthorKind, PostKind } from '@/prisma/prisma.types.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
 import { createModelTable } from '@/testing/factories/model-table.factory.ts';
 import { createObservedPost as post } from '@/testing/factories/observed-post.factory.ts';
@@ -16,6 +16,7 @@ type PostRow = {
   createdAt: Date;
   id: string;
   isForgotten: boolean;
+  kind: PostKind;
   message: string;
   observedAt: Date;
 };
@@ -25,7 +26,12 @@ const AUTHORING_TURN_DEPTH = 3;
 /** the delegate is faked with real state because idempotency is only observable against real state */
 const createPostTable = () => {
   return createModelTable<PostRow>({
-    defaults: (sequence) => ({ authoringTurnId: null, isForgotten: false, observedAt: new Date(sequence) }),
+    defaults: (sequence) => ({
+      authoringTurnId: null,
+      isForgotten: false,
+      kind: 'message',
+      observedAt: new Date(sequence)
+    }),
     relations: {
       authoringTurn: (row) => {
         return row.authoringTurnId === null
@@ -56,10 +62,16 @@ describe('ConversationsService', () => {
       expect(table.rows).toHaveLength(1);
     });
 
-    it('should stamp the authoring turn onto a row another socket recorded first', async () => {
+    it('should record an observed post as a message and an authored one under its kind', async () => {
       await conversationsService.record(post());
-      await conversationsService.record(post(), 'turn-1');
-      expect(table.rows[0]?.authoringTurnId).toBe('turn-1');
+      await conversationsService.record(post({ id: 'post-2' }), { kind: 'status', turnId: 'turn-1' });
+      expect(table.rows.map((row) => row.kind)).toStrictEqual(['message', 'status']);
+    });
+
+    it('should stamp the authoring turn and kind onto a row another socket recorded first', async () => {
+      await conversationsService.record(post());
+      await conversationsService.record(post(), { kind: 'reply', turnId: 'turn-1' });
+      expect(table.rows[0]).toMatchObject({ authoringTurnId: 'turn-1', kind: 'reply' });
     });
 
     it('should rethrow a write failure that is not a duplicate', async () => {
@@ -70,7 +82,10 @@ describe('ConversationsService', () => {
 
   describe('findActivationSource', () => {
     it('should report the author beside the depth of the turn that authored the post', async () => {
-      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'owen' }), 'turn-1');
+      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'owen' }), {
+        kind: 'reply',
+        turnId: 'turn-1'
+      });
       expect(await conversationsService.findActivationSource('post-1')).toStrictEqual({
         authorKind: 'agent',
         authorUsername: 'owen',
@@ -94,7 +109,7 @@ describe('ConversationsService', () => {
 
   describe('findAuthoringTurn', () => {
     it('should resolve a post to the row of the turn that authored it', async () => {
-      await conversationsService.record(post(), 'turn-1');
+      await conversationsService.record(post(), { kind: 'reply', turnId: 'turn-1' });
       expect(await conversationsService.findAuthoringTurn('post-1')).toMatchObject({
         channelId: 'channel-1',
         id: 'turn-1'

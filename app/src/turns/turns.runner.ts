@@ -278,7 +278,7 @@ export class TurnRunner {
         id: sent.value.postId,
         message: content
       },
-      state.turn.id
+      { kind: 'reply', turnId: state.turn.id }
     );
     return this.close(state, 'completed');
   }
@@ -541,7 +541,7 @@ export class TurnRunner {
           id: sent.value.postId,
           message: text
         },
-        state.turn.id
+        { kind: 'notice', turnId: state.turn.id }
       );
     } catch (error) {
       this.loggingService.error(new Error('failed to record a turn notice', { cause: error }));

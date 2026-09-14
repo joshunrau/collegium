@@ -19,6 +19,7 @@ const post = (authorUsername: string, message: string): WindowEntry => ({
     createdAt: new Date(0),
     id: 'post-1',
     isForgotten: false,
+    kind: 'message',
     message,
     observedAt: new Date(0)
   }

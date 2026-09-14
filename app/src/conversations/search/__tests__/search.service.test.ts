@@ -12,22 +12,22 @@ import { SearchService } from '../search.service.ts';
 import type { SearchInput } from '../../conversations.types.ts';
 
 type PostRow = {
-  authoringTurnId: null | string;
   authorUsername: string;
   channelId: string;
   createdAt: Date;
   id: string;
   isForgotten: boolean;
+  kind: 'message' | 'notice' | 'reply' | 'status';
   message: string;
 };
 
 const post = (id: string, at: number, overrides: Partial<PostRow> = {}): PostRow => ({
-  authoringTurnId: null,
   authorUsername: 'casey',
   channelId: 'channel-1',
   createdAt: new Date(at),
   id,
   isForgotten: false,
+  kind: 'message',
   message: `the Budget for ${id}`,
   ...overrides
 });
@@ -91,12 +91,13 @@ describe('SearchService', () => {
     expect(hits.map((hit) => hit.id)).toStrictEqual(['post-2', 'post-3']);
   });
 
-  it('should skip posts the searching agent’s own turns authored, as the window does', async () => {
+  it('should find the agent’s own replies but never a status post or a notice', async () => {
     const rows = [
-      post('post-1', 1000, { authoringTurnId: 'turn-1', authorUsername: 'mira' }),
-      post('post-2', 2000, { authoringTurnId: 'turn-2', authorUsername: 'tess' })
+      post('post-1', 1000, { authorUsername: 'mira', kind: 'reply' }),
+      post('post-2', 2000, { authorUsername: 'mira', kind: 'status' }),
+      post('post-3', 3000, { authorUsername: 'mira', kind: 'notice' })
     ];
-    expect((await find(rows)).map((hit) => hit.id)).toStrictEqual(['post-2']);
+    expect((await find(rows)).map((hit) => hit.id)).toStrictEqual(['post-1']);
   });
 
   it('should skip forgotten posts', async () => {

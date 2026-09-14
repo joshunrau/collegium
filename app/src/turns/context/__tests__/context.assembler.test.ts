@@ -34,6 +34,7 @@ const post = (author: string, message: string, at: number): WindowEntry => ({
     createdAt: new Date(at),
     id: `post-${at}`,
     isForgotten: false,
+    kind: 'message',
     message,
     observedAt: new Date(at)
   }

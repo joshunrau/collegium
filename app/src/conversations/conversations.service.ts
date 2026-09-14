@@ -4,7 +4,7 @@ import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
-import type { ActivationSource, RecordablePost } from './conversations.types.ts';
+import type { ActivationSource, PostAuthorship, RecordablePost } from './conversations.types.ts';
 
 @Injectable()
 export class ConversationsService {
@@ -63,16 +63,17 @@ export class ConversationsService {
    * effects (§4.5), and the row itself is the claim. A losing call still stamps `authoringTurnId`,
    * since a peer's socket can observe a post before the turn that authored it records it.
    */
-  async record(post: RecordablePost, authoringTurnId?: string): Promise<boolean> {
+  async record(post: RecordablePost, authorship?: PostAuthorship): Promise<boolean> {
     try {
       await this.posts.create({
         data: {
-          authoringTurnId,
+          authoringTurnId: authorship?.turnId,
           authorKind: post.authorKind,
           authorUsername: post.authorUsername,
           channelId: post.channelId,
           createdAt: post.createdAt,
           id: post.id,
+          kind: authorship?.kind ?? 'message',
           message: post.message
         }
       });
@@ -81,8 +82,11 @@ export class ConversationsService {
       if (!isUniqueConstraintViolation(error)) {
         throw error;
       }
-      if (authoringTurnId !== undefined) {
-        await this.posts.updateMany({ data: { authoringTurnId }, where: { authoringTurnId: null, id: post.id } });
+      if (authorship !== undefined) {
+        await this.posts.updateMany({
+          data: { authoringTurnId: authorship.turnId, kind: authorship.kind },
+          where: { authoringTurnId: null, id: post.id }
+        });
       }
       return false;
     }

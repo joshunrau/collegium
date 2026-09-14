@@ -1,5 +1,5 @@
 import type { ReachableChannel } from '@/channels/channels.types.ts';
-import type { AuthorKind, ModelRow } from '@/prisma/prisma.types.ts';
+import type { AuthorKind, ModelRow, PostKind } from '@/prisma/prisma.types.ts';
 
 export declare namespace ConversationFailure {
   /** the named post was never recorded, so there is nothing to act on */
@@ -59,6 +59,12 @@ export type ObservedPost = {
   readonly isDirectMessage: boolean;
   readonly mentionedUsernames: readonly string[];
   readonly message: string;
+};
+
+/** what a turn of this process says about a post it authored: which turn, and what kind of post it is */
+export type PostAuthorship = {
+  readonly kind: Exclude<PostKind, 'message'>;
+  readonly turnId: string;
 };
 
 /**

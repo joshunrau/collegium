@@ -49,6 +49,27 @@ describe('Conversation search', () => {
     expect(result).toContain(`> the Budget figure is ${marker}`);
   });
 
+  it('finds the agent’s own earlier reply but not its status text (§3.8)', async () => {
+    const { channels, inference } = harness();
+    const promise = `promised-${randomUUID()}`;
+    inference.willReply({ agent: 'mira', contains: 'promise me' }, textResponse(`I will: ${promise}`));
+    await channels.main.mention('mira', 'promise me');
+    await channels.main.awaitReplyFrom('mira', { text: `I will: ${promise}` });
+
+    const reply = `recalled-${randomUUID()}`;
+    inference.willReply(
+      { agent: 'mira', contains: 'what did you promise' },
+      toolCallResponse('conversations__search', { query: promise })
+    );
+    inference.willReply({ agent: 'mira' }, textResponse(reply));
+    await channels.main.mention('mira', 'what did you promise');
+    await channels.main.awaitReplyFrom('mira', { text: reply });
+
+    const result = lastToolResult();
+    expect(result).toContain(`> I will: ${promise}`);
+    expect(result).not.toContain('conversations::search');
+  });
+
   it('never surfaces a direct message in a public channel, yet reaches public posts from the DM (§3.8)', async () => {
     const { channels, inference } = harness();
     const secret = `secret-${randomUUID()}`;

@@ -217,7 +217,7 @@ describe('TurnRunner', () => {
     expect(sends.at(-1)).toMatchObject({ text: 'all done' });
     expect(conversationsService.record).toHaveBeenCalledWith(
       expect.objectContaining({ authorKind: 'agent', message: 'all done' }),
-      'turn-1'
+      { kind: 'reply', turnId: 'turn-1' }
     );
     expect(statusHandle.close).toHaveBeenCalledWith('completed');
   });

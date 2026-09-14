@@ -9,8 +9,8 @@ import type { SearchHit, SearchInput } from '../conversations.types.ts';
 
 /**
  * §3.8 — a read over the post store bounded exactly as the window is, per channel: behind each
- * channel's own episode boundary, never a forgotten post, and never a post the searching agent's
- * own turns authored — a status post is the trace rendered, and the trace carries the reply.
+ * channel's own episode boundary, never a forgotten post, and never a status post or a notice —
+ * the one is the trace rendered, the other the framework speaking under the agent's name.
  */
 @Injectable()
 export class SearchService {
@@ -35,8 +35,8 @@ export class SearchService {
       take: input.limit,
       where: {
         isForgotten: false,
+        kind: { notIn: ['notice', 'status'] },
         message: { contains: input.query },
-        NOT: { authoringTurnId: { not: null }, authorUsername: input.agentUsername },
         OR: perChannel,
         ...(input.authorUsername !== undefined && { authorUsername: input.authorUsername }),
         ...((input.from ?? input.until) && { createdAt: { gte: input.from, lte: input.until } })

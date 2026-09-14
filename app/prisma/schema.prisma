@@ -28,6 +28,14 @@ enum AuthorKind {
 }
 
 // cron joins this when its adapter lands
+/// what a post is to the agent whose turn authored it; `message` is every post observed rather than authored
+enum PostKind {
+  message
+  notice
+  reply
+  status
+}
+
 enum TriggerSource {
   mail
   webhook
@@ -74,6 +82,7 @@ model Post {
   channelId       String
   createdAt       DateTime
   isForgotten     Boolean    @default(false)
+  kind            PostKind   @default(message)
   message         String
   observedAt      DateTime   @default(now())
   authoringTurnId String?

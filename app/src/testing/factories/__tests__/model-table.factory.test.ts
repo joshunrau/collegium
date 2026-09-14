@@ -68,6 +68,10 @@ describe('createModelTable', () => {
     expect(ids(found)).toEqual(['row-0', 'row-2']);
   });
 
+  it('should exclude every listed candidate under notIn', async () => {
+    expect(ids(await table.findMany({ where: { channelId: { notIn: ['c1', 'c3'] } } }))).toEqual(['row-1']);
+  });
+
   it('should invert a not condition', async () => {
     expect(ids(await table.findMany({ where: { score: { not: 1 } } }))).toEqual(['row-0']);
   });

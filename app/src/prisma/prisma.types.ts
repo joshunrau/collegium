@@ -84,4 +84,4 @@ export type Model<T extends PrismaModelName> = PrismaClient[PrismaModelKey<T>];
 /** a row as it is read back, derived from the delegate so the generated client stays inside this module */
 export type ModelRow<T extends PrismaModelName> = Awaited<ReturnType<Model<T>['findFirstOrThrow']>>;
 
-export type { ApprovalStatus, AuthorKind, TriggerSource, TurnStatus } from './generated/enums.ts';
+export type { ApprovalStatus, AuthorKind, PostKind, TriggerSource, TurnStatus } from './generated/enums.ts';

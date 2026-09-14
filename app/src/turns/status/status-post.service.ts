@@ -111,7 +111,7 @@ export class StatusPostService {
           id: created.postId,
           message: created.text
         },
-        input.turnId
+        { kind: 'status', turnId: input.turnId }
       );
       await this.turnsService.recordStatusPost(input.turnId, created.postId);
     } catch (error) {
