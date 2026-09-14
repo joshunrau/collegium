@@ -1,3 +1,14 @@
+## [0.0.1-beta.16](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.15...v0.0.1-beta.16) (2026-09-14)
+
+### ⚠ BREAKING CHANGES
+
+- **compose:** MATTERMOST_URL is renamed MATTERMOST_LOCAL_URL, and a deployment running the
+  bundled Mattermost must set MATTERMOST_PUBLIC_URL to the exact address it is opened at.
+
+### Features
+
+- **compose:** require the address the bundled mattermost is opened at ([b9604ba](https://github.com/joshunrau/collegium/commit/b9604ba1f9f89316c797e798cfb6670fdc159e84))
+
 ## [0.0.1-beta.15](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.14...v0.0.1-beta.15) (2026-09-14)
 
 ### Features
