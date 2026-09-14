@@ -34,7 +34,7 @@ pnpm test <path>            # run a single test file
 
 - Ask before writing code if the task is ambiguous or its stated scope cannot accomplish the goal.
 - No new dependencies without asking in-conversation.
-- Whenever making any code changes, run `pnpm lint` and `pnpm test` from the repo root and fix failures before declaring the task done.
+- Whenever making any code changes, run `pnpm lint` and `pnpm test` from the repo root and fix failures before declaring the task done. Also run `pnpm test:e2e` unless the diff touches only markdown, unit tests, `docs/`, `.agents/`, `.claude/`, or `.github/`.
 - Validate all data crossing into the process (network, LLM output, disk, env) with a Zod schema at the perimeter. Trust the interior; do not re-validate downstream. The only exception to this is in end-to-end tests, where the test serves as validation.
 - Default to no comments. Assume the reader is fluent in the language, has read the file, and wrote the adjacent code. Write one only if you can state the specific wrong action a competent engineer would take without it, and types and tests wouldn't catch that action — if you can't write that sentence, delete the comment.
 
