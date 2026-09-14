@@ -121,10 +121,13 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
       await this.activationService.onResynced(running.profile, await this.resyncService.recover(running.profile));
       return;
     }
-    const violation = this.rosterService.onMembershipEvent(event);
-    if (violation) {
+    const recorded = await this.rosterService.onMembershipEvent(event);
+    if (!recorded.success) {
+      throw new Error(`could not describe channel ${event.channelId} for the roster: ${recorded.error.message}`);
+    }
+    if (recorded.value) {
       // boot refuses to start on this topology; a running process cannot refuse, so it stops (§3.10)
-      await this.haltService.halt({ ...violation, kind: 'topology-violation' });
+      await this.haltService.halt({ ...recorded.value, kind: 'topology-violation' });
     }
   }
 

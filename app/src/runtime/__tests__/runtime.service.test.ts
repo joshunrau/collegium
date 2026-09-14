@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import type { $Config, AgentDefinition } from '@collegium/config';
+import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import type { PartialDeep } from 'type-fest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -236,7 +237,7 @@ describe('RuntimeService', () => {
   });
 
   it('should record a membership event without halting when the topology holds', async () => {
-    rosterService.onMembershipEvent.mockReturnValue(undefined);
+    rosterService.onMembershipEvent.mockResolvedValue(Result.ok(undefined));
     const runtimeService = await compile();
     await runtimeService.onApplicationBootstrap();
     await handleEvent(MEMBERSHIP_EVENT);
@@ -246,10 +247,12 @@ describe('RuntimeService', () => {
   });
 
   it('should halt when a membership event breaks the one-agent rule (§3.10)', async () => {
-    rosterService.onMembershipEvent.mockReturnValue({
-      agentUsernames: ['mira', 'robin'],
-      channelId: 'channel-1'
-    });
+    rosterService.onMembershipEvent.mockResolvedValue(
+      Result.ok({
+        agentUsernames: ['mira', 'robin'],
+        channelId: 'channel-1'
+      })
+    );
     const runtimeService = await compile();
     await runtimeService.onApplicationBootstrap();
     await handleEvent(MEMBERSHIP_EVENT);

@@ -1,5 +1,20 @@
+import type { ChannelKind } from '@/chat/chat.types.ts';
+
 export type LockHandle = {
   release(): void;
+};
+
+/** what the roster holds per channel: what it is, what it is called, and everyone in it (§3.11) */
+export type ChannelRecord = {
+  readonly displayName: string;
+  readonly kind: ChannelKind;
+  readonly memberUsernames: Set<string>;
+};
+
+/** a channel a search may surface posts of, named as the model should see it (§3.8) */
+export type ReachableChannel = {
+  readonly channelId: string;
+  readonly name: string;
 };
 
 /** a respond-to-all channel holding more than one agent (§3.10) */

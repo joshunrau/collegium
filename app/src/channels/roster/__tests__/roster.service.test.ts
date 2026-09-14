@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import type { ChatTransport } from '@/chat/chat.transport.ts';
-import type { ChatFailure } from '@/chat/chat.types.ts';
+import type { ChannelDescription, ChatEvent, ChatFailure } from '@/chat/chat.types.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -15,26 +15,53 @@ import { RosterService } from '../roster.service.ts';
 
 const profile = (username: string): AgentProfile => ({ username }) as AgentProfile;
 
+const describedChannels: { [channelId: string]: ChannelDescription } = {
+  'channel-1': { displayName: 'Main', kind: 'open', memberUsernames: ['casey', 'mira', 'tess'] },
+  'channel-2': { displayName: 'Ops', kind: 'private', memberUsernames: ['casey', 'tess'] },
+  'channel-3': { displayName: 'Leads', kind: 'private', memberUsernames: ['casey', 'jo', 'tess'] },
+  'channel-9': { displayName: 'Nine', kind: 'open', memberUsernames: ['mira'] },
+  'dm-casey-tess': { displayName: '', kind: 'direct', memberUsernames: ['casey', 'tess'] }
+};
+
+const event = (overrides: Partial<ChatEvent.Membership>): ChatEvent.Membership => ({
+  agentUsername: 'mira',
+  channelId: 'channel-2',
+  kind: 'user_added_to_channel',
+  username: 'mira',
+  ...overrides
+});
+
 describe('RosterService', () => {
   let agentRegistry: MockedInstance<AgentRegistry>;
   let channelsService: MockedInstance<ChannelsService>;
   let membershipFailure: ChatFailure | undefined;
   let membershipsByAgent: { [username: string]: string[] };
   let membershipCalls: string[];
+  let describeCalls: string[];
   let rosterService: RosterService;
 
   beforeEach(async () => {
     agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.list.mockReturnValue([profile('mira'), profile('tess')]);
-    agentRegistry.get.mockImplementation((username) => profile(username));
+    agentRegistry.get.mockImplementation((username) =>
+      ['mira', 'tess'].includes(username) ? profile(username) : undefined
+    );
     channelsService = MockFactory.createMock(ChannelsService);
     channelsService.listRespondToAllChannelIds.mockReturnValue([]);
     membershipFailure = undefined;
-    membershipsByAgent = { mira: ['channel-1'], tess: ['channel-1', 'channel-2'] };
+    membershipsByAgent = { mira: ['channel-1'], tess: ['channel-1', 'channel-2', 'channel-3', 'dm-casey-tess'] };
     membershipCalls = [];
+    describeCalls = [];
     const transportRegistry = {
       get: (username: string): ChatTransport => {
         return {
+          describeChannel: (channelId: string) => {
+            describeCalls.push(channelId);
+            const described = describedChannels[channelId];
+            return Promise.resolve(
+              described ? Result.ok(described) : Result.err({ kind: 'api', message: `no channel ${channelId}` })
+            );
+          },
           getChannelMemberships: () => {
             membershipCalls.push(username);
             return Promise.resolve(
@@ -61,28 +88,58 @@ describe('RosterService', () => {
     expect(rosterService.getPeers('channel-1', 'mira').map((peer) => peer.username)).toStrictEqual(['tess']);
   });
 
+  it('should describe each channel once, by the first agent found in it', async () => {
+    await rosterService.reconcile();
+    expect(describeCalls.filter((channelId) => channelId === 'channel-1')).toHaveLength(1);
+  });
+
   it('should exclude the agent itself from its peers', async () => {
     await rosterService.reconcile();
     expect(rosterService.getPeers('channel-2', 'tess')).toStrictEqual([]);
   });
 
-  it('should maintain membership from websocket events rather than polling again', async () => {
+  it('should describe a channel whole when the agent itself joins it', async () => {
     await rosterService.reconcile();
-    rosterService.onMembershipEvent({
-      agentUsername: 'mira',
-      channelId: 'channel-2',
-      kind: 'user_added_to_channel',
-      username: 'mira'
-    });
+    const recorded = await rosterService.onMembershipEvent(event({ channelId: 'channel-2' }));
+    expect(recorded.value).toBeUndefined();
     expect(rosterService.getPeers('channel-2', 'tess').map((peer) => peer.username)).toStrictEqual(['mira']);
-    rosterService.onMembershipEvent({
-      agentUsername: 'mira',
-      channelId: 'channel-2',
-      kind: 'user_removed_from_channel',
-      username: 'mira'
-    });
-    expect(rosterService.getPeers('channel-2', 'tess')).toStrictEqual([]);
     expect(membershipCalls).toHaveLength(2);
+  });
+
+  it('should return the API failure when the joined channel cannot be described', async () => {
+    await rosterService.reconcile();
+    const recorded = await rosterService.onMembershipEvent(event({ channelId: 'channel-unknown' }));
+    expect(recorded.error).toStrictEqual({ kind: 'api', message: 'no channel channel-unknown' });
+    expect(rosterService.isAgentIn('mira', 'channel-unknown')).toBe(false);
+  });
+
+  it('should forget a channel once no agent remains to observe it', async () => {
+    await rosterService.reconcile();
+    await rosterService.onMembershipEvent(event({ channelId: 'channel-1', kind: 'user_removed_from_channel' }));
+    expect(rosterService.isAgentIn('tess', 'channel-1')).toBe(true);
+    await rosterService.onMembershipEvent(
+      event({ agentUsername: 'tess', channelId: 'channel-1', kind: 'user_removed_from_channel', username: 'tess' })
+    );
+    expect(rosterService.listReachableFrom('tess', 'channel-1')).toStrictEqual([]);
+  });
+
+  it('should edit the members already known when someone else moves', async () => {
+    await rosterService.reconcile();
+    await rosterService.onMembershipEvent(event({ agentUsername: 'tess', channelId: 'channel-2', username: 'jo' }));
+    expect(rosterService.listReachableFrom('tess', 'channel-2').map((channel) => channel.name)).toStrictEqual([
+      'Main',
+      'Ops',
+      'Leads'
+    ]);
+  });
+
+  it('should ignore a movement in a channel no agent observes', async () => {
+    await rosterService.reconcile();
+    const recorded = await rosterService.onMembershipEvent(
+      event({ agentUsername: 'tess', channelId: 'channel-unknown', username: 'jo' })
+    );
+    expect(recorded.value).toBeUndefined();
+    expect(describeCalls).not.toContain('channel-unknown');
   });
 
   it('should abandon reconciliation rather than cache a partial roster', async () => {
@@ -99,21 +156,44 @@ describe('RosterService', () => {
     expect(rosterService.isAgentIn('mira', 'channel-unknown')).toBe(false);
   });
 
-  it('should record a membership event for a channel it has never seen', async () => {
+  it('should count only registered agents among the members', async () => {
     await rosterService.reconcile();
-    rosterService.onMembershipEvent({
-      agentUsername: 'mira',
-      channelId: 'channel-9',
-      kind: 'user_added_to_channel',
-      username: 'mira'
-    });
-    expect(rosterService.listAgentsIn('channel-9').map((agent) => agent.username)).toStrictEqual(['mira']);
+    expect(rosterService.listAgentsIn('channel-1').map((agent) => agent.username)).toStrictEqual(['mira', 'tess']);
   });
 
-  it('should skip a member the registry no longer knows', async () => {
-    agentRegistry.get.mockImplementation((username) => (username === 'tess' ? profile('tess') : undefined));
-    await rosterService.reconcile();
-    expect(rosterService.listAgentsIn('channel-1').map((agent) => agent.username)).toStrictEqual(['tess']);
+  describe('listReachableFrom', () => {
+    beforeEach(() => rosterService.reconcile());
+
+    it('should reach only open channels from an open channel', () => {
+      expect(rosterService.listReachableFrom('tess', 'channel-1').map((channel) => channel.channelId)).toStrictEqual([
+        'channel-1'
+      ]);
+    });
+
+    it('should reach open channels and closed ones holding everyone present from a private channel', () => {
+      expect(rosterService.listReachableFrom('tess', 'channel-2').map((channel) => channel.channelId)).toStrictEqual([
+        'channel-1',
+        'channel-2',
+        'channel-3',
+        'dm-casey-tess'
+      ]);
+    });
+
+    it('should not reach a closed channel missing someone present', () => {
+      expect(rosterService.listReachableFrom('tess', 'channel-3').map((channel) => channel.channelId)).toStrictEqual([
+        'channel-1',
+        'channel-3'
+      ]);
+    });
+
+    it('should name a direct channel by whoever else is in it', () => {
+      const reachable = rosterService.listReachableFrom('tess', 'dm-casey-tess');
+      expect(reachable.find((channel) => channel.channelId === 'dm-casey-tess')?.name).toBe('@casey');
+    });
+
+    it('should reach nothing from a channel the agent is not in', () => {
+      expect(rosterService.listReachableFrom('mira', 'channel-2')).toStrictEqual([]);
+    });
   });
 
   it('should see no violation in a respond-to-all channel no agent has joined', async () => {
@@ -130,12 +210,7 @@ describe('RosterService', () => {
   it('should report a violation when a membership event makes a respond-to-all channel two-agent', async () => {
     channelsService.listRespondToAllChannelIds.mockReturnValue(['channel-2']);
     await rosterService.reconcile();
-    const violation = rosterService.onMembershipEvent({
-      agentUsername: 'mira',
-      channelId: 'channel-2',
-      kind: 'user_added_to_channel',
-      username: 'mira'
-    });
-    expect(violation).toStrictEqual({ agentUsernames: ['tess', 'mira'], channelId: 'channel-2' });
+    const recorded = await rosterService.onMembershipEvent(event({ channelId: 'channel-2' }));
+    expect(recorded.value).toStrictEqual({ agentUsernames: ['tess', 'mira'], channelId: 'channel-2' });
   });
 });
