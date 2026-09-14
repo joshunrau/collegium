@@ -68,12 +68,18 @@ describe('RosterService', () => {
 
   it('should maintain membership from websocket events rather than polling again', async () => {
     await rosterService.reconcile();
-    rosterService.onMembershipEvent({ agentUsername: 'mira', channelId: 'channel-2', kind: 'user_added_to_channel' });
+    rosterService.onMembershipEvent({
+      agentUsername: 'mira',
+      channelId: 'channel-2',
+      kind: 'user_added_to_channel',
+      username: 'mira'
+    });
     expect(rosterService.getPeers('channel-2', 'tess').map((peer) => peer.username)).toStrictEqual(['mira']);
     rosterService.onMembershipEvent({
       agentUsername: 'mira',
       channelId: 'channel-2',
-      kind: 'user_removed_from_channel'
+      kind: 'user_removed_from_channel',
+      username: 'mira'
     });
     expect(rosterService.getPeers('channel-2', 'tess')).toStrictEqual([]);
     expect(membershipCalls).toHaveLength(2);
@@ -95,7 +101,12 @@ describe('RosterService', () => {
 
   it('should record a membership event for a channel it has never seen', async () => {
     await rosterService.reconcile();
-    rosterService.onMembershipEvent({ agentUsername: 'mira', channelId: 'channel-9', kind: 'user_added_to_channel' });
+    rosterService.onMembershipEvent({
+      agentUsername: 'mira',
+      channelId: 'channel-9',
+      kind: 'user_added_to_channel',
+      username: 'mira'
+    });
     expect(rosterService.listAgentsIn('channel-9').map((agent) => agent.username)).toStrictEqual(['mira']);
   });
 
@@ -122,7 +133,8 @@ describe('RosterService', () => {
     const violation = rosterService.onMembershipEvent({
       agentUsername: 'mira',
       channelId: 'channel-2',
-      kind: 'user_added_to_channel'
+      kind: 'user_added_to_channel',
+      username: 'mira'
     });
     expect(violation).toStrictEqual({ agentUsernames: ['tess', 'mira'], channelId: 'channel-2' });
   });

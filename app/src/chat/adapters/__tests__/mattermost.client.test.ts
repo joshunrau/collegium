@@ -19,6 +19,7 @@ const sdk = vi.hoisted(() => ({
   getPosts: vi.fn(),
   getPostsAfter: vi.fn(),
   getProfilesByIds: vi.fn(),
+  getProfilesInChannel: vi.fn(),
   getTeamByName: vi.fn(),
   getToken: vi.fn(() => 'bot-token'),
   getUrl: vi.fn(() => 'https://mattermost.test'),
@@ -125,6 +126,25 @@ describe('MattermostClient', () => {
   it('should project a fetched channel onto its type', async () => {
     sdk.getChannel.mockResolvedValue({ id: 'channel-1', team_id: 'team-1', type: 'O' });
     await expect(client.getChannelType('channel-1')).resolves.toBe('O');
+  });
+
+  it('should return a channel by its display name and type', async () => {
+    sdk.getChannel.mockResolvedValue({ display_name: 'Town Square', id: 'channel-1', team_id: 'team-1', type: 'O' });
+    await expect(client.getChannel('channel-1')).resolves.toStrictEqual({ displayName: 'Town Square', type: 'O' });
+  });
+
+  it('should walk every page of a channel’s members', async () => {
+    const page = (offset: number, size: number) => {
+      return Array.from({ length: size }, (_, index) => ({
+        id: `user-${offset + index}`,
+        username: `user-${offset + index}`
+      }));
+    };
+    sdk.getProfilesInChannel.mockResolvedValueOnce(page(0, 200)).mockResolvedValueOnce(page(200, 1));
+    const usernames = await client.getChannelMemberUsernames('channel-1');
+    expect(usernames).toHaveLength(201);
+    expect(usernames.at(-1)).toBe('user-200');
+    expect(sdk.getProfilesInChannel).toHaveBeenNthCalledWith(2, 'channel-1', 1, 200);
   });
 
   it('should resolve a channel handle to its id within the team', async () => {

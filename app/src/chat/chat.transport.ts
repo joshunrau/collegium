@@ -2,11 +2,20 @@ import type { Result } from '@collegium/core/utils';
 
 import type { ObservedPost } from '@/conversations/conversations.types.ts';
 
-import type { ChatEventHandler, ChatFailure, DialogRequest, OutgoingChatMessage, PostUpdate } from './chat.types.ts';
+import type {
+  ChannelDescription,
+  ChatEventHandler,
+  ChatFailure,
+  DialogRequest,
+  OutgoingChatMessage,
+  PostUpdate
+} from './chat.types.ts';
 
 export abstract class ChatTransport {
   abstract addReaction(postId: string, emoji: string): Promise<Result<void, ChatFailure>>;
   /** §3.7 — who a decision's user id actually is, since the displayed byline may not be trusted */
+  /** §3.8 — what a channel is and who reads it, the facts the audience rule is decided from */
+  abstract describeChannel(channelId: string): Promise<Result<ChannelDescription, ChatFailure>>;
   abstract describeUser(userId: string): Promise<Result<{ isBot: boolean; username: string }, ChatFailure>>;
   abstract disconnect(): void;
   /** the reconcile read (§3.11): every channel this agent is a member of, by its own token */

@@ -11,12 +11,26 @@ export type AgentConnection = {
 
 export type AuthorClassifier = (username: string) => AuthorKind;
 
+/** what a channel is to its readers: open is readable by the whole team, the rest by members alone (§3.8) */
+export type ChannelKind = 'direct' | 'group' | 'open' | 'private';
+
+export type ChannelDescription = {
+  /** empty where the substrate gives none, as on a direct channel */
+  readonly displayName: string;
+  readonly kind: ChannelKind;
+  readonly memberUsernames: readonly string[];
+};
+
 export declare namespace ChatEvent {
-  /** an agent of this process entered or left a channel — the roster's only write path (§3.11) */
+  /**
+   * Someone entered or left a channel this agent is in — the roster's only write path (§3.11).
+   * `agentUsername` is who observed it; `username` is who moved, and may be the agent itself.
+   */
   type Membership = {
     agentUsername: string;
     channelId: string;
     kind: 'user_added_to_channel' | 'user_removed_from_channel';
+    username: string;
   };
   type Posted = {
     kind: 'posted';

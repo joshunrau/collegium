@@ -17,6 +17,8 @@ import type { DialogRequest, MessageAttachment } from '../chat.types.ts';
 import type { MattermostChannelType } from './mattermost.constants.ts';
 import type { $MattermostRestPost } from './mattermost.schemas.ts';
 
+const CHANNEL_MEMBERS_PAGE_SIZE = 200;
+
 /** the wire is the vendor's, so keys cross this file as snake_case and nothing outside it sees them */
 export class MattermostClient {
   private readonly sdk: Client4;
@@ -78,13 +80,32 @@ export class MattermostClient {
     await this.sdk.deleteCommand(commandId);
   }
 
+  async getChannel(channelId: string): Promise<{ displayName: string; type: MattermostChannelType }> {
+    const channel = $MattermostChannel.parse(await this.sdk.getChannel(channelId));
+    return { displayName: channel.display_name, type: channel.type };
+  }
+
   /** the id of a channel named by its handle, scoped to the team it lives in */
   async getChannelIdByName(params: { handle: string; teamId: string }): Promise<string> {
     return $MattermostChannel.parse(await this.sdk.getChannelByName(params.teamId, params.handle)).id;
   }
 
+  /** every member, walked page by page, since a channel may hold more than one page */
+  async getChannelMemberUsernames(channelId: string): Promise<string[]> {
+    const usernames: string[] = [];
+    for (let page = 0; ; page++) {
+      const profiles = $MattermostUserProfile
+        .array()
+        .parse(await this.sdk.getProfilesInChannel(channelId, page, CHANNEL_MEMBERS_PAGE_SIZE));
+      usernames.push(...profiles.map((profile) => profile.username));
+      if (profiles.length < CHANNEL_MEMBERS_PAGE_SIZE) {
+        return usernames;
+      }
+    }
+  }
+
   async getChannelType(channelId: string): Promise<MattermostChannelType> {
-    return $MattermostChannel.parse(await this.sdk.getChannel(channelId)).type;
+    return (await this.getChannel(channelId)).type;
   }
 
   async getLatestPosts(params: { channelId: string; perPage: number }): Promise<$MattermostRestPost[]> {

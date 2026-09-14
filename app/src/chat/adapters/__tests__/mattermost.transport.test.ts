@@ -162,7 +162,10 @@ describe('MattermostTransport', () => {
         event: 'user_added'
       });
       await settle();
-      expect(events).toStrictEqual([{ agentUsername: 'mira', channelId: 'channel-2', kind: 'user_added_to_channel' }]);
+      expect(events).toStrictEqual([
+        { agentUsername: 'mira', channelId: 'channel-2', kind: 'user_added_to_channel', username: 'mira' }
+      ]);
+      expect(client.getUsernamesByIds).not.toHaveBeenCalled();
     });
 
     it('should deliver a user_removed event sent directly to the removed agent', async () => {
@@ -173,18 +176,33 @@ describe('MattermostTransport', () => {
       });
       await settle();
       expect(events).toStrictEqual([
-        { agentUsername: 'mira', channelId: 'channel-2', kind: 'user_removed_from_channel' }
+        { agentUsername: 'mira', channelId: 'channel-2', kind: 'user_removed_from_channel', username: 'mira' }
       ]);
     });
 
-    it('should ignore membership events about other users', async () => {
+    it('should deliver a membership event about another user under their resolved username', async () => {
+      client.getUsernamesByIds.mockResolvedValue(new Map([['casey-user-id', 'casey']]));
       socket.emit({
         broadcast: { channel_id: 'channel-2', user_id: '' },
-        data: { user_id: 'someone-else' },
+        data: { user_id: 'casey-user-id' },
+        event: 'user_added'
+      });
+      await settle();
+      expect(events).toStrictEqual([
+        { agentUsername: 'mira', channelId: 'channel-2', kind: 'user_added_to_channel', username: 'casey' }
+      ]);
+    });
+
+    it('should drop a membership event about a user that no longer resolves', async () => {
+      client.getUsernamesByIds.mockResolvedValue(new Map());
+      socket.emit({
+        broadcast: { channel_id: 'channel-2', user_id: '' },
+        data: { user_id: 'gone-user-id' },
         event: 'user_added'
       });
       await settle();
       expect(events).toHaveLength(0);
+      expect(logger.warn).toHaveBeenCalledOnce();
     });
 
     it('should discard a membership event naming no channel rather than guess at it', async () => {
@@ -268,6 +286,17 @@ describe('MattermostTransport', () => {
     client.getOwnChannelIds.mockResolvedValue(['channel-1', 'channel-2']);
     const memberships = await transport.getChannelMemberships();
     expect(memberships.value).toStrictEqual(['channel-1', 'channel-2']);
+  });
+
+  it('should describe a channel by its kind, display name and members', async () => {
+    client.getChannel.mockResolvedValue({ displayName: 'Town Square', type: MattermostChannelType.Open });
+    client.getChannelMemberUsernames.mockResolvedValue(['casey', 'mira']);
+    const described = await transport.describeChannel('channel-1');
+    expect(described.value).toStrictEqual({
+      displayName: 'Town Square',
+      kind: 'open',
+      memberUsernames: ['casey', 'mira']
+    });
   });
 
   it('should ask the api whether a user is a member of a channel', async () => {

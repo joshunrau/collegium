@@ -16,6 +16,7 @@ import {
 import {
   buildObservedPost,
   isSystemPost,
+  toChannelKind,
   toChatResult,
   toObservedPost,
   toUsername,
@@ -24,6 +25,7 @@ import {
 
 import type {
   AuthorClassifier,
+  ChannelDescription,
   ChatEvent,
   ChatEventHandler,
   ChatFailure,
@@ -83,6 +85,16 @@ export class MattermostTransport extends ChatTransport {
 
   addReaction(postId: string, emoji: string): Promise<Result<void, ChatFailure>> {
     return toChatResult(() => this.client.addReaction({ emojiName: emoji, postId, userId: this.userId }));
+  }
+
+  describeChannel(channelId: string): Promise<Result<ChannelDescription, ChatFailure>> {
+    return toChatResult(async () => {
+      const [channel, memberUsernames] = await Promise.all([
+        this.client.getChannel(channelId),
+        this.client.getChannelMemberUsernames(channelId)
+      ]);
+      return { displayName: channel.displayName, kind: toChannelKind(channel.type), memberUsernames };
+    });
   }
 
   describeUser(userId: string): Promise<Result<{ isBot: boolean; username: string }, ChatFailure>> {
@@ -232,13 +244,16 @@ export class MattermostTransport extends ChatTransport {
       this.logger.error(new Error(`discarded a malformed mattermost "${event.event}" event`, { cause: result.error }));
       return;
     }
-    if (result.data.userId !== this.userId) {
+    const username = await this.resolveUsername(result.data.userId);
+    if (username === undefined) {
+      this.logger.warn(`dropped a "${event.event}" event: user ${result.data.userId} no longer resolves to a user`);
       return;
     }
     await onEvent({
       agentUsername: this.agent.username,
       channelId: result.data.channelId,
-      kind: event.event === 'user_added' ? 'user_added_to_channel' : 'user_removed_from_channel'
+      kind: event.event === 'user_added' ? 'user_added_to_channel' : 'user_removed_from_channel',
+      username
     } satisfies ChatEvent.Membership);
   }
 
@@ -271,5 +286,12 @@ export class MattermostTransport extends ChatTransport {
         return collected;
       }
     }
+  }
+
+  private async resolveUsername(userId: string): Promise<string | undefined> {
+    if (userId === this.userId) {
+      return this.agent.username;
+    }
+    return (await this.client.getUsernamesByIds([userId])).get(userId);
   }
 }

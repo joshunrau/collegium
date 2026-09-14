@@ -77,6 +77,8 @@ export const $MattermostPostList = z.object({
 
 export type $MattermostChannel = z.infer<typeof $MattermostChannel>;
 export const $MattermostChannel = z.object({
+  // empty for direct channels, which are named by their members
+  display_name: z.string().default(''),
   id: z.string().min(1),
   // empty for direct and group channels, which belong to no team
   team_id: z.string().default(''),

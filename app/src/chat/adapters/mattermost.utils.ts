@@ -6,7 +6,7 @@ import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 
 import { MattermostChannelType } from './mattermost.constants.ts';
 
-import type { AuthorClassifier, ChatFailure } from '../chat.types.ts';
+import type { AuthorClassifier, ChannelKind, ChatFailure } from '../chat.types.ts';
 import type { $MattermostPostedEventMessage } from './mattermost.schemas.ts';
 
 /** who a post's author is, judged against the accounts this deployment declares; everyone else is human */
@@ -62,6 +62,22 @@ export function toObservedPost({ data }: $MattermostPostedEventMessage, classify
     isDirectMessage: data.channelType === MattermostChannelType.Direct,
     message: data.post.message
   });
+}
+
+/** the client-side Threads view is never a real channel, so meeting it here is a vendor contract break */
+export function toChannelKind(type: MattermostChannelType): ChannelKind {
+  switch (type) {
+    case MattermostChannelType.Direct:
+      return 'direct';
+    case MattermostChannelType.Group:
+      return 'group';
+    case MattermostChannelType.Open:
+      return 'open';
+    case MattermostChannelType.Private:
+      return 'private';
+    case MattermostChannelType.Threads:
+      throw new Error('the threads view is not a channel');
+  }
 }
 
 export function toChatFailure(error: unknown): ChatFailure {

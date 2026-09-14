@@ -52,6 +52,9 @@ export class RosterService {
   }
 
   onMembershipEvent(event: ChatEvent.Membership): TopologyViolation | undefined {
+    if (event.username !== event.agentUsername) {
+      return undefined;
+    }
     const members = this.memberships.get(event.channelId) ?? new Set<string>();
     if (event.kind === 'user_added_to_channel') {
       members.add(event.agentUsername);

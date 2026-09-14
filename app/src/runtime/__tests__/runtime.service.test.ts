@@ -49,7 +49,8 @@ const DEFINITION: AgentDefinition = {
 const MEMBERSHIP_EVENT: ChatEvent.Membership = {
   agentUsername: 'mira',
   channelId: 'channel-1',
-  kind: 'user_added_to_channel'
+  kind: 'user_added_to_channel',
+  username: 'mira'
 };
 
 describe('RuntimeService', () => {

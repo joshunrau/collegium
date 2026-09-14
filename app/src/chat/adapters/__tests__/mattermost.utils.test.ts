@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 
 import { MattermostChannelType } from '../mattermost.constants.ts';
-import { createAuthorClassifier, isSystemPost, toChatFailure, toObservedPost } from '../mattermost.utils.ts';
+import {
+  createAuthorClassifier,
+  isSystemPost,
+  toChannelKind,
+  toChatFailure,
+  toObservedPost
+} from '../mattermost.utils.ts';
 
 import type { $MattermostPostedEventMessage } from '../mattermost.schemas.ts';
 
@@ -48,6 +54,16 @@ describe('isSystemPost', () => {
   it('should recognise a protocol post by its system_* type', () => {
     expect(isSystemPost(event({}, { type: 'system_join_channel' }).data.post)).toBe(true);
     expect(isSystemPost(event().data.post)).toBe(false);
+  });
+});
+
+describe('toChannelKind', () => {
+  it('should name each real channel type and refuse the threads view', () => {
+    expect(toChannelKind(MattermostChannelType.Direct)).toBe('direct');
+    expect(toChannelKind(MattermostChannelType.Group)).toBe('group');
+    expect(toChannelKind(MattermostChannelType.Open)).toBe('open');
+    expect(toChannelKind(MattermostChannelType.Private)).toBe('private');
+    expect(() => toChannelKind(MattermostChannelType.Threads)).toThrow('not a channel');
   });
 });
 
