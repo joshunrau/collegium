@@ -1,3 +1,17 @@
+## [0.0.1-beta.15](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.14...v0.0.1-beta.15) (2026-09-14)
+
+### Features
+
+- **channels:** hold full membership per channel and answer which channels a search may reach ([36c453d](https://github.com/joshunrau/collegium/commit/36c453da106d9f9cbeedd178c4f5acc8c4f7ae90))
+- **chat:** describe channels and deliver membership events for every user ([e9be455](https://github.com/joshunrau/collegium/commit/e9be4551a1d5d0231225aa909e48057ae57c3946))
+- **conversations:** add the conversations::search toolset ([17a5690](https://github.com/joshunrau/collegium/commit/17a569065796294fef173e433398af4a09006a52))
+- **conversations:** record what kind of post a turn authored and search the agent's own replies ([71a05e8](https://github.com/joshunrau/collegium/commit/71a05e8f318f850779fc5771a89bfc624fb2c6c7))
+- **turns:** state what conversations::search reaches in the preamble ([30477a5](https://github.com/joshunrau/collegium/commit/30477a5e947bfe7503bd44618fb0bcf65b356e6c))
+
+### Bug Fixes
+
+- **conversations:** omit the searching agent's own posts from search results ([3dff7a6](https://github.com/joshunrau/collegium/commit/3dff7a64f933cf45d7f438bfb7898f2e5ed1f803))
+
 ## [0.0.1-beta.14](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.13...v0.0.1-beta.14) (2026-09-14)
 
 ## [0.0.1-beta.13](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.12...v0.0.1-beta.13) (2026-09-13)
