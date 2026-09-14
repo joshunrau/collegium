@@ -1,3 +1,5 @@
+## [0.0.1-beta.14](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.13...v0.0.1-beta.14) (2026-09-14)
+
 ## [0.0.1-beta.13](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.12...v0.0.1-beta.13) (2026-09-13)
 
 ### Features
