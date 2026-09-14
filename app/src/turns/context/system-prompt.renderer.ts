@@ -109,7 +109,7 @@ export class SystemPromptRenderer {
         'Your memories go with you between channels, and stay in your context after the posts and results around them have fallen outside it. A memory write and a memory delete need no approval. Each of them is shown in the channel immediately.',
         ...(holdsSearch
           ? [
-              'conversations__search finds past posts in the channels you are in. From a public channel it reaches public channels only. From a private channel or a direct message it also reaches private channels and direct messages whose members include everyone here. It does not reach past the most recent reset in a channel, and it does not return tool results.'
+              'conversations__search finds past posts in the channels you are in. From a public channel it reaches public channels only. From a private channel or a direct message it also reaches private channels and direct messages whose members include everyone here. It finds posts by people and colleagues, never your own, and it does not reach past the most recent reset in a channel.'
             ]
           : []),
         "The framework lists your skills each turn as names and descriptions. A skill's body is in your context only for the turn that loads it; a later turn sees one line saying it was loaded.",

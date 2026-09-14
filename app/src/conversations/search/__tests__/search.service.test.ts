@@ -12,6 +12,7 @@ import { SearchService } from '../search.service.ts';
 import type { SearchInput } from '../../conversations.types.ts';
 
 type PostRow = {
+  authoringTurnId: null | string;
   authorUsername: string;
   channelId: string;
   createdAt: Date;
@@ -21,6 +22,7 @@ type PostRow = {
 };
 
 const post = (id: string, at: number, overrides: Partial<PostRow> = {}): PostRow => ({
+  authoringTurnId: null,
   authorUsername: 'casey',
   channelId: 'channel-1',
   createdAt: new Date(at),
@@ -87,6 +89,14 @@ describe('SearchService', () => {
       post('post-3', 1000, { channelId: 'channel-2' })
     ]);
     expect(hits.map((hit) => hit.id)).toStrictEqual(['post-2', 'post-3']);
+  });
+
+  it('should skip posts the searching agent’s own turns authored, as the window does', async () => {
+    const rows = [
+      post('post-1', 1000, { authoringTurnId: 'turn-1', authorUsername: 'mira' }),
+      post('post-2', 2000, { authoringTurnId: 'turn-2', authorUsername: 'tess' })
+    ];
+    expect((await find(rows)).map((hit) => hit.id)).toStrictEqual(['post-2']);
   });
 
   it('should skip forgotten posts', async () => {
