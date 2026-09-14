@@ -177,7 +177,7 @@ _Compensating control:_ the write tool returns a disclosure — description, bod
 
 Because turns are per-channel (§5.1), an agent may have concurrent turns writing memory. Memory writes and deletes therefore take a **per-agent lock**, since the entry cap is a read-modify-write and a delete landing inside one would cost that write an entry.
 
-Memory is also the one path by which information crosses channels: something learned in channel A appears in the system prompt for channel B. This is intentional but worth knowing, since context is otherwise strictly channel-scoped.
+Memory is one of two paths by which information crosses channels — the other is search (§3.8). Something learned in channel A appears in the system prompt for channel B, or is found from it on demand. Both are intentional, both leave a trace, and the channel window itself is strictly channel-scoped.
 
 ### **3.7 Approval**
 
@@ -219,6 +219,14 @@ An agent's budget is the one it declares, else the one `agentDefaults` declares,
 There is no threading. All posts are channel-level, so **context is pure recency**: no structural marker indicates where one piece of work ended and the next began. `/collegium reset {agent}` provides a manual episode boundary; context never reaches back past the most recent one.
 
 DM context follows the same mechanism as any other channel.
+
+**Search reaches what recency cannot.** `conversations::search` is a read over the post store — a case-insensitive substring over post text, optionally bounded by author and date — returning each match as post ID, channel, author, time, and text. It returns posts alone: never a trace, which is per-agent and need-to-know (§8.3), and never stored reasoning, which is replayed to the provider and to nothing else (§3.12). It is ungated, as reads are, and billed against the action budget (§5.3): the exemption is for context the framework already holds, and a search that can run forty times is the case the ceiling exists for.
+
+Search is bounded exactly as the window is, applied per channel. It reaches only channels the agent is a member of **now**, asked of the channels module at query time rather than inferred from the store, since a post is recorded per channel and not per observer. It reaches back no further than each channel's own most recent episode boundary. A forgotten post (§8.4) is as absent from a result as it is from the window, or `/collegium forget` would be a lie.
+
+**It never widens an audience.** A match surfaces in the current channel only if everyone who can read the current channel could already read its source. A public channel is readable by the whole team, so from one, search reaches public channels alone; from a private channel or DM it reaches public channels and any private channel or DM whose members include everyone present. The rule is one predicate in the channels module, which learns channel type and full membership the way it learns agent membership today (§3.11): from websocket events, reconciled on boot. A result names its source channel, so the model can see it is quoting from elsewhere.
+
+_Why a structural rule rather than an instruction:_ a colleague knows not to repeat a private conversation in a public room; a model quoting a raw search result will do so by accident, and a result is verbatim where a memory is curated. The direction that remains is deliberate — in a DM, an agent recalls what was said in public. What was said in private and is wanted elsewhere crosses by memory (§3.6), where the human saw the disclosure at the moment it was kept.
 
 ### **3.9 Work Channel**
 
@@ -370,7 +378,7 @@ Agent mentions in transient status text are stripped before posting. Status text
 
 **An agent executes strictly one turn at a time within a given channel.** While a turn is live — waiting on the model, executing a tool, or blocked on approval — that channel is closed to further turns for that agent. Other channels are unaffected.
 
-The channel is therefore the concurrency unit. It is also the intervention unit (§7.5) and the context unit (§3.8). The two cross-channel exceptions are memory (§3.6) and the global rate ceiling (§7.4).
+The channel is therefore the concurrency unit. It is also the intervention unit (§7.5) and the context unit (§3.8). The cross-channel exceptions are memory (§3.6), search (§3.8), and the global rate ceiling (§7.4).
 
 Acquisition of a channel lock must be a **synchronous compare-and-swap** — no `await` between checking availability and claiming it. Two debounce timers maturing microseconds apart would otherwise both observe an idle agent and both start turns.
 
@@ -384,7 +392,7 @@ An unaddressed fragment the running turn absorbs (§4.4) is neither queued nor a
 
 **Drain, not pop.** When a turn ends on an exit that allows progress (§7.1) and the channel goes idle, everything queued for that channel is consumed by a single new turn. Ten fragments queued during a long turn become one turn, not ten.
 
-**The drain is visible even when context is not.** The queue holds pointers and content arrives through the channel window, which walks back only until its token budget is exhausted. When the window cannot reach back as far as the earliest unprocessed post, the draining turn's status post says how far back context actually reached — detection, not prevention, the same posture as memory-write disclosure (§3.6).
+**The drain is visible even when context is not.** The queue holds pointers and content arrives through the channel window, which walks back only until its token budget is exhausted. When the window cannot reach back as far as the earliest unprocessed post, the draining turn's status post says how far back context actually reached — detection, not prevention, the same posture as memory-write disclosure (§3.6). What the window could not reach, the agent can search for (§3.8).
 
 **The queue holds pointers, not content.** Context is assembled from the channel window (§3.8), which already contains every recent post. The queue therefore stores one row per (agent, channel): that unprocessed work exists, and the earliest unprocessed post ID. Draining clears the flag; the content arrives through the normal context path. Delete the queue and it rebuilds from posts, which is why it does not violate A1.
 
@@ -577,7 +585,7 @@ Run in WAL mode with a busy timeout, since per-channel concurrency means concurr
 
 _Known wrinkle:_ post edits propagate during downtime via backfill but not during uptime, since there is no conflict resolution. Same event, different outcome depending on timing.
 
-_Accepted losses:_ editing a post in the client does not correct what an agent believes; deleting a post does not redact it from context; a late-joining agent has no channel history before its join point.
+_Accepted losses:_ editing a post in the client does not correct what an agent believes; deleting a post does not redact it from context; a late-joining agent has no channel history before its join point, and search (§3.8) cannot find what was never stored.
 
 ### **8.3 Trace**
 
