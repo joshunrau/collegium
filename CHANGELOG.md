@@ -1,3 +1,9 @@
+## [0.0.1-beta.18](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.17...v0.0.1-beta.18) (2026-09-15)
+
+### Features
+
+- **turns:** return mentions to the delegator's depth, cap chain length, and budget per agent ([6811363](https://github.com/joshunrau/collegium/commit/6811363d7add5c79f0858d7f6d464fc6e898083c))
+
 ## [0.0.1-beta.17](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.16...v0.0.1-beta.17) (2026-09-15)
 
 ### Bug Fixes
