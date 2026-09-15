@@ -38,7 +38,7 @@ describe('TransportRetrier', () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     attemptTimes.length = 0;
-    complete.mockResolvedValue(failure({ kind: 'transport', status: 503 }));
+    complete.mockResolvedValue(failure({ kind: 'transport', reason: 'http_status', status: 503 }));
   });
 
   afterEach(() => {
@@ -50,18 +50,18 @@ describe('TransportRetrier', () => {
     const result = await completeWithTimers();
 
     expect(attemptTimes).toStrictEqual([0, 100, 300]);
-    expect(result.error).toStrictEqual({ kind: 'transport', status: 503 });
+    expect(result.error).toStrictEqual({ kind: 'transport', reason: 'http_status', status: 503 });
   });
 
   it('stops retrying once an attempt succeeds', async () => {
-    complete.mockResolvedValueOnce(failure({ kind: 'transport' })).mockResolvedValueOnce(completion);
+    complete.mockResolvedValueOnce(failure({ kind: 'transport', reason: 'unknown' })).mockResolvedValueOnce(completion);
 
     await expect(completeWithTimers()).resolves.toStrictEqual(completion);
     expect(attemptTimes).toStrictEqual([0, 100]);
   });
 
   it('honours a provider-supplied retry delay', async () => {
-    complete.mockResolvedValueOnce(failure({ kind: 'transport', retryAfterMs: 5000 }));
+    complete.mockResolvedValueOnce(failure({ kind: 'transport', reason: 'http_status', retryAfterMs: 5000 }));
 
     await completeWithTimers();
 

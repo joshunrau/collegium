@@ -205,7 +205,9 @@ describe('TurnRunner', () => {
   });
 
   it('should stop signalling typing when the completion fails', async () => {
-    complete.mockResolvedValueOnce(Result.err({ kind: 'transport' } satisfies InferenceFailure.Transport));
+    complete.mockResolvedValueOnce(
+      Result.err({ kind: 'transport', reason: 'unknown' } satisfies InferenceFailure.Transport)
+    );
     await run();
     expect(typingHandle.stop).toHaveBeenCalledOnce();
   });
@@ -418,7 +420,9 @@ describe('TurnRunner', () => {
   });
 
   it('should end the turn as provider_outage once transport retries are exhausted, spending nothing', async () => {
-    complete.mockResolvedValueOnce(Result.err({ kind: 'transport' } satisfies InferenceFailure.Transport));
+    complete.mockResolvedValueOnce(
+      Result.err({ kind: 'transport', reason: 'unknown' } satisfies InferenceFailure.Transport)
+    );
     const outcome = await run();
     expect(outcome.status).toBe('provider_outage');
     expect(sends.at(-1)?.text).toContain('provider');
@@ -740,7 +744,9 @@ describe('TurnRunner', () => {
   });
 
   it('should log and carry on when a turn notice cannot be posted', async () => {
-    complete.mockResolvedValueOnce(Result.err({ kind: 'transport' } satisfies InferenceFailure.Transport));
+    complete.mockResolvedValueOnce(
+      Result.err({ kind: 'transport', reason: 'unknown' } satisfies InferenceFailure.Transport)
+    );
     transportSend.mockResolvedValueOnce(Result.err({ kind: 'api', message: 'mattermost is down' }));
     const outcome = await run();
     expect(outcome.status).toBe('provider_outage');
@@ -748,7 +754,9 @@ describe('TurnRunner', () => {
   });
 
   it('should log and carry on when a posted notice cannot be recorded', async () => {
-    complete.mockResolvedValueOnce(Result.err({ kind: 'transport' } satisfies InferenceFailure.Transport));
+    complete.mockResolvedValueOnce(
+      Result.err({ kind: 'transport', reason: 'unknown' } satisfies InferenceFailure.Transport)
+    );
     conversationsService.record.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
     const outcome = await run();
     expect(outcome.status).toBe('provider_outage');

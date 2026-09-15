@@ -104,8 +104,10 @@ export const $MemorySettings = z
       .number()
       .int()
       .positive()
-      .default(4000)
-      .describe('Longest body one entry may hold. A longer write is refused rather than truncated.'),
+      .default(16_000)
+      .describe(
+        'Longest body one entry may hold. A longer write is refused rather than truncated, since a silently cut note is worse than a refused one. Bodies are read on demand, never rendered into every prompt, so the cost of a large one is paid only by the turn that reads it.'
+      ),
     maxDescriptionChars: z
       .number()
       .int()

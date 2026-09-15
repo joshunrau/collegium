@@ -215,10 +215,31 @@ describe('OpenAICompatibleClient', () => {
     expect(sentBody()).not.toHaveProperty('tools');
   });
 
-  it('classifies a timeout as a transport failure', async () => {
+  it('classifies a timeout as a transport failure the provider did not respond to', async () => {
     fetchMock.mockRejectedValueOnce(new DOMException('timed out', 'AbortError'));
 
-    await expectFailure({ kind: 'transport' });
+    await expectFailure({ detail: 'AbortError: timed out', kind: 'transport', reason: 'response_timeout' });
+  });
+
+  it('names the cause a failed fetch carries: dns, refusal, reset, tls, connect timeout', async () => {
+    const failing = (code: string) =>
+      new TypeError('fetch failed', { cause: Object.assign(new Error(code), { code }) });
+    for (const [code, reason] of [
+      ['ENOTFOUND', 'dns'],
+      ['ECONNREFUSED', 'refused'],
+      ['ECONNRESET', 'reset'],
+      ['ERR_TLS_CERT_ALTNAME_INVALID', 'tls'],
+      ['UND_ERR_CONNECT_TIMEOUT', 'connect_timeout'],
+      ['SOMETHING_ELSE', 'unknown']
+    ] as const) {
+      fetchMock.mockRejectedValueOnce(failing(code));
+      const result = await client.complete(completionRequest);
+      expect(result.error).toMatchObject({
+        detail: `TypeError: fetch failed (cause: ${code})`,
+        kind: 'transport',
+        reason
+      });
+    }
   });
 
   it('aborts a completion that outlives its timeout, classifying it as a transport failure', async () => {
@@ -235,7 +256,7 @@ describe('OpenAICompatibleClient', () => {
     const result = await impatientClient.complete(completionRequest);
 
     expect(result.success).toBe(false);
-    expect(result.error).toStrictEqual({ kind: 'transport' });
+    expect(result.error).toMatchObject({ kind: 'transport', reason: 'response_timeout' });
   });
 
   it('classifies a body that fails mid-read as a transport failure', async () => {
@@ -243,19 +264,19 @@ describe('OpenAICompatibleClient', () => {
     vi.spyOn(response, 'json').mockRejectedValueOnce(new DOMException('timed out', 'TimeoutError'));
     fetchMock.mockResolvedValueOnce(response);
 
-    await expectFailure({ kind: 'transport' });
+    await expectFailure({ detail: 'TimeoutError: timed out', kind: 'transport', reason: 'response_timeout' });
   });
 
   it('classifies a server error as a transport failure', async () => {
     fetchMock.mockResolvedValueOnce(new Response('unavailable', { status: 503 }));
 
-    await expectFailure({ kind: 'transport', status: 503 });
+    await expectFailure({ kind: 'transport', reason: 'http_status', status: 503 });
   });
 
   it('classifies a rate limit as a transport failure', async () => {
     fetchMock.mockResolvedValueOnce(new Response('slow down', { status: 429 }));
 
-    await expectFailure({ kind: 'transport', status: 429 });
+    await expectFailure({ kind: 'transport', reason: 'http_status', status: 429 });
   });
 
   it('classifies another client error as a provider failure', async () => {

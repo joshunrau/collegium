@@ -56,9 +56,16 @@ export declare namespace CompletionResult {
 
 export type CompletionResult = CompletionResult.Any;
 
+/** why the provider was not reached: coarse and deterministic, so a post may name it (§3.2, §7.1) */
+export type TransportReason =
+  'connect_timeout' | 'dns' | 'http_status' | 'refused' | 'reset' | 'response_timeout' | 'tls' | 'unknown';
+
 export declare namespace InferenceFailure {
   type Transport = {
+    /** the runtime's own words about the failure, for the log alone — never rendered into a post */
+    detail?: string;
     kind: 'transport';
+    reason: TransportReason;
     retryAfterMs?: number;
     status?: number;
   };

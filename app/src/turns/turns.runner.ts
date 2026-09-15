@@ -214,7 +214,7 @@ export class TurnRunner {
       await this.postNotice(input, state, renderProviderRejectionNotice(failure.status));
       return this.close(state, 'provider_rejected');
     }
-    await this.postNotice(input, state, renderProviderOutageNotice());
+    await this.postNotice(input, state, renderProviderOutageNotice(failure));
     return this.close(state, 'provider_outage');
   }
 

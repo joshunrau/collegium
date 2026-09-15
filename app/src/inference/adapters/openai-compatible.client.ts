@@ -3,6 +3,7 @@ import { removeTrailingSlash, Result } from '@collegium/core/utils';
 import { InferenceClient } from '../inference.client.ts';
 import { $ChatCompletion } from '../inference.schemas.ts';
 import { toCompletionBody } from './openai-compatible.utils.ts';
+import { classifyTransportError } from './transport-reason.utils.ts';
 
 import type { CompletionRequest, CompletionResult, InferenceFailure } from '../inference.types.ts';
 
@@ -37,7 +38,11 @@ export class OpenAICompatibleClient extends InferenceClient {
 
   private async classifyFailure(response: Response): Promise<Result<never, InferenceFailure>> {
     if (RETRYABLE_STATUSES.has(response.status) || response.status >= 500) {
-      return Result.err({ kind: 'transport', status: response.status } satisfies InferenceFailure.Transport);
+      return Result.err({
+        kind: 'transport',
+        reason: 'http_status',
+        status: response.status
+      } satisfies InferenceFailure.Transport);
     }
     const body = await response.text().catch(() => undefined);
     const status = `${this.providerLabel} responded with status ${response.status}`;
@@ -90,8 +95,8 @@ export class OpenAICompatibleClient extends InferenceClient {
         signal: AbortSignal.timeout(this.timeoutMs)
       });
       return Result.ok(response);
-    } catch {
-      return Result.err({ kind: 'transport' });
+    } catch (error) {
+      return Result.err(classifyTransportError(error));
     }
   }
 
@@ -108,7 +113,7 @@ export class OpenAICompatibleClient extends InferenceClient {
       if (error instanceof SyntaxError) {
         return Result.err(MALFORMED_COMPLETION);
       }
-      return Result.err({ kind: 'transport' });
+      return Result.err(classifyTransportError(error));
     }
     return this.parseCompletion(body);
   }

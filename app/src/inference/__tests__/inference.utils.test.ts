@@ -9,11 +9,18 @@ describe('describeInferenceFailure', () => {
     ).toBe('the provider rejected the request: deepseek responded with status 400: bad schema');
   });
 
-  it('should name the status of a transport failure when there was one to report', () => {
-    expect(describeInferenceFailure({ kind: 'transport', status: 503 })).toBe(
-      'the provider could not be reached (status 503)'
+  it('should name the reason a transport failure carries, and the runtime’s detail for the log', () => {
+    expect(describeInferenceFailure({ kind: 'transport', reason: 'http_status', status: 503 })).toBe(
+      'the provider could not be reached: the provider answered HTTP 503'
     );
-    expect(describeInferenceFailure({ kind: 'transport' })).toBe('the provider could not be reached');
+    expect(
+      describeInferenceFailure({ detail: 'TimeoutError: timed out', kind: 'transport', reason: 'response_timeout' })
+    ).toBe(
+      'the provider could not be reached: the provider accepted the request but sent no response within the inference timeout [TimeoutError: timed out]'
+    );
+    expect(describeInferenceFailure({ kind: 'transport', reason: 'unknown' })).toBe(
+      'the provider could not be reached'
+    );
   });
 
   it('should describe a malformed completion', () => {

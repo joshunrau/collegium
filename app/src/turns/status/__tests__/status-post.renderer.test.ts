@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  renderProviderOutageNotice,
   renderProviderRejectionNotice,
   renderRecordDeletedLine,
   renderRecordWriteLine,
@@ -75,6 +76,18 @@ describe('renderRecordDeletedLine', () => {
 describe('renderSupersededLine', () => {
   it('should name the entry the write displaced', () => {
     expect(renderSupersededLine('casey on formatting')).toBe('♻️ _superseded: casey on formatting_');
+  });
+});
+
+describe('renderProviderOutageNotice', () => {
+  it('should name the transport cause in one fixed phrase, and nothing when none is known', () => {
+    expect(renderProviderOutageNotice({ kind: 'transport', reason: 'response_timeout' })).toBe(
+      '⚠️ **Error**: Failed to reach the model provider — the provider accepted the request but sent no response within the inference timeout'
+    );
+    expect(renderProviderOutageNotice({ kind: 'transport', reason: 'http_status', status: 503 })).toContain('HTTP 503');
+    expect(renderProviderOutageNotice({ detail: 'secret words', kind: 'transport', reason: 'unknown' })).toBe(
+      '⚠️ **Error**: Failed to reach the model provider'
+    );
   });
 });
 

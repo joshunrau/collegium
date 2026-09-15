@@ -66,7 +66,7 @@ describe('AgentRegistry', () => {
 
   it('should resolve effective tool settings per granted toolset, typed by its schema (§8)', () => {
     expect(agentRegistry.settingsFor(MEMORY_TOOLSET, 'mira')).toStrictEqual({
-      maxBodyChars: 4000,
+      maxBodyChars: 16_000,
       maxDescriptionChars: 200,
       maxEntries: 5
     });

@@ -1,3 +1,5 @@
+import type { InferenceFailure } from '@/inference/inference.types.ts';
+import { describeTransportReason } from '@/inference/inference.utils.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 
 const DISCLOSURE_BODY_LIMIT_CHARS = 120;
@@ -97,8 +99,9 @@ export function renderSupersededLine(description: string): string {
   return `♻️ _superseded: ${description}_`;
 }
 
-export function renderProviderOutageNotice(): string {
-  return '⚠️ **Error**: Failed to reach the model provider';
+export function renderProviderOutageNotice(failure: InferenceFailure.Transport): string {
+  const reason = describeTransportReason(failure);
+  return `⚠️ **Error**: Failed to reach the model provider${reason === undefined ? '' : ` — ${reason}`}`;
 }
 
 /** §7.1 — the chat substrate, not the model provider, refused a post the turn had to make */

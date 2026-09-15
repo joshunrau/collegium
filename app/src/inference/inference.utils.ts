@@ -6,15 +6,33 @@ function addReportedCount(left: number | undefined, right: number | undefined): 
   return left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
 }
 
-/** for the logs, never for a post: the provider's own words are not deterministic output (§3.2) */
+/** the one phrase per reason a post may carry: fixed strings, never the runtime's or the provider's words (§3.2) */
+export function describeTransportReason(failure: InferenceFailure.Transport): string | undefined {
+  return match(failure)
+    .with({ reason: 'connect_timeout' }, () => 'connecting timed out')
+    .with({ reason: 'dns' }, () => 'the provider’s address could not be resolved')
+    .with({ reason: 'http_status' }, ({ status }) => `the provider answered HTTP ${status ?? 'error'}`)
+    .with({ reason: 'refused' }, () => 'the connection was refused')
+    .with({ reason: 'reset' }, () => 'the connection was closed before a response arrived')
+    .with(
+      { reason: 'response_timeout' },
+      () => 'the provider accepted the request but sent no response within the inference timeout'
+    )
+    .with({ reason: 'tls' }, () => 'the TLS handshake failed')
+    .with({ reason: 'unknown' }, () => undefined)
+    .exhaustive();
+}
+
+/** for the logs, never for a post: the runtime's and the provider's own words are not deterministic output (§3.2) */
 export function describeInferenceFailure(failure: InferenceFailure): string {
   return match(failure)
     .with({ kind: 'malformed' }, ({ message }) => `the completion was malformed: ${message}`)
     .with({ kind: 'provider' }, ({ message }) => `the provider rejected the request: ${message}`)
-    .with(
-      { kind: 'transport' },
-      ({ status }) => `the provider could not be reached${status === undefined ? '' : ` (status ${status})`}`
-    )
+    .with({ kind: 'transport' }, (transport) => {
+      const reason = describeTransportReason(transport);
+      const detail = transport.detail === undefined ? '' : ` [${transport.detail}]`;
+      return `the provider could not be reached${reason === undefined ? '' : `: ${reason}`}${detail}`;
+    })
     .exhaustive();
 }
 
