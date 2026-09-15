@@ -222,8 +222,9 @@ describe('OpenAICompatibleClient', () => {
   });
 
   it('names the cause a failed fetch carries: dns, refusal, reset, tls, connect timeout', async () => {
-    const failing = (code: string) =>
-      new TypeError('fetch failed', { cause: Object.assign(new Error(code), { code }) });
+    const failing = (code: string) => {
+      return new TypeError('fetch failed', { cause: Object.assign(new Error(code), { code }) });
+    };
     for (const [code, reason] of [
       ['ENOTFOUND', 'dns'],
       ['ECONNREFUSED', 'refused'],
