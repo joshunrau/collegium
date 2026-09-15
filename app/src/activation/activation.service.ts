@@ -19,7 +19,7 @@ import { TurnFoldRegistry } from '@/turns/folding/turn-fold.registry.ts';
 import { TurnRunner } from '@/turns/turns.runner.ts';
 
 import { QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
-import { toActivationDepth, toFoldAuthorUsername } from './activation.utils.ts';
+import { toActivationChainLength, toActivationDepth, toFoldAuthorUsername } from './activation.utils.ts';
 import { DebounceService } from './debounce/debounce.service.ts';
 
 /**
@@ -339,8 +339,9 @@ export class ActivationService {
     try {
       const source = await this.conversationsService.findActivationSource(input.triggeringPostId);
       const outcome = await this.turnRunner.run({
+        chainLength: toActivationChainLength(source),
         channelId: input.channelId,
-        depth: toActivationDepth(source),
+        depth: toActivationDepth(source, profile.username),
         drainedFromPostId: input.drainedFromPostId,
         foldAuthorUsername: toFoldAuthorUsername(source),
         profile,

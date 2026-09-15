@@ -7,7 +7,9 @@ import { renderTrace } from '../trace.utils.ts';
 
 const TURN = {
   agentUsername: 'mira',
+  chainLength: 1,
   channelId: 'channel-1',
+  depth: 0,
   id: 'turn-1',
   modelName: 'deepseek-v4-flash',
   status: 'completed'
@@ -25,7 +27,7 @@ const event = (payload: PrismaJson.TurnEventPayload): ModelRow<'TurnEvent'> => (
 describe('renderTrace', () => {
   it('should report a turn that recorded nothing by its status, so a failed turn still reads', () => {
     expect(renderTrace({ ...TURN, status: 'provider_outage' }, [])).toBe(
-      'Turn turn-1 (mira on deepseek-v4-flash, provider_outage) recorded no events: no tool call, approval, or record.'
+      'Turn turn-1 (mira on deepseek-v4-flash, provider_outage, depth 0, chain 1) recorded no events: no tool call, approval, or record.'
     );
   });
 
@@ -41,7 +43,7 @@ describe('renderTrace', () => {
     ]);
     expect(text).toBe(
       [
-        'Trace for turn turn-1 (mira on deepseek-v4-flash, completed):',
+        'Trace for turn turn-1 (mira on deepseek-v4-flash, completed, depth 0, chain 1):',
         '1. approval requested for `workspace::write`: write a.md',
         '2. approval a1 → approved by casey'
       ].join('\n')

@@ -113,6 +113,7 @@ function buildCollegiumConfig({
         return [
           bot.username,
           {
+            actionBudget: agent.actionBudget,
             contextBudgetTokens: agent.contextBudgetTokens,
             expertise: agent.expertise,
             model: COLLEGIUM_FIXTURE.model,
@@ -155,6 +156,7 @@ function buildCollegiumConfig({
     },
     turns: {
       actionBudget: ACTION_BUDGET,
+      chainLengthLimit: scenario.chainLengthLimit ?? CONFIG_DEFAULTS.turns.chainLengthLimit,
       hourlyCeiling: scenario.hourlyCeiling ?? CONFIG_DEFAULTS.turns.hourlyCeiling
     }
   };

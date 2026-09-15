@@ -12,6 +12,8 @@ export type AgentIdentity = {
  * credential the chat seam needs, not something the rest of the system should be able to read.
  */
 export type AgentProfile = {
+  /** the §5.3 budget this agent's turns start with: its own where config states one, else the deployment's */
+  readonly actionBudget: number;
   readonly contextBudgetTokens: number;
   readonly expertise: string;
   readonly model: $ModelRef;

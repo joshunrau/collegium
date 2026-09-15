@@ -402,9 +402,11 @@ An unaddressed fragment the running turn absorbs (§4.4) is neither queued nor a
 
 ### **5.3 Action Budget**
 
-**Twenty-five action attempts per turn** (`turns.actionBudget`). An action attempt is one model-emitted tool invocation, _including invocations denied before execution._ Not counted: framework transport retries, framework posting, and the tools declared budget-exempt (§3.4) — `skills::load` and `memory::read`, the exemption being for loading context the framework already holds. A plugin cannot declare one.
+**Twenty-five action attempts per turn** (`turns.actionBudget`), **unless the agent declares its own** (`agents.{name}.actionBudget`). An action attempt is one model-emitted tool invocation, _including invocations denied before execution._ Not counted: framework transport retries, framework posting, and the tools declared budget-exempt (§3.4) — `skills::load` and `memory::read`, the exemption being for loading context the framework already holds. A plugin cannot declare one.
 
-On exhaustion the agent posts what it has and requests approval to extend. Approving grants a further ten attempts and preserves accumulated context. Extensions are unbounded in number, but each prompt carries the running count — _extension 4; 40 attempts so far_ — because the human in the loop is the control, and the control needs the number.
+On exhaustion the agent posts what it has and requests approval to extend. Approving grants the agent's budget over again and preserves accumulated context. Extensions are unbounded in number, but each prompt carries the running count — _extension 4; 100 attempts so far_ — because the human in the loop is the control, and the control needs the number.
+
+_Why the budget is per agent:_ the number is a statement about a role, not about the framework. An agent whose unit of work is a hundred ungated reads — a directory scraped, cross-checked, and recorded in batches — either pays that number once, in configuration, or pays it as four extension prompts per unit answered by a human who has stopped reading them, which is the gate degradation A5 names. A declared budget is enumerable by reading config, the same property every other grant has (§6.1). It buys an agent nothing it was not granted: every gated call still blocks, and the extension prompt still stands past the declared number. The default stays low because the default agent is a conversational one, and a budget nobody stated should stay the one that makes a runaway turn visible early.
 
 **Denying an extension ends the turn's actions, not its voice.** A bare denial terminates. A denial with reason feeds the reason back as the tool result with zero attempts remaining (§3.7), so the agent may conclude in words but not in actions — a human answering _"stop and tell me what you have"_ gets that, rather than a notice reporting that the budget ran out. A tool call emitted after a denied extension ends the turn as budget exhausted and does **not** prompt to extend a second time, since a second prompt would let a denial buy an unbounded loop. Steering buys words, never budget (§5.4).
 
@@ -467,7 +469,7 @@ Every way a turn can stop, and what the human sees:
 
 - **Normal completion** — model emits no tool call. Ends. Visible as the final post.
 - **Denial** — human clicks Deny. Ends. Prompt rewritten to a terminal state; the agent posts asking how to proceed.
-- **Budget exhausted** — ten action attempts. Blocks on an approval to extend; denial ends the turn's actions, leaving it a final word only (§5.3).
+- **Budget exhausted** — the agent's action budget spent (§5.3). Blocks on an approval to extend; denial ends the turn's actions, leaving it a final word only (§5.3).
 - **Transport error** — timeout, 5xx, rate limit. Retried invisibly; nothing is shown unless retries exhaust.
 - **Semantic error** — a call whose _shape_ the model got wrong: unparseable arguments, a missing or mistyped field, an unknown tool, a tool exception. Ends immediately. Error posted under the agent's name. A well-formed call whose _value_ the domain refuses is not this (§7.2).
 - **Side-effect ambiguity** — a mutating call times out. Ends, with an explicit statement that completion cannot be confirmed.
@@ -516,14 +518,29 @@ Queue state and outstanding triggers both survive a restart, so pending work is 
 
 Agent-to-agent mentions make unbounded chains possible: each turn is individually well-behaved and under budget while the chain runs until someone notices.
 
-**Depth counter**, carried in the turn record and never shown to the model:
+Two counters bound them, both carried in the turn record and never shown to the model. **Depth** measures how far work has been handed _down_ from a human; **chain length** measures how many turns one human post has produced at all.
+
+**Depth counter:**
 
 - Human-initiated turn → depth 0
 - Trigger-initiated turn → depth 1 (a cron is not a human; unattended work is the dangerous kind)
-- Agent-initiated turn → parent depth \+ 1
+- Agent-initiated turn → parent depth \+ 1, **unless the mention is a return**, in which case the depth of the turn being returned to
 - Limit 10 (`turns.delegationDepthLimit`). At the limit, agent mentions in output are refused and the turn posts visibly: _"I would have asked a colleague but I've reached the delegation limit — someone needs to pick this up."_
 
-**Depth bounds the chain only because §4.5 bounds its width.** Every turn may address at most one peer, so a chain stays a chain: ten levels is ten turns, not ten levels of a branching tree.
+**A return is an answer to the turn that asked.** A mention is a return when the post carrying it was authored by a turn whose own triggering post was authored by a turn of the agent now being activated: Sam asks Naomi (Naomi at depth 1); Naomi mentions Sam (a return: Sam back at depth 0, the depth of the turn that asked). Had Naomi mentioned Omar instead, that is a hand-off, and Omar is at depth 2. Depth therefore counts nesting, not exchanges — a supervisor that delegates one unit at a time and verifies each result sits at depth 0 for the whole run, its worker at depth 1, however many units there are. The test is mechanical and read off the store: the activating post's authoring turn, that turn's triggering post, that post's authoring turn, and whether the last is the activated agent's own. No configuration declares a supervisor; the shape is recognized from the posts, so it can never be claimed by an agent or drift from what the channel shows.
+
+_Why depth alone was the wrong bound for this shape:_ under the previous accounting every mention was a hand-off, so a supervisor and its worker exchanging one unit of work cost two levels, and a run of six units was refused as if it were a six-deep chain of strangers. The shape the limit exists to catch — work passed further and further from the human who asked for it — is exactly the shape a return is not.
+
+**Chain length:**
+
+- Human-initiated turn → 1
+- Trigger-initiated turn → 1
+- Agent-initiated turn, return or hand-off → parent chain length \+ 1
+- Limit 200 (`turns.chainLengthLimit`). At the limit, agent mentions in output are refused and the turn posts visibly: _"I would have continued with a colleague but this chain has reached its limit — someone needs to say whether to go on."_
+
+**Chain length is what returns make necessary.** With returns free of depth, two agents could answer each other indefinitely at depths 0 and 1, and the only brake would be the hourly ceiling — an emergency stop, not a design. The chain-length limit is the bound on total unattended work one human post may set in motion: a fresh human post starts a fresh chain, so continuing past the limit costs exactly one human-visible act, which is the property every other limit in this section has. The number is deliberately far below the hourly ceiling, so that a legitimate long run is refused by its own limit and reported by the agent, rather than halting every agent in the framework.
+
+**Depth bounds the chain only because §4.5 bounds its width.** Every turn may address at most one peer, so a chain stays a chain: ten levels is ten turns, not ten levels of a branching tree. The same holds for chain length: because each turn produces at most one activation, a chain of length 200 is 200 turns.
 
 Enforcement is in the framework, not the prompt. Prompt-level constraints are advisory, and advisory constraints are what produced Hermes.
 
@@ -575,7 +592,7 @@ _Why this and not an eagerly-created status post:_ a turn that calls no tool sho
 
 _Why a second copy at all:_ an agent's context is posts **interleaved with** tool calls, tool results, approval requests and decisions, and model metadata — its own turns' trace, never a peer's: tool results carry per-agent authority (§3.4), and raw traces are need-to-know even among humans (§8.3). None of that exists in Mattermost except as rendered text. Split across two stores, every context assembly becomes a merge-join across different clocks and ID spaces on every turn. One ordered store is a material simplification.
 
-Stored: every observed post, every tool call and result, every approval request and decision, the trigger table, the queue state, and per-turn metadata (depth, action count, model, token usage). Tool identities are stored structurally (§3.4) — two columns where a scalar once held the name, the segment array inside JSON payloads — with a bare string reserved for what resolves to no tool: unresolvable model output, or a framework action like the budget extension.
+Stored: every observed post, every tool call and result, every approval request and decision, the trigger table, the queue state, and per-turn metadata (depth, chain length, action count, model, token usage). Tool identities are stored structurally (§3.4) — two columns where a scalar once held the name, the segment array inside JSON payloads — with a bare string reserved for what resolves to no tool: unresolvable model output, or a framework action like the budget extension.
 
 Run in WAL mode with a busy timeout, since per-channel concurrency means concurrent writers.
 

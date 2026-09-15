@@ -31,6 +31,7 @@ export const CONFIG_DEFAULTS = {
   },
   turns: {
     actionBudget: 25,
+    chainLengthLimit: 200,
     delegationDepthLimit: 10,
     hourlyCeiling: 500
   }

@@ -38,10 +38,18 @@ export type SearchInput = {
   readonly until?: Date;
 };
 
-/** what a post's origin implies about the turn it activates: §7.4 depth and §4.4 folding */
+/** the turn whose post activated the turn that authored a post — who a mention would be returning to (§7.4) */
+export type DelegatingTurn = {
+  readonly agentUsername: string;
+  readonly depth: number;
+};
+
+/** what a post's origin implies about the turn it activates: §7.4 depth and chain length, §4.4 folding */
 export type ActivationSource = {
   readonly authorKind: AuthorKind;
   readonly authorUsername: string;
+  readonly delegator: DelegatingTurn | undefined;
+  readonly parentChainLength: number | undefined;
   readonly parentDepth: number | undefined;
 };
 

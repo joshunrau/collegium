@@ -90,6 +90,7 @@ export class TurnsService {
 
   open(input: {
     agentUsername: string;
+    chainLength: number;
     channelId: string;
     depth: number;
     modelName: string;
@@ -98,6 +99,7 @@ export class TurnsService {
     return this.turns.create({
       data: {
         agentUsername: input.agentUsername,
+        chainLength: input.chainLength,
         channelId: input.channelId,
         depth: input.depth,
         modelName: input.modelName,

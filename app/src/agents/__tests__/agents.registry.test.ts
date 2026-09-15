@@ -15,6 +15,7 @@ import { AgentRegistry } from '../agents.registry.ts';
 import type { AgentProfile } from '../agents.types.ts';
 
 const MIRA: AgentDefinition = {
+  actionBudget: 120,
   contextBudgetTokens: 8000,
   expertise: 'code review',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
@@ -71,6 +72,11 @@ describe('AgentRegistry', () => {
       maxEntries: 5
     });
     expect(agentRegistry.settingsFor(MEMORY_TOOLSET, 'tess')).toBeUndefined();
+  });
+
+  it('should give an agent the action budget it states, and the deployment’s to one that does not (§5.3)', () => {
+    expect(mira.actionBudget).toBe(120);
+    expect(agentRegistry.get('tess')?.actionBudget).toBe(25);
   });
 
   it('should report an unknown username as absent', () => {

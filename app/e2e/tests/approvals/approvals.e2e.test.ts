@@ -319,6 +319,46 @@ describe('Action budget', () => {
   });
 });
 
+const OWN_BUDGET_SCENARIO = defineScenario({
+  agents: [
+    {
+      actionBudget: 3,
+      expertise: 'End-to-end testing',
+      systemPrompt: 'You are Tess. Reply clearly and briefly.',
+      tools: ['memory'],
+      username: 'tess'
+    }
+  ],
+  channels: [{ name: 'main' }]
+});
+
+describe('Per-agent action budget', () => {
+  const harness = setupHarness(OWN_BUDGET_SCENARIO);
+
+  it('runs the budget the agent declares and states it in the prompt, not the deployment default (§5.3)', async () => {
+    const { agents, channels, inference } = harness();
+    inference.willReply(
+      { agent: 'tess', contains: 'small budget' },
+      toolCallsResponse(
+        Array.from({ length: 4 }, (_, index) => ({
+          arguments: { body: `note ${index}`, description: `filler ${index}` },
+          name: 'memory__write'
+        }))
+      )
+    );
+
+    await channels.main.mention('tess', 'small budget');
+    const extension = await channels.main.awaitPost({
+      description: 'the extension prompt carrying the agent’s own count',
+      match: (post) => post.authorId === agents.tess.userId && post.text.includes('extension 1; 3 attempts so far')
+    });
+    expect(extension.text).toContain('Approving grants another 3');
+    const [request] = inference.requestsFor('tess');
+    expect(request?.systemPrompt).toContain('Each turn has a budget of 3 tool calls.');
+    await channels.main.clickAction(extension, 'deny');
+  });
+});
+
 // a decision the app wrongly accepts leaves its turn mid-flight, so these keep their own harness
 describe('Approver identity', () => {
   const harness = setupHarness(SCENARIO);

@@ -50,6 +50,7 @@ describe('InspectHandler', () => {
         'Agent @mira',
         '- Model: deepseek-v4-flash (deepseek)',
         '- Context budget: 8000 tokens',
+        '- Action budget: 25 attempts per turn',
         '- Expertise: end-to-end testing',
         '',
         'Tools:',

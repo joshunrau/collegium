@@ -126,6 +126,7 @@ describe('ActivationService', () => {
     await activationService.onPost(PROFILE, post());
     await settle();
     expect(turnRunner.run).toHaveBeenCalledWith({
+      chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
       profile: PROFILE,
@@ -159,6 +160,8 @@ describe('ActivationService', () => {
     conversationsService.findActivationSource.mockResolvedValue({
       authorKind: 'system',
       authorUsername: 'collegium',
+      delegator: undefined,
+      parentChainLength: undefined,
       parentDepth: undefined
     });
     await activationService.onPost(PROFILE, post({ authorKind: 'system', authorUsername: 'collegium' }));
@@ -170,6 +173,8 @@ describe('ActivationService', () => {
     conversationsService.findActivationSource.mockResolvedValue({
       authorKind: 'agent',
       authorUsername: 'owen',
+      delegator: undefined,
+      parentChainLength: 4,
       parentDepth: 4
     });
     await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
@@ -177,10 +182,38 @@ describe('ActivationService', () => {
     expect(turnRunner.run).toHaveBeenCalledWith(expect.objectContaining({ depth: 5 }));
   });
 
+  it('should return a mention to the depth of the turn it answers, and lengthen the chain (§7.4)', async () => {
+    conversationsService.findActivationSource.mockResolvedValue({
+      authorKind: 'agent',
+      authorUsername: 'owen',
+      delegator: { agentUsername: 'mira', depth: 0 },
+      parentChainLength: 2,
+      parentDepth: 1
+    });
+    await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
+    await settle();
+    expect(turnRunner.run).toHaveBeenCalledWith(expect.objectContaining({ chainLength: 3, depth: 0 }));
+  });
+
+  it('should nest a mention from a turn another agent activated, rather than returning it', async () => {
+    conversationsService.findActivationSource.mockResolvedValue({
+      authorKind: 'agent',
+      authorUsername: 'owen',
+      delegator: { agentUsername: 'omar', depth: 0 },
+      parentChainLength: 2,
+      parentDepth: 1
+    });
+    await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
+    await settle();
+    expect(turnRunner.run).toHaveBeenCalledWith(expect.objectContaining({ chainLength: 3, depth: 2 }));
+  });
+
   it('should start an agent-initiated turn at depth one when no authoring turn is recoverable', async () => {
     conversationsService.findActivationSource.mockResolvedValue({
       authorKind: 'agent',
       authorUsername: 'owen',
+      delegator: undefined,
+      parentChainLength: undefined,
       parentDepth: undefined
     });
     await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
@@ -306,6 +339,7 @@ describe('ActivationService', () => {
     await settle();
     expect(turnRunner.run).toHaveBeenCalledTimes(2);
     expect(turnRunner.run).toHaveBeenLastCalledWith({
+      chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
       drainedFromPostId: 'post-7',
@@ -320,6 +354,7 @@ describe('ActivationService', () => {
     await settle();
     expect(turnRunner.run).toHaveBeenCalledTimes(1);
     expect(turnRunner.run).toHaveBeenCalledWith({
+      chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
       drainedFromPostId: 'post-7',
@@ -488,6 +523,7 @@ describe('ActivationService', () => {
       await settle();
       expect(turnRunner.run).toHaveBeenCalledTimes(1);
       expect(turnRunner.run).toHaveBeenCalledWith({
+        chainLength: 1,
         channelId: 'channel-1',
         depth: 0,
         drainedFromPostId: 'post-7',

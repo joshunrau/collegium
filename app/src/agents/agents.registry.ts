@@ -26,10 +26,15 @@ export class AgentRegistry {
       toolsets: [...FRAMEWORK_TOOLSETS, ...pluginsRegistry.toolsets]
     });
     const workspaceRoot = envService.get('WORKSPACE_ROOT');
+    const defaultActionBudget = configService.get('turns.actionBudget');
     this.profiles = new Map(
       agents.map((definition) => [
         definition.username,
-        this.toProfile(definition, toolSettings.get(definition.username) ?? new Map(), workspaceRoot)
+        this.toProfile(definition, {
+          actionBudget: definition.actionBudget ?? defaultActionBudget,
+          toolSettings: toolSettings.get(definition.username) ?? new Map(),
+          workspaceRoot
+        })
       ])
     );
   }
@@ -76,10 +81,11 @@ export class AgentRegistry {
 
   private toProfile(
     definition: AgentDefinition,
-    toolSettings: ReadonlyMap<string, unknown>,
-    workspaceRoot: string
+    resolved: { actionBudget: number; toolSettings: ReadonlyMap<string, unknown>; workspaceRoot: string }
   ): AgentProfile {
+    const { actionBudget, toolSettings, workspaceRoot } = resolved;
     return {
+      actionBudget,
       contextBudgetTokens: definition.contextBudgetTokens,
       expertise: definition.expertise,
       model: definition.model,

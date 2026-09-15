@@ -47,6 +47,7 @@ function renderSummary(report: InspectReport): string {
     `Agent @${profile.username}`,
     `- Model: ${profile.model.name} (${profile.model.provider})`,
     `- Context budget: ${profile.contextBudgetTokens} tokens`,
+    `- Action budget: ${profile.actionBudget} attempts per turn`,
     `- Expertise: ${profile.expertise}`,
     '',
     'Tools:',
