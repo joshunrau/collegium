@@ -161,6 +161,14 @@ export const $AgentDefaults = z.strictObject({
 /** one agent as written: its username is the key it sits under */
 export type $AgentDeclaration = z.infer<typeof $AgentDeclaration>;
 export const $AgentDeclaration = z.strictObject({
+  actionBudget: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Overrides turns.actionBudget for this agent (§5.3): the action attempts one of its turns may make before asking to continue, and what an approved extension grants. State it for an agent whose unit of work is many ungated reads.'
+    ),
   contextBudgetTokens: $ContextBudgetTokens
     .optional()
     .describe('Overrides agentDefaults.contextBudgetTokens for this agent'),
@@ -233,7 +241,15 @@ export const $TurnsConfig = z.strictObject({
     .positive()
     .default(CONFIG_DEFAULTS.turns.actionBudget)
     .describe(
-      'Action attempts one turn may make before it must ask to continue (§5.3): every model-emitted tool invocation counts, denied ones included. An approved extension grants this many more.'
+      'Action attempts one turn may make before it must ask to continue (§5.3), for every agent that does not state its own: every model-emitted tool invocation counts, denied ones included. An approved extension grants the agent its budget again.'
+    ),
+  chainLengthLimit: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.turns.chainLengthLimit)
+    .describe(
+      'How many turns one human post may set in motion through agent-to-agent mentions, returns included (§7.4). At the limit, mentions of a peer are stripped and the turn says so; a fresh human post starts a fresh chain.'
     ),
   delegationDepthLimit: z
     .number()

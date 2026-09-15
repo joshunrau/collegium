@@ -106,6 +106,7 @@ describe('RuntimeService', () => {
   beforeEach(() => {
     workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'collegium-runtime-'));
     mira = {
+      actionBudget: 25,
       contextBudgetTokens: 1000,
       expertise: 'testing',
       model: { name: 'deepseek-v4-flash', provider: 'deepseek' },

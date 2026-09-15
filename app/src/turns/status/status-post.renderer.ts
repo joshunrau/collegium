@@ -68,6 +68,11 @@ export function renderExtensionPrompt(input: {
   return `I have used all my action attempts and would like to keep going. This would be extension ${input.extensionNumber}; ${input.attemptsSoFar} attempts so far. Approving grants another ${input.grant}.`;
 }
 
+/** §7.4 — the bound on total unattended work one human post may set in motion; a fresh human post starts a fresh chain */
+export function renderChainLengthLimitNotice(): string {
+  return 'I would have continued with a colleague but this chain has reached its limit — someone needs to say whether to go on.';
+}
+
 /** §7.4 — enforcement is in the framework, not the prompt; the visible line is fixed by the spec */
 export function renderDelegationLimitNotice(): string {
   return "I would have asked a colleague but I've reached the delegation limit — someone needs to pick this up.";

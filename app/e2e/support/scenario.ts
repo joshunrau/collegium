@@ -1,6 +1,8 @@
 import type { $AgentDeclaration, $DebouncePolicy, $PluginName, $TriggeringMode } from '@collegium/config';
 
 type AgentSpec = Pick<$AgentDeclaration, 'expertise' | 'systemPrompt'> & {
+  /** the agent's own §5.3 budget; the fixture's shared one applies when omitted */
+  actionBudget?: $AgentDeclaration['actionBudget'];
   contextBudgetTokens?: $AgentDeclaration['contextBudgetTokens'];
   skills?: $AgentDeclaration['skills'];
   tools?: $AgentDeclaration['tools'];
@@ -24,6 +26,8 @@ type ChannelSpec = {
 
 type Scenario = {
   agents: readonly AgentSpec[];
+  /** the §7.4 bound on turns one human post may set in motion; 200 is not drivable in a test, so chain scenarios lower it */
+  chainLengthLimit?: number;
   channels: readonly ChannelSpec[];
   /** §4.4; the fixture's window is short enough for every other test, so only debounce tests set this */
   debounce?: $DebouncePolicy;

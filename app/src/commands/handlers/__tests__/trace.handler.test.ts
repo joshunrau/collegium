@@ -11,7 +11,9 @@ import { TraceHandler } from '../trace.handler.ts';
 
 const TURN = {
   agentUsername: 'mira',
+  chainLength: 1,
   channelId: 'channel-1',
+  depth: 0,
   id: 'turn-1',
   modelName: 'deepseek-v4-flash',
   status: 'completed'
@@ -54,7 +56,7 @@ describe('TraceHandler', () => {
     turnsService.listEvents.mockResolvedValue(EVENTS as never);
     const response = await traceHandler.handle({ channelId: 'channel-1', text: 'post-9', username: 'casey' });
     expect(response.audience).toBe('invoker');
-    expect(response.text).toContain('Trace for turn turn-1 (mira on deepseek-v4-flash, completed):');
+    expect(response.text).toContain('Trace for turn turn-1 (mira on deepseek-v4-flash, completed, depth 0, chain 1):');
     expect(response.text).toContain('1. called `write_file` with {"path":"a.md"}');
     expect(response.text).toContain('2. `write_file` → wrote 5 bytes');
     expect(response.text).toContain('3. assistant: done');

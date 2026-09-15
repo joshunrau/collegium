@@ -12,6 +12,7 @@ import { ContextAssembler } from '../context.assembler.ts';
 import { SystemPromptRenderer } from '../system-prompt.renderer.ts';
 
 const PROFILE: AgentProfile = {
+  actionBudget: 25,
   contextBudgetTokens: 1000,
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },

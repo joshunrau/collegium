@@ -3,11 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
-import { ConfigService } from '@/config/config.service.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
-import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -15,6 +13,7 @@ import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { SystemPromptRenderer } from '../system-prompt.renderer.ts';
 
 const PROFILE = {
+  actionBudget: 7,
   contextBudgetTokens: 12_000,
   expertise: 'testing',
   systemPrompt: 'You are Mira.',
@@ -44,7 +43,6 @@ describe('SystemPromptRenderer', () => {
       providers: [
         SystemPromptRenderer,
         TextFormatter,
-        { provide: ConfigService, useValue: createConfigServiceMock({ turns: { actionBudget: 7 } }) },
         { provide: MemoryService, useValue: memoryService },
         { provide: RosterService, useValue: rosterService },
         { provide: SkillsService, useValue: skillsService },

@@ -23,6 +23,26 @@ type PostRow = {
 
 const AUTHORING_TURN_DEPTH = 3;
 
+/** turn-1 was activated by post-0, which turn-0 (mira's) authored — the §7.4 lineage a return is read from */
+const TURNS = {
+  'turn-0': {
+    agentUsername: 'mira',
+    chainLength: 1,
+    channelId: 'channel-1',
+    depth: 0,
+    id: 'turn-0',
+    triggeringPostId: null
+  },
+  'turn-1': {
+    agentUsername: 'owen',
+    chainLength: 2,
+    channelId: 'channel-1',
+    depth: AUTHORING_TURN_DEPTH,
+    id: 'turn-1',
+    triggeringPostId: 'post-0'
+  }
+} as const;
+
 /** the delegate is faked with real state because idempotency is only observable against real state */
 const createPostTable = () => {
   return createModelTable<PostRow>({
@@ -34,9 +54,7 @@ const createPostTable = () => {
     }),
     relations: {
       authoringTurn: (row) => {
-        return row.authoringTurnId === null
-          ? undefined
-          : { channelId: 'channel-1', depth: AUTHORING_TURN_DEPTH, id: row.authoringTurnId };
+        return row.authoringTurnId === null ? undefined : TURNS[row.authoringTurnId as keyof typeof TURNS];
       }
     },
     uniqueFields: ['id']
@@ -81,7 +99,7 @@ describe('ConversationsService', () => {
   });
 
   describe('findActivationSource', () => {
-    it('should report the author beside the depth of the turn that authored the post', async () => {
+    it('should report the author beside the depth and chain length of the turn that authored the post', async () => {
       await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'owen' }), {
         kind: 'reply',
         turnId: 'turn-1'
@@ -89,15 +107,33 @@ describe('ConversationsService', () => {
       expect(await conversationsService.findActivationSource('post-1')).toStrictEqual({
         authorKind: 'agent',
         authorUsername: 'owen',
+        delegator: undefined,
+        parentChainLength: 2,
         parentDepth: AUTHORING_TURN_DEPTH
       });
     });
 
-    it('should report no parent depth for a post no turn of this process authored', async () => {
+    it('should name the turn the authoring turn was answering, read through its triggering post', async () => {
+      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'mira', id: 'post-0' }), {
+        kind: 'reply',
+        turnId: 'turn-0'
+      });
+      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'owen' }), {
+        kind: 'reply',
+        turnId: 'turn-1'
+      });
+      expect(await conversationsService.findActivationSource('post-1')).toMatchObject({
+        delegator: { agentUsername: 'mira', depth: 0 }
+      });
+    });
+
+    it('should report no lineage for a post no turn of this process authored', async () => {
       await conversationsService.record(post());
       expect(await conversationsService.findActivationSource('post-1')).toStrictEqual({
         authorKind: 'human',
         authorUsername: 'casey',
+        delegator: undefined,
+        parentChainLength: undefined,
         parentDepth: undefined
       });
     });

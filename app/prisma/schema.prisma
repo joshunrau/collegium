@@ -96,6 +96,7 @@ model Turn {
   actionCount      Int         @default(0)
   agentUsername      String
   cachedPromptTokens Int?
+  chainLength        Int         @default(1)
   channelId          String
   completionTokens   Int?
   depth            Int

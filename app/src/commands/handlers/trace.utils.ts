@@ -37,7 +37,7 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload): string {
 
 /** the turn's own row leads: a failed or tool-less turn has no events, and its status is the whole story */
 export function renderTrace(turn: Turn, events: ModelRow<'TurnEvent'>[]): string {
-  const heading = `turn ${turn.id} (${turn.agentUsername} on ${turn.modelName}, ${turn.status})`;
+  const heading = `turn ${turn.id} (${turn.agentUsername} on ${turn.modelName}, ${turn.status}, depth ${turn.depth}, chain ${turn.chainLength})`;
   if (events.length === 0) {
     return `${heading[0]!.toUpperCase()}${heading.slice(1)} recorded no events: no tool call, approval, or record.`;
   }

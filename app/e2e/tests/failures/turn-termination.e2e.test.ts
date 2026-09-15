@@ -114,16 +114,42 @@ const CHAIN_SCENARIO = defineScenario({
       username: 'owen'
     }
   ],
+  // past the depth limit: a two-agent exchange is all returns, so only the chain length can stop it
+  chainLengthLimit: 15,
+  channels: [{ name: 'main' }]
+});
+
+const DEPTH_SCENARIO = defineScenario({
+  agents: [
+    {
+      expertise: 'End-to-end testing',
+      systemPrompt: 'You are Mira. Reply clearly and briefly.',
+      tools: [],
+      username: 'mira'
+    },
+    {
+      expertise: 'End-to-end testing',
+      systemPrompt: 'You are Owen. Reply clearly and briefly.',
+      tools: [],
+      username: 'owen'
+    },
+    {
+      expertise: 'End-to-end testing',
+      systemPrompt: 'You are Omar. Reply clearly and briefly.',
+      tools: [],
+      username: 'omar'
+    }
+  ],
   channels: [{ name: 'main' }]
 });
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-describe('Loop control', () => {
+describe('Loop control: chain length', () => {
   const harness = setupHarness(CHAIN_SCENARIO);
 
-  // the delegation-limit notice is a fixed string, so each test scopes its chain with a unique
-  // phrase and only awaits posts past its own watermark — a stale notice can never match
+  // the chain-limit notice is a fixed string, so each test scopes its chain with a unique phrase
+  // and only awaits posts past its own watermark — a stale notice can never match
   const scriptChain = (phrase: string, turns: { mira: number; owen: number }, separator = ' ') => {
     const { agents, inference } = harness();
     inference.willReply(
@@ -143,11 +169,11 @@ describe('Loop control', () => {
     return { mira: inference.requestsFor('mira').length, owen: inference.requestsFor('owen').length };
   };
 
-  const awaitDelegationLimitNotice = () => {
+  const awaitChainLimitNotice = () => {
     return harness().channels.main.awaitPost({
-      description: 'the delegation-limit notice',
-      match: (post) => post.text.includes('delegation limit'),
-      timeoutMs: 60_000
+      description: 'the chain-length notice',
+      match: (post) => post.text.includes('this chain has reached its limit'),
+      timeoutMs: 90_000
     });
   };
 
@@ -158,32 +184,34 @@ describe('Loop control', () => {
       match: (post) => {
         return post.text === `${agents.owen.username} ${phrase}` || post.text === `${agents.mira.username} ${phrase}`;
       },
-      timeoutMs: 60_000
+      timeoutMs: 90_000
     });
   };
 
-  // depth is never rendered anywhere, so all three cases observe it the same way: the chain length
-  // at which the fixed limit trips. 11 turns from a human, 10 from a trigger, is the arithmetic.
-  it('starts an agent-initiated turn at one greater than its parent’s depth (§7.4)', async () => {
+  // neither counter is rendered anywhere, so every case observes it the same way: the number of
+  // turns that ran before the fixed limit tripped. Fifteen from a human is the arithmetic — and
+  // fifteen is past the depth limit of ten, which is the proof that a reply to one's delegator
+  // returns rather than nests (§7.4).
+  it('returns a mention to the depth of the turn it answers, so a two-agent exchange outlives the depth limit (§7.4)', async () => {
     const { channels } = harness();
     const phrase = `carry on ${randomUUID()}`;
     const before = requestCounts();
-    scriptChain(phrase, { mira: 6, owen: 5 });
+    scriptChain(phrase, { mira: 8, owen: 7 });
 
     await channels.main.mention('mira', phrase);
-    await awaitDelegationLimitNotice();
+    await awaitChainLimitNotice();
 
     const after = requestCounts();
-    expect(after.mira - before.mira).toBe(6);
-    expect(after.owen - before.owen).toBe(5);
+    expect(after.mira - before.mira).toBe(8);
+    expect(after.owen - before.owen).toBe(7);
     await awaitChainSettled(phrase);
   });
 
-  it('starts a trigger-initiated turn at depth one (§7.4)', async () => {
+  it('starts a trigger-initiated chain at one, as a human post does (§7.4)', async () => {
     const { agents, app, channels } = harness();
     const phrase = `carry on ${randomUUID()}`;
     const before = requestCounts();
-    scriptChain(phrase, { mira: 5, owen: 5 });
+    scriptChain(phrase, { mira: 8, owen: 7 });
 
     await channels.main.say('setting a fresh watermark');
     const response = await fetch(`${app.url}/triggers`, {
@@ -196,48 +224,88 @@ describe('Loop control', () => {
       method: 'POST'
     });
     expect(response.status).toBe(202);
-    await awaitDelegationLimitNotice();
+    await awaitChainLimitNotice();
 
     const after = requestCounts();
-    expect(after.mira - before.mira).toBe(5);
-    expect(after.owen - before.owen).toBe(5);
+    expect(after.mira - before.mira).toBe(8);
+    expect(after.owen - before.owen).toBe(7);
     await awaitChainSettled(phrase);
   });
 
-  it('refuses agent mentions and posts the delegation-limit notice at depth ten (§7.4)', async () => {
+  it('refuses agent mentions and posts the chain-length notice at the limit (§7.4)', async () => {
     const { agents, channels } = harness();
     const phrase = `carry on ${randomUUID()}`;
     const before = requestCounts();
-    scriptChain(phrase, { mira: 6, owen: 5 });
+    scriptChain(phrase, { mira: 8, owen: 7 });
 
     await channels.main.mention('mira', phrase);
-    const notice = await awaitDelegationLimitNotice();
+    const notice = await awaitChainLimitNotice();
     expect(notice.authorId).toBe(agents.mira.userId);
-    expect(notice.text).toContain('someone needs to pick this up');
+    expect(notice.text).toContain('someone needs to say whether to go on');
 
     await channels.main.awaitPost({
       description: 'the final output with its agent mention stripped',
       match: (post) => post.authorId === agents.mira.userId && post.text === `${agents.owen.username} ${phrase}`,
-      timeoutMs: 60_000
+      timeoutMs: 90_000
     });
     await sleep(500);
-    expect(requestCounts().owen - before.owen).toBe(5);
+    expect(requestCounts().owen - before.owen).toBe(7);
   });
 
   // Mattermost ends a mention at punctuation and still notifies, so the framework's own grammar
   // must agree with it (§4.5) or the limit below is enforced against text nobody actually posted
-  it('enforces the delegation limit when the mention is followed by a full stop (§7.4)', async () => {
+  it('enforces the chain limit when the mention is followed by a full stop (§7.4)', async () => {
     const { channels } = harness();
     const phrase = `carry on ${randomUUID()}`;
     const before = requestCounts();
-    scriptChain(phrase, { mira: 6, owen: 5 }, '. ');
+    scriptChain(phrase, { mira: 8, owen: 7 }, '. ');
 
     await channels.main.mention('mira', phrase);
-    await awaitDelegationLimitNotice();
+    await awaitChainLimitNotice();
 
     const after = requestCounts();
-    expect(after.mira - before.mira).toBe(6);
-    expect(after.owen - before.owen).toBe(5);
+    expect(after.mira - before.mira).toBe(8);
+    expect(after.owen - before.owen).toBe(7);
+  });
+});
+
+describe('Loop control: delegation depth', () => {
+  const harness = setupHarness(DEPTH_SCENARIO);
+
+  // any two-agent alternation is a return, so only a cycle through a third agent hands work down
+  // at every hop: mira → owen → omar → mira … climbs one level per turn and trips at depth ten,
+  // on the eleventh turn, which is owen's
+  it('nests a hand-off to a colleague other than the one who asked, and refuses at depth ten (§7.4)', async () => {
+    const { agents, channels, inference } = harness();
+    const phrase = `hand down ${randomUUID()}`;
+    inference.willReply({ agent: 'mira', contains: phrase }, textResponse(`@${agents.owen.username} ${phrase}`), {
+      times: 4
+    });
+    inference.willReply({ agent: 'owen', contains: phrase }, textResponse(`@${agents.omar.username} ${phrase}`), {
+      times: 4
+    });
+    inference.willReply({ agent: 'omar', contains: phrase }, textResponse(`@${agents.mira.username} ${phrase}`), {
+      times: 3
+    });
+
+    await channels.main.mention('mira', phrase);
+    const notice = await channels.main.awaitPost({
+      description: 'the delegation-limit notice',
+      match: (post) => post.text.includes('delegation limit'),
+      timeoutMs: 90_000
+    });
+    expect(notice.authorId).toBe(agents.owen.userId);
+    expect(notice.text).toContain('someone needs to pick this up');
+
+    await channels.main.awaitPost({
+      description: 'the final output with its agent mention stripped',
+      match: (post) => post.authorId === agents.owen.userId && post.text === `${agents.omar.username} ${phrase}`,
+      timeoutMs: 90_000
+    });
+    await sleep(500);
+    expect(inference.requestsFor('mira')).toHaveLength(4);
+    expect(inference.requestsFor('owen')).toHaveLength(4);
+    expect(inference.requestsFor('omar')).toHaveLength(3);
   });
 });
 

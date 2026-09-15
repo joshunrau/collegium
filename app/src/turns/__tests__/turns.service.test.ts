@@ -93,6 +93,7 @@ describe('TurnsService', () => {
   const open = () => {
     return turnsService.open({
       agentUsername: 'mira',
+      chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
       modelName: 'deepseek-v4-flash'

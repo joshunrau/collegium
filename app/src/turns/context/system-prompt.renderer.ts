@@ -3,7 +3,6 @@ import { Injectable } from '@nestjs/common';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { PERSONALITY_PROMPTS } from '@/agents/personalities/personalities.constants.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
-import { ConfigService } from '@/config/config.service.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
@@ -16,18 +15,13 @@ import { ToolRegistry } from '@/tools/tools.registry.ts';
  */
 @Injectable()
 export class SystemPromptRenderer {
-  private readonly actionBudget: number;
-
   constructor(
-    configService: ConfigService,
     private readonly memoryService: MemoryService,
     private readonly rosterService: RosterService,
     private readonly skillsService: SkillsService,
     private readonly textFormatter: TextFormatter,
     private readonly toolRegistry: ToolRegistry
-  ) {
-    this.actionBudget = configService.get('turns.actionBudget');
-  }
+  ) {}
 
   async render(input: { channelId: string; profile: AgentProfile }): Promise<string> {
     const { channelId, profile } = input;
@@ -118,7 +112,7 @@ export class SystemPromptRenderer {
         'The framework holds your instructions, tools, skills, model, and schedule. Memory is the only part of yourself you write and delete.'
       ],
       {
-        actionBudget: this.actionBudget,
+        actionBudget: profile.actionBudget,
         budgetExemptCalls: this.textFormatter.formatConjunction(this.toolRegistry.listBudgetExemptFor(profile)),
         contextBudgetTokens: profile.contextBudgetTokens
       }

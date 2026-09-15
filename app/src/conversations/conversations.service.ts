@@ -4,7 +4,7 @@ import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
-import type { ActivationSource, PostAuthorship, RecordablePost } from './conversations.types.ts';
+import type { ActivationSource, DelegatingTurn, PostAuthorship, RecordablePost } from './conversations.types.ts';
 
 @Injectable()
 export class ConversationsService {
@@ -20,10 +20,14 @@ export class ConversationsService {
     return earliest?.id;
   }
 
-  /** what a post's origin implies for §7.4 depth and §4.4 folding: who authored it, and its authoring turn's depth */
+  /**
+   * What a post's origin implies for §7.4 and §4.4: who authored it, its authoring turn's depth and
+   * chain length, and the turn that authoring turn was answering — read off the store, never off the
+   * text, so a return is recognized from the posts and cannot be claimed.
+   */
   async findActivationSource(postId: string): Promise<ActivationSource | undefined> {
     const post = await this.posts.findUnique({
-      include: { authoringTurn: { select: { depth: true } } },
+      include: { authoringTurn: { select: { chainLength: true, depth: true, triggeringPostId: true } } },
       where: { id: postId }
     });
     if (!post) {
@@ -32,6 +36,8 @@ export class ConversationsService {
     return {
       authorKind: post.authorKind,
       authorUsername: post.authorUsername,
+      delegator: await this.findDelegator(post.authoringTurn?.triggeringPostId),
+      parentChainLength: post.authoringTurn?.chainLength,
       parentDepth: post.authoringTurn?.depth
     };
   }
@@ -110,5 +116,16 @@ export class ConversationsService {
   /** keeps the stored copy of a framework-authored post current as it is edited in place (§8.1) */
   async updateAuthoredMessage(postId: string, message: string): Promise<void> {
     await this.posts.updateMany({ data: { message }, where: { id: postId } });
+  }
+
+  private async findDelegator(triggeringPostId: null | string | undefined): Promise<DelegatingTurn | undefined> {
+    if (triggeringPostId === null || triggeringPostId === undefined) {
+      return undefined;
+    }
+    const triggeringPost = await this.posts.findUnique({
+      include: { authoringTurn: { select: { agentUsername: true, depth: true } } },
+      where: { id: triggeringPostId }
+    });
+    return triggeringPost?.authoringTurn ?? undefined;
   }
 }

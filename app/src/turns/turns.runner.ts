@@ -38,6 +38,7 @@ import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
 import {
   renderBudgetExhaustedNotice,
+  renderChainLengthLimitNotice,
   renderContextShortfallLine,
   renderDelegationLimitNotice,
   renderDeliveryFailureNotice,
@@ -62,14 +63,15 @@ import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle } from './status/status-post.service.ts';
 import type { Turn, TurnOutcome } from './turns.types.ts';
 
-/** the bounds config states for every turn: §5.3 attempts, §7.4 depth, §4.4 folds */
+/** the bounds config states for every turn: §7.4 depth and chain length, §4.4 folds; the §5.3 budget is the agent's own */
 type TurnLimits = {
-  readonly actionBudget: number;
+  readonly chainLengthLimit: number;
   readonly delegationDepthLimit: number;
   readonly foldLimit: number;
 };
 
 type RunInput = {
+  chainLength: number;
   channelId: string;
   depth: number;
   /** set on a draining turn: the earliest unprocessed post the 👀 promised to read (§5.2) */
@@ -131,7 +133,7 @@ export class TurnRunner {
   ) {
     const turns = configService.get('turns');
     this.limits = {
-      actionBudget: turns.actionBudget,
+      chainLengthLimit: turns.chainLengthLimit,
       delegationDepthLimit: turns.delegationDepthLimit,
       foldLimit: configService.get('activation.foldLimit')
     };
@@ -141,13 +143,14 @@ export class TurnRunner {
     const { channelId, profile } = input;
     const turn = await this.turnsService.open({
       agentUsername: profile.username,
+      chainLength: input.chainLength,
       channelId,
       depth: input.depth,
       modelName: profile.model.name,
       triggeringPostId: input.triggeringPostId
     });
     const state: TurnState = {
-      budget: new ActionBudget(this.limits.actionBudget),
+      budget: new ActionBudget(profile.actionBudget),
       control: this.turnControlRegistry.register(turn.id, channelId),
       fold: this.turnFoldRegistry.register({
         agentUsername: profile.username,
@@ -433,16 +436,23 @@ export class TurnRunner {
   }
 
   /**
-   * §7.4 — at the delegation limit the output still posts, but with its agent mentions stripped so
-   * it cannot activate anyone, and the fixed notice tells the humans why the chain stopped here.
+   * §7.4 — at either limit the output still posts, but with its agent mentions stripped so it
+   * cannot activate anyone, and a fixed notice tells the humans why the chain stopped here. Chain
+   * length is checked first: it is the limit a human lifts by posting, so its notice is the one
+   * that says what to do.
    */
-  private async enforceDepthLimit(input: RunInput, state: TurnState, content: string): Promise<string> {
-    if (input.depth < this.limits.delegationDepthLimit) {
+  private async enforceChainLimits(input: RunInput, state: TurnState, content: string): Promise<string> {
+    const atChainLengthLimit = input.chainLength >= this.limits.chainLengthLimit;
+    if (!atChainLengthLimit && input.depth < this.limits.delegationDepthLimit) {
       return content;
     }
     const stripped = this.multiMentionPolicy.stripAgentMentions(content);
     if (stripped !== content) {
-      await this.postNotice(input, state, renderDelegationLimitNotice());
+      await this.postNotice(
+        input,
+        state,
+        atChainLengthLimit ? renderChainLengthLimitNotice() : renderDelegationLimitNotice()
+      );
     }
     return stripped;
   }
@@ -601,7 +611,7 @@ export class TurnRunner {
         continue;
       }
       if (completion.value.kind === 'text') {
-        const content = await this.enforceDepthLimit(input, state, completion.value.content);
+        const content = await this.enforceChainLimits(input, state, completion.value.content);
         let rejection = this.rejectionOf(input, content);
         if (rejection === undefined) {
           return this.closeWithFinalOutput(input, state, content, completion.value.reasoningContent);

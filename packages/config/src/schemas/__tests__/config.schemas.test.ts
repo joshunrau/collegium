@@ -60,6 +60,12 @@ describe('$AgentDeclaration', () => {
     );
   });
 
+  it('should accept an agent’s own action budget and leave it absent otherwise (§5.3)', () => {
+    expect($AgentDeclaration.parse({ ...declaration([]), actionBudget: 120 }).actionBudget).toBe(120);
+    expect($AgentDeclaration.parse(declaration([])).actionBudget).toBeUndefined();
+    expect($AgentDeclaration.safeParse({ ...declaration([]), actionBudget: 0 }).success).toBe(false);
+  });
+
   it('should default tools, skills, and toolSettings', () => {
     const parsed = $AgentDeclaration.parse({
       ...declaration([]),
@@ -89,7 +95,7 @@ describe('$Config', () => {
       notifications: { lifecycle: true },
       plugins: [],
       providers: { deepseek: { baseUrl: 'https://api.deepseek.com' } },
-      turns: { actionBudget: 25, delegationDepthLimit: 10, hourlyCeiling: 500 }
+      turns: { actionBudget: 25, chainLengthLimit: 200, delegationDepthLimit: 10, hourlyCeiling: 500 }
     });
   });
 
