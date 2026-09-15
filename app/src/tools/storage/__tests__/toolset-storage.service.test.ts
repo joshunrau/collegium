@@ -105,6 +105,25 @@ describe('ToolsetStorageService', () => {
     expect(await investigators.findFirst({ where: { name: 'nobody' } })).toBeNull();
   });
 
+  it('reads back more matches than one statement can bind, in order', async () => {
+    const service = (
+      await Test.createTestingModule({
+        providers: [
+          ToolsetStorageService,
+          { provide: PrismaService, useValue: database.client },
+          { provide: getModelToken('ToolsetRecord'), useValue: database.client.toolsetRecord }
+        ]
+      }).compile()
+    ).get(ToolsetStorageService);
+    const many = service.collection('prospects', 'many', $Investigator);
+    const ids = Array.from({ length: 1100 }, (_, index) => `row-${String(index).padStart(4, '0')}`);
+    for (const id of ids) {
+      await many.create({ active: true, id, name: id });
+    }
+    const found = await many.findMany({ where: { active: true } });
+    expect(found.map((record) => record.id)).toStrictEqual(ids);
+  });
+
   it('never reaches another collection through a query', async () => {
     expect(await other.findMany({ where: { name: { contains: 'a' } } })).toMatchObject([{ id: 'ana' }]);
     expect(await other.findFirst({ where: { id: 'ben' } })).toBeNull();
