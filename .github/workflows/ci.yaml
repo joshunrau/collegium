@@ -179,6 +179,7 @@ jobs:
           cp .env.template .env
           sed -i 's/^MATTERMOST_ADMIN_USERNAME=.*/MATTERMOST_ADMIN_USERNAME=smoke-admin/' .env
           sed -i 's/^MATTERMOST_ADMIN_PASSWORD=.*/MATTERMOST_ADMIN_PASSWORD=smoke-Password-1/' .env
+          sed -i 's|^MATTERMOST_PUBLIC_URL=.*|MATTERMOST_PUBLIC_URL=http://localhost:8065|' .env
           cp .github/smoke.config.json config.json
       - name: Boot the Stack
         run: docker compose up --detach --wait --wait-timeout 420
@@ -199,9 +200,9 @@ jobs:
             cat refusal.log >&2
             exit 1
           }
-      - name: Report the App Log
+      - name: Report the Stack Log
         if: ${{ always() }}
-        run: docker compose logs app
+        run: docker compose logs app mattermost
       - name: Tear Down
         if: ${{ always() }}
         run: docker compose down --volumes
