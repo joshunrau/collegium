@@ -1,3 +1,9 @@
+## [0.0.1-beta.19](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.18...v0.0.1-beta.19) (2026-09-15)
+
+### Bug Fixes
+
+- **tools:** read matched storage rows back in batches under sqlite's bind limit ([6ce696f](https://github.com/joshunrau/collegium/commit/6ce696fb76ab111b48f26142e2fb9553ecf061da))
+
 ## [0.0.1-beta.18](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.17...v0.0.1-beta.18) (2026-09-15)
 
 ### Features
