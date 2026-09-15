@@ -1,3 +1,9 @@
+## [0.0.1-beta.17](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.16...v0.0.1-beta.17) (2026-09-15)
+
+### Bug Fixes
+
+- **inference:** name the transport cause in the outage notice and log ([8c39738](https://github.com/joshunrau/collegium/commit/8c3973846908f4b1fe112ed2a0111e1ac2075565))
+
 ## [0.0.1-beta.16](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.15...v0.0.1-beta.16) (2026-09-14)
 
 ### ⚠ BREAKING CHANGES
