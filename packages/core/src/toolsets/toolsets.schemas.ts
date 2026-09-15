@@ -2,15 +2,17 @@ import { z } from 'zod';
 
 import { $ChannelHandle, $ResourcePath } from '../common.ts';
 
-export type $MailHost = z.infer<typeof $MailHost>;
-export const $MailHost = z.strictObject({
+export type $MailEndpoint = z.infer<typeof $MailEndpoint>;
+export const $MailEndpoint = z.strictObject({
   host: z.string().min(1).describe('Hostname of the endpoint'),
+  password: z.string().min(1).describe('Password for this endpoint'),
   port: z.number().int().min(1).max(65535).describe('Port of the endpoint'),
   secure: z
     .boolean()
     .describe(
       'true for implicit TLS from the first byte (typically ports 993/465); false to connect plain and upgrade via STARTTLS where the server offers it (typically ports 143/587)'
-    )
+    ),
+  username: z.string().min(1).describe('Login username for this endpoint')
 });
 
 export type $ExchangeMailProvider = z.infer<typeof $ExchangeMailProvider>;
@@ -41,11 +43,9 @@ export const $ImapMailProvider = z.strictObject({
     .describe(
       'The mailbox address this agent acts as. Fixed here and never model-supplied: the from on everything the agent sends.'
     ),
-  imap: $MailHost.describe('The IMAP endpoint mail is read from'),
+  imap: $MailEndpoint.describe('The IMAP endpoint mail is read from, with its credentials'),
   kind: z.literal('imap'),
-  password: z.string().min(1).describe('Password for both endpoints'),
-  smtp: $MailHost.describe('The SMTP endpoint mail is sent through'),
-  username: z.string().min(1).describe('Login username for both endpoints, where it differs from the address')
+  smtp: $MailEndpoint.describe('The SMTP endpoint mail is sent through, with its credentials')
 });
 
 export type $MailSettings = z.infer<typeof $MailSettings>;

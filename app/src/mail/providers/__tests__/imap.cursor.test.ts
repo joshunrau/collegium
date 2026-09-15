@@ -35,11 +35,9 @@ describe('ImapMailProvider cursor', () => {
     client.mailbox = { exists: 3, uidNext: 43, uidValidity: 7n };
     provider = new ImapMailProvider({
       address: 'tess@example.org',
-      imap: { host: 'imap.example.org', port: 993, secure: true },
+      imap: { host: 'imap.example.org', password: 'password_1', port: 993, secure: true, username: 'tess' },
       kind: 'imap',
-      password: 'password_1',
-      smtp: { host: 'smtp.example.org', port: 587, secure: false },
-      username: 'tess'
+      smtp: { host: 'smtp.example.org', password: 'password_2', port: 587, secure: false, username: 'tess' }
     });
   });
 

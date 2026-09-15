@@ -263,7 +263,7 @@ export class ImapMailProvider extends MailProvider {
 
   private async connect(): Promise<Result<ImapFlow, MailFailure.Auth | MailFailure.ProviderUnavailable>> {
     const client = new ImapFlow({
-      auth: { pass: this.config.password, user: this.config.username },
+      auth: { pass: this.config.imap.password, user: this.config.imap.username },
       host: this.config.imap.host,
       logger: false,
       port: this.config.imap.port,
@@ -297,7 +297,7 @@ export class ImapMailProvider extends MailProvider {
 
   private getTransporter(): Transporter {
     this.transporter ??= nodemailer.createTransport({
-      auth: { pass: this.config.password, user: this.config.username },
+      auth: { pass: this.config.smtp.password, user: this.config.smtp.username },
       host: this.config.smtp.host,
       port: this.config.smtp.port,
       secure: this.config.smtp.secure

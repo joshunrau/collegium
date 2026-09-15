@@ -28,11 +28,9 @@ const MAILBOXES: ResolvedMailbox[] = [
       pollIntervalMs: 30_000,
       provider: {
         address: 'amir@example.org',
-        imap: { host: 'imap.example.org', port: 993, secure: true },
+        imap: { host: 'imap.example.org', password: 'password_1', port: 993, secure: true, username: 'amir' },
         kind: 'imap',
-        password: 'password_1',
-        smtp: { host: 'smtp.example.org', port: 587, secure: false },
-        username: 'amir'
+        smtp: { host: 'smtp.example.org', password: 'password_2', port: 587, secure: false, username: 'amir' }
       }
     }
   }

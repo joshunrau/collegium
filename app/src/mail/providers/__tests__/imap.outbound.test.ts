@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImapMailProvider } from '../imap.provider.ts';
 
 const sendMail = vi.hoisted(() => vi.fn());
+const createTransport = vi.hoisted(() => vi.fn(() => ({ sendMail })));
+const createImapFlow = vi.hoisted(() => vi.fn());
 
-vi.mock('nodemailer', () => ({ default: { createTransport: () => ({ sendMail }) } }));
+vi.mock('nodemailer', () => ({ default: { createTransport } }));
 
 const client = vi.hoisted(() => ({
   append: vi.fn(),
@@ -20,7 +22,8 @@ const client = vi.hoisted(() => ({
 
 vi.mock('imapflow', () => ({
   ImapFlow: class {
-    constructor() {
+    constructor(options: unknown) {
+      createImapFlow(options);
       return client;
     }
   }
@@ -64,12 +67,20 @@ describe('ImapMailProvider outbound', () => {
     sendMail.mockResolvedValue({});
     provider = new ImapMailProvider({
       address: 'tess@example.org',
-      imap: { host: 'imap.example.org', port: 993, secure: true },
+      imap: { host: 'imap.example.org', password: 'password_1', port: 993, secure: true, username: 'tess' },
       kind: 'imap',
-      password: 'password_1',
-      smtp: { host: 'smtp.example.org', port: 587, secure: false },
-      username: 'tess'
+      smtp: { host: 'smtp.example.org', password: 'password_2', port: 587, secure: false, username: 'tess-send' }
     });
+  });
+
+  it('should authenticate each endpoint with its own credentials', async () => {
+    await provider.send(OUTBOUND);
+    expect(createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({ auth: { pass: 'password_2', user: 'tess-send' } })
+    );
+    expect(createImapFlow).toHaveBeenCalledWith(
+      expect.objectContaining({ auth: { pass: 'password_1', user: 'tess' } })
+    );
   });
 
   it('should send exactly the approved content under an explicit envelope, copying it to Sent', async () => {
