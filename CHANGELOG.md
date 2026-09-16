@@ -1,3 +1,15 @@
+## [0.0.1-beta.20](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.19...v0.0.1-beta.20) (2026-09-16)
+
+### Features
+
+- **commands:** add queue clear to discard a standing queue entry ([3239b0d](https://github.com/joshunrau/collegium/commit/3239b0d708f36a13c7963fa89db17e6d99974a75))
+- **tools:** resolve a granted tool named in its display form ([0de06d9](https://github.com/joshunrau/collegium/commit/0de06d9dbc73d9c5a96f872b4295d28a51c72294))
+- **usage:** report what each turn cost in the usage command ([5f4346e](https://github.com/joshunrau/collegium/commit/5f4346ef852a7cec08c871fc8b834a10fabfb797))
+
+### Bug Fixes
+
+- **models:** name openrouter's deepseek models by their provider slugs ([ab6e97e](https://github.com/joshunrau/collegium/commit/ab6e97e48f1940ea502f1125305a3d7d07f20a16))
+
 ## [0.0.1-beta.19](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.18...v0.0.1-beta.19) (2026-09-15)
 
 ### Bug Fixes
