@@ -123,6 +123,8 @@ Each tool declares, alongside its description and parameters:
 - **`approval`** — present means the tool **always** gates (§3.7): the function renders the payload the approver reads and cannot decline. Whether a granted tool can act without a human is therefore answerable from config alone; a tool whose gate would depend on its arguments splits into two tools.
 - **`retryable`** — whether a timed-out call may be reported to the model as a plain failure (§7.2); false, the default, ends the turn as an unconfirmable side effect.
 - **`budgetExempt`** — never billed against the action budget (§5.3). Framework toolsets only; the plugin perimeter rejects it.
+- **`concurrent`** — may run alongside the other concurrent calls of the same completion (§5.1): a read that neither depends on nor disturbs what another call in the batch touches. A browser action is not one, since every action on the turn's one page follows the last.
+- **`supersedable`** — a later result of any supersedable tool in the same turn makes this one stale (§3.8): a page the model acts on once and moves past.
 
 Execution receives exactly the context its toolset declared: each declared service under its own name, `settings` (per turn, from the acting agent, §8-style resolution below), `storage` collections, and always `turn` — four facts: the acting agent, the channel, the triggering post (honestly nullable), and the turn id. Reaching anything undeclared is a compile error. A tool that creates a durable record returns its disclosure — body, description, reference, anything superseded — and the turn writes the event and the trace lines (§3.6).
 
@@ -202,7 +204,7 @@ Each turn assembles context fresh from SQLite:
 3. Memory descriptions (§3.6)
 4. Peer roster (§3.11)
 5. Tool definitions
-6. **Channel window** — recent posts from the current channel, interleaved with the trace of this agent's own turns there (§8.2), walked backwards until a token budget is exhausted. The trace is never a peer's: an agent reads its colleagues through their posts alone.
+6. **Channel window** — recent posts from the current channel, interleaved with the trace of this agent's own turns there (§8.2), walked backwards until a token budget is exhausted. The trace is never a peer's: an agent reads its colleagues through their posts alone — their replies and the notices posted under their names, never their status posts, which are their trace rendered.
 
 **The system prompt contains the agent's own prompt, the shared behavioral baseline, its optional personality, and the framework preamble.**
 
@@ -219,6 +221,10 @@ An agent's budget is the one it declares, else the one `agentDefaults` declares,
 There is no threading. All posts are channel-level, so **context is pure recency**: no structural marker indicates where one piece of work ended and the next began. `/collegium reset {agent}` provides a manual episode boundary; context never reaches back past the most recent one.
 
 DM context follows the same mechanism as any other channel.
+
+**The window's oldest entry holds still.** Once a window has been built, the next one for the same agent and channel starts from the same oldest entry for as long as everything since it fits the budget. When it no longer fits, the window is trimmed from the old end to three quarters of the budget and holds there again. Trimming exactly to the budget on every turn would move the oldest entry on every turn, and a provider's cache matches prefixes: a window whose start moves is a prompt that is never cached past the system prompt. The anchor lives in memory; a restart costs one cache miss.
+
+**A tool result replays as what it was, not what it said.** A tool may return, beside its text, the line later turns see in place of it: a skill body replays as `[loaded skill x]`, a page as its address and size, a long shell output or mail message as its size. The turn that made the call reads the text in full; a later turn reads the line and pays for the line, and can make the call again if it needs the text. Within a turn, a page is stale once the model has acted on it and moved to the next: past the two most recent, a supersedable result reads as its line for the rest of the turn. The trace keeps every result in full.
 
 **Prompt caching.** Stable instructions and the skill manifest precede the changing memory descriptions and peer roster. The inference adapter marks these two system sections as separate cache boundaries for Claude and OpenAI models. Claude also enables automatic caching of the growing conversation. OpenAI retains implicit conversation caching with a 30-minute minimum lifetime. Claude uses its default five-minute lifetime. DeepSeek and GLM use their providers' automatic caching.
 
@@ -266,7 +272,9 @@ Private reasoning is any intermediate model computation that is not emitted as u
 - is never returned by `/collegium trace` or `/collegium inspect`;
 - is never written to a log line.
 
-It is stored in SQLite beside the completion that produced it, for one purpose: a thinking-mode provider refuses to continue from an assistant message whose reasoning it is not handed back, so the channel window replays it to the provider and to nothing else. Where a model provider reports reasoning-token usage or similar accounting metadata, the framework may store the usage count.
+It is stored in SQLite beside the completion that produced it, for one purpose: a thinking-mode provider refuses to continue from an assistant message whose reasoning it is not handed back, so the channel window replays it to the provider and to nothing else. It is stored in whichever form the provider hands it back — DeepSeek's text, OpenRouter's signed blocks — and returned in that form, unaltered, since a block whose signature no longer matches is refused. Where a model provider reports reasoning-token usage or similar accounting metadata, the framework may store the usage count.
+
+**How hard a model reasons is configuration.** A model ref may state a `reasoningEffort`, in its provider's own vocabulary — DeepSeek's `none`, `low`, `high`, `max`; OpenRouter's unified scale — and the framework states it to the provider in the provider's own form. Where config states nothing, the provider's default stands: DeepSeek thinks at high effort, and a Claude model reached through OpenRouter does not think at all.
 
 ### **3.13 Mail**
 
@@ -388,6 +396,8 @@ Acquisition of a channel lock must be a **synchronous compare-and-swap** — no 
 
 Only one approval prompt can ever be live for a given agent in a given channel, which is what keeps approval resolution unambiguous.
 
+**Within a turn, a completion's calls run in the order the model made them, except that a run of consecutive `concurrent` calls (§3.4) runs together.** Every call of such a run is admitted to the budget before the run starts, so the extension prompt still blocks in order and never twice at once, and the results are recorded in call order. A gated call is never concurrent.
+
 ### **5.2 The Queue**
 
 A message addressed to a busy agent is **queued, not dropped**. The framework acknowledges it with a 👀 reaction on the post — not a reply, because a post per queued message would be noise in a channel where approval prompts also live.
@@ -474,14 +484,15 @@ Every way a turn can stop, and what the human sees:
 - **Normal completion** — model emits no tool call. Ends. Visible as the final post.
 - **Denial** — human clicks Deny. Ends. Prompt rewritten to a terminal state; the agent posts asking how to proceed.
 - **Budget exhausted** — the agent's action budget spent (§5.3). Blocks on an approval to extend; denial ends the turn's actions, leaving it a final word only (§5.3).
-- **Transport error** — timeout, 5xx, rate limit. Retried invisibly; nothing is shown unless retries exhaust.
+- **Transport error** — timeout, 5xx, rate limit, or a completion the provider itself interrupted mid-stream. Retried invisibly; nothing is shown unless retries exhaust.
+- **Output cut at the limit** — the provider stopped the completion at its output ceiling. Not output, since the model never finished, and not a failure: it is fed back as a rejected post (§4.5), spending one attempt, and the model answers again more briefly.
 - **Semantic error** — a call whose _shape_ the model got wrong: unparseable arguments, a missing or mistyped field, an unknown tool, a tool exception. Ends immediately. Error posted under the agent's name. A well-formed call whose _value_ the domain refuses is not this (§7.2).
 - **Side-effect ambiguity** — a mutating call times out. Ends, with an explicit statement that completion cannot be confirmed.
-- **Provider outage** — completion fails after retries. Ends. Failure posted under the agent's name, naming the transport cause the runtime reported — connecting or responding timed out, the address did not resolve, the connection was refused or reset, the TLS handshake failed, or an HTTP status — as one fixed phrase per cause, never the runtime's or the provider's words (§3.2). The distinction between _connecting_ and _responding_ is the one an operator acts on: a provider that accepts the connection and never answers is a fault in one model or endpoint, not in the network.
-- **Provider rejection** — the provider refused the request itself: a 4xx other than a rate limit, most often a request the framework built wrong. Ends. Never retried, since the same request would be refused again. Failure posted under the agent's name, naming the status code.
+- **Provider outage** — completion fails after retries. Ends. Failure posted under the agent's name, naming the transport cause the runtime reported — connecting timed out, the provider went quiet, the provider interrupted the completion, the address did not resolve, the connection was refused or reset, the TLS handshake failed, or an HTTP status — as one fixed phrase per cause, never the runtime's or the provider's words (§3.2). The distinction between _connecting_ and _responding_ is the one an operator acts on: a provider that accepts the connection and never answers is a fault in one model or endpoint, not in the network.
+- **Provider rejection** — the provider refused the request itself: a 4xx other than a rate limit, most often a request the framework built wrong; or it filtered the completion. Ends. Never retried, since the same request would be refused again. Failure posted under the agent's name, naming the status code.
 - **Delivery failure** — the chat substrate refused a post the turn had to make. Ends, carrying the substrate's own reason. This is **not** a provider outage: naming the wrong system sends the reader to the wrong place. Where the refusal is total — an agent posting into a channel it does not belong to — there is no post to point at at all, which is A1's failure mode and must be loud in the operational record even though the channel stays silent.
 - **`/collegium stop`** — human command. Ends at the next iteration boundary. Stop notice posted.
-- **`/collegium kill`** — human command. Ends immediately; an in-flight tool may still complete.
+- **`/collegium kill`** — human command. Ends immediately; an in-flight completion is aborted, an in-flight tool may still complete.
 - **Global halt** — hourly ceiling breached. All agents stop; prominent post; requires `/collegium resume`.
 - **Restart** — deploy or crash. All in-flight turns abandoned; one system-bot notice in the main channel.
 
@@ -491,7 +502,9 @@ In every case the channel lock is released. The queue drains into a fresh turn o
 
 **Retry the transport, never the intent.**
 
-Transport errors (timeout, 5xx, rate limit) are retried transparently: fixed small count, exponential backoff, invisible to the model, not counted against budget.
+Transport errors (timeout, 5xx, rate limit, a completion interrupted mid-stream) are retried transparently: fixed small count, exponential backoff, invisible to the model, not counted against budget. A request whose turn has been killed is never retried: its turn is gone, and a retry would spend a full prompt on nobody.
+
+**Every completion streams, under an idle timeout.** The inference timeout (`inference.timeoutMs`) bounds how long the provider may send nothing — the connection, the first token, or any later one — not how long the completion takes. A model that thinks for ten minutes and keeps streaming is served; one the provider has stopped serving is cut and retried. A total deadline could not tell the two apart, and would cut the thinking completion three times over before giving up.
 
 Semantic errors (malformed tool JSON, unknown tool, tool exception) terminate immediately. Feeding them back is the standard agent-framework pattern and it is the mechanism behind improvisation: a model told `tool 'send_mail' does not exist` will try `sendMail`, then `email_send`, then invent an argument shape — and if it stumbles onto something that works, it has succeeded at a call nobody intended.
 
@@ -574,7 +587,7 @@ Either command also resolves a pending approval in the channel as **cancelled**:
 
 ### **8.1 What The Human Sees**
 
-**One status post per turn, edited in place** as the turn progresses. Tool calls are appended to it as they occur, so the post accumulates a readable trace of the turn rather than only showing current state. Mattermost supports post updates with a websocket edit broadcast, so connected clients re-render live.
+**One status post per turn, edited in place** as the turn progresses. Tool calls are appended to it as they occur, so the post accumulates a readable trace of the turn rather than only showing current state. Mattermost supports post updates with a websocket edit broadcast, so connected clients re-render live. Edits coalesce: a line is queued and lands on the next edit with whatever else queued by then, so the turn never waits on the chat server between one tool call and the next; only the closing edit is waited for.
 
 **Each line names the tool and what the call is doing** — the URL navigated to, the path written, the command run — because a column of bare tool names says a turn was busy without saying what it did. Each tool renders its own one-line summary, choosing which of its arguments a supervisor needs; the line is capped in length and the untruncated arguments are always in `/collegium trace`. The line is written before the call runs, so arguments the tool's schema will reject have no summary and the call is named alone.
 
