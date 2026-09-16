@@ -1,3 +1,13 @@
+## [0.0.1-beta.21](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.20...v0.0.1-beta.21) (2026-09-16)
+
+### Features
+
+- **models:** offer the openai, anthropic, glm and deepseek models openrouter serves ([273f6df](https://github.com/joshunrau/collegium/commit/273f6df1964456ac1615de55a2a2b7c80d657490))
+
+### Performance
+
+- **inference:** enable and optimize prompt caching across supported models ([33474e2](https://github.com/joshunrau/collegium/commit/33474e2b6d4b84415262bf1d38dab9dc261f1f5b))
+
 ## [0.0.1-beta.20](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.19...v0.0.1-beta.20) (2026-09-16)
 
 ### Features
