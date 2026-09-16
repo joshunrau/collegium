@@ -116,4 +116,18 @@ Colleagues in this channel:
     await render();
     expect(rosterService.getPeers).toHaveBeenCalledWith('channel-1', 'mira');
   });
+
+  it('should keep instructions and skills stable when memories and peers change', async () => {
+    skillsService.renderManifest.mockReturnValue('- triage: Investigate a problem.');
+    const initial = await systemPromptRenderer.renderParts({ channelId: 'channel-1', profile: PROFILE });
+    memoryService.list.mockResolvedValue([{ description: 'new preference', reference: 'memory-1' }]);
+    rosterService.getPeers.mockReturnValue([PEER]);
+    const updated = await systemPromptRenderer.renderParts({ channelId: 'channel-1', profile: PROFILE });
+    expect(updated.stable).toBe(initial.stable);
+    expect(updated.stable).toContain('## Skills');
+    expect(initial.dynamic).toBe('');
+    expect(updated.dynamic).toContain('## Memories');
+    expect(updated.dynamic).toContain('## Peers');
+    expect(await render()).toBe(`${updated.stable}\n\n${updated.dynamic}`);
+  });
 });

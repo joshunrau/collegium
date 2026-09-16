@@ -59,7 +59,7 @@ describe('ContextAssembler', () => {
 
   beforeEach(async () => {
     const systemPromptRenderer = MockFactory.createMock(SystemPromptRenderer);
-    systemPromptRenderer.render.mockResolvedValue('You are Mira.\n\n## How this works');
+    systemPromptRenderer.renderParts.mockResolvedValue({ dynamic: '', stable: 'You are Mira.\n\n## How this works' });
     const toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.describeFor.mockReturnValue([{ description: 'Load a skill.', name: 'load_skill', parameters: {} }]);
     windowService = MockFactory.createMock(WindowService);
@@ -81,8 +81,21 @@ describe('ContextAssembler', () => {
 
   it('should put the rendered prompt and the tool definitions on the request', async () => {
     const request = await assemble();
-    expect(request.systemPrompt).toBe('You are Mira.\n\n## How this works');
+    expect(request.systemPrompt).toStrictEqual({ dynamic: '', stable: 'You are Mira.\n\n## How this works' });
     expect(request.tools.map((tool) => tool.name)).toStrictEqual(['load_skill']);
+  });
+
+  it('should keep the cache key stable per agent and channel', async () => {
+    const initial = await assemble();
+    windowService.build.mockResolvedValue([post('casey', 'new message', 1000)]);
+    expect((await assemble()).cacheKey).toBe(initial.cacheKey);
+    const otherChannel = await contextAssembler.assemble({ channelId: 'channel-2', profile: PROFILE });
+    const otherAgent = await contextAssembler.assemble({
+      channelId: 'channel-1',
+      profile: { ...PROFILE, username: 'tess' }
+    });
+    expect(otherChannel.request.cacheKey).not.toBe(initial.cacheKey);
+    expect(otherAgent.request.cacheKey).not.toBe(initial.cacheKey);
   });
 
   it('should render the window with peer posts as attributed user messages and own posts as assistant', async () => {

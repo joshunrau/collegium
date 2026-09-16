@@ -90,9 +90,10 @@ describe('TurnRunner', () => {
     contextAssembler = MockFactory.createMock(ContextAssembler);
     contextAssembler.assemble.mockResolvedValue({
       request: {
+        cacheKey: 'mira:channel-1',
         messages: [{ content: '@casey: hi', role: 'user' }],
         modelName: 'deepseek-v4-flash',
-        systemPrompt: 'sys',
+        systemPrompt: { dynamic: '', stable: 'sys' },
         tools: []
       },
       windowPostIds: new Set(['post-0'])

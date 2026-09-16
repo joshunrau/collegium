@@ -1,9 +1,13 @@
 import { match } from 'ts-pattern';
 
-import type { CompletionUsage, InferenceFailure } from './inference.types.ts';
+import type { CompletionUsage, InferenceFailure, SystemPrompt } from './inference.types.ts';
 
 function addReportedAmount(left: number | undefined, right: number | undefined): number | undefined {
   return left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
+}
+
+export function renderSystemPrompt(prompt: SystemPrompt): string {
+  return [prompt.stable, prompt.dynamic].filter((part) => part !== '').join('\n\n');
 }
 
 /** the one phrase per reason a post may carry: fixed strings, never the runtime's or the provider's words (§3.2) */

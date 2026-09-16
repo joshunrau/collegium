@@ -7,9 +7,10 @@ import { TransportRetrier } from '../transport.retrier.ts';
 import type { CompletionRequest, CompletionResult, InferenceFailure } from '../../inference.types.ts';
 
 const completionRequest: CompletionRequest = {
+  cacheKey: 'mira:channel-1',
   messages: [{ content: 'Hello', role: 'user' }],
   modelName: 'deepseek-v4-flash',
-  systemPrompt: 'Be helpful',
+  systemPrompt: { dynamic: '', stable: 'Be helpful' },
   tools: []
 };
 

@@ -4,6 +4,8 @@ import type { AgentProfile } from '@/agents/agents.types.ts';
 import { PERSONALITY_PROMPTS } from '@/agents/personalities/personalities.constants.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
+import type { SystemPrompt } from '@/inference/inference.types.ts';
+import { renderSystemPrompt } from '@/inference/inference.utils.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -24,20 +26,32 @@ export class SystemPromptRenderer {
   ) {}
 
   async render(input: { channelId: string; profile: AgentProfile }): Promise<string> {
+    return renderSystemPrompt(await this.renderParts(input));
+  }
+
+  async renderParts(input: { channelId: string; profile: AgentProfile }): Promise<SystemPrompt> {
     const { channelId, profile } = input;
-    const sections = [
+    const stable = [
       profile.systemPrompt,
       this.renderBehavioralBaseline(),
       this.renderPersonality(profile),
       this.renderPreamble(profile),
-      this.renderSkills(profile),
+      this.renderSkills(profile)
+    ];
+    const dynamic = [
       this.renderMemories(await this.memoryService.list(profile.username)),
       this.renderPeers(channelId, profile)
     ];
-    return this.textFormatter.formatParagraphs(
-      sections.filter((section) => section !== undefined),
-      {}
-    );
+    return {
+      dynamic: this.textFormatter.formatParagraphs(
+        dynamic.filter((section) => section !== undefined),
+        {}
+      ),
+      stable: this.textFormatter.formatParagraphs(
+        stable.filter((section) => section !== undefined),
+        {}
+      )
+    };
   }
 
   private renderBehavioralBaseline(): string {

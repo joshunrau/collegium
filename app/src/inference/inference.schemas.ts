@@ -26,16 +26,19 @@ const $Usage = z
     completionTokensDetails: z.object({ reasoningTokens: $TokenCount.optional() }).nullish(),
     /** what the provider charged, denominated in USD by every provider that reports it at all */
     cost: z.number().nonnegative().optional(),
+    promptCacheHitTokens: $TokenCount.optional(),
     promptTokens: $TokenCount,
     promptTokensDetails: z.object({ cachedTokens: $TokenCount.optional() }).nullish()
   })
-  .transform(({ completionTokens, completionTokensDetails, cost, promptTokens, promptTokensDetails }) => ({
-    cachedPromptTokens: promptTokensDetails?.cachedTokens,
-    completionTokens,
-    costUsd: cost,
-    promptTokens,
-    reasoningTokens: completionTokensDetails?.reasoningTokens
-  }));
+  .transform(
+    ({ completionTokens, completionTokensDetails, cost, promptCacheHitTokens, promptTokens, promptTokensDetails }) => ({
+      cachedPromptTokens: promptTokensDetails?.cachedTokens ?? promptCacheHitTokens,
+      completionTokens,
+      costUsd: cost,
+      promptTokens,
+      reasoningTokens: completionTokensDetails?.reasoningTokens
+    })
+  );
 
 export type $ChatCompletion = z.infer<typeof $ChatCompletion>;
 export const $ChatCompletion = $$CamelCased(

@@ -5,9 +5,10 @@ import { OpenAICompatibleClient } from '../openai-compatible.client.ts';
 import type { CompletionRequest, InferenceFailure } from '../../inference.types.ts';
 
 const completionRequest: CompletionRequest = {
+  cacheKey: 'mira:channel-1',
   messages: [{ content: 'Hello', role: 'user' }],
   modelName: 'deepseek-v4-flash',
-  systemPrompt: 'Be helpful',
+  systemPrompt: { dynamic: '', stable: 'Be helpful' },
   tools: []
 };
 
@@ -171,6 +172,7 @@ describe('OpenAICompatibleClient', () => {
     fetchMock.mockResolvedValueOnce(completionResponse({ content: 'ok' }));
 
     await client.complete({
+      cacheKey: 'mira:channel-1',
       messages: [
         { content: 'Load the skill', role: 'user' },
         {
@@ -181,7 +183,7 @@ describe('OpenAICompatibleClient', () => {
         { content: 'the document', role: 'tool', toolCallId: 'call-1' }
       ],
       modelName: 'deepseek-v4-flash',
-      systemPrompt: 'Be helpful',
+      systemPrompt: { dynamic: '', stable: 'Be helpful' },
       tools: [{ description: 'Load a skill', name: 'load_skill', parameters: { type: 'object' } }]
     });
 

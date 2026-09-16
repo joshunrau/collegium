@@ -30,10 +30,16 @@ export type CompletionMessage =
   | { content: string; role: 'tool'; toolCallId: string }
   | { content: string; role: 'user' };
 
+export type SystemPrompt = {
+  readonly dynamic: string;
+  readonly stable: string;
+};
+
 export type CompletionRequest = {
+  readonly cacheKey: string;
   readonly messages: readonly CompletionMessage[];
   readonly modelName: $ModelRef['name'];
-  readonly systemPrompt: string;
+  readonly systemPrompt: SystemPrompt;
   readonly tools: readonly ToolSchema[];
 };
 

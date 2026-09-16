@@ -2,6 +2,8 @@ import { DEEPSEEK_MODELS } from '@collegium/core/common';
 
 import type { ToolSchema } from '@/core/core.types.ts';
 
+import { toPromptCaching } from './prompt-caching.utils.ts';
+
 import type { CompletionMessage, CompletionRequest, ToolCall } from '../inference.types.ts';
 
 /**
@@ -64,13 +66,16 @@ function toWireToolCall(toolCall: ToolCall) {
 /** the request in Chat Completions wire form: system prompt leading, tools omitted when none are offered */
 export function toCompletionBody(request: CompletionRequest) {
   const echoesReasoning = REASONING_ECHO_MODELS.has(request.modelName);
+  const caching = toPromptCaching(request);
   return {
-    messages: [
-      { content: request.systemPrompt, role: 'system' },
-      ...request.messages.map((message) => toWireMessage(message, echoesReasoning))
-    ],
+    ...caching.options,
+    messages: [caching.systemMessage, ...request.messages.map((message) => toWireMessage(message, echoesReasoning))],
     model: request.modelName,
     stream: false,
-    ...(request.tools.length > 0 && { tools: request.tools.map(toWireTool) })
+    ...(request.tools.length > 0 && {
+      tools: request.tools
+        .toSorted((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
+        .map(toWireTool)
+    })
   };
 }

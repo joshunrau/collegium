@@ -30,7 +30,7 @@ export class ContextAssembler {
   async assemble(input: { channelId: string; profile: AgentProfile }): Promise<AssembledContext> {
     const { channelId, profile } = input;
     const [systemPrompt, entries] = await Promise.all([
-      this.systemPromptRenderer.render({ channelId, profile }),
+      this.systemPromptRenderer.renderParts({ channelId, profile }),
       this.windowService.build({
         agentUsername: profile.username,
         budgetTokens: profile.contextBudgetTokens,
@@ -39,6 +39,7 @@ export class ContextAssembler {
     ]);
     return {
       request: {
+        cacheKey: JSON.stringify([profile.username, channelId]),
         messages: toCompletionMessages(entries, profile.username),
         modelName: profile.model.name,
         systemPrompt,
