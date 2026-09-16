@@ -1,3 +1,4 @@
+import { replayWhenLong } from '@collegium/core/tools';
 import type { ToolFailure, ToolResult, ToolTurnScope } from '@collegium/core/tools';
 import { implementToolset, MAIL_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
@@ -35,10 +36,19 @@ function withMailbox(
   return run(mailbox);
 }
 
-/** a stale ref or refused query is the model's ordinary mistake; a dead provider ends the turn loudly */
-function toReadResult<TValue>(result: Result<TValue, MailFailure.Read>, render: (value: TValue) => string): ToolResult {
+/**
+ * A stale ref or refused query is the model's ordinary mistake; a dead provider ends the turn
+ * loudly. A long read replays as a line in later turns (§3.8), named by what it was.
+ */
+function toReadResult<TValue>(
+  result: Result<TValue, MailFailure.Read>,
+  render: (value: TValue) => string,
+  replaySubject: string
+): ToolResult {
   if (result.success) {
-    return Result.ok({ text: render(result.value) });
+    const text = render(result.value);
+    const replay = replayWhenLong(replaySubject, text);
+    return Result.ok({ text, ...(replay !== undefined && { replay }) });
   }
   const failure = match(result.error)
     .with({ kind: 'not-found' }, ({ ref }): ToolFailure => ({
@@ -82,7 +92,11 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
         'Gather the whole conversation a message belongs to, oldest first. Returns summaries only — only open returns a body.',
       execute: (args, context) => {
         return withMailbox(context, async ({ provider }) => {
-          return toReadResult(await provider.getConversation(args.ref), renderMailSummaries);
+          return toReadResult(
+            await provider.getConversation(args.ref),
+            renderMailSummaries,
+            `mail conversation ${args.ref}`
+          );
         });
       },
       parameters: z.object({
@@ -96,7 +110,7 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
       description: 'List the most recent messages in your mailbox. Returns summaries only — only open returns a body.',
       execute: (args, context) => {
         return withMailbox(context, async ({ provider }) => {
-          return toReadResult(await provider.listRecent(args.count), renderMailSummaries);
+          return toReadResult(await provider.listRecent(args.count), renderMailSummaries, 'mail listing');
         });
       },
       parameters: z.object({
@@ -112,7 +126,7 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
         'type, and size; their content is not retrievable.',
       execute: (args, context) => {
         return withMailbox(context, async ({ provider }) => {
-          return toReadResult(await provider.open(args.ref), renderMailMessage);
+          return toReadResult(await provider.open(args.ref), renderMailMessage, `mail message ${args.ref}`);
         });
       },
       parameters: z.object({
@@ -150,7 +164,11 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
         "Search your mailbox in the mail provider's own query grammar. Returns summaries only — only open returns a body.",
       execute: (args, context) => {
         return withMailbox(context, async ({ provider }) => {
-          return toReadResult(await provider.search(args.query, args.count), renderMailSummaries);
+          return toReadResult(
+            await provider.search(args.query, args.count),
+            renderMailSummaries,
+            `mail search "${args.query}"`
+          );
         });
       },
       parameters: z.object({

@@ -31,6 +31,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
     },
     read: {
       budgetExempt: true,
+      concurrent: true,
       description: 'Read the full body of one of your memories.',
       execute: async (args, context) => {
         const memory = await context.memory.read(context.turn.agentUsername, args.reference);

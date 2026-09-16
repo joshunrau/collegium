@@ -92,7 +92,7 @@ describe('TurnRunner', () => {
       request: {
         cacheKey: 'mira:channel-1',
         messages: [{ content: '@casey: hi', role: 'user' }],
-        modelName: 'deepseek-v4-flash',
+        model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
         systemPrompt: { dynamic: '', stable: 'sys' },
         tools: []
       },
@@ -843,6 +843,128 @@ describe('TurnRunner', () => {
         }
       })
     );
+  });
+
+  it('should feed output cut at the length limit back as a rejection and post the shorter retry (§7.1)', async () => {
+    complete.mockResolvedValueOnce(Result.ok({ content: 'a very long', kind: 'truncated', usage: undefined }));
+    complete.mockResolvedValueOnce(Result.ok(text('short')));
+    const outcome = await run();
+    expect(outcome.status).toBe('completed');
+    expect(sends.map((send) => send.text)).toStrictEqual(['short']);
+    const retryRequest = complete.mock.calls[1]![0];
+    expect(retryRequest.messages.slice(-2)).toStrictEqual([
+      { content: 'a very long', role: 'assistant' },
+      { content: expect.stringContaining('cut off at the output limit'), role: 'user' }
+    ]);
+    expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'completed', expect.objectContaining({ actionCount: 1 }));
+  });
+
+  it('should run a completion’s concurrent calls together and record their results in call order', async () => {
+    toolRegistry.isConcurrent.mockImplementation((_profile, name: string) => name === 'web__fetch');
+    let releaseFirst: (attempt: ToolAttempt) => void = () => undefined;
+    toolExecutor.execute.mockImplementationOnce(() => new Promise((resolve) => (releaseFirst = resolve)));
+    toolExecutor.execute.mockImplementationOnce(() => {
+      expect(toolExecutor.execute).toHaveBeenCalledTimes(2);
+      releaseFirst({ kind: 'continue', output: 'first page' });
+      return Promise.resolve({ kind: 'continue', output: 'second page' } satisfies ToolAttempt);
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch', 'web__fetch'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    const followUp = complete.mock.calls[1]![0].messages;
+    expect(followUp.slice(-2)).toStrictEqual([
+      { content: 'first page', role: 'tool', toolCallId: 'call-0' },
+      { content: 'second page', role: 'tool', toolCallId: 'call-1' }
+    ]);
+  });
+
+  it('should run a call that is not concurrent only after the batch before it has finished', async () => {
+    toolRegistry.isConcurrent.mockImplementation((_profile, name: string) => name === 'web__fetch');
+    const order: string[] = [];
+    toolExecutor.execute.mockImplementation(async ({ call }) => {
+      order.push(`start ${call.id}`);
+      await new Promise((resolve) => setImmediate(resolve));
+      order.push(`end ${call.id}`);
+      return { kind: 'continue', output: 'ok' };
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch', 'web__fetch', 'memory__write'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(order).toStrictEqual([
+      'start call-0',
+      'start call-1',
+      'end call-0',
+      'end call-1',
+      'start call-2',
+      'end call-2'
+    ]);
+  });
+
+  it('should answer every call that did not run with the reason once an extension is denied with one', async () => {
+    approvalsService.request.mockResolvedValueOnce(
+      Result.ok({ byUsername: 'casey', kind: 'denied-with-reason', reason: 'stop and summarise' })
+    );
+    complete.mockResolvedValueOnce(Result.ok(toolUse(Array.from({ length: 12 }, () => 'lookup_fixture'))));
+    complete.mockResolvedValueOnce(Result.ok(text('here is what I have')));
+    await run();
+    expect(toolExecutor.execute).toHaveBeenCalledTimes(10);
+    const finalRequest = complete.mock.calls[1]![0];
+    const answers = finalRequest.messages.filter((message) => message.role === 'tool');
+    expect(answers).toHaveLength(12);
+    expect(answers.slice(-2).map((message) => message.content)).toStrictEqual([
+      expect.stringContaining('stop and summarise'),
+      expect.stringContaining('stop and summarise')
+    ]);
+  });
+
+  it('should retire an earlier page result to its replay line once two newer ones exist (§3.8)', async () => {
+    toolRegistry.isSupersedable.mockImplementation((_profile, name: string) => name === 'web__fetch');
+    for (const page of ['one', 'two', 'three']) {
+      toolExecutor.execute.mockResolvedValueOnce({
+        kind: 'continue',
+        output: `page ${page}`,
+        replay: `[page ${page}]`
+      });
+    }
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch', 'web__fetch', 'web__fetch'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    const followUp = complete.mock.calls[1]![0].messages;
+    expect(followUp.filter((message) => message.role === 'tool').map((message) => message.content)).toStrictEqual([
+      '[page one]',
+      'page two',
+      'page three'
+    ]);
+    expect(turnsService.appendEvent).toHaveBeenCalledWith(
+      'turn-1',
+      expect.objectContaining({ kind: 'tool_result', output: 'page one', replay: '[page one]' })
+    );
+  });
+
+  it('should hand the completion a signal that aborts on /kill', async () => {
+    let signal: AbortSignal | undefined;
+    complete.mockImplementationOnce((_request, options) => {
+      signal = options?.signal;
+      return new Promise(() => undefined);
+    });
+    const running = run();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(signal?.aborted).toBe(false);
+    turnControlRegistry.abortChannel('channel-1', 'killed');
+    await running;
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it('should keep structured reasoning on the event and the replayed message, never in a post (§3.12)', async () => {
+    const reasoningDetails = [{ index: 0, signature: 'sig', text: 'private', type: 'reasoning.text' }];
+    complete.mockResolvedValueOnce(
+      Result.ok({ ...toolUse(['write_file']), reasoningDetails } satisfies CompletionResult)
+    );
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(complete.mock.calls[1]![0].messages.at(-2)).toMatchObject({ reasoningDetails, role: 'assistant' });
+    expect(turnsService.appendEvent.mock.calls[0]![1]).toMatchObject({ kind: 'assistant_message', reasoningDetails });
+    expect(JSON.stringify(sends)).not.toContain('private');
   });
 
   it('should post no delegation-limit notice at depth ten when the output names no agent', async () => {

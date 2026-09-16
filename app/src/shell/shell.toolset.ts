@@ -1,3 +1,4 @@
+import { replayWhenLong } from '@collegium/core/tools';
 import { implementToolset, SHELL_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
@@ -22,7 +23,8 @@ export const SHELL_TOOLSET = implementToolset(SHELL_TOOLSET_DEF, {
         if (!result.success) {
           return Result.err({ kind: 'exception', message: result.error.message });
         }
-        return Result.ok({ text: result.value.text });
+        const replay = replayWhenLong('shell output', result.value.text);
+        return Result.ok({ text: result.value.text, ...(replay !== undefined && { replay }) });
       },
       parameters: z.object({
         command: z.string().min(1).describe('The shell command to run, exactly as it will be presented for approval')

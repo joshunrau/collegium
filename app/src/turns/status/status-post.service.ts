@@ -16,12 +16,16 @@ type OpenInput = {
   turnId: string;
 };
 
-/** one post per turn, edited in place as the trace accumulates (§8.1) */
+/**
+ * One post per turn, edited in place as the trace accumulates (§8.1). Edits coalesce: a line is
+ * queued and lands on the next edit with whatever else queued by then, so a turn never waits on
+ * the chat server between one tool call and the next. Only `close` waits, for every queued edit.
+ */
 export type StatusPostHandle = {
-  appendTrace(line: string): Promise<void>;
+  appendTrace(line: string): void;
   close(outcome: Exclude<TurnStatus, 'running'>): Promise<void>;
   /** text alongside a tool call is transient status, replaced on the next edit (§3.3) */
-  setTransient(text: string): Promise<void>;
+  setTransient(text: string): void;
 };
 
 /**
@@ -46,6 +50,9 @@ export class StatusPostService {
     const state: StatusPostState = { traceLines: [] };
     let postId: string | undefined;
     let openFailed = false;
+    let dirty = false;
+    let touched = false;
+    let inFlight: Promise<void> | undefined;
     const sync = async (): Promise<void> => {
       if (openFailed) {
         return;
@@ -69,22 +76,39 @@ export class StatusPostService {
       }
       await this.recordEdited(postId, text);
     };
+    const drain = async (): Promise<void> => {
+      while (dirty) {
+        dirty = false;
+        try {
+          await sync();
+        } catch (error) {
+          this.loggingService.error(new Error('failed to sync the status post', { cause: error }));
+        }
+      }
+      inFlight = undefined;
+    };
+    const schedule = (): Promise<void> => {
+      touched = true;
+      dirty = true;
+      inFlight ??= drain();
+      return inFlight;
+    };
     return {
       appendTrace: (line) => {
         state.traceLines.push(line);
-        return sync();
+        void schedule();
       },
       close: (outcome) => {
-        if (postId === undefined) {
+        if (!touched) {
           return Promise.resolve();
         }
         state.outcome = outcome;
         state.transientText = undefined;
-        return sync();
+        return schedule();
       },
       setTransient: (text) => {
         state.transientText = text;
-        return sync();
+        void schedule();
       }
     };
   }

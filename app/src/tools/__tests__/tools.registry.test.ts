@@ -167,6 +167,15 @@ describe('ToolRegistry', () => {
     expect(registry.isBudgetExempt(profile, 'ghost')).toBe(false);
   });
 
+  it('answers concurrency and supersession from the tool’s own declaration, never for an unknown name', () => {
+    const profile = buildAgentProfile();
+    const registry = new ToolRegistry(LIBRARY, [profile]);
+    expect(registry.isConcurrent(profile, 'skills__load')).toBe(true);
+    expect(registry.isConcurrent(profile, 'triggers__resolve')).toBe(false);
+    expect(registry.isSupersedable(profile, 'skills__load')).toBe(false);
+    expect(registry.isSupersedable(profile, 'ghost')).toBe(false);
+  });
+
   it('lists the exempt calls by wire name from the same flags (§5.3)', () => {
     const profile = buildAgentProfile();
     const registry = new ToolRegistry(LIBRARY, [profile]);

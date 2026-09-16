@@ -1,3 +1,4 @@
+import { renderReplayLine } from '@collegium/core/tools';
 import type { ToolResult } from '@collegium/core/tools';
 import { implementToolset, WEB_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
@@ -24,7 +25,10 @@ const DESCRIPTION_PREAMBLE =
   'Browse the web in a real rendered browser (JavaScript runs). One page per turn, shared by the web tools; every ' +
   'action returns a fresh snapshot of the page as markdown with ⟨eN⟩ element refs. ';
 
-/** the browser being down is infrastructure, not something the model can reason its way past */
+/**
+ * The browser being down is infrastructure, not something the model can reason its way past. A
+ * page read is acted on in the turn that made it, so later turns replay it as a line (§3.8).
+ */
 function toPageResult<TPage extends WebPage>(
   result: Result<TPage, WebFailure>,
   render: (page: TPage) => string
@@ -35,7 +39,8 @@ function toPageResult<TPage extends WebPage>(
     }
     return Result.ok({ text: renderWebFailure(result.error) });
   }
-  return Result.ok({ text: render(result.value) });
+  const text = render(result.value);
+  return Result.ok({ replay: renderReplayLine(`page ${result.value.url}`, text), text });
 }
 
 const toSnapshotResult = (result: Result<WebSnapshot, WebFailure>): ToolResult => {
@@ -75,10 +80,12 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       parameters: z.object({
         ref: $Ref.describe('An element ref (shown as ⟨eN⟩) from the latest snapshot')
       }),
+      supersedable: true,
       timeoutMs: WEB_TIMEOUT_MS,
       traceDetail: (args) => `⟨${args.ref}⟩`
     },
     fetch: {
+      concurrent: true,
       description:
         'Fetch a URL over plain HTTP and read it as markdown — no browser, no JavaScript, no session; ' +
         "this turn's browser page is untouched. Cheaper and faster than navigate: use it first for articles, " +
@@ -89,6 +96,7 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         url: z.url().describe('The absolute http(s) URL of a public web page or text resource to fetch')
       }),
       retryable: true,
+      supersedable: true,
       timeoutMs: FETCH_TIMEOUT_MS + 5_000,
       traceDetail: (args) => args.url
     },
@@ -104,6 +112,7 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         ref: $Ref.describe('The ref of the input to fill, from the latest snapshot'),
         text: z.string().describe('The text to type, replacing the current value')
       }),
+      supersedable: true,
       timeoutMs: WEB_TIMEOUT_MS,
       /**
        * §3.4 — the line never shows what was typed. This tool may sign in, and the status post is a
@@ -122,6 +131,7 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       parameters: z.object({
         ref: $Ref.describe('An element ref (shown as ⟨eN⟩) from the latest snapshot')
       }),
+      supersedable: true,
       timeoutMs: WEB_TIMEOUT_MS,
       traceDetail: (args) => `⟨${args.ref}⟩`
     },
@@ -131,10 +141,12 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       parameters: z.object({
         url: z.url().describe("The absolute http(s) URL of a public web page, to open in this turn's page")
       }),
+      supersedable: true,
       timeoutMs: WEB_TIMEOUT_MS,
       traceDetail: (args) => args.url
     },
     search: {
+      concurrent: true,
       description:
         'Search the web and get back ranked results — a title, URL, and short snippet each, never the page itself. ' +
         'Read a result with fetch, or navigate when it needs a browser. Search operators such as "quoted phrases" and site: work.',

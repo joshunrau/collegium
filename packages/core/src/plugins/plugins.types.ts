@@ -3,8 +3,9 @@ import type { z } from 'zod';
 
 import type { ToolApprovalPayload, ToolDisclosure } from '../tools.ts';
 
-/** what a plugin tool body may return: the text alone, or the text beside a durable record's disclosure (§3.4) */
-export type PluginToolOutput = string | { readonly disclosure?: ToolDisclosure; readonly text: string };
+/** what a plugin tool body may return: the text alone, or the text beside a durable record's disclosure and the line later turns replay (§3.4) */
+export type PluginToolOutput =
+  string | { readonly disclosure?: ToolDisclosure; readonly replay?: string; readonly text: string };
 
 /**
  * The two failures a tool body may raise itself — the rest of the taxonomy (§7.1) is the
@@ -21,11 +22,15 @@ export type PluginToolErr = {
 export type PluginToolDeclaration<TContext, TParams extends z.ZodType> = {
   /** present ⇒ the tool always gates (§5); renders the payload the approver reads and cannot decline */
   approval?(args: z.infer<TParams>): ToolApprovalPayload;
+  /** may run alongside the other concurrent calls of one completion: a read that touches nothing another call in the batch does */
+  readonly concurrent?: boolean;
   readonly description: string;
   execute(args: z.infer<TParams>, context: TContext): Promisable<PluginToolOutput>;
   readonly parameters: TParams;
   /** §7.2 — whether a timed-out call may be reported to the model as a plain failure; false ends the turn as unconfirmable */
   readonly retryable?: boolean;
+  /** a later result of any supersedable tool in the same turn replaces this one's text with its replay line, past the retained few (§3.8) */
+  readonly supersedable?: boolean;
   readonly timeoutMs?: number;
   /** §8.1 — the one-line summary beside the name in the status post; absent shows the name alone */
   traceDetail?(args: z.infer<TParams>): string;

@@ -10,6 +10,7 @@ export const SKILLS_TOOLSET = implementToolset(SKILLS_TOOLSET_DEF, {
   tools: {
     load: {
       budgetExempt: true,
+      concurrent: true,
       description: 'Load the full body of a skill from your skill manifest into the conversation.',
       execute: (args, context) => {
         const document = context.skills.getDocument(args.name);

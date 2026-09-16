@@ -106,6 +106,12 @@ export type ToolDefinition<TContext, TParams extends z.ZodType> = {
   approval?(args: z.infer<TParams>): ToolApprovalPayload;
   /** §5.3 — never billed against the action budget; framework toolsets only, rejected at the plugin perimeter (§6) */
   readonly budgetExempt?: boolean;
+  /**
+   * The call may run alongside the other concurrent calls of the same completion rather than after
+   * them. For a read that neither depends on nor disturbs what another call in the batch touches;
+   * a browser action is not one, since every action on the turn's one page follows the last.
+   */
+  readonly concurrent?: boolean;
   readonly description: string;
   execute(args: z.infer<TParams>, context: TContext): Promisable<ToolResult>;
   /**
@@ -117,6 +123,12 @@ export type ToolDefinition<TContext, TParams extends z.ZodType> = {
   readonly parameters: TParams;
   /** §7.2 — whether a timed-out call may be reported to the model as a plain failure; false ends the turn as unconfirmable */
   readonly retryable?: boolean;
+  /**
+   * A later result of any supersedable tool in the same turn makes this one stale: once more than
+   * the retained few exist, the model reads its `replay` line in place of the text (§3.8). For a
+   * page or document the model acts on once and moves past, never for anything it keeps re-reading.
+   */
+  readonly supersedable?: boolean;
   readonly timeoutMs?: number;
   /** §8.1 — the one-line summary beside the name in the status post; absent shows the name alone */
   traceDetail?(args: z.infer<TParams>): string;

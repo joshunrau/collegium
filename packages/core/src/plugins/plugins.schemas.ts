@@ -21,10 +21,12 @@ type PluginToolExecute = (args: unknown, context: { readonly [key: string]: unkn
 export type $PluginTool = z.infer<typeof $PluginTool>;
 export const $PluginTool = z.strictObject({
   approval: z.custom<NonNullable<AnyTool['approval']>>(isFunction).optional(),
+  concurrent: z.boolean().optional(),
   description: z.string().min(1),
   execute: z.custom<PluginToolExecute>(isFunction),
   parameters: $ZodSchema,
   retryable: z.boolean().optional(),
+  supersedable: z.boolean().optional(),
   timeoutMs: z.number().int().positive().optional(),
   traceDetail: z.custom<NonNullable<AnyTool['traceDetail']>>(isFunction).optional()
 });

@@ -15,13 +15,14 @@ import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import type {
   CompletionMessage,
+  CompletionReasoning,
   CompletionRequest,
   CompletionResult,
   CompletionUsage,
   InferenceFailure,
   ToolCall
 } from '@/inference/inference.types.ts';
-import { addCompletionUsage, describeInferenceFailure } from '@/inference/inference.utils.ts';
+import { addCompletionUsage, describeInferenceFailure, reasoningOf } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
@@ -63,6 +64,13 @@ import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle } from './status/status-post.service.ts';
 import type { Turn, TurnOutcome } from './turns.types.ts';
 
+/** §3.8 — how many of a turn's supersedable results stay verbatim; the rest read as their replay line */
+const RETAINED_SUPERSEDABLE_RESULTS = 2;
+
+/** §7.1 — what a completion cut at the output limit hears; the loop it re-enters is the rejected post's (§4.5) */
+const TRUNCATED_OUTPUT_REJECTION =
+  'output rejected: it was cut off at the output limit before it finished — answer more briefly, or do the work in smaller steps';
+
 /** the bounds config states for every turn: §7.4 depth and chain length, §4.4 folds; the §5.3 budget is the agent's own */
 type TurnLimits = {
   readonly chainLengthLimit: number;
@@ -88,12 +96,25 @@ type RunInput = {
  */
 type Exhaustion = { kind: 'ended'; outcome: TurnOutcome } | { kind: 'extended' } | { kind: 'voice-only'; text: string };
 
+/** what admitting a call to the budget came to; an extension is spent inside admission and never surfaces */
+type Admission = Exclude<Exhaustion, { kind: 'extended' }> | { kind: 'admitted' };
+
+/** one call of a completion, resolved once: the structural name for the record, the display name for humans (§1) */
+type IdentifiedCall = {
+  readonly call: ToolCall;
+  readonly detail: string | undefined;
+  readonly displayName: string;
+  readonly recordedName: PrismaJson.RecordedToolName;
+};
+
 type TurnState = {
   readonly budget: ActionBudget;
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
   readonly messages: CompletionMessage[];
   readonly status: StatusPostHandle;
+  /** the supersedable results still verbatim in `messages`, oldest first (§3.8) */
+  readonly supersedable: { messageIndex: number; replay: string }[];
   readonly transport: ChatTransport;
   readonly turn: Turn;
   usage: CompletionUsage | undefined;
@@ -159,6 +180,7 @@ export class TurnRunner {
       }),
       messages: [],
       status: this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id }),
+      supersedable: [],
       transport: this.transportRegistry.get(profile.username),
       turn,
       usage: undefined
@@ -179,6 +201,45 @@ export class TurnRunner {
       }
       state.control.release();
       state.fold.release();
+    }
+  }
+
+  /**
+   * §5.3 — the abort check, the budget, and the trace line, in that order, before a call may run.
+   * A voice-only denial is returned rather than answered here, because every call the completion
+   * still holds is answered with it, not just this one.
+   */
+  private async admit(input: RunInput, state: TurnState, identified: IdentifiedCall): Promise<Admission> {
+    // §7.5 — /stop means no further tool calls, including the rest of this completion's batch
+    const aborted = state.control.aborted();
+    if (aborted) {
+      return { kind: 'ended', outcome: await this.close(state, aborted) };
+    }
+    const isExempt = this.toolRegistry.isBudgetExempt(input.profile, identified.call.name);
+    if (state.budget.trySpend(isExempt) === 'exhausted') {
+      const exhaustion = await this.handleExhaustion(input, state);
+      if (exhaustion.kind !== 'extended') {
+        return exhaustion;
+      }
+      state.budget.trySpend(isExempt);
+    }
+    state.status.appendTrace(renderToolCallLine(identified.displayName, identified.detail));
+    return { kind: 'admitted' };
+  }
+
+  /**
+   * §5.3 — the reason arrives as the result of every call that did not run, so the completion's
+   * batch is answered whole: a provider rejects an assistant message whose calls lack a result.
+   */
+  private async answerUnrun(state: TurnState, unrun: readonly IdentifiedCall[], text: string): Promise<void> {
+    for (const identified of unrun) {
+      await this.turnsService.appendEvent(state.turn.id, {
+        callId: identified.call.id,
+        kind: 'tool_result',
+        output: text,
+        toolName: identified.recordedName
+      });
+      state.messages.push({ content: text, role: 'tool', toolCallId: identified.call.id });
     }
   }
 
@@ -224,22 +285,22 @@ export class TurnRunner {
   private async closeOnToolFailure(
     input: RunInput,
     state: TurnState,
-    call: { displayName: string; id: string; recordedName: PrismaJson.RecordedToolName },
+    identified: IdentifiedCall,
     attempt: ToolAttempt.Terminal
   ): Promise<TurnOutcome> {
     if (attempt.status === 'semantic_error' || attempt.status === 'side_effect_ambiguous') {
       await this.turnsService.appendEvent(state.turn.id, {
-        callId: call.id,
+        callId: identified.call.id,
         kind: 'tool_result',
         output: attempt.detail,
-        toolName: call.recordedName
+        toolName: identified.recordedName
       });
     }
     const notice = match(attempt.status)
       .with('delivery_failure', () => renderDeliveryFailureNotice())
       .with('denied', () => renderDenialNotice())
       .with('semantic_error', () => renderSemanticErrorNotice(attempt.detail))
-      .with('side_effect_ambiguous', () => renderSideEffectAmbiguityNotice(call.displayName))
+      .with('side_effect_ambiguous', () => renderSideEffectAmbiguityNotice(identified.displayName))
       // §7.5 — a cancellation posts no follow-up; the command or halt already spoke
       .with('halted', 'killed', 'stopped', () => undefined)
       .exhaustive();
@@ -259,13 +320,13 @@ export class TurnRunner {
     input: RunInput,
     state: TurnState,
     content: string,
-    reasoningContent: string | undefined
+    reasoning: CompletionReasoning
   ): Promise<TurnOutcome> {
     await this.turnsService.appendEvent(state.turn.id, {
       content,
       kind: 'assistant_message',
       toolCalls: [],
-      ...(reasoningContent !== undefined && { reasoningContent })
+      ...reasoning
     });
     const sent = await state.transport.send({ channelId: input.channelId, text: content });
     if (!sent.success) {
@@ -303,10 +364,49 @@ export class TurnRunner {
       channelId: input.channelId
     });
     try {
-      return await Promise.race([client.complete({ ...request, messages: state.messages }), state.control.killed]);
+      return await Promise.race([
+        client.complete({ ...request, messages: state.messages }, { signal: state.control.killSignal }),
+        state.control.killed
+      ]);
     } finally {
       typing.stop();
     }
+  }
+
+  /**
+   * The branch with no tool call: the turn's final output when it may post, else fed back as a
+   * user message for another try under the budget — this branch carries no tool call for a tool
+   * result to reference (§4.5). Output cut at the provider's limit takes the same loop (§7.1).
+   */
+  private async concludeOrRetry(
+    input: RunInput,
+    state: TurnState,
+    completion: CompletionResult.Text | CompletionResult.Truncated
+  ): Promise<TurnOutcome | undefined> {
+    const truncated = completion.kind === 'truncated';
+    const content = truncated ? completion.content : await this.enforceChainLimits(input, state, completion.content);
+    let rejection = truncated ? TRUNCATED_OUTPUT_REJECTION : this.rejectionOf(input, content);
+    const reasoning = reasoningOf(completion);
+    if (rejection === undefined) {
+      return this.closeWithFinalOutput(input, state, content, reasoning);
+    }
+    if (state.budget.trySpendOnRejectedPost() === 'exhausted') {
+      const exhaustion = await this.handleExhaustion(input, state);
+      if (exhaustion.kind === 'ended') {
+        return exhaustion.outcome;
+      }
+      if (exhaustion.kind === 'voice-only') {
+        // no tool call to carry the reason here, so it joins the rejection in the same message
+        rejection = `${rejection}\n\n${exhaustion.text}`;
+      } else {
+        state.budget.trySpendOnRejectedPost();
+      }
+    }
+    if (content !== '') {
+      state.messages.push({ content, role: 'assistant', ...reasoning });
+    }
+    state.messages.push({ content: rejection, role: 'user' });
+    return undefined;
   }
 
   private createTurnScope(input: RunInput, state: TurnState): ToolTurnScope {
@@ -330,107 +430,78 @@ export class TurnRunner {
       reference: disclosure.reference,
       supersededDescriptions: [...(disclosure.supersededDescriptions ?? [])]
     });
-    await state.status.appendTrace(renderRecordWriteLine(disclosure));
+    state.status.appendTrace(renderRecordWriteLine(disclosure));
     for (const superseded of disclosure.supersededDescriptions ?? []) {
-      await state.status.appendTrace(renderSupersededLine(superseded));
+      state.status.appendTrace(renderSupersededLine(superseded));
     }
   }
 
+  /**
+   * Batch by batch: a run of concurrent calls executes together, any other call alone. Every call
+   * of a batch is admitted before the batch starts, so the budget prompt still blocks in order,
+   * and its results are recorded in the order the model made the calls.
+   */
   private async dispatchToolCalls(
     input: RunInput,
     state: TurnState,
     completion: CompletionResult.ToolUse
   ): Promise<TurnOutcome | undefined> {
-    // resolved once per call: the structural name for the record, the display name for humans (§1)
-    const descriptions = new Map(
-      completion.toolCalls.map((call) => [
-        call.id,
-        this.toolRegistry.describeCall({ args: call.arguments, name: call.name, profile: input.profile })
-      ])
-    );
-    const recordedNameOf = (call: ToolCall) => descriptions.get(call.id)?.id ?? call.name;
+    const calls = completion.toolCalls.map((call) => this.identify(input, call));
+    const reasoning = reasoningOf(completion);
     await this.turnsService.appendEvent(state.turn.id, {
       content: completion.content,
       kind: 'assistant_message',
-      toolCalls: completion.toolCalls.map((call) => ({
+      toolCalls: calls.map(({ call, recordedName }) => ({
         args: call.arguments,
         callId: call.id,
-        toolName: recordedNameOf(call)
+        toolName: recordedName
       })),
-      ...(completion.reasoningContent !== undefined && { reasoningContent: completion.reasoningContent })
+      ...reasoning
     });
     state.messages.push({
       content: completion.content,
       role: 'assistant',
       toolCalls: completion.toolCalls,
-      ...(completion.reasoningContent !== undefined && { reasoningContent: completion.reasoningContent })
+      ...reasoning
     });
     if (completion.content !== '') {
-      await state.status.setTransient(this.multiMentionPolicy.stripAgentMentions(completion.content));
+      state.status.setTransient(this.multiMentionPolicy.stripAgentMentions(completion.content));
     }
-    for (const call of completion.toolCalls) {
-      // §7.5 — /stop means no further tool calls, including the rest of this completion's batch
-      const aborted = state.control.aborted();
-      if (aborted) {
-        return this.close(state, aborted);
-      }
-      const isExempt = this.toolRegistry.isBudgetExempt(input.profile, call.name);
-      if (state.budget.trySpend(isExempt) === 'exhausted') {
-        const exhaustion = await this.handleExhaustion(input, state);
-        if (exhaustion.kind === 'ended') {
-          return exhaustion.outcome;
+    for (let position = 0; position < calls.length;) {
+      const batch = this.takeBatch(input, calls, position);
+      for (const identified of batch) {
+        const admission = await this.admit(input, state, identified);
+        if (admission.kind === 'ended') {
+          return admission.outcome;
         }
-        if (exhaustion.kind === 'voice-only') {
-          // §5.3 — the reason arrives as this call's result with zero attempts left, so the call
-          // does not run and neither does anything after it in this completion's batch
-          await this.turnsService.appendEvent(state.turn.id, {
-            callId: call.id,
-            kind: 'tool_result',
-            output: exhaustion.text,
-            toolName: recordedNameOf(call)
-          });
-          state.messages.push({ content: exhaustion.text, role: 'tool', toolCallId: call.id });
+        if (admission.kind === 'voice-only') {
+          await this.answerUnrun(state, calls.slice(position), admission.text);
           return undefined;
         }
-        state.budget.trySpend(isExempt);
       }
-      const description = descriptions.get(call.id);
-      const displayName = description?.displayName ?? call.name;
-      await state.status.appendTrace(renderToolCallLine(displayName, description?.detail));
-      const attempt = await Promise.race([
-        this.toolExecutor.execute({
-          appendEvent: (event) => this.turnsService.appendEvent(state.turn.id, event),
-          call,
-          profile: input.profile,
-          turn: this.createTurnScope(input, state)
-        }),
+      const attempts = await Promise.race([
+        Promise.all(
+          batch.map((identified) => {
+            return this.toolExecutor.execute({
+              appendEvent: (event) => this.turnsService.appendEvent(state.turn.id, event),
+              call: identified.call,
+              profile: input.profile,
+              turn: this.createTurnScope(input, state)
+            });
+          })
+        ),
         state.control.killed
       ]);
-      if (attempt === 'killed') {
+      if (attempts === 'killed') {
         return this.close(state, 'killed');
       }
-      if (attempt.kind === 'terminal') {
-        return this.closeOnToolFailure(
-          input,
-          state,
-          { displayName, id: call.id, recordedName: recordedNameOf(call) },
-          attempt
-        );
+      for (const [index, attempt] of attempts.entries()) {
+        const outcome = await this.recordAttempt(input, state, batch[index]!, attempt);
+        if (outcome) {
+          return outcome;
+        }
       }
-      await this.turnsService.appendEvent(state.turn.id, {
-        callId: call.id,
-        kind: 'tool_result',
-        output: attempt.output,
-        toolName: recordedNameOf(call),
-        ...(attempt.replay !== undefined && { replay: attempt.replay })
-      });
-      state.messages.push({ content: attempt.output, role: 'tool', toolCallId: call.id });
-      if (attempt.disclosure) {
-        await this.discloseRecord(state, attempt.disclosure);
-      }
-      if (attempt.deletedDescription !== undefined) {
-        await state.status.appendTrace(renderRecordDeletedLine(attempt.deletedDescription));
-      }
+      position += batch.length;
     }
     return undefined;
   }
@@ -527,10 +598,25 @@ export class TurnRunner {
     );
   }
 
+  /**
+   * §8.1 — resolved before anything runs, so the arguments are still raw model output: a call the
+   * executor will reject as unknown keeps the name the model wrote, and one with malformed
+   * arguments describes itself by name alone.
+   */
+  private identify(input: RunInput, call: ToolCall): IdentifiedCall {
+    const described = this.toolRegistry.describeCall({ args: call.arguments, name: call.name, profile: input.profile });
+    return {
+      call,
+      detail: described?.detail,
+      displayName: described?.displayName ?? call.name,
+      recordedName: described?.id ?? call.name
+    };
+  }
+
   /** §5.2 — checked on every assembly, since a fold rebuilds the window and can lose the reach the first one had */
-  private async noteShortfall(input: RunInput, state: TurnState, assembled: AssembledContext): Promise<void> {
+  private noteShortfall(input: RunInput, state: TurnState, assembled: AssembledContext): void {
     if (input.drainedFromPostId !== undefined && !assembled.windowPostIds.has(input.drainedFromPostId)) {
-      await state.status.appendTrace(renderContextShortfallLine());
+      state.status.appendTrace(renderContextShortfallLine());
     }
   }
 
@@ -558,6 +644,34 @@ export class TurnRunner {
     }
   }
 
+  /** the result the model reads, the event the trace keeps, and the lines the status post shows */
+  private async recordAttempt(
+    input: RunInput,
+    state: TurnState,
+    identified: IdentifiedCall,
+    attempt: ToolAttempt
+  ): Promise<TurnOutcome | undefined> {
+    if (attempt.kind === 'terminal') {
+      return this.closeOnToolFailure(input, state, identified, attempt);
+    }
+    await this.turnsService.appendEvent(state.turn.id, {
+      callId: identified.call.id,
+      kind: 'tool_result',
+      output: attempt.output,
+      toolName: identified.recordedName,
+      ...(attempt.replay !== undefined && { replay: attempt.replay })
+    });
+    state.messages.push({ content: attempt.output, role: 'tool', toolCallId: identified.call.id });
+    this.supersedeStaleResults(input, state, identified, attempt.replay);
+    if (attempt.disclosure) {
+      await this.discloseRecord(state, attempt.disclosure);
+    }
+    if (attempt.deletedDescription !== undefined) {
+      state.status.appendTrace(renderRecordDeletedLine(attempt.deletedDescription));
+    }
+    return undefined;
+  }
+
   /**
    * Why a final output cannot post as-is, or nothing. Neither is a semantic failure: the model
    * produced valid output that breaks a framework rule it cannot see (§4.5), or wrote a tool call
@@ -583,7 +697,7 @@ export class TurnRunner {
     const { channelId, profile } = input;
     let assembled = await this.contextAssembler.assemble({ channelId, profile });
     state.messages.push(...assembled.request.messages);
-    await this.noteShortfall(input, state, assembled);
+    this.noteShortfall(input, state, assembled);
     const client = this.inferenceRegistry.getClientForModel(profile.model);
     let folds = 0;
     for (;;) {
@@ -607,44 +721,55 @@ export class TurnRunner {
         folds += 1;
         assembled = await this.contextAssembler.assemble({ channelId, profile });
         state.messages.splice(0, state.messages.length, ...assembled.request.messages);
-        await this.noteShortfall(input, state, assembled);
+        this.noteShortfall(input, state, assembled);
         continue;
       }
-      if (completion.value.kind === 'text') {
-        const content = await this.enforceChainLimits(input, state, completion.value.content);
-        let rejection = this.rejectionOf(input, content);
-        if (rejection === undefined) {
-          return this.closeWithFinalOutput(input, state, content, completion.value.reasoningContent);
-        }
-        if (state.budget.trySpendOnRejectedPost() === 'exhausted') {
-          const exhaustion = await this.handleExhaustion(input, state);
-          if (exhaustion.kind === 'ended') {
-            return exhaustion.outcome;
-          }
-          if (exhaustion.kind === 'voice-only') {
-            // no tool call to carry the reason here, so it joins the rejection in the same message
-            rejection = `${rejection}\n\n${exhaustion.text}`;
-          } else {
-            state.budget.trySpendOnRejectedPost();
-          }
-        }
-        // fed back as a user message — the final-output branch carries no tool call for a tool
-        // result to reference (§4.5)
-        state.messages.push({
-          content,
-          role: 'assistant',
-          ...(completion.value.reasoningContent !== undefined && {
-            reasoningContent: completion.value.reasoningContent
-          })
-        });
-        state.messages.push({ content: rejection, role: 'user' });
-        continue;
-      }
-      const outcome = await this.dispatchToolCalls(input, state, completion.value);
+      const outcome =
+        completion.value.kind === 'tool-use'
+          ? await this.dispatchToolCalls(input, state, completion.value)
+          : await this.concludeOrRetry(input, state, completion.value);
       if (outcome) {
         return outcome;
       }
     }
+  }
+
+  /**
+   * §3.8 — past the retained few, an earlier page reads as its replay line for the rest of the
+   * turn; the event keeps the text, so the trace and the window's own replay are untouched.
+   */
+  private supersedeStaleResults(
+    input: RunInput,
+    state: TurnState,
+    identified: IdentifiedCall,
+    replay: string | undefined
+  ): void {
+    if (!this.toolRegistry.isSupersedable(input.profile, identified.call.name)) {
+      return;
+    }
+    state.supersedable.push({
+      messageIndex: state.messages.length - 1,
+      replay: replay ?? `[earlier ${identified.call.name} result superseded by a later one]`
+    });
+    while (state.supersedable.length > RETAINED_SUPERSEDABLE_RESULTS) {
+      const stale = state.supersedable.shift()!;
+      const message = state.messages[stale.messageIndex]!;
+      state.messages[stale.messageIndex] = { ...message, content: stale.replay };
+    }
+  }
+
+  /** §5.1 — the calls that may run together: a run of concurrent calls, or the next call alone */
+  private takeBatch(input: RunInput, calls: readonly IdentifiedCall[], start: number): IdentifiedCall[] {
+    const runsConcurrently = (identified: IdentifiedCall) => {
+      return this.toolRegistry.isConcurrent(input.profile, identified.call.name);
+    };
+    let end = start + 1;
+    if (runsConcurrently(calls[start]!)) {
+      while (end < calls.length && runsConcurrently(calls[end]!)) {
+        end += 1;
+      }
+    }
+    return calls.slice(start, end);
   }
 
   /**

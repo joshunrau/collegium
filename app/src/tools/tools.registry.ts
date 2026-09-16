@@ -131,6 +131,16 @@ export class ToolRegistry {
     return this.callableToolsFor(profile).get(name)?.definition.budgetExempt === true;
   }
 
+  /** §5.1 — whether a call may run beside the other concurrent calls of its completion; an unknown name never may */
+  isConcurrent(profile: AgentProfile, name: string): boolean {
+    return this.callableToolsFor(profile).get(name)?.definition.concurrent === true;
+  }
+
+  /** §3.8 — whether a later result of a supersedable tool retires this call's text within the turn; an unknown name never is */
+  isSupersedable(profile: AgentProfile, name: string): boolean {
+    return this.callableToolsFor(profile).get(name)?.definition.supersedable === true;
+  }
+
   /** §5.3 — the wire names an agent may call for free, so the prompt states the rule from the flags the budget bills by */
   listBudgetExemptFor(profile: AgentProfile): string[] {
     return Array.from(this.toolsFor(profile).values())

@@ -27,6 +27,8 @@ describe('StatusPostService', () => {
   let transport: { send: Mock<ChatTransport['send']>; updatePost: Mock<ChatTransport['updatePost']> };
   let turnsService: MockedInstance<TurnsService>;
 
+  const editedTexts = () => transport.updatePost.mock.calls.map(([, { text }]) => text);
+
   beforeEach(async () => {
     transport = {
       send: vi.fn(() => Promise.resolve(Result.ok({ createdAt: CREATED_AT, postId: 'status-1' }))),
@@ -53,7 +55,9 @@ describe('StatusPostService', () => {
   });
 
   it('should open the post on the first trace line and record it as the turn status post', async () => {
-    await statusPostService.open(OPEN_INPUT).appendTrace('→ `read_memory`');
+    const handle = statusPostService.open(OPEN_INPUT);
+    handle.appendTrace('→ `read_memory`');
+    await handle.close('completed');
 
     expect(transport.send).toHaveBeenCalledExactlyOnceWith({
       channelId: 'channel-1',
@@ -73,38 +77,41 @@ describe('StatusPostService', () => {
     expect(turnsService.recordStatusPost).toHaveBeenCalledExactlyOnceWith('turn-1', 'status-1');
   });
 
-  it('should edit the one post in place as the trace accumulates and keep the stored copy current', async () => {
+  it('should coalesce the lines queued while an edit is in flight into the next edit (§8.1)', async () => {
+    let finishOpening: () => void = () => undefined;
+    transport.send.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishOpening = () => resolve(Result.ok({ createdAt: CREATED_AT, postId: 'status-1' }));
+      })
+    );
     const handle = statusPostService.open(OPEN_INPUT);
 
-    await handle.appendTrace('→ `load_skill`');
-    await handle.appendTrace('→ `write_memory`');
+    handle.appendTrace('→ `load_skill`');
+    handle.appendTrace('→ `write_memory`');
+    handle.appendTrace('→ `read_memory`');
+    finishOpening();
+    await vi.waitFor(() => expect(transport.updatePost).toHaveBeenCalledOnce());
+    await handle.close('completed');
 
-    const text = '⏳ _working…_\n→ `load_skill`\n→ `write_memory`';
+    const text = '⏳ _working…_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`';
     expect(transport.send).toHaveBeenCalledOnce();
-    expect(transport.updatePost).toHaveBeenCalledExactlyOnceWith('status-1', { text });
-    expect(conversationsService.updateAuthoredMessage).toHaveBeenCalledExactlyOnceWith('status-1', text);
+    expect(editedTexts()).toStrictEqual([text, '✅ _done_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`']);
+    expect(conversationsService.updateAuthoredMessage).toHaveBeenCalledWith('status-1', text);
   });
 
-  it('should replace transient text rather than accumulate it', async () => {
+  it('should replace transient text rather than accumulate it, and clear it on close', async () => {
     const handle = statusPostService.open(OPEN_INPUT);
 
-    await handle.appendTrace('→ `load_skill`');
-    await handle.setTransient('reading the skill');
-    await handle.setTransient('writing it up');
-
-    expect(transport.updatePost).toHaveBeenLastCalledWith('status-1', {
-      text: '⏳ _working…_\n→ `load_skill`\n_writing it up_'
-    });
-  });
-
-  it('should close the post on its outcome and clear the transient text', async () => {
-    const handle = statusPostService.open(OPEN_INPUT);
-
-    await handle.appendTrace('→ `load_skill`');
-    await handle.setTransient('reading the skill');
+    handle.appendTrace('→ `load_skill`');
+    handle.setTransient('reading the skill');
+    handle.setTransient('writing it up');
+    await vi.waitFor(() => expect(transport.updatePost).toHaveBeenCalledOnce());
     await handle.close('killed');
 
-    expect(transport.updatePost).toHaveBeenLastCalledWith('status-1', { text: '⏹️ _killed_\n→ `load_skill`' });
+    expect(editedTexts()).toStrictEqual([
+      '⏳ _working…_\n→ `load_skill`\n_writing it up_',
+      '⏹️ _killed_\n→ `load_skill`'
+    ]);
   });
 
   it('should post nothing for a turn that never traced anything', async () => {
@@ -118,8 +125,10 @@ describe('StatusPostService', () => {
     transport.send.mockResolvedValue(Result.err(FAILURE));
     const handle = statusPostService.open(OPEN_INPUT);
 
-    await handle.appendTrace('→ `load_skill`');
-    await handle.appendTrace('→ `write_memory`');
+    handle.appendTrace('→ `load_skill`');
+    await handle.close('completed');
+    handle.appendTrace('→ `write_memory`');
+    await handle.close('completed');
 
     expect(transport.send).toHaveBeenCalledOnce();
     expect(transport.updatePost).not.toHaveBeenCalled();
@@ -128,20 +137,23 @@ describe('StatusPostService', () => {
     );
   });
 
-  it('should log a failed edit and keep editing on the next trace line', async () => {
+  it('should log a failed edit and keep editing on the next line', async () => {
     transport.updatePost.mockResolvedValueOnce(Result.err(FAILURE));
     const handle = statusPostService.open(OPEN_INPUT);
 
-    await handle.appendTrace('→ `load_skill`');
-    await handle.appendTrace('→ `write_memory`');
-    await handle.appendTrace('→ `read_memory`');
+    handle.appendTrace('→ `load_skill`');
+    await vi.waitFor(() => expect(transport.send).toHaveBeenCalledOnce());
+    handle.appendTrace('→ `write_memory`');
+    await vi.waitFor(() => expect(loggingService.error).toHaveBeenCalledOnce());
+    handle.appendTrace('→ `read_memory`');
+    await handle.close('completed');
 
     expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ message: 'failed to edit status post status-1: the channel is archived' })
     );
-    expect(conversationsService.updateAuthoredMessage).toHaveBeenCalledExactlyOnceWith(
+    expect(conversationsService.updateAuthoredMessage).toHaveBeenLastCalledWith(
       'status-1',
-      '⏳ _working…_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`'
+      '✅ _done_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`'
     );
   });
 
@@ -149,7 +161,7 @@ describe('StatusPostService', () => {
     conversationsService.record.mockRejectedValue(new Error('database is locked'));
     const handle = statusPostService.open(OPEN_INPUT);
 
-    await handle.appendTrace('→ `load_skill`');
+    handle.appendTrace('→ `load_skill`');
     await handle.close('completed');
 
     expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(
@@ -162,7 +174,7 @@ describe('StatusPostService', () => {
     conversationsService.updateAuthoredMessage.mockRejectedValue(new Error('database is locked'));
     const handle = statusPostService.open(OPEN_INPUT);
 
-    await handle.appendTrace('→ `load_skill`');
+    handle.appendTrace('→ `load_skill`');
     await handle.close('completed');
 
     expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(

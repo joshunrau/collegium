@@ -10,6 +10,7 @@ export const BUILTINS_TOOLSET = implementToolset(BUILTINS_TOOLSET_DEF, {
   tools: {
     now: {
       budgetExempt: true,
+      concurrent: true,
       description: 'Get the current date and time. You have no other source of the current date and time.',
       execute: (_args, context) => Result.ok({ text: context.clock.now() }),
       parameters: z.object({}),

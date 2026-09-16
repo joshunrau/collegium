@@ -16,6 +16,7 @@ export const CONVERSATIONS_TOOLSET = implementToolset(CONVERSATIONS_TOOLSET_DEF,
   tools: {
     // §3.8 — the roster decides which channels this turn may read from, never the model
     search: {
+      concurrent: true,
       description:
         'Search past posts by text, including your own replies, across the channels you are in whose readers ' +
         'include everyone who can read this channel. Returns the newest matches first, each with its post id, ' +

@@ -8,3 +8,6 @@ export const TOOL_SEGMENT_PATTERN = /^[a-z](?:_?[a-z0-9])*$/;
 export const MAX_WIRE_NAME_LENGTH = 64;
 
 export const DEFAULT_TOOL_TIMEOUT_MS = 5000;
+
+/** a result longer than this replays as a line in later turns; a short one is cheaper to keep than to summarise */
+export const REPLAY_VERBATIM_MAX_CHARS = 2000;
