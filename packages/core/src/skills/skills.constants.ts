@@ -1,5 +1,5 @@
 /** §9 — in every agent's manifest, never grantable; naming one in config is an error */
-export const BUILTIN_CORE_SKILL_NAMES = ['handing-work-to-a-peer'] as const;
+export const BUILTIN_CORE_SKILL_NAMES = ['handing-work-to-a-peer', 'understanding-collegium'] as const;
 
 /** the library skills an operator may assign — the bare-name half of the `agents[].skills` grammar */
 export const BUILTIN_GRANTABLE_SKILL_NAMES = [] as const;

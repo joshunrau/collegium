@@ -72,12 +72,17 @@ describe('SkillsService', () => {
   });
 
   describe('listFor', () => {
-    it('should list the core skill, then the grants, each with its description', async () => {
+    it('should list the core skills, then the grants, each with its description', async () => {
       const skillsService = await buildService([]);
       expect(skillsService.listFor(buildAgentProfile({ skills: ['bookmark::saving-bookmarks'] }))).toStrictEqual([
         {
           description: 'How to hand a task to another agent so it arrives with everything that agent needs to act.',
           name: 'handing-work-to-a-peer'
+        },
+        {
+          description:
+            'What Collegium is and who controls what. Use when a person asks what you are, how you are governed, why a turn stopped or an action was refused, or what a /collegium command does.',
+          name: 'understanding-collegium'
         },
         { description: 'How to bookmark.', name: 'bookmark::saving-bookmarks' }
       ]);
@@ -85,18 +90,21 @@ describe('SkillsService', () => {
   });
 
   describe('renderManifest', () => {
-    it('should carry the core skill for every agent, then its grants (§9)', async () => {
+    it('should carry the core skills for every agent, then its grants (§9)', async () => {
       const skillsService = await buildService([]);
       const manifest = skillsService.renderManifest(buildAgentProfile({ skills: ['bookmark::saving-bookmarks'] }));
       expect(manifest.split('\n')).toStrictEqual([
         '- handing-work-to-a-peer: How to hand a task to another agent so it arrives with everything that agent needs to act.',
+        '- understanding-collegium: What Collegium is and who controls what. Use when a person asks what you are, how you are governed, why a turn stopped or an action was refused, or what a /collegium command does.',
         '- bookmark::saving-bookmarks: How to bookmark.'
       ]);
     });
 
-    it('should still carry the core skill for an agent granted nothing', async () => {
+    it('should still carry the core skills for an agent granted nothing', async () => {
       const skillsService = await buildService([]);
-      expect(skillsService.renderManifest(buildAgentProfile())).toContain('- handing-work-to-a-peer:');
+      const manifest = skillsService.renderManifest(buildAgentProfile());
+      expect(manifest).toContain('- handing-work-to-a-peer:');
+      expect(manifest).toContain('- understanding-collegium:');
     });
   });
 
