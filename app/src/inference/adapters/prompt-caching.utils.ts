@@ -7,7 +7,7 @@ import { renderSystemPrompt } from '../inference.utils.ts';
 
 import type { CompletionRequest } from '../inference.types.ts';
 
-function cachingPolicy(model: CompletionRequest['modelName']) {
+function cachingPolicy(model: CompletionRequest['model']['name']) {
   return match(model)
     .with(P.union(...DEEPSEEK_MODELS), () => 'deepseek' as const)
     .with(P.string.startsWith('anthropic/'), P.string.startsWith('~anthropic/'), () => 'anthropic' as const)
@@ -22,7 +22,7 @@ function cachingPolicy(model: CompletionRequest['modelName']) {
 }
 
 export function toPromptCaching(request: CompletionRequest) {
-  const policy = cachingPolicy(request.modelName);
+  const policy = cachingPolicy(request.model.name);
   const key = createHash('sha256').update(request.cacheKey).digest('hex');
   const cacheControl = { type: 'ephemeral' } as const;
   const breakpoint = match(policy)

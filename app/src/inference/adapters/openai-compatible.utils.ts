@@ -1,4 +1,5 @@
-import { DEEPSEEK_MODELS } from '@collegium/core/common';
+import type { $ModelRef } from '@collegium/config';
+import { match } from 'ts-pattern';
 
 import type { ToolSchema } from '@/core/core.types.ts';
 
@@ -6,31 +7,37 @@ import { toPromptCaching } from './prompt-caching.utils.ts';
 
 import type { CompletionMessage, CompletionRequest, ToolCall } from '../inference.types.ts';
 
+type AssistantMessage = Extract<CompletionMessage, { role: 'assistant' }>;
+
 /**
  * A DeepSeek thinking model refuses a request whose tail it must continue from — a trailing
  * assistant message, or a tool-call round still awaiting the model — when that message carries no
  * `reasoning_content`; earlier rounds are accepted without it. A trailing assistant message is what
  * a queued turn sees when the agent's own reply landed after the post it drains from, so every
  * assistant message is sent with the field, a single space standing in where none was kept, which
- * the Pro model is reported to require over an empty string. Every other model is sent none, since
- * providers that do not define the field reject it.
+ * the Pro model is reported to require over an empty string. OpenRouter instead takes back the
+ * structured blocks it returned, exactly as returned, and only where any were kept.
  */
-const REASONING_ECHO_MODELS: ReadonlySet<string> = new Set(DEEPSEEK_MODELS);
-
 const REASONING_PLACEHOLDER = ' ';
 
-function toWireReasoning(reasoningContent: string | undefined, echoesReasoning: boolean) {
-  if (!echoesReasoning) {
-    return {};
-  }
-  const content = reasoningContent === undefined || reasoningContent === '' ? REASONING_PLACEHOLDER : reasoningContent;
-  return { reasoning_content: content };
+function toWireReasoning(message: AssistantMessage, provider: $ModelRef['provider']) {
+  return match(provider)
+    .with('deepseek', () => ({
+      reasoning_content:
+        message.reasoningContent === undefined || message.reasoningContent === ''
+          ? REASONING_PLACEHOLDER
+          : message.reasoningContent
+    }))
+    .with('openrouter', () => {
+      return message.reasoningDetails === undefined ? {} : { reasoning_details: message.reasoningDetails };
+    })
+    .exhaustive();
 }
 
-function toWireMessage(message: CompletionMessage, echoesReasoning: boolean) {
+function toWireMessage(message: CompletionMessage, provider: $ModelRef['provider']) {
   switch (message.role) {
     case 'assistant': {
-      const reasoning = toWireReasoning(message.reasoningContent, echoesReasoning);
+      const reasoning = toWireReasoning(message, provider);
       if (!message.toolCalls || message.toolCalls.length === 0) {
         return { content: message.content, role: message.role, ...reasoning };
       }
@@ -48,6 +55,26 @@ function toWireMessage(message: CompletionMessage, echoesReasoning: boolean) {
   }
 }
 
+/** each provider's own knob for how hard the model thinks; nothing is sent where config states nothing, leaving the provider's default */
+function toReasoningOptions(model: $ModelRef) {
+  return match(model)
+    .with({ provider: 'deepseek' }, ({ reasoningEffort }) => {
+      if (reasoningEffort === undefined) {
+        return {};
+      }
+      return {
+        thinking:
+          reasoningEffort === 'none'
+            ? { type: 'disabled' as const }
+            : { reasoning_effort: reasoningEffort, type: 'enabled' as const }
+      };
+    })
+    .with({ provider: 'openrouter' }, ({ reasoningEffort }) => {
+      return reasoningEffort === undefined ? {} : { reasoning: { effort: reasoningEffort } };
+    })
+    .exhaustive();
+}
+
 function toWireTool(tool: ToolSchema) {
   return {
     function: { description: tool.description, name: tool.name, parameters: tool.parameters },
@@ -63,15 +90,18 @@ function toWireToolCall(toolCall: ToolCall) {
   };
 }
 
-/** the request in Chat Completions wire form: system prompt leading, tools omitted when none are offered */
+/** the request in Chat Completions wire form: system prompt leading, streamed with usage on the last chunk, tools omitted when none are offered */
 export function toCompletionBody(request: CompletionRequest) {
-  const echoesReasoning = REASONING_ECHO_MODELS.has(request.modelName);
+  const { provider } = request.model;
   const caching = toPromptCaching(request);
   return {
     ...caching.options,
-    messages: [caching.systemMessage, ...request.messages.map((message) => toWireMessage(message, echoesReasoning))],
-    model: request.modelName,
-    stream: false,
+    ...toReasoningOptions(request.model),
+    messages: [caching.systemMessage, ...request.messages.map((message) => toWireMessage(message, provider))],
+    model: request.model.name,
+    stream: true,
+    stream_options: { include_usage: true },
+    ...(provider === 'openrouter' && { usage: { include: true } }),
     ...(request.tools.length > 0 && {
       tools: request.tools
         .toSorted((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))

@@ -1,5 +1,11 @@
 export const DEEPSEEK_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'] as const;
 
+/** DeepSeek's own vocabulary for `thinking.reasoning_effort`; `none` turns thinking off */
+export const DEEPSEEK_REASONING_EFFORTS = ['none', 'low', 'high', 'max'] as const;
+
+/** OpenRouter's unified `reasoning.effort` vocabulary, which OpenRouter maps onto what the model behind it supports */
+export const OPENROUTER_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+
 /** ascending severity: the order is load-bearing, since the logger ranks a level by its index here */
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 

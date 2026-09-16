@@ -43,3 +43,16 @@ export type ToolSchema = {
   readonly name: string;
   readonly parameters: { [key: string]: unknown };
 };
+
+/**
+ * One block of a provider's structured reasoning, kept exactly as it arrived so it can be echoed
+ * back unchanged (§3.12); the named fields are the ones streaming assembly joins across chunks.
+ */
+export type ReasoningDetail = {
+  readonly data?: string;
+  readonly index?: number;
+  readonly [key: string]: unknown;
+  readonly signature?: null | string;
+  readonly summary?: string;
+  readonly text?: string;
+};

@@ -3,6 +3,7 @@ import { match } from 'ts-pattern';
 
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import type { CompletionMessage } from '@/inference/inference.types.ts';
+import { reasoningOf } from '@/inference/inference.utils.ts';
 import type { ModelRow } from '@/prisma/prisma.types.ts';
 
 /** replayed history is model-facing, so a structural name renders in wire form — never a second spelling (§1) */
@@ -58,7 +59,7 @@ function renderAssistantEvent(
     {
       content: payload.content,
       role: 'assistant',
-      ...(payload.reasoningContent !== undefined && { reasoningContent: payload.reasoningContent }),
+      ...reasoningOf(payload),
       ...(answered.length > 0 && {
         toolCalls: answered.map((call) => ({ arguments: call.args, id: call.callId, name: toWireName(call.toolName) }))
       })

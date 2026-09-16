@@ -1,4 +1,11 @@
-import { $ChannelHandle, $LogLevel, DEEPSEEK_MODELS, OPENROUTER_MODELS } from '@collegium/core/common';
+import {
+  $ChannelHandle,
+  $LogLevel,
+  DEEPSEEK_MODELS,
+  DEEPSEEK_REASONING_EFFORTS,
+  OPENROUTER_MODELS,
+  OPENROUTER_REASONING_EFFORTS
+} from '@collegium/core/common';
 import {
   BUILTIN_CORE_SKILL_NAMES,
   BUILTIN_GRANTABLE_SKILL_NAMES,
@@ -40,8 +47,26 @@ export const $ToolSettings = z.record(z.string().regex(TOOL_SEGMENT_PATTERN), z.
 export type $ModelRef = z.infer<typeof $ModelRef>;
 export const $ModelRef = z
   .discriminatedUnion('provider', [
-    z.strictObject({ name: z.enum(DEEPSEEK_MODELS), provider: z.literal('deepseek') }),
-    z.strictObject({ name: z.enum(OPENROUTER_MODELS), provider: z.literal('openrouter') })
+    z.strictObject({
+      name: z.enum(DEEPSEEK_MODELS),
+      provider: z.literal('deepseek'),
+      reasoningEffort: z
+        .enum(DEEPSEEK_REASONING_EFFORTS)
+        .optional()
+        .describe(
+          'How hard the model thinks before it answers, in DeepSeek’s own vocabulary: none turns thinking off. Omit for the provider’s default, which is high.'
+        )
+    }),
+    z.strictObject({
+      name: z.enum(OPENROUTER_MODELS),
+      provider: z.literal('openrouter'),
+      reasoningEffort: z
+        .enum(OPENROUTER_REASONING_EFFORTS)
+        .optional()
+        .describe(
+          'How hard the model thinks before it answers, in OpenRouter’s unified vocabulary, mapped onto what the model supports. Omit for the model’s default; a Claude model then reasons without extended thinking.'
+        )
+    })
   ])
   .describe('The model an agent thinks with. Its provider must be configured under providers.');
 
@@ -296,7 +321,7 @@ export const $InferenceConfig = z.strictObject({
     .positive()
     .default(CONFIG_DEFAULTS.inference.timeoutMs)
     .describe(
-      'How long one completion attempt may run before it is aborted and classified as a retryable transport failure. Bounds a provider that accepts the connection and never responds.'
+      'How long a completion may go without the provider sending anything — the connection, the first token, or any later token — before it is aborted and classified as a retryable transport failure. A completion that keeps streaming is never cut, however long it thinks.'
     )
 });
 

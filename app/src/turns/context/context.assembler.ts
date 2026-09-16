@@ -41,7 +41,7 @@ export class ContextAssembler {
       request: {
         cacheKey: JSON.stringify([profile.username, channelId]),
         messages: toCompletionMessages(entries, profile.username),
-        modelName: profile.model.name,
+        model: profile.model,
         systemPrompt,
         tools: this.toolRegistry.describeFor(profile)
       },

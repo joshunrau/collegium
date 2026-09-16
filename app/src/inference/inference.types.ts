@@ -1,6 +1,6 @@
 import type { $ModelRef } from '@collegium/config';
 
-import type { ToolSchema } from '@/core/core.types.ts';
+import type { ReasoningDetail, ToolSchema } from '@/core/core.types.ts';
 
 /** what a provider reports having spent; every field beyond the two totals is absent where the provider does not report it */
 export type CompletionUsage = {
@@ -22,11 +22,17 @@ export type ToolCall = {
 /**
  * Reasoning travels with the assistant message it produced, in memory within the turn and through
  * the `assistant_message` event across turns, because a thinking-mode provider rejects a replayed
- * assistant message without it. §3.12 keeps it off every other surface: never a post, a prompt, a
- * trace, or a log line.
+ * assistant message without it. DeepSeek hands it back as text; OpenRouter as structured blocks
+ * carrying a signature, replayed exactly as they came. §3.12 keeps it off every other surface:
+ * never a post, a prompt, a trace, or a log line.
  */
+export type CompletionReasoning = {
+  reasoningContent?: string;
+  reasoningDetails?: readonly ReasoningDetail[];
+};
+
 export type CompletionMessage =
-  | { content: string; reasoningContent?: string; role: 'assistant'; toolCalls?: readonly ToolCall[] }
+  | (CompletionReasoning & { content: string; role: 'assistant'; toolCalls?: readonly ToolCall[] })
   | { content: string; role: 'tool'; toolCallId: string }
   | { content: string; role: 'user' };
 
@@ -38,35 +44,55 @@ export type SystemPrompt = {
 export type CompletionRequest = {
   readonly cacheKey: string;
   readonly messages: readonly CompletionMessage[];
-  readonly modelName: $ModelRef['name'];
+  readonly model: $ModelRef;
   readonly systemPrompt: SystemPrompt;
   readonly tools: readonly ToolSchema[];
 };
 
+/** the turn's kill, so a request whose turn is gone stops streaming rather than running to its end (§7.5) */
+export type CompletionOptions = {
+  readonly signal?: AbortSignal;
+};
+
 export declare namespace CompletionResult {
   /** no tool call — this is the turn's final output and terminates the turn (§3.3) */
-  type Text = {
+  type Text = CompletionReasoning & {
     content: string;
     kind: 'text';
-    reasoningContent?: string;
     usage: CompletionUsage | undefined;
   };
   /** text alongside tool calls is transient status, not output (§3.3) */
-  type ToolUse = {
+  type ToolUse = CompletionReasoning & {
     content: string;
     kind: 'tool-use';
-    reasoningContent?: string;
     toolCalls: readonly ToolCall[];
     usage: CompletionUsage | undefined;
   };
-  type Any = Text | ToolUse;
+  /**
+   * Cut at the provider's output limit: not output, since the model never finished, and not a
+   * failure, since a shorter attempt is cheap — the turn feeds it back as a rejected post (§4.5)
+   */
+  type Truncated = CompletionReasoning & {
+    content: string;
+    kind: 'truncated';
+    usage: CompletionUsage | undefined;
+  };
+  type Any = Text | ToolUse | Truncated;
 }
 
 export type CompletionResult = CompletionResult.Any;
 
 /** why the provider was not reached: coarse and deterministic, so a post may name it (§3.2, §7.1) */
 export type TransportReason =
-  'connect_timeout' | 'dns' | 'http_status' | 'refused' | 'reset' | 'response_timeout' | 'tls' | 'unknown';
+  | 'connect_timeout'
+  | 'dns'
+  | 'http_status'
+  | 'interrupted'
+  | 'refused'
+  | 'reset'
+  | 'response_timeout'
+  | 'tls'
+  | 'unknown';
 
 export declare namespace InferenceFailure {
   type Transport = {

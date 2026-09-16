@@ -161,6 +161,16 @@ describe('$Config', () => {
     expect($Config.safeParse(openrouter).success).toBe(true);
   });
 
+  it('should accept a reasoning effort in the provider’s own vocabulary and refuse another’s', () => {
+    const withEffort = (model: unknown) => ({ ...config, agents: { mira: { ...declaration([]), model } } });
+    expect(
+      $Config.safeParse(withEffort({ name: 'deepseek-v4-flash', provider: 'deepseek', reasoningEffort: 'max' })).success
+    ).toBe(true);
+    expect(
+      issuePaths(withEffort({ name: 'deepseek-v4-flash', provider: 'deepseek', reasoningEffort: 'medium' }))
+    ).toStrictEqual(['agents.mira.model.reasoningEffort']);
+  });
+
   it('should refuse a config with no agent', () => {
     expect(issuePaths({ ...config, agents: {} })).toStrictEqual(['agents']);
   });

@@ -1,5 +1,7 @@
 import type { ToolId } from '@collegium/core/tools';
 
+import type { ReasoningDetail } from '@/core/core.types.ts';
+
 import type { Prisma, PrismaClient } from './generated/client.ts';
 import type { ApprovalStatus, TurnEventKind } from './generated/enums.ts';
 
@@ -29,6 +31,7 @@ type TurnEventPayloadByKind = {
   assistant_message: {
     content: string;
     reasoningContent?: string;
+    reasoningDetails?: readonly ReasoningDetail[];
     toolCalls: RecordedToolCall[];
   };
   record_written: {

@@ -16,7 +16,7 @@ describe('describeInferenceFailure', () => {
     expect(
       describeInferenceFailure({ detail: 'TimeoutError: timed out', kind: 'transport', reason: 'response_timeout' })
     ).toBe(
-      'the provider could not be reached: the provider accepted the request but sent no response within the inference timeout [TimeoutError: timed out]'
+      'the provider could not be reached: the provider accepted the request but sent nothing within the inference timeout [TimeoutError: timed out]'
     );
     expect(describeInferenceFailure({ kind: 'transport', reason: 'unknown' })).toBe(
       'the provider could not be reached'

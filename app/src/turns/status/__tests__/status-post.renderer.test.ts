@@ -82,7 +82,7 @@ describe('renderSupersededLine', () => {
 describe('renderProviderOutageNotice', () => {
   it('should name the transport cause in one fixed phrase, and nothing when none is known', () => {
     expect(renderProviderOutageNotice({ kind: 'transport', reason: 'response_timeout' })).toBe(
-      '⚠️ **Error**: Failed to reach the model provider — the provider accepted the request but sent no response within the inference timeout'
+      '⚠️ **Error**: Failed to reach the model provider — the provider accepted the request but sent nothing within the inference timeout'
     );
     expect(renderProviderOutageNotice({ kind: 'transport', reason: 'http_status', status: 503 })).toContain('HTTP 503');
     expect(renderProviderOutageNotice({ detail: 'secret words', kind: 'transport', reason: 'unknown' })).toBe(

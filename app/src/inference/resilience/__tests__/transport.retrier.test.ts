@@ -9,7 +9,7 @@ import type { CompletionRequest, CompletionResult, InferenceFailure } from '../.
 const completionRequest: CompletionRequest = {
   cacheKey: 'mira:channel-1',
   messages: [{ content: 'Hello', role: 'user' }],
-  modelName: 'deepseek-v4-flash',
+  model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   systemPrompt: { dynamic: '', stable: 'Be helpful' },
   tools: []
 };
@@ -22,9 +22,9 @@ describe('TransportRetrier', () => {
   const complete = vi.fn<InferenceClient['complete']>();
 
   const inner: InferenceClient = {
-    complete: (request) => {
+    complete: (request, options) => {
       attemptTimes.push(Date.now());
-      return complete(request);
+      return complete(request, options);
     }
   };
   const retrier = new TransportRetrier(inner, { backoffMs: 100, maxAttempts: 3 });
@@ -74,6 +74,20 @@ describe('TransportRetrier', () => {
 
     await completeWithTimers();
 
+    expect(attemptTimes).toStrictEqual([0]);
+  });
+
+  it('does not retry once the turn behind the request has been killed', async () => {
+    const controller = new AbortController();
+    complete.mockImplementationOnce(() => {
+      controller.abort();
+      return Promise.resolve(failure({ kind: 'transport', reason: 'response_timeout' }));
+    });
+
+    const result = retrier.complete(completionRequest, { signal: controller.signal });
+    await vi.runAllTimersAsync();
+
+    expect((await result).error).toStrictEqual({ kind: 'transport', reason: 'response_timeout' });
     expect(attemptTimes).toStrictEqual([0]);
   });
 

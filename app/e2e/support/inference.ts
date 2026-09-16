@@ -87,25 +87,60 @@ function textResponse(content: string): InferenceStub.Response {
   return { content, kind: 'text' };
 }
 
-function toCompletionBody(response: Exclude<InferenceStub.Response, { kind: 'failure' }>): unknown {
+type ScriptedMessage = {
+  content: null | string;
+  role: 'assistant';
+  tool_calls: { function: { arguments: string; name: string }; id: string; type: 'function' }[];
+};
+
+function toScriptedMessage(response: Exclude<InferenceStub.Response, { kind: 'failure' }>): ScriptedMessage {
   if (response.kind === 'text') {
-    return { choices: [{ message: { content: response.content, role: 'assistant' } }] };
+    return { content: response.content, role: 'assistant', tool_calls: [] };
   }
   return {
-    choices: [
-      {
-        message: {
-          content: response.content ?? null,
-          role: 'assistant',
-          tool_calls: response.toolCalls.map((call) => ({
-            function: { arguments: JSON.stringify(call.arguments), name: call.name },
-            id: randomUUID(),
-            type: 'function'
-          }))
-        }
-      }
-    ]
+    content: response.content ?? null,
+    role: 'assistant',
+    tool_calls: response.toolCalls.map((call) => ({
+      function: { arguments: JSON.stringify(call.arguments), name: call.name },
+      id: randomUUID(),
+      type: 'function'
+    }))
   };
+}
+
+function toCompletionBody(response: Exclude<InferenceStub.Response, { kind: 'failure' }>): unknown {
+  const { tool_calls, ...message } = toScriptedMessage(response);
+  return { choices: [{ message: tool_calls.length > 0 ? { ...message, tool_calls } : message }] };
+}
+
+/** the same completion as the app reads it: one delta with the whole message, the finish reason, usage on the last chunk, then [DONE] */
+function respondWithStream(
+  response: ServerResponse,
+  scripted: Exclude<InferenceStub.Response, { kind: 'failure' }>
+): void {
+  const message = toScriptedMessage(scripted);
+  const chunks = [
+    {
+      choices: [
+        {
+          delta: {
+            content: message.content,
+            role: 'assistant',
+            tool_calls: message.tool_calls.map((call, index) => ({ index, ...call }))
+          },
+          finish_reason: null,
+          index: 0
+        }
+      ]
+    },
+    { choices: [{ delta: {}, finish_reason: message.tool_calls.length > 0 ? 'tool_calls' : 'stop', index: 0 }] },
+    { choices: [], usage: { completion_tokens: 1, prompt_tokens: 1, total_tokens: 2 } }
+  ];
+  response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+  for (const chunk of chunks) {
+    response.write(`data: ${JSON.stringify(chunk)}\n\n`);
+  }
+  response.end('data: [DONE]\n\n');
 }
 
 function toLatestInput({ messages }: { messages: $CompletionMessage[] }): string {
@@ -364,6 +399,9 @@ class InferenceStub {
 
     if (script.response.kind === 'failure') {
       return respondWithJson(response, script.response.status, { error: 'Scripted Failure' });
+    }
+    if (completionRequest.stream === true) {
+      return respondWithStream(response, script.response);
     }
     return respondWithJson(response, 200, toCompletionBody(script.response));
   }

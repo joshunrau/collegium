@@ -12,6 +12,8 @@ export type TurnControlHandle = {
   aborted(): AbortKind | undefined;
   /** resolves only on /kill — raced against in-flight awaits so a wedged turn returns now (§7.5) */
   killed: Promise<'killed'>;
+  /** aborts on /kill — handed to the request in flight, so it stops streaming for a turn that is gone */
+  killSignal: AbortSignal;
   release(): void;
 };
 
@@ -47,9 +49,12 @@ export class TurnControlRegistry {
     const entry: ControlEntry = { channelId, onKill: [] };
     this.entries.set(turnId, entry);
     const killed = new Promise<'killed'>((resolve) => entry.onKill.push(() => resolve('killed')));
+    const controller = new AbortController();
+    entry.onKill.push(() => controller.abort());
     return {
       aborted: () => entry.requested,
       killed,
+      killSignal: controller.signal,
       release: () => this.entries.delete(turnId)
     };
   }
