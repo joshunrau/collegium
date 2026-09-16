@@ -48,6 +48,7 @@ const COLLEGIUM_FIXTURE = {
 
 const COLLEGIUM_TIMEOUTS = {
   handshake: 30_000,
+  idle: 10_000,
   shutdown: 5000,
   startup: 30_000
 } as const;
@@ -206,6 +207,26 @@ class CollegiumProcess {
     return `http://${COLLEGIUM_FIXTURE.host}:${this.port}`;
   }
 
+  /**
+   * Resolves once no turn is running, or names the turns still running once the wait runs out.
+   * A test's first post must not land in the closing window of the previous test's last turn:
+   * the lock is still held there, so the post is queued, and a failed exit leaves it standing.
+   */
+  async awaitIdle(): Promise<string | undefined> {
+    try {
+      await waitFor({
+        description: 'every turn to have ended',
+        probe: () => (this.runningTurns().length === 0 ? true : PENDING),
+        timeoutMs: COLLEGIUM_TIMEOUTS.idle
+      });
+      return undefined;
+    } catch {
+      return this.runningTurns()
+        .map((turn) => `${turn.id} (${turn.agentUsername} in ${turn.channelId})`)
+        .join(', ');
+    }
+  }
+
   async dispose(): Promise<void> {
     await this.stop();
     await fs.promises.rm(this.tmpDir, { force: true, recursive: true });
@@ -292,6 +313,19 @@ class CollegiumProcess {
   /** where a test can assert file contents after approving and their absence after denying */
   workspaceDirFor(agentUsername: string): string {
     return path.join(this.workspaceRoot, agentUsername);
+  }
+
+  private runningTurns(): { agentUsername: string; channelId: string; id: string }[] {
+    const database = new DatabaseSync(this.databasePath, { readOnly: true });
+    try {
+      return database.prepare(`SELECT id, agentUsername, channelId FROM Turn WHERE status = 'running'`).all() as {
+        agentUsername: string;
+        channelId: string;
+        id: string;
+      }[];
+    } finally {
+      database.close();
+    }
   }
 
   /**

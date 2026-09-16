@@ -185,6 +185,11 @@ function setupHarness<const S extends Scenario>(scenario: S): () => Harness<S> {
         `\n[e2e hygiene] "${context.task.name}" left ${leftovers.length} unconsumed inference script(s):\n  ${leftovers.join('\n  ')}\n`
       );
     }
+    // released holds above let a blocked turn finish; what is still running after this is the test's leak
+    const running = await started?.harness.app.awaitIdle();
+    if (running !== undefined) {
+      process.stderr.write(`\n[e2e hygiene] "${context.task.name}" left a turn running: ${running}\n`);
+    }
   });
 
   afterAll(async () => {
