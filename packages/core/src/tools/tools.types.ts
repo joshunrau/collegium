@@ -28,7 +28,7 @@ export type ToolApprovalPayload = {
 
 /**
  * A durable record's disclosure (§3.6), returned by the tool that created it; the turn writes the
- * event and the trace lines. `reference` names the record for later reads, e.g. a memory id.
+ * event the trace reads back. `reference` names the record for later reads, e.g. a memory id.
  */
 export type ToolDisclosure = {
   readonly body: string;
@@ -38,12 +38,6 @@ export type ToolDisclosure = {
 };
 
 export type ToolOutput = {
-  /**
-   * §3.6 — a durable record this call removed, named by its description rather than its reference,
-   * which resolves to nothing once the row is gone. Framework toolsets only: `PluginToolOutput`
-   * does not carry it, because a plugin discloses what it writes, never what the framework stores.
-   */
-  readonly deletedDescription?: string;
   readonly disclosure?: ToolDisclosure;
   /**
    * What later turns replay in place of `text`. The turn that made the call reads the text in

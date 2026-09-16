@@ -126,7 +126,7 @@ Each tool declares, alongside its description and parameters:
 - **`concurrent`** — may run alongside the other concurrent calls of the same completion (§5.1): a read that neither depends on nor disturbs what another call in the batch touches. A browser action is not one, since every action on the turn's one page follows the last.
 - **`supersedable`** — a later result of any supersedable tool in the same turn makes this one stale (§3.8): a page the model acts on once and moves past.
 
-Execution receives exactly the context its toolset declared: each declared service under its own name, `settings` (per turn, from the acting agent, §8-style resolution below), `storage` collections, and always `turn` — four facts: the acting agent, the channel, the triggering post (honestly nullable), and the turn id. Reaching anything undeclared is a compile error. A tool that creates a durable record returns its disclosure — body, description, reference, anything superseded — and the turn writes the event and the trace lines (§3.6).
+Execution receives exactly the context its toolset declared: each declared service under its own name, `settings` (per turn, from the acting agent, §8-style resolution below), `storage` collections, and always `turn` — four facts: the acting agent, the channel, the triggering post (honestly nullable), and the turn id. Reaching anything undeclared is a compile error. A tool that creates a durable record returns its disclosure — body, description, reference, anything superseded — and the turn writes the event the trace reads back (§3.6).
 
 Reads are generally ungated: search, fetch, read mail. Writes, shell commands, and anything externally visible carry `approval`.
 
@@ -175,7 +175,7 @@ A `memories` table in SQLite, accessible to agents only through a tool, never th
 
 _Why ungated:_ gating a memory write would block an entire turn on a triviality — an agent stalling for hours because it wanted to record a phone preference. Memory formation cannot sit behind human latency or it will not happen. Deletion inherits the exemption: an agent that cannot retract a fact it now knows to be wrong carries that fact into the system prompt of every later turn, and gating the retraction while leaving the write ungated would make the wrong state the cheap one.
 
-_Compensating control:_ the write tool returns a disclosure — description, body, the record's reference, anything superseded — and the turn writes it into the trace and a status-post line. A delete discloses the description of what it removed, because the reference the model passed resolves to nothing once the row is gone. This is **detection, not prevention** — the write has already happened.
+_Compensating control:_ the write tool returns a disclosure — description, body, the record's reference, anything superseded — and the turn writes it into the trace. The status post carries the call itself, like any other tool call (§8.1): a memory's description is model-written prose of arbitrary length, and rendering it into the channel spends a supervisor's attention where `/collegium trace` and `/collegium memory` answer the same question on demand. This is **detection, not prevention** — the write has already happened.
 
 Because turns are per-channel (§5.1), an agent may have concurrent turns writing memory. Memory writes and deletes therefore take a **per-agent lock**, since the entry cap is a read-modify-write and a delete landing inside one would cost that write an entry.
 
@@ -593,7 +593,7 @@ Either command also resolves a pending approval in the channel as **cancelled**:
 
 _Why not stream every tool call as a separate post:_ a ten-call turn would produce ten posts of machinery around one post of substance, and approval prompts live in the same channel — noise in the supervision channel degrades the gate (A5).
 
-Every memory write — and any eviction it causes — emits a disclosure line here (§3.6), the untruncated content of which can be viewed with `/collegium trace`. A memory delete emits one too, naming the description of the entry that left.
+A memory write, its evictions, and a memory delete appear here as ordinary tool-call lines; what was written, evicted, or removed is in `/collegium trace` (§3.6).
 
 Queued messages are acknowledged with a 👀 reaction (§5.2). This and the typing indicator below are the only signals the framework emits without posting.
 

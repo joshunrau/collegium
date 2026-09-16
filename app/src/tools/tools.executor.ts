@@ -174,7 +174,6 @@ export class ToolExecutor {
       kind: 'continue',
       output: output.text,
       ...(output.disclosure && { disclosure: output.disclosure }),
-      ...(output.deletedDescription !== undefined && { deletedDescription: output.deletedDescription }),
       ...(output.replay !== undefined && { replay: output.replay })
     };
   }

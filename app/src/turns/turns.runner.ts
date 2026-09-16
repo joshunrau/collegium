@@ -47,11 +47,8 @@ import {
   renderExtensionPrompt,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
-  renderRecordDeletedLine,
-  renderRecordWriteLine,
   renderSemanticErrorNotice,
   renderSideEffectAmbiguityNotice,
-  renderSupersededLine,
   renderToolCallLine
 } from './status/status-post.renderer.ts';
 import { StatusPostService } from './status/status-post.service.ts';
@@ -418,7 +415,7 @@ export class TurnRunner {
     };
   }
 
-  /** §3 — the tool returned the disclosure; the turn owns writing the event and the trace lines */
+  /** §3 — the tool returned the disclosure; the turn owns writing the event the trace reads back */
   private async discloseRecord(
     state: TurnState,
     disclosure: NonNullable<ToolAttempt.Continue['disclosure']>
@@ -430,10 +427,6 @@ export class TurnRunner {
       reference: disclosure.reference,
       supersededDescriptions: [...(disclosure.supersededDescriptions ?? [])]
     });
-    state.status.appendTrace(renderRecordWriteLine(disclosure));
-    for (const superseded of disclosure.supersededDescriptions ?? []) {
-      state.status.appendTrace(renderSupersededLine(superseded));
-    }
   }
 
   /**
@@ -665,9 +658,6 @@ export class TurnRunner {
     this.supersedeStaleResults(input, state, identified, attempt.replay);
     if (attempt.disclosure) {
       await this.discloseRecord(state, attempt.disclosure);
-    }
-    if (attempt.deletedDescription !== undefined) {
-      state.status.appendTrace(renderRecordDeletedLine(attempt.deletedDescription));
     }
     return undefined;
   }

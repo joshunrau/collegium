@@ -2,8 +2,6 @@ import type { InferenceFailure } from '@/inference/inference.types.ts';
 import { describeTransportReason } from '@/inference/inference.utils.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 
-const DISCLOSURE_BODY_LIMIT_CHARS = 120;
-
 const TRACE_DETAIL_LIMIT_CHARS = 150;
 
 const WORKING_LINE = '⏳ _working…_';
@@ -83,25 +81,6 @@ export function renderDelegationLimitNotice(): string {
 /** §7.1 — a bare denial ends the turn and the agent asks how to proceed */
 export function renderDenialNotice(): string {
   return 'That was denied, so I stopped. How would you like me to proceed?';
-}
-
-/** §3.6 — the line may elide a long body; the TurnEvent behind it must not */
-export function renderRecordWriteLine(input: { body: string; description: string }): string {
-  const body =
-    input.body.length > DISCLOSURE_BODY_LIMIT_CHARS
-      ? `${input.body.slice(0, DISCLOSURE_BODY_LIMIT_CHARS)}…`
-      : input.body;
-  return `📝 _recorded: ${input.description} — ${body}_`;
-}
-
-/** §3.6 — a record the agent deliberately dropped, named by description because its reference no longer resolves */
-export function renderRecordDeletedLine(description: string): string {
-  return `🗑️ _deleted: ${description}_`;
-}
-
-/** §3.6 — a superseded record is disclosed beside the write that displaced it */
-export function renderSupersededLine(description: string): string {
-  return `♻️ _superseded: ${description}_`;
 }
 
 export function renderProviderOutageNotice(failure: InferenceFailure.Transport): string {

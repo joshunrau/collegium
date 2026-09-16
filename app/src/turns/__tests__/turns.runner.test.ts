@@ -667,7 +667,7 @@ describe('TurnRunner', () => {
     expect(sends.at(-1)?.text).toContain('chat server refused');
   });
 
-  it('should write a returned disclosure into the trace and the turn events (§3.6)', async () => {
+  it('should write a returned disclosure into the turn events, not the status post (§3.6)', async () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['memory__write'])));
     complete.mockResolvedValueOnce(Result.ok(text('saved')));
     toolExecutor.execute.mockResolvedValueOnce({
@@ -685,20 +685,7 @@ describe('TurnRunner', () => {
       'turn-1',
       expect.objectContaining({ kind: 'record_written', reference: 'memory-1' })
     );
-    expect(statusHandle.appendTrace).toHaveBeenCalledWith('📝 _recorded: tooling preference — casey prefers pnpm_');
-    expect(statusHandle.appendTrace).toHaveBeenCalledWith('♻️ _superseded: an ancient note_');
-  });
-
-  it('should name a deleted record in the trace, since its reference no longer resolves (§3.6)', async () => {
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['memory__delete'])));
-    complete.mockResolvedValueOnce(Result.ok(text('deleted')));
-    toolExecutor.execute.mockResolvedValueOnce({
-      deletedDescription: 'tooling preference',
-      kind: 'continue',
-      output: 'ok'
-    });
-    await run();
-    expect(statusHandle.appendTrace).toHaveBeenCalledWith('🗑️ _deleted: tooling preference_');
+    expect(statusHandle.appendTrace).not.toHaveBeenCalledWith(expect.stringContaining('tooling preference'));
   });
 
   it('should thread the turn’s own event appender into tool execution and approval requests', async () => {

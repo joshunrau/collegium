@@ -57,7 +57,7 @@ describe('Status post', () => {
     await channels.main.awaitReplyFrom('mira', { text: reply });
   });
 
-  it('emits a disclosure line showing description and body for every memory write (§3.6)', async () => {
+  it('names a memory write as an ordinary call line, disclosing neither description nor body (§3.6)', async () => {
     const { agents, channels, inference } = harness();
     const description = `casey likes brevity ${randomUUID()}`;
     const reply = `remembered-${randomUUID()}`;
@@ -68,18 +68,14 @@ describe('Status post', () => {
     inference.willReply({ agent: 'mira' }, textResponse(reply));
 
     await channels.main.mention('mira', 'remember that');
+    const statusPost = await channels.main.awaitPost({
+      description: 'the status post carrying the memory write',
+      match: (post) => post.authorId === agents.mira.userId && post.text.includes('→ `memory::write`')
+    });
     await channels.main.awaitReplyFrom('mira', { text: reply });
 
-    await channels.main.awaitPost({
-      description: 'the memory disclosure line in the status post',
-      match: (post) => {
-        return (
-          post.authorId === agents.mira.userId &&
-          post.text.includes(`recorded: ${description}`) &&
-          post.text.includes('short answers, always')
-        );
-      }
-    });
+    expect(statusPost.text).not.toContain(description);
+    expect(statusPost.text).not.toContain('short answers, always');
   });
 });
 

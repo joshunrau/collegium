@@ -5,8 +5,6 @@ import type { TurnStatus } from '@/prisma/prisma.types.ts';
 export declare namespace ToolAttempt {
   /** the model receives this as the tool result and the turn continues */
   type Continue = {
-    /** a durable record the call removed, for the turn to name in the status post (§3.6) */
-    deletedDescription?: string;
     /** a durable record the call created, for the turn to write into the event trail and trace (§3) */
     disclosure?: ToolDisclosure;
     kind: 'continue';

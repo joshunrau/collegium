@@ -3,10 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
-  renderRecordDeletedLine,
-  renderRecordWriteLine,
   renderStatusPost,
-  renderSupersededLine,
   renderToolCallLine
 } from '../status-post.renderer.ts';
 
@@ -50,32 +47,6 @@ describe('renderToolCallLine', () => {
 
   it('should elide a summary past the trace limit', () => {
     expect(renderToolCallLine('shell', 'x'.repeat(151))).toBe(`→ \`shell ${'x'.repeat(150)}…\``);
-  });
-});
-
-describe('renderRecordWriteLine', () => {
-  it('should disclose the description and body of a memory write', () => {
-    expect(renderRecordWriteLine({ body: 'bullet points, never prose', description: 'casey on formatting' })).toBe(
-      '📝 _recorded: casey on formatting — bullet points, never prose_'
-    );
-  });
-
-  it('should elide a body past the disclosure limit', () => {
-    expect(renderRecordWriteLine({ body: 'x'.repeat(121), description: 'a long one' })).toBe(
-      `📝 _recorded: a long one — ${'x'.repeat(120)}…_`
-    );
-  });
-});
-
-describe('renderRecordDeletedLine', () => {
-  it('names the description, which outlives the reference the delete resolved', () => {
-    expect(renderRecordDeletedLine('casey on formatting')).toBe('🗑️ _deleted: casey on formatting_');
-  });
-});
-
-describe('renderSupersededLine', () => {
-  it('should name the entry the write displaced', () => {
-    expect(renderSupersededLine('casey on formatting')).toBe('♻️ _superseded: casey on formatting_');
   });
 });
 

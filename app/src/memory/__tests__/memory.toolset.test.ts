@@ -76,15 +76,12 @@ describe('MEMORY_TOOLSET', () => {
     });
   });
 
-  it('deletes an entry and names what left, since its reference no longer resolves (§3.6)', async () => {
+  it('deletes an entry and names what left in the result the model reads (§3.6)', async () => {
     const { context, memory } = buildContext();
     memory.delete.mockResolvedValue(Result.ok({ description: 'a stale fact' } as never));
     const result = await executeTool(deleteTool, { reference: 'mem-1' }, context);
     expect(memory.delete).toHaveBeenCalledWith('mira', 'mem-1');
-    expect(result.unwrap()).toStrictEqual({
-      deletedDescription: 'a stale fact',
-      text: 'memory mem-1 deleted: a stale fact'
-    });
+    expect(result.unwrap()).toStrictEqual({ text: 'memory mem-1 deleted: a stale fact' });
   });
 
   it('returns an unknown reference on delete as the model’s own recoverable mistake', async () => {
