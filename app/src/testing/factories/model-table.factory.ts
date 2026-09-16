@@ -24,7 +24,7 @@ export type ModelTable<TRow extends object> = {
   deleteMany: (query: { where?: object }) => Promise<{ count: number }>;
   findFirst: (query: ReadShape & { orderBy?: OrderByClause | OrderByClause[]; where?: object }) => Promise<unknown>;
   findMany: (
-    query: ReadShape & { orderBy?: OrderByClause | OrderByClause[]; take?: number; where?: object }
+    query: ReadShape & { orderBy?: OrderByClause | OrderByClause[]; skip?: number; take?: number; where?: object }
   ) => Promise<unknown[]>;
   findUnique: (query: ReadShape & { where: object }) => Promise<unknown>;
   rows: TRow[];
@@ -214,13 +214,13 @@ export function createModelTable<TRow extends object>(options: ModelTableOptions
       );
       return Promise.resolve(first ? decorate(first, shape) : null);
     },
-    findMany: ({ orderBy, take, where, ...shape }) => {
+    findMany: ({ orderBy, skip = 0, take, where, ...shape }) => {
       return Promise.resolve(
         sorted(
           rows.filter((row) => matchesWhere(row, where)),
           orderBy
         )
-          .slice(0, take)
+          .slice(skip, take === undefined ? undefined : skip + take)
           .map((row) => decorate(row, shape))
       );
     },

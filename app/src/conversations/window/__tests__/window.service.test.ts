@@ -16,6 +16,7 @@ type PostRow = {
   createdAt: Date;
   id: string;
   isForgotten: boolean;
+  kind: 'message' | 'notice' | 'reply' | 'status';
   message: string;
   observedAt: Date;
 };
@@ -29,6 +30,7 @@ const post = (id: string, at: number, overrides: Partial<PostRow> = {}): PostRow
   createdAt: new Date(at),
   id,
   isForgotten: false,
+  kind: 'message',
   message: `message ${id}`,
   observedAt: new Date(at),
   ...overrides
@@ -53,7 +55,7 @@ const createTables = (posts: PostRow[], events: EventRow[]) => {
 describe('WindowService', () => {
   let episodesService: MockedInstance<EpisodesService>;
 
-  const build = async (posts: PostRow[], events: EventRow[], budgetTokens = 1000) => {
+  const createService = async (posts: PostRow[], events: EventRow[]) => {
     const tables = createTables(posts, events);
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -63,7 +65,15 @@ describe('WindowService', () => {
         { provide: getModelToken('TurnEvent'), useValue: tables.events }
       ]
     }).compile();
-    return moduleRef.get(WindowService).build({ agentUsername: 'mira', budgetTokens, channelId: 'channel-1' });
+    const service = moduleRef.get(WindowService);
+    return {
+      build: (budgetTokens = 1000) => service.build({ agentUsername: 'mira', budgetTokens, channelId: 'channel-1' }),
+      tables
+    };
+  };
+
+  const build = async (posts: PostRow[], events: EventRow[], budgetTokens = 1000) => {
+    return (await createService(posts, events)).build(budgetTokens);
   };
 
   const identify = (entries: Awaited<ReturnType<typeof build>>) => {
@@ -117,5 +127,53 @@ describe('WindowService', () => {
     const elsewhere = { agentUsername: 'mira', channelId: 'channel-2' };
     const entries = await build([post('post-1', 1000)], [event('event-1', 2000, elsewhere)]);
     expect(identify(entries)).toStrictEqual(['post-1']);
+  });
+
+  it("should leave out a peer's status post, keeping its notice and its reply (§3.8)", async () => {
+    const posts = [
+      post('post-1', 1000, { authoringTurnId: 'turn-9', authorUsername: 'tess', kind: 'status' }),
+      post('post-2', 2000, { authoringTurnId: 'turn-9', authorUsername: 'tess', kind: 'notice' }),
+      post('post-3', 3000, { authoringTurnId: 'turn-9', authorUsername: 'tess', kind: 'reply' })
+    ];
+    const entries = await build(posts, []);
+    expect(identify(entries)).toStrictEqual(['post-2', 'post-3']);
+  });
+
+  it('should charge a replayed tool result at its replay line, not its output', async () => {
+    const mira = { agentUsername: 'mira', channelId: 'channel-1' };
+    const replayed = event('event-1', 2000, mira);
+    replayed.payload = {
+      callId: 'c',
+      kind: 'tool_result',
+      output: 'x'.repeat(4000),
+      replay: '[loaded]',
+      toolName: 't'
+    };
+    const entries = await build([post('post-1', 1000)], [replayed], 20);
+    expect(identify(entries)).toStrictEqual(['post-1', 'event-1']);
+  });
+
+  // each fixture post costs four tokens
+  it('should hold the oldest entry fixed while everything since it still fits the budget', async () => {
+    const { build: rebuild, tables } = await createService([post('post-1', 1000), post('post-2', 2000)], []);
+    expect(identify(await rebuild(12))).toStrictEqual(['post-1', 'post-2']);
+    tables.posts.rows.push(post('post-3', 3000));
+    expect(identify(await rebuild(12))).toStrictEqual(['post-1', 'post-2', 'post-3']);
+  });
+
+  it('should trim to the low-water mark once the anchored window overflows, then hold there', async () => {
+    const { build: rebuild, tables } = await createService([post('post-1', 1000), post('post-2', 2000)], []);
+    await rebuild(16);
+    tables.posts.rows.push(post('post-3', 3000), post('post-4', 4000), post('post-5', 5000));
+    expect(identify(await rebuild(16))).toStrictEqual(['post-3', 'post-4', 'post-5']);
+    tables.posts.rows.push(post('post-6', 6000));
+    expect(identify(await rebuild(16))).toStrictEqual(['post-3', 'post-4', 'post-5', 'post-6']);
+  });
+
+  it('should read the channel a page at a time and still walk past the first page', async () => {
+    const posts = Array.from({ length: 450 }, (_, index) => post(`post-${index + 1}`, 1000 * (index + 1)));
+    const entries = await build(posts, [], 100_000);
+    expect(entries).toHaveLength(450);
+    expect(identify(entries).at(0)).toBe('post-1');
   });
 });
