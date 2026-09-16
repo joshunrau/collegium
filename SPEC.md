@@ -626,7 +626,7 @@ Every command is a subcommand of one slash command, `/collegium`, so typing `/co
 - **`/collegium triggers {agent}`** — list outstanding triggers. Ephemeral.
 - **`/collegium memory {agent}`** — inspect and prune an agent's memories. Ephemeral.
 - **`/collegium inspect {agent}`** — show an agent's model, tools, skills and system prompt. Ephemeral.
-- **`/collegium usage`** — show token usage per agent and model, with cached-prompt and reasoning breakdowns where the provider reports them, over turns that ended in the last 24 hours in any channel. Ephemeral.
+- **`/collegium usage`** — show token usage per agent and model, with cached-prompt and reasoning breakdowns and the cost the provider charged where it reports them, over turns that ended in the last 24 hours in any channel. Ephemeral.
 
 A bare `/collegium`, or a subcommand nothing declares, answers the invoker with the list above.
 

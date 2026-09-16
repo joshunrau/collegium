@@ -1,30 +1,27 @@
-import type { ReportedTokenCount, TokenUsageTotals } from './turns.types.ts';
+import type { ReportedTotal, UsageTotals } from './turns.types.ts';
 
-function sumReportedTokenCounts(counts: readonly ReportedTokenCount[]): ReportedTokenCount {
-  if (counts.every((count) => count.coverage === 'none')) {
+function sumReportedTotals(totals: readonly ReportedTotal[]): ReportedTotal {
+  if (totals.every((each) => each.coverage === 'none')) {
     return { coverage: 'none' };
   }
   return {
-    coverage: counts.every((count) => count.coverage === 'full') ? 'full' : 'partial',
-    total: counts.reduce((sum, count) => sum + (count.coverage === 'none' ? 0 : count.total), 0)
+    coverage: totals.every((each) => each.coverage === 'full') ? 'full' : 'partial',
+    total: totals.reduce((sum, each) => sum + (each.coverage === 'none' ? 0 : each.total), 0)
   };
 }
 
-export function sumTokenUsageTotals(totals: readonly TokenUsageTotals[]): TokenUsageTotals {
+export function sumUsageTotals(totals: readonly UsageTotals[]): UsageTotals {
   return {
-    cachedPromptTokens: sumReportedTokenCounts(totals.map((each) => each.cachedPromptTokens)),
+    cachedPromptTokens: sumReportedTotals(totals.map((each) => each.cachedPromptTokens)),
     completionTokens: totals.reduce((sum, each) => sum + each.completionTokens, 0),
+    costUsd: sumReportedTotals(totals.map((each) => each.costUsd)),
     promptTokens: totals.reduce((sum, each) => sum + each.promptTokens, 0),
-    reasoningTokens: sumReportedTokenCounts(totals.map((each) => each.reasoningTokens)),
+    reasoningTokens: sumReportedTotals(totals.map((each) => each.reasoningTokens)),
     turnCount: totals.reduce((sum, each) => sum + each.turnCount, 0)
   };
 }
 
-export function toReportedTokenCount(
-  total: null | number,
-  reportingTurnCount: number,
-  turnCount: number
-): ReportedTokenCount {
+export function toReportedTotal(total: null | number, reportingTurnCount: number, turnCount: number): ReportedTotal {
   if (reportingTurnCount === 0) {
     return { coverage: 'none' };
   }

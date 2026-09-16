@@ -2,10 +2,12 @@ import type { $ModelRef } from '@collegium/config';
 
 import type { ToolSchema } from '@/core/core.types.ts';
 
-/** what a provider reports having spent; the breakdowns are subsets of their totals, absent where the provider does not report them */
-export type TokenUsage = {
+/** what a provider reports having spent; every field beyond the two totals is absent where the provider does not report it */
+export type CompletionUsage = {
   readonly cachedPromptTokens: number | undefined;
   readonly completionTokens: number;
+  /** money, not tokens: what the provider says it charged, in USD */
+  readonly costUsd: number | undefined;
   readonly promptTokens: number;
   readonly reasoningTokens: number | undefined;
 };
@@ -41,7 +43,7 @@ export declare namespace CompletionResult {
     content: string;
     kind: 'text';
     reasoningContent?: string;
-    usage: TokenUsage | undefined;
+    usage: CompletionUsage | undefined;
   };
   /** text alongside tool calls is transient status, not output (§3.3) */
   type ToolUse = {
@@ -49,7 +51,7 @@ export declare namespace CompletionResult {
     kind: 'tool-use';
     reasoningContent?: string;
     toolCalls: readonly ToolCall[];
-    usage: TokenUsage | undefined;
+    usage: CompletionUsage | undefined;
   };
   type Any = Text | ToolUse;
 }

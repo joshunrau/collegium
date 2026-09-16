@@ -85,18 +85,20 @@ describe('OpenAICompatibleClient', () => {
     expect(result.value?.usage).toStrictEqual({
       cachedPromptTokens: undefined,
       completionTokens: 3,
+      costUsd: undefined,
       promptTokens: 12,
       reasoningTokens: undefined
     });
   });
 
-  it('carries the cached-prompt and reasoning breakdowns where the provider reports them', async () => {
+  it('carries the cached-prompt, reasoning, and cost breakdowns where the provider reports them', async () => {
     fetchMock.mockResolvedValueOnce(
       completionResponse(
         { content: 'Hello there' },
         {
           completion_tokens: 30,
           completion_tokens_details: { reasoning_tokens: 21 },
+          cost: 0.0132,
           prompt_tokens: 120,
           prompt_tokens_details: { cached_tokens: 96 }
         }
@@ -108,6 +110,7 @@ describe('OpenAICompatibleClient', () => {
     expect(result.value?.usage).toStrictEqual({
       cachedPromptTokens: 96,
       completionTokens: 30,
+      costUsd: 0.0132,
       promptTokens: 120,
       reasoningTokens: 21
     });

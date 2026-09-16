@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
-import type { TokenUsage } from '@/inference/inference.types.ts';
+import type { CompletionUsage } from '@/inference/inference.types.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow, TurnStatus } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
-import { sumTokenUsageTotals, toReportedTokenCount } from './turns.utils.ts';
+import { sumUsageTotals, toReportedTotal } from './turns.utils.ts';
 
-import type { TokenUsageReport, Turn, TurnEventInput } from './turns.types.ts';
+import type { Turn, TurnEventInput, UsageReport } from './turns.types.ts';
 
 @Injectable()
 export class TurnsService {
@@ -54,7 +54,7 @@ export class TurnsService {
   async close(
     turnId: string,
     status: Exclude<TurnStatus, 'running'>,
-    summary: { actionCount?: number; usage?: TokenUsage } = {}
+    summary: { actionCount?: number; usage?: CompletionUsage } = {}
   ): Promise<void> {
     await this.turns.update({
       data: {
@@ -64,6 +64,7 @@ export class TurnsService {
         ...(summary.usage && {
           cachedPromptTokens: summary.usage.cachedPromptTokens ?? null,
           completionTokens: summary.usage.completionTokens,
+          costUsd: summary.usage.costUsd ?? null,
           promptTokens: summary.usage.promptTokens,
           reasoningTokens: summary.usage.reasoningTokens ?? null
         })
@@ -114,31 +115,34 @@ export class TurnsService {
   }
 
   /** framework-wide spend per agent and model, over turns that ended strictly after a moment with usage recorded */
-  async summarizeTokenUsageEndedAfter(moment: Date): Promise<TokenUsageReport> {
+  async summarizeUsageEndedAfter(moment: Date): Promise<UsageReport> {
     const groups = await this.turns.groupBy({
-      _count: { _all: true, cachedPromptTokens: true, reasoningTokens: true },
-      _sum: { cachedPromptTokens: true, completionTokens: true, promptTokens: true, reasoningTokens: true },
+      _count: { _all: true, cachedPromptTokens: true, costUsd: true, reasoningTokens: true },
+      _sum: {
+        cachedPromptTokens: true,
+        completionTokens: true,
+        costUsd: true,
+        promptTokens: true,
+        reasoningTokens: true
+      },
       by: ['agentUsername', 'modelName'],
       orderBy: [{ agentUsername: 'asc' }, { modelName: 'asc' }],
       where: { endedAt: { gt: moment }, promptTokens: { not: null } }
     });
     const rows = groups.map((group) => ({
       agentUsername: group.agentUsername,
-      cachedPromptTokens: toReportedTokenCount(
+      cachedPromptTokens: toReportedTotal(
         group._sum.cachedPromptTokens,
         group._count.cachedPromptTokens,
         group._count._all
       ),
       completionTokens: group._sum.completionTokens ?? 0,
+      costUsd: toReportedTotal(group._sum.costUsd, group._count.costUsd, group._count._all),
       modelName: group.modelName,
       promptTokens: group._sum.promptTokens ?? 0,
-      reasoningTokens: toReportedTokenCount(
-        group._sum.reasoningTokens,
-        group._count.reasoningTokens,
-        group._count._all
-      ),
+      reasoningTokens: toReportedTotal(group._sum.reasoningTokens, group._count.reasoningTokens, group._count._all),
       turnCount: group._count._all
     }));
-    return { rows, total: sumTokenUsageTotals(rows) };
+    return { rows, total: sumUsageTotals(rows) };
   }
 }

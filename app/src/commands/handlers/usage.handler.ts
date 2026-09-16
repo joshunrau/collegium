@@ -9,7 +9,7 @@ import type { CommandResponse } from '../commands.types.ts';
 
 const USAGE_WINDOW_MS = USAGE_WINDOW_HOURS * 60 * 60 * 1000;
 
-/** §8.4 — framework-wide token spend; ephemeral because it counts activity in channels the invoker may not belong to */
+/** §8.4 — framework-wide token and money spend; ephemeral because it counts activity in channels the invoker may not belong to */
 @Injectable()
 export class UsageHandler extends CommandHandler {
   readonly trigger = 'usage';
@@ -20,7 +20,7 @@ export class UsageHandler extends CommandHandler {
 
   async handle(): Promise<CommandResponse> {
     const since = new Date(Date.now() - USAGE_WINDOW_MS);
-    const summaries = await this.turnsService.summarizeTokenUsageEndedAfter(since);
+    const summaries = await this.turnsService.summarizeUsageEndedAfter(since);
     return { audience: 'invoker', text: renderUsageResponse(summaries) };
   }
 }

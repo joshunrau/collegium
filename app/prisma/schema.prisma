@@ -99,6 +99,9 @@ model Turn {
   chainLength        Int         @default(1)
   channelId          String
   completionTokens   Int?
+  /// what the provider charged for this turn, in USD, summed over its completions; null where the
+  /// provider prices nothing in its response
+  costUsd            Float?
   depth            Int
   endedAt          DateTime?
   modelName        String

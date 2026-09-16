@@ -24,12 +24,15 @@ const $Usage = z
   .object({
     completionTokens: $TokenCount,
     completionTokensDetails: z.object({ reasoningTokens: $TokenCount.optional() }).nullish(),
+    /** what the provider charged, denominated in USD by every provider that reports it at all */
+    cost: z.number().nonnegative().optional(),
     promptTokens: $TokenCount,
     promptTokensDetails: z.object({ cachedTokens: $TokenCount.optional() }).nullish()
   })
-  .transform(({ completionTokens, completionTokensDetails, promptTokens, promptTokensDetails }) => ({
+  .transform(({ completionTokens, completionTokensDetails, cost, promptTokens, promptTokensDetails }) => ({
     cachedPromptTokens: promptTokensDetails?.cachedTokens,
     completionTokens,
+    costUsd: cost,
     promptTokens,
     reasoningTokens: completionTokensDetails?.reasoningTokens
   }));

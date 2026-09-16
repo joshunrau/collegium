@@ -12,7 +12,7 @@ import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
-import type { CompletionResult, InferenceFailure, TokenUsage } from '@/inference/inference.types.ts';
+import type { CompletionResult, CompletionUsage, InferenceFailure } from '@/inference/inference.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -46,9 +46,9 @@ const PROFILE = {
   workspaceDir: '/tmp/workspaces/mira'
 } as AgentProfile;
 
-const text = (content: string, usage?: TokenUsage): CompletionResult => ({ content, kind: 'text', usage });
+const text = (content: string, usage?: CompletionUsage): CompletionResult => ({ content, kind: 'text', usage });
 
-const toolUse = (names: string[], content = '', usage?: TokenUsage): CompletionResult => ({
+const toolUse = (names: string[], content = '', usage?: CompletionUsage): CompletionResult => ({
   content,
   kind: 'tool-use',
   toolCalls: names.map((name, index) => ({ arguments: {}, id: `call-${index}`, name })),
@@ -805,12 +805,13 @@ describe('TurnRunner', () => {
     expect(statusHandle.close).toHaveBeenCalledWith('provider_outage');
   });
 
-  it('should accumulate reported token usage across every completion in the turn', async () => {
+  it('should accumulate reported usage, tokens and cost alike, across every completion in the turn', async () => {
     complete.mockResolvedValueOnce(
       Result.ok(
         toolUse(['lookup_fixture'], '', {
           cachedPromptTokens: undefined,
           completionTokens: 2,
+          costUsd: 0.25,
           promptTokens: 3,
           reasoningTokens: 1
         })
@@ -821,6 +822,7 @@ describe('TurnRunner', () => {
         text('done', {
           cachedPromptTokens: undefined,
           completionTokens: 5,
+          costUsd: 0.5,
           promptTokens: 7,
           reasoningTokens: undefined
         })
@@ -831,7 +833,13 @@ describe('TurnRunner', () => {
       'turn-1',
       'completed',
       expect.objectContaining({
-        usage: { cachedPromptTokens: undefined, completionTokens: 7, promptTokens: 10, reasoningTokens: 1 }
+        usage: {
+          cachedPromptTokens: undefined,
+          completionTokens: 7,
+          costUsd: 0.75,
+          promptTokens: 10,
+          reasoningTokens: 1
+        }
       })
     );
   });

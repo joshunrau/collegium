@@ -1,8 +1,8 @@
 import { match } from 'ts-pattern';
 
-import type { InferenceFailure, TokenUsage } from './inference.types.ts';
+import type { CompletionUsage, InferenceFailure } from './inference.types.ts';
 
-function addReportedCount(left: number | undefined, right: number | undefined): number | undefined {
+function addReportedAmount(left: number | undefined, right: number | undefined): number | undefined {
   return left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
 }
 
@@ -36,14 +36,18 @@ export function describeInferenceFailure(failure: InferenceFailure): string {
     .exhaustive();
 }
 
-export function addTokenUsage(accumulated: TokenUsage | undefined, reported: TokenUsage): TokenUsage {
+export function addCompletionUsage(
+  accumulated: CompletionUsage | undefined,
+  reported: CompletionUsage
+): CompletionUsage {
   if (!accumulated) {
     return reported;
   }
   return {
-    cachedPromptTokens: addReportedCount(accumulated.cachedPromptTokens, reported.cachedPromptTokens),
+    cachedPromptTokens: addReportedAmount(accumulated.cachedPromptTokens, reported.cachedPromptTokens),
     completionTokens: accumulated.completionTokens + reported.completionTokens,
+    costUsd: addReportedAmount(accumulated.costUsd, reported.costUsd),
     promptTokens: accumulated.promptTokens + reported.promptTokens,
-    reasoningTokens: addReportedCount(accumulated.reasoningTokens, reported.reasoningTokens)
+    reasoningTokens: addReportedAmount(accumulated.reasoningTokens, reported.reasoningTokens)
   };
 }

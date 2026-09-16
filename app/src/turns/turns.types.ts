@@ -5,26 +5,28 @@ export type AbortKind = Extract<TurnStatus, 'killed' | 'stopped'>;
 
 export type Turn = ModelRow<'Turn'>;
 
-/** a breakdown some providers leave out, summed over the turns that reported it */
-export type ReportedTokenCount = { coverage: 'full' | 'partial'; total: number } | { coverage: 'none' };
+/** an amount some providers leave out, summed over the turns that reported it */
+export type ReportedTotal = { coverage: 'full' | 'partial'; total: number } | { coverage: 'none' };
 
-export type TokenUsageTotals = {
-  readonly cachedPromptTokens: ReportedTokenCount;
+export type UsageTotals = {
+  readonly cachedPromptTokens: ReportedTotal;
   readonly completionTokens: number;
+  /** USD, not tokens */
+  readonly costUsd: ReportedTotal;
   readonly promptTokens: number;
-  readonly reasoningTokens: ReportedTokenCount;
+  readonly reasoningTokens: ReportedTotal;
   readonly turnCount: number;
 };
 
 /** one agent's spend on one model, over the turns that recorded usage */
-export type TokenUsageSummary = TokenUsageTotals & {
+export type UsageSummary = UsageTotals & {
   readonly agentUsername: string;
   readonly modelName: string;
 };
 
-export type TokenUsageReport = {
-  readonly rows: readonly TokenUsageSummary[];
-  readonly total: TokenUsageTotals;
+export type UsageReport = {
+  readonly rows: readonly UsageSummary[];
+  readonly total: UsageTotals;
 };
 
 /** what activation branches on when a turn ends: drain the queue, or leave it standing (§7.1) */

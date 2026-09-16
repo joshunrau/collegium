@@ -34,14 +34,26 @@ describe('TurnsService', () => {
             groupBy: () => {
               return Promise.resolve([
                 {
-                  _count: { _all: 3, cachedPromptTokens: 2, reasoningTokens: 0 },
-                  _sum: { cachedPromptTokens: 40, completionTokens: 12, promptTokens: 90, reasoningTokens: null },
+                  _count: { _all: 3, cachedPromptTokens: 2, costUsd: 3, reasoningTokens: 0 },
+                  _sum: {
+                    cachedPromptTokens: 40,
+                    completionTokens: 12,
+                    costUsd: 0.0412,
+                    promptTokens: 90,
+                    reasoningTokens: null
+                  },
                   agentUsername: 'mira',
                   modelName: 'deepseek-v4-flash'
                 },
                 {
-                  _count: { _all: 1, cachedPromptTokens: 0, reasoningTokens: 1 },
-                  _sum: { cachedPromptTokens: null, completionTokens: 8, promptTokens: 30, reasoningTokens: 5 },
+                  _count: { _all: 1, cachedPromptTokens: 0, costUsd: 0, reasoningTokens: 1 },
+                  _sum: {
+                    cachedPromptTokens: null,
+                    completionTokens: 8,
+                    costUsd: null,
+                    promptTokens: 30,
+                    reasoningTokens: 5
+                  },
                   agentUsername: 'otto',
                   modelName: 'gpt-5'
                 }
@@ -122,12 +134,19 @@ describe('TurnsService', () => {
     const turn = await open();
     await turnsService.close(turn.id, 'completed', {
       actionCount: 3,
-      usage: { cachedPromptTokens: 4, completionTokens: 5, promptTokens: 7, reasoningTokens: undefined }
+      usage: {
+        cachedPromptTokens: 4,
+        completionTokens: 5,
+        costUsd: 0.0031,
+        promptTokens: 7,
+        reasoningTokens: undefined
+      }
     });
     expect(turns[0]).toMatchObject({
       actionCount: 3,
       cachedPromptTokens: 4,
       completionTokens: 5,
+      costUsd: 0.0031,
       promptTokens: 7,
       reasoningTokens: null,
       status: 'completed'
@@ -136,12 +155,13 @@ describe('TurnsService', () => {
   });
 
   it('should summarize usage per agent and model, with a total no more complete than its rows', async () => {
-    await expect(turnsService.summarizeTokenUsageEndedAfter(new Date(0))).resolves.toStrictEqual({
+    await expect(turnsService.summarizeUsageEndedAfter(new Date(0))).resolves.toStrictEqual({
       rows: [
         {
           agentUsername: 'mira',
           cachedPromptTokens: { coverage: 'partial', total: 40 },
           completionTokens: 12,
+          costUsd: { coverage: 'full', total: 0.0412 },
           modelName: 'deepseek-v4-flash',
           promptTokens: 90,
           reasoningTokens: { coverage: 'none' },
@@ -151,6 +171,7 @@ describe('TurnsService', () => {
           agentUsername: 'otto',
           cachedPromptTokens: { coverage: 'none' },
           completionTokens: 8,
+          costUsd: { coverage: 'none' },
           modelName: 'gpt-5',
           promptTokens: 30,
           reasoningTokens: { coverage: 'full', total: 5 },
@@ -160,6 +181,7 @@ describe('TurnsService', () => {
       total: {
         cachedPromptTokens: { coverage: 'partial', total: 40 },
         completionTokens: 20,
+        costUsd: { coverage: 'partial', total: 0.0412 },
         promptTokens: 120,
         reasoningTokens: { coverage: 'partial', total: 5 },
         turnCount: 4

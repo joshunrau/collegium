@@ -1,45 +1,55 @@
-import type { ReportedTokenCount, TokenUsageReport, TokenUsageTotals } from '@/turns/turns.types.ts';
+import type { ReportedTotal, UsageReport, UsageTotals } from '@/turns/turns.types.ts';
 
 const PARTIAL_MARKER = '*';
 
+const COST_FORMAT = new Intl.NumberFormat('en-US', {
+  currency: 'USD',
+  maximumFractionDigits: 4,
+  minimumFractionDigits: 2,
+  style: 'currency'
+});
+
 const TOKEN_COUNT_FORMAT = new Intl.NumberFormat('en-US');
 
-function renderRow(agent: string, model: string, totals: TokenUsageTotals): string {
+function renderRow(agent: string, model: string, totals: UsageTotals): string {
   const cells = [
     agent,
     model,
     TOKEN_COUNT_FORMAT.format(totals.turnCount),
     TOKEN_COUNT_FORMAT.format(totals.promptTokens),
-    renderReportedTokenCount(totals.cachedPromptTokens),
+    renderReportedTotal(totals.cachedPromptTokens, TOKEN_COUNT_FORMAT),
     TOKEN_COUNT_FORMAT.format(totals.completionTokens),
-    renderReportedTokenCount(totals.reasoningTokens)
+    renderReportedTotal(totals.reasoningTokens, TOKEN_COUNT_FORMAT),
+    renderReportedTotal(totals.costUsd, COST_FORMAT)
   ];
   return `| ${cells.join(' | ')} |`;
 }
 
-function renderReportedTokenCount(count: ReportedTokenCount): string {
-  if (count.coverage === 'none') {
+function renderReportedTotal(reported: ReportedTotal, format: Intl.NumberFormat): string {
+  if (reported.coverage === 'none') {
     return '—';
   }
-  const total = TOKEN_COUNT_FORMAT.format(count.total);
-  return count.coverage === 'partial' ? `${total}${PARTIAL_MARKER}` : total;
+  const total = format.format(reported.total);
+  return reported.coverage === 'partial' ? `${total}${PARTIAL_MARKER}` : total;
 }
 
 export const USAGE_WINDOW_HOURS = 24;
 
-export function renderUsageResponse(report: TokenUsageReport): string {
-  const heading = `Token usage — turns ended in the last ${USAGE_WINDOW_HOURS} hours`;
+export function renderUsageResponse(report: UsageReport): string {
+  const heading = `Usage — turns ended in the last ${USAGE_WINDOW_HOURS} hours`;
   if (report.rows.length === 0) {
     return `${heading}: none recorded.`;
   }
-  const isAnyPartial = [...report.rows, report.total].some(
-    (totals) => totals.cachedPromptTokens.coverage === 'partial' || totals.reasoningTokens.coverage === 'partial'
-  );
+  const isAnyPartial = [...report.rows, report.total].some((totals) => {
+    return [totals.cachedPromptTokens, totals.costUsd, totals.reasoningTokens].some(
+      (reported) => reported.coverage === 'partial'
+    );
+  });
   return [
     heading,
     '',
-    '| Agent | Model | Turns | Prompt | Cached | Completion | Reasoning |',
-    '| --- | --- | ---: | ---: | ---: | ---: | ---: |',
+    '| Agent | Model | Turns | Prompt | Cached | Completion | Reasoning | Cost |',
+    '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |',
     ...report.rows.map((row) => renderRow(row.agentUsername, row.modelName, row)),
     renderRow('**Total**', '', report.total),
     ...(isAnyPartial ? ['', `${PARTIAL_MARKER} Not reported by every turn in the row.`] : [])

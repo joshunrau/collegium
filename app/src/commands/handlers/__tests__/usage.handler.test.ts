@@ -14,11 +14,12 @@ describe('UsageHandler', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: new Date('2026-09-13T12:00:00Z') });
     turnsService = MockFactory.createMock(TurnsService);
-    turnsService.summarizeTokenUsageEndedAfter.mockResolvedValue({
+    turnsService.summarizeUsageEndedAfter.mockResolvedValue({
       rows: [],
       total: {
         cachedPromptTokens: { coverage: 'none' },
         completionTokens: 0,
+        costUsd: { coverage: 'none' },
         promptTokens: 0,
         reasoningTokens: { coverage: 'none' },
         turnCount: 0
@@ -36,10 +37,10 @@ describe('UsageHandler', () => {
 
   it('should summarize the trailing 24 hours for the caller alone', async () => {
     const response = await usageHandler.handle();
-    expect(turnsService.summarizeTokenUsageEndedAfter).toHaveBeenCalledWith(new Date('2026-09-12T12:00:00Z'));
+    expect(turnsService.summarizeUsageEndedAfter).toHaveBeenCalledWith(new Date('2026-09-12T12:00:00Z'));
     expect(response).toStrictEqual({
       audience: 'invoker',
-      text: 'Token usage — turns ended in the last 24 hours: none recorded.'
+      text: 'Usage — turns ended in the last 24 hours: none recorded.'
     });
   });
 });
