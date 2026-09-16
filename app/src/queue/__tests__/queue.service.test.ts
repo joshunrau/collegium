@@ -85,6 +85,20 @@ describe('QueueService', () => {
     expect(await queueService.drain('mira', 'channel-1')).toBeUndefined();
   });
 
+  it('should throw the standing entry away on discard, leaving nothing for the next drain', async () => {
+    await queueService.enqueue('mira', 'channel-1', 'post-1');
+    expect((await queueService.discard('mira', 'channel-1'))?.earliestUnprocessedPostId).toBe('post-1');
+    expect(rows).toHaveLength(0);
+    expect(await queueService.drain('mira', 'channel-1')).toBeUndefined();
+  });
+
+  it("should leave another channel's entry standing when one is discarded", async () => {
+    await queueService.enqueue('mira', 'channel-1', 'post-1');
+    await queueService.enqueue('mira', 'channel-2', 'post-2');
+    await queueService.discard('mira', 'channel-1');
+    expect((await queueService.peek('mira', 'channel-2'))?.earliestUnprocessedPostId).toBe('post-2');
+  });
+
   it('should rethrow a store failure that is not a duplicate entry', async () => {
     createFailure = new Error('database is locked');
     await expect(queueService.enqueue('mira', 'channel-1', 'post-1')).rejects.toThrow('database is locked');

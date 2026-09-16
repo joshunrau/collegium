@@ -46,7 +46,7 @@ describe('requireAgentName', () => {
     const named = requireAgentName(agentRegistry, 'dana', 'queue');
     expect(named.error).toStrictEqual({
       audience: 'invoker',
-      text: 'No agent "dana". Usage: /collegium queue {agent}'
+      text: 'No agent "dana". Usage: /collegium queue {agent} [clear]'
     });
   });
 

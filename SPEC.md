@@ -623,6 +623,7 @@ Every command is a subcommand of one slash command, `/collegium`, so typing `/co
 - **`/collegium kill`** — abandon current turns in this channel immediately. Posts.
 - **`/collegium resume`** — clear a global halt.
 - **`/collegium queue {agent}`** — show pending depth and the oldest unprocessed post. Ephemeral.
+- **`/collegium queue {agent} clear`** — discard the standing queue entry, so the next drain does not run work a configuration change made stale. Posts. The posts themselves stay; only the pointer goes, which is why this is not a deletion of anything §5.2 holds.
 - **`/collegium triggers {agent}`** — list outstanding triggers. Ephemeral.
 - **`/collegium memory {agent}`** — inspect and prune an agent's memories. Ephemeral.
 - **`/collegium inspect {agent}`** — show an agent's model, tools, skills and system prompt. Ephemeral.

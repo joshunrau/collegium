@@ -15,14 +15,18 @@ export type QueueEntry = ModelRow<'QueueEntry'>;
 export class QueueService {
   constructor(@InjectModel('QueueEntry') private readonly entries: Model<'QueueEntry'>) {}
 
+  /**
+   * §8.4 — the standing entry thrown away rather than consumed, for work a configuration change
+   * made stale. The posts stay where they are; only the pointer saying they are unprocessed goes,
+   * so nothing runs them and the channel still reads as it did.
+   */
+  discard(agentUsername: string, channelId: string): Promise<QueueEntry | undefined> {
+    return this.take(agentUsername, channelId);
+  }
+
   /** drain, not pop — the whole backlog becomes one turn (§5.2) */
-  async drain(agentUsername: string, channelId: string): Promise<QueueEntry | undefined> {
-    const entry = await this.find(agentUsername, channelId);
-    if (!entry) {
-      return undefined;
-    }
-    await this.entries.delete({ where: { id: entry.id } });
-    return entry;
+  drain(agentUsername: string, channelId: string): Promise<QueueEntry | undefined> {
+    return this.take(agentUsername, channelId);
   }
 
   /** keeps the earliest unprocessed post id — a later fragment never advances the pointer */
@@ -55,5 +59,15 @@ export class QueueService {
       where: { agentUsername_channelId: { agentUsername, channelId } }
     });
     return entry ?? undefined;
+  }
+
+  /** reading and deleting the pointer in one step — what both a drain and a discard do to the row */
+  private async take(agentUsername: string, channelId: string): Promise<QueueEntry | undefined> {
+    const entry = await this.find(agentUsername, channelId);
+    if (!entry) {
+      return undefined;
+    }
+    await this.entries.delete({ where: { id: entry.id } });
+    return entry;
   }
 }
