@@ -394,6 +394,39 @@ describe('ActivationService', () => {
     expect(queueService.pointAt).toHaveBeenCalledWith('mira', 'channel-1', 'post-1');
   });
 
+  it('should drain a human post that arrived during a failed turn into a fresh turn at once (§7.1)', async () => {
+    turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
+    queueService.drain.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+      earliestUnprocessedPostId: 'post-1'
+    } as never);
+    queueService.peek
+      .mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-9' } as never)
+      .mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-1' } as never);
+    conversationsService.earliestOf.mockResolvedValue('post-1');
+    conversationsService.findActivationSource.mockImplementation((postId) => {
+      return Promise.resolve(postId === 'post-9' ? ({ authorKind: 'human' } as never) : undefined);
+    });
+    await activationService.onPost(PROFILE, post());
+    await settle();
+    expect(turnRunner.run).toHaveBeenCalledTimes(2);
+    expect(turnRunner.run).toHaveBeenLastCalledWith(
+      expect.objectContaining({ drainedFromPostId: 'post-1', triggeringPostId: 'post-1' })
+    );
+  });
+
+  it("should leave a peer's mention standing after a failed turn until a human posts (§7.1)", async () => {
+    turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
+    queueService.drain.mockResolvedValueOnce(undefined);
+    queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-9' } as never);
+    conversationsService.earliestOf.mockResolvedValue('post-1');
+    conversationsService.findActivationSource.mockImplementation((postId) => {
+      return Promise.resolve(postId === 'post-9' ? ({ authorKind: 'agent' } as never) : undefined);
+    });
+    await activationService.onPost(PROFILE, post());
+    await settle();
+    expect(turnRunner.run).toHaveBeenCalledTimes(1);
+  });
+
   it('should leave a pointer alone when the post it names is already the earlier one', async () => {
     turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
     queueService.drain.mockResolvedValueOnce(undefined);

@@ -277,22 +277,31 @@ export class ActivationService {
    * arriving during the turn went through enqueueBusy and may hold the row already; a duplicate
    * insert is ignored by design, so the pointer is then moved back to whichever post is earlier.
    * A failure here is logged, not thrown: the lock must be released whatever happens.
+   *
+   * Returns whether the post that claimed the row is a human's. Such a post is the "next human
+   * post" a standing queue drains at, already arrived and already 👀-acknowledged (§5.2), so the
+   * caller drains at once rather than waiting for a post that may never come. A peer's mention is
+   * not: it waits for a human like any other standing entry.
    */
-  private async leaveStanding(profile: AgentProfile, channelId: string, postId: string): Promise<void> {
+  private async leaveStanding(profile: AgentProfile, channelId: string, postId: string): Promise<boolean> {
     try {
       await this.queueService.enqueue(profile.username, channelId, postId);
       const standing = await this.queueService.peek(profile.username, channelId);
       if (!standing || standing.earliestUnprocessedPostId === postId) {
-        return;
+        return false;
       }
-      const earliest = await this.conversationsService.earliestOf([standing.earliestUnprocessedPostId, postId]);
+      const claimed = standing.earliestUnprocessedPostId;
+      const earliest = await this.conversationsService.earliestOf([claimed, postId]);
       if (earliest === postId) {
         await this.queueService.pointAt(profile.username, channelId, postId);
       }
+      const source = await this.conversationsService.findActivationSource(claimed);
+      return source?.authorKind === 'human';
     } catch (error) {
       this.loggingService.error(
         new Error(`failed to leave the queue for "${profile.username}" in ${channelId} standing`, { cause: error })
       );
+      return false;
     }
   }
 
@@ -356,15 +365,22 @@ export class ActivationService {
       );
     }
     const progressed = status !== undefined && PROGRESS_EXITS.has(status);
+    let humanWaiting = false;
     try {
       if (!progressed) {
-        await this.leaveStanding(profile, input.channelId, input.drainedFromPostId ?? input.triggeringPostId);
+        humanWaiting = await this.leaveStanding(
+          profile,
+          input.channelId,
+          input.drainedFromPostId ?? input.triggeringPostId
+        );
       }
     } finally {
       input.lock.release();
     }
-    if (progressed) {
+    if (progressed || humanWaiting) {
       await this.drainQueue(profile, input.channelId);
+    }
+    if (progressed) {
       await this.flushTriggersIfIdle(input.channelId);
     }
   }

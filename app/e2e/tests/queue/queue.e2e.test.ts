@@ -95,7 +95,7 @@ describe('Queue', () => {
 describe('Standing queue', () => {
   const harness = setupHarness(SCENARIO);
 
-  it('answers the next post exactly once when a queue entry was left standing (§5.2, §7.1)', async () => {
+  it('answers a human post that arrived during a failing turn as soon as that turn ends (§5.2, §7.1)', async () => {
     const { channels, inference } = harness();
     const blocked = inference.willBlock({ agent: 'mira', contains: 'hold here' }, failureResponse(503));
 
@@ -104,9 +104,23 @@ describe('Standing queue', () => {
     const queued = await channels.main.mention('mira', `queued while busy ${randomUUID()}`);
     await channels.main.awaitReaction(queued, QUEUED_ACKNOWLEDGEMENT_EMOJI);
 
-    // a provider outage cannot make progress, so §7.1 leaves the queue standing
+    // the 👀 promised an answer and the human has already spoken: the outage drains into a fresh turn
     inference.willFail({ agent: 'mira' }, { status: 503, times: 2 });
+    const reply = `answered-after-outage-${randomUUID()}`;
+    inference.willReply({ agent: 'mira' }, textResponse(reply));
     blocked.release();
+    await channels.main.awaitPost({
+      description: 'the provider outage notice',
+      match: (post) => post.text.includes('provider')
+    });
+    await channels.main.awaitReplyFrom('mira', { text: reply });
+  });
+
+  it('answers the next post exactly once when a queue entry was left standing (§5.2, §7.1)', async () => {
+    const { channels, inference } = harness();
+    // nothing arrives while this turn fails, so §7.1 leaves the queue standing until a human posts
+    inference.willFail({ agent: 'mira' }, { status: 503, times: 3 });
+    await channels.main.mention('mira', 'dead provider');
     await channels.main.awaitPost({
       description: 'the provider outage notice',
       match: (post) => post.text.includes('provider')
