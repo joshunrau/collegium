@@ -39,7 +39,15 @@ export type DescribedCall = {
  * toolset is discovered mid-turn (§6.1).
  */
 export class ToolRegistry {
-  /** wireName → tool, per agent — the model speaks wire names, and resolution is lookup, never parsing (§1) */
+  /**
+   * Every spelling one of the agent's tools may arrive in, derived from the set below: the wire
+   * name, and the `ns::tool` form the framework's own approval posts put in the agent's own window
+   * (§3.4). Both keys are rendered from one identity at boot, so resolution stays lookup and
+   * nothing parses a name; a name claiming no granted tool still ends the turn (§7.2).
+   */
+  private readonly agentCallableTools: ReadonlyMap<string, ReadonlyMap<string, ResolvedTool>>;
+
+  /** wireName → tool, per agent — the set the model is offered and the one an operator is shown (§1) */
   private readonly agentTools: ReadonlyMap<string, ReadonlyMap<string, ResolvedTool>>;
 
   constructor(toolsets: readonly RegisteredToolset[], profiles: readonly AgentProfile[]) {
@@ -73,6 +81,28 @@ export class ToolRegistry {
     this.agentTools = new Map(
       profiles.map((profile) => [profile.username, this.expandGrants(profile, byRef, grantable, coreNamespaces)])
     );
+    this.agentCallableTools = new Map(
+      Array.from(this.agentTools, ([username, tools]) => [username, ToolRegistry.toCallableNames(tools)])
+    );
+  }
+
+  private static require(
+    tools: ReadonlyMap<string, ResolvedTool> | undefined,
+    username: string
+  ): ReadonlyMap<string, ResolvedTool> {
+    if (!tools) {
+      throw new Error(`no agent is registered as "${username}"`);
+    }
+    return tools;
+  }
+
+  /** the one place a second spelling is admitted, and it is rendered from the same identity as the first */
+  private static toCallableNames(tools: ReadonlyMap<string, ResolvedTool>): ReadonlyMap<string, ResolvedTool> {
+    const callable = new Map(tools);
+    for (const tool of tools.values()) {
+      callable.set(tool.displayName, tool);
+    }
+    return callable;
   }
 
   /**
@@ -98,7 +128,7 @@ export class ToolRegistry {
 
   /** §5.3 — whether a call is billed against the action budget; an unknown name always is */
   isBudgetExempt(profile: AgentProfile, name: string): boolean {
-    return this.toolsFor(profile).get(name)?.definition.budgetExempt === true;
+    return this.callableToolsFor(profile).get(name)?.definition.budgetExempt === true;
   }
 
   /** §5.3 — the wire names an agent may call for free, so the prompt states the rule from the flags the budget bills by */
@@ -115,11 +145,15 @@ export class ToolRegistry {
 
   /** fails loudly on a name outside the agent's set (§6.1) — never falls back */
   resolveFor(profile: AgentProfile, name: string): Result<ResolvedTool, ToolFailure.UnknownTool> {
-    const tool = this.toolsFor(profile).get(name);
+    const tool = this.callableToolsFor(profile).get(name);
     if (!tool) {
       return Result.err({ kind: 'unknown-tool', message: `no tool named "${name}" exists in your tool set` });
     }
     return Result.ok(tool);
+  }
+
+  private callableToolsFor(profile: AgentProfile): ReadonlyMap<string, ResolvedTool> {
+    return ToolRegistry.require(this.agentCallableTools.get(profile.username), profile.username);
   }
 
   /**
@@ -179,10 +213,6 @@ export class ToolRegistry {
   }
 
   private toolsFor(profile: AgentProfile): ReadonlyMap<string, ResolvedTool> {
-    const tools = this.agentTools.get(profile.username);
-    if (!tools) {
-      throw new Error(`no agent is registered as "${profile.username}"`);
-    }
-    return tools;
+    return ToolRegistry.require(this.agentTools.get(profile.username), profile.username);
   }
 }

@@ -121,6 +121,24 @@ describe('ToolRegistry', () => {
     expect(registry.resolveFor(granted, 'does_not_exist').error).toMatchObject({ kind: 'unknown-tool' });
   });
 
+  it('resolves the display spelling the framework’s own posts show, granted tools only (§3.4)', () => {
+    const granted = buildAgentProfile({ tools: ['notes'] });
+    const ungranted = buildAgentProfile({ username: 'owen' });
+    const registry = new ToolRegistry(LIBRARY, [granted, ungranted]);
+    expect(registry.resolveFor(granted, 'notes::add').unwrap().wireName).toBe('notes__add');
+    expect(registry.resolveFor(ungranted, 'notes::add').error).toMatchObject({ kind: 'unknown-tool' });
+    expect(registry.resolveFor(granted, 'maps::measure').error).toMatchObject({ kind: 'unknown-tool' });
+  });
+
+  it('offers the model one spelling of each tool, however many it accepts (§1)', () => {
+    const profile = buildAgentProfile({ tools: ['notes'] });
+    const registry = new ToolRegistry(LIBRARY, [profile]);
+    const offered = registry.describeFor(profile).map((schema) => schema.name);
+    expect(offered).toStrictEqual([...new Set(offered)]);
+    expect(offered).toContain('notes__add');
+    expect(offered.some((name) => name.includes('::'))).toBe(false);
+  });
+
   it('describes a call with its display name and the tool’s own detail (§8.1)', () => {
     const profile = buildAgentProfile({ tools: ['notes'] });
     const registry = new ToolRegistry(LIBRARY, [profile]);
