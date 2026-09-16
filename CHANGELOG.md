@@ -1,3 +1,16 @@
+## [0.0.1-beta.22](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.20...v0.0.1-beta.22) (2026-09-16)
+
+### Features
+
+- **inference:** stream completions under an idle timeout and take a reasoning effort per model ([2b8961e](https://github.com/joshunrau/collegium/commit/2b8961ef8740ea2db55a3ef9847bdbc4a104c791))
+- **models:** offer the openai, anthropic, glm and deepseek models openrouter serves ([273f6df](https://github.com/joshunrau/collegium/commit/273f6df1964456ac1615de55a2a2b7c80d657490))
+
+### Performance
+
+- **conversations:** anchor the window's oldest entry, page the walk, and drop peers' status posts ([7c9f4d2](https://github.com/joshunrau/collegium/commit/7c9f4d2e1b2de358e56cf2183516e62c73ed0fb4))
+- **inference:** enable and optimize prompt caching across supported models ([33474e2](https://github.com/joshunrau/collegium/commit/33474e2b6d4b84415262bf1d38dab9dc261f1f5b))
+- **turns:** run concurrent reads together, retire stale page results, and coalesce status edits ([f04d2a0](https://github.com/joshunrau/collegium/commit/f04d2a05217b14e2af44cc88a38a14bdb1064004))
+
 ## [0.0.1-beta.21](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.20...v0.0.1-beta.21) (2026-09-16)
 
 ### Features
