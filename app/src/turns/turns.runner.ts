@@ -45,6 +45,7 @@ import {
   renderDeliveryFailureNotice,
   renderDenialNotice,
   renderExtensionPrompt,
+  renderOutputRefusedNotice,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
   renderSemanticErrorNotice,
@@ -67,6 +68,9 @@ const RETAINED_SUPERSEDABLE_RESULTS = 2;
 /** §7.1 — what a completion cut at the output limit hears; the loop it re-enters is the rejected post's (§4.5) */
 const TRUNCATED_OUTPUT_REJECTION =
   'output rejected: it was cut off at the output limit before it finished — answer more briefly, or do the work in smaller steps';
+
+/** §4.5 — rejections in a row a turn survives; the budget bounds the loop too, but with a number that says nothing about why */
+const CONSECUTIVE_REJECTION_LIMIT = 2;
 
 /** the bounds config states for every turn: §7.4 depth and chain length, §4.4 folds; the §5.3 budget is the agent's own */
 type TurnLimits = {
@@ -106,6 +110,8 @@ type IdentifiedCall = {
 
 type TurnState = {
   readonly budget: ActionBudget;
+  /** §4.5 — rejected posts since the last call that ran */
+  consecutiveRejections: number;
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
   readonly messages: CompletionMessage[];
@@ -169,6 +175,7 @@ export class TurnRunner {
     });
     const state: TurnState = {
       budget: new ActionBudget(profile.actionBudget),
+      consecutiveRejections: 0,
       control: this.turnControlRegistry.register(turn.id, channelId),
       fold: this.turnFoldRegistry.register({
         agentUsername: profile.username,
@@ -387,6 +394,12 @@ export class TurnRunner {
     if (rejection === undefined) {
       return this.closeWithFinalOutput(input, state, content, reasoning);
     }
+    // checked before the spend: the rejection that ends the turn buys nothing, so it costs nothing
+    if (state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT) {
+      await this.postNotice(input, state, renderOutputRefusedNotice());
+      return this.close(state, 'semantic_error');
+    }
+    state.consecutiveRejections += 1;
     if (state.budget.trySpendOnRejectedPost() === 'exhausted') {
       const exhaustion = await this.handleExhaustion(input, state);
       if (exhaustion.kind === 'ended') {
@@ -457,6 +470,7 @@ export class TurnRunner {
       toolCalls: completion.toolCalls,
       ...reasoning
     });
+    state.consecutiveRejections = 0;
     if (completion.content !== '') {
       state.status.setTransient(this.multiMentionPolicy.stripAgentMentions(completion.content));
     }

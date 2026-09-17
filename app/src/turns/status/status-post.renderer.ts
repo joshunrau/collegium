@@ -80,6 +80,11 @@ export function renderDelegationLimitNotice(): string {
   return "I would have asked a colleague but I've reached the delegation limit — someone needs to pick this up.";
 }
 
+/** §4.5 — the turn could not produce output the framework would accept; the reason is in the trace */
+export function renderOutputRefusedNotice(): string {
+  return 'I could not produce a reply the framework would accept and stopped. The reason is in the trace.';
+}
+
 /** §7.1 — a bare denial ends the turn and the agent asks how to proceed */
 export function renderDenialNotice(): string {
   return 'That was denied, so I stopped. How would you like me to proceed?';

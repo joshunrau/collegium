@@ -846,6 +846,56 @@ describe('TurnRunner', () => {
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'completed', expect.objectContaining({ actionCount: 1 }));
   });
 
+  it('should end the turn after two consecutive rejected posts, saying so under its own name (§4.5)', async () => {
+    multiMentionPolicy.refuses.mockReturnValue(true);
+    complete.mockResolvedValue(Result.ok(text('@owen and @tess, split this')));
+    const outcome = await run();
+    expect(outcome.status).toBe('semantic_error');
+    expect(complete).toHaveBeenCalledTimes(3);
+    expect(sends.map((send) => send.text)).toStrictEqual([
+      'I could not produce a reply the framework would accept and stopped. The reason is in the trace.'
+    ]);
+    expect(turnsService.close).toHaveBeenCalledWith(
+      'turn-1',
+      'semantic_error',
+      expect.objectContaining({ actionCount: 2 })
+    );
+  });
+
+  it('should reset the rejection count when a tool call runs between two rejections (§4.5)', async () => {
+    multiMentionPolicy.refuses.mockReturnValueOnce(true).mockReturnValueOnce(true).mockReturnValueOnce(true);
+    complete.mockResolvedValueOnce(Result.ok(text('@owen and @tess, split this')));
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('@owen and @tess, split this')));
+    complete.mockResolvedValueOnce(Result.ok(text('@owen and @tess, split this')));
+    complete.mockResolvedValueOnce(Result.ok(text('@owen, please take this')));
+    const outcome = await run();
+    expect(outcome.status).toBe('completed');
+    expect(sends.map((send) => send.text)).toStrictEqual(['@owen, please take this']);
+  });
+
+  it('should count a truncated completion and a tool call written as text against the same limit (§4.5)', async () => {
+    complete.mockResolvedValueOnce(Result.ok({ content: 'a very long', kind: 'truncated', usage: undefined }));
+    complete.mockResolvedValueOnce(Result.ok(text('[called triggers__resolve({"id":"s8a15c97"})]')));
+    complete.mockResolvedValueOnce(Result.ok(text('[called triggers__resolve({"id":"s8a15c97"})]')));
+    const outcome = await run();
+    expect(outcome.status).toBe('semantic_error');
+    expect(complete).toHaveBeenCalledTimes(3);
+  });
+
+  it('should still ask for an extension when rejections exhaust a one-attempt budget (§5.3)', async () => {
+    multiMentionPolicy.refuses.mockReturnValue(true);
+    complete.mockResolvedValue(Result.ok(text('@owen and @tess, split this')));
+    const outcome = await turnRunner.run({
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 0,
+      profile: { ...PROFILE, actionBudget: 1 }
+    });
+    expect(approvalsService.request).toHaveBeenCalledOnce();
+    expect(outcome.status).toBe('budget_exhausted');
+  });
+
   it('should run a completion’s concurrent calls together and record their results in call order', async () => {
     toolRegistry.isConcurrent.mockImplementation((_profile, name: string) => name === 'web__fetch');
     let releaseFirst: (attempt: ToolAttempt) => void = () => undefined;
