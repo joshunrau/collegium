@@ -77,6 +77,19 @@ describe('BackfillService', () => {
     expect(loggingService.error).toHaveBeenCalledOnce();
   });
 
+  it('should carry on past a post the store already holds, recording the rest of the sweep (§8.2)', async () => {
+    postsSince = (channelId) => {
+      return channelId === 'channel-1' ? Result.ok([post('held'), post('fresh')]) : Result.ok([post('later')]);
+    };
+    conversationsService.record.mockImplementation((recorded) => Promise.resolve(recorded.id !== 'held'));
+    await backfillService.run();
+    expect(conversationsService.record.mock.calls.map(([recorded]) => recorded.id)).toStrictEqual([
+      'held',
+      'fresh',
+      'later'
+    ]);
+  });
+
   it('should skip a channel whose history cannot be read and carry on with the next', async () => {
     postsSince = (channelId) => {
       return channelId === 'channel-1'
