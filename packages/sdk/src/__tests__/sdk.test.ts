@@ -13,7 +13,12 @@ describe('defineConfig', () => {
 
 describe('defineTool', () => {
   it('returns the declaration inert, ready for the load perimeter', () => {
-    const tool = defineTool({ description: 'Does something.', execute: () => 'ok', parameters: z.object({}) });
+    const tool = defineTool({
+      approval: null,
+      description: 'Does something.',
+      execute: () => 'ok',
+      parameters: z.object({})
+    });
     expect(tool.description).toBe('Does something.');
     expect(tool.parameters).toBeInstanceOf(z.ZodType);
   });

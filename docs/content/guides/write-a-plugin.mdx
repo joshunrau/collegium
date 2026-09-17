@@ -95,6 +95,7 @@ import { defineTool } from '@collegium/sdk';
 import { z } from 'zod';
 
 export default defineTool({
+  approval: null,
   description: 'Find saved contacts by name.',
   execute: async (args, { storage }) => {
     const matches = await storage.contacts.findMany({ where: { name: { contains: args.query } } });
@@ -144,8 +145,9 @@ export default defineTool({
 
 - `execute` returns the text the model reads. Return `{ text, disclosure }` to disclose a durable record.
 - `err` raises the two failures a tool may raise itself. `err.invalidArguments` feeds the message back to the model and the turn continues. `err.unresolved` ends the turn as an unconfirmed side effect. Any other throw ends the turn as an error.
-- A tool with `approval` blocks for a human decision on every call. The function returns the payload the human sees; include everything the action will do.
-- A tool without `approval` runs without a gate. Mark it `retryable` only if a timed-out call is safe to report as a failure. Never mark a mutation retryable.
+- `approval` is required, and every tool states its gate: a function, or `null`. Omitting the key refuses the plugin at boot, because an absent field cannot be told from a forgotten one.
+- A tool whose `approval` is a function blocks for a human decision on every call. The function returns the payload the human sees; include everything the action will do.
+- A tool declaring `approval: null` runs without a gate. Mark it `retryable` only if a timed-out call is safe to report as a failure. Never mark a mutation retryable.
 - `traceDetail` is the one-line summary shown in the status post.
 
 ### Files and Imports

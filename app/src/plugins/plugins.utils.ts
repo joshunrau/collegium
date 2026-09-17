@@ -61,6 +61,11 @@ export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
       { kind: 'skill-name-invalid' },
       ({ directory }) => `${directory} does not name a skill: the directory name must be lowercase and dashed`
     )
+    .with(
+      { kind: 'tool-approval-unstated' },
+      ({ file, name }) =>
+        `tool "${name}" (${file}) declares no approval; give it a render function, or null to state that this tool does not gate`
+    )
     .with({ kind: 'tool-invalid' }, ({ file }) => `the tool ${file} declares is not one the framework accepts`)
     .with(
       { kind: 'tool-name-invalid' },

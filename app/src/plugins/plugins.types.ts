@@ -161,6 +161,12 @@ export declare namespace PluginLoadFailure {
     file: string;
     kind: 'tool-invalid';
   };
+  /** §3.14 — a tool declaring neither a render function nor `null`: an absent field is not a claim */
+  type ToolApprovalUnstated = {
+    file: string;
+    kind: 'tool-approval-unstated';
+    name: string;
+  };
   type Locate =
     | ConfigMissing
     | ContributesNothing
@@ -180,7 +186,7 @@ export declare namespace PluginLoadFailure {
     | UnexpectedFile;
   type Bundle = ForbiddenImport | NotCompilable;
   type Compile = Bundle | NotImportable;
-  type Assemble = ConfigInvalid | DefaultExportMissing | ToolInvalid;
+  type Assemble = ConfigInvalid | DefaultExportMissing | ToolApprovalUnstated | ToolInvalid;
   type Any = Assemble | Compile | Locate;
 }
 

@@ -5,6 +5,7 @@ import { $PluginConfig, $PluginTool } from '../plugins.schemas.ts';
 
 function buildTool() {
   return {
+    approval: null,
     description: 'Saves a bookmark for later retrieval.',
     execute: () => 'saved',
     parameters: z.object({})
@@ -21,6 +22,11 @@ describe('$PluginTool', () => {
       traceDetail: () => 'detail'
     };
     expect($PluginTool.safeParse(tool).success).toBe(true);
+  });
+
+  it('rejects a tool that states no approval', () => {
+    const { approval: _approval, ...rest } = buildTool();
+    expect($PluginTool.safeParse(rest).success).toBe(false);
   });
 
   it('rejects a tool without an execute function', () => {

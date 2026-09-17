@@ -2,6 +2,7 @@ import { defineTool } from '@collegium/sdk';
 import { z } from 'zod';
 
 export default defineTool({
+  approval: null,
   description: 'List every saved bookmark.',
   execute: async (_args, { settings, storage }) => {
     const bookmarks = await storage.bookmarks.findMany();

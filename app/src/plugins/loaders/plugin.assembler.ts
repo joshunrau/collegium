@@ -4,7 +4,7 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { CONFIG_FILE } from '../plugins.constants.ts';
-import { assertSyntheticEntry } from './plugin.assembler.utils.ts';
+import { assertSyntheticEntry, declaresNoApproval } from './plugin.assembler.utils.ts';
 
 import type { LoadedPlugin, PluginLoadFailure, PluginSource } from '../plugins.types.ts';
 
@@ -31,7 +31,9 @@ export class PluginAssembler {
       }
       const tool = await $PluginTool.safeParseAsync(module.default);
       if (!tool.success) {
-        return Result.err({ cause: tool.error, file, kind: 'tool-invalid' });
+        return declaresNoApproval(module.default)
+          ? Result.err({ file, kind: 'tool-approval-unstated', name })
+          : Result.err({ cause: tool.error, file, kind: 'tool-invalid' });
       }
       tools[name] = toFrameworkTool(tool.data);
     }

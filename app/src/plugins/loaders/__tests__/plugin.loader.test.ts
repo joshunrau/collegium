@@ -30,7 +30,7 @@ const PACKAGES = {
 const MINIMAL_CONFIG = 'export default {};';
 const PING_TOOL = [
   "import { z } from 'zod';",
-  "export default { description: 'p', execute: async () => 'p', parameters: z.object({}) };"
+  "export default { approval: null, description: 'p', execute: async () => 'p', parameters: z.object({}) };"
 ].join('\n');
 
 let compilers: PluginCompiler[];
@@ -111,6 +111,7 @@ describe('PluginLoader', () => {
         "import { z } from 'zod';",
         "import { helped } from '../helpers.ts';",
         'export default {',
+        '  approval: null,',
         "  description: 'p',",
         '  execute: async () => `${helped()}-${randomUUID().slice(0, 4)}`,',
         '  parameters: z.object({})',
@@ -321,12 +322,34 @@ describe('PluginLoader', () => {
     writeFixture('exempting', {
       'src/config.ts': MINIMAL_CONFIG,
       'src/tools/ping.ts':
-        "import { z } from 'zod';\nexport default { budgetExempt: true, description: 'p', execute: async () => 'p', parameters: z.object({}) };"
+        "import { z } from 'zod';\nexport default { approval: null, budgetExempt: true, description: 'p', execute: async () => 'p', parameters: z.object({}) };"
     });
     const loader = await buildLoader(fixtureRoot);
     const result = await loader.load('exempting');
     expect(result.error?.kind).toBe('tool-invalid');
     expect(renderPluginLoadFailure(result.error!)).toContain('src/tools/ping.ts');
+  });
+
+  it('refuses a tool that states no gate, naming the plugin, the tool and the key (§3.14)', async () => {
+    writeFixture('silent', {
+      'src/config.ts': MINIMAL_CONFIG,
+      'src/tools/ping.ts':
+        "import { z } from 'zod';\nexport default { description: 'p', execute: async () => 'p', parameters: z.object({}) };"
+    });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('silent');
+    expect(result.error?.kind).toBe('tool-approval-unstated');
+    expect(renderPluginLoadFailure(result.error!)).toBe(
+      'tool "ping" (src/tools/ping.ts) declares no approval; give it a render function, or null to state that this tool does not gate'
+    );
+  });
+
+  it('loads a tool stating approval as null, carrying no gate into the registry', async () => {
+    writeFixture('ungated', { 'src/config.ts': MINIMAL_CONFIG, 'src/tools/ping.ts': PING_TOOL });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('ungated');
+    expect(result.success).toBe(true);
+    expect(result.unwrap().toolset.tools.ping).not.toHaveProperty('approval');
   });
 
   it('rejects a name nothing is mounted under', async () => {

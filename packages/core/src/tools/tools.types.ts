@@ -96,7 +96,12 @@ export type ToolResult = Result<ToolOutput, ToolFailure>;
  * what lets every concrete tool flow into `AnyTool` for the registry and executor.
  */
 export type ToolDefinition<TContext, TParams extends z.ZodType> = {
-  /** present ⇒ the tool always gates (§5); renders the payload the approver reads and cannot decline */
+  /**
+   * Present ⇒ the tool always gates (§5); renders the payload the approver reads and cannot decline.
+   * Optional here and required on a plugin tool (`$PluginTool`), because a framework toolset's
+   * source is read by whoever maintains it while a plugin's may live in another repository: for us
+   * an omission is visible, for them it is indistinguishable from a mistake (§3.14).
+   */
   approval?(args: z.infer<TParams>): ToolApprovalPayload;
   /** §5.3 — never billed against the action budget; framework toolsets only, rejected at the plugin perimeter (§6) */
   readonly budgetExempt?: boolean;

@@ -18,12 +18,14 @@ export const PLUGIN_TOOL_ERR: PluginToolErr = {
 /**
  * A parsed plugin tool made into the definition the registry and executor consume: `err` handed
  * into the execution context, plain output wrapped into the Result, a raised failure mapped into
- * the taxonomy. Any other throw propagates — the executor already ends the turn on it (§7.1).
+ * the taxonomy. Any other throw propagates — the executor already ends the turn on it (§7.1). A
+ * stated `approval: null` becomes an absent key here, so presence alone remains the gate (§3.4).
  */
 export function toFrameworkTool(tool: $PluginTool): AnyTool {
-  const { execute, ...declaration } = tool;
+  const { approval, execute, ...declaration } = tool;
   return {
     ...declaration,
+    ...(approval === null ? {} : { approval }),
     execute: async (args, context) => {
       let output;
       try {

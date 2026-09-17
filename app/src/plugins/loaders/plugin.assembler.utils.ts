@@ -9,6 +9,11 @@ export type SyntheticEntry = {
   readonly tools: { readonly [name: string]: SyntheticModule };
 };
 
+/** §3.14 — the one parse failure whose remedy Zod's union error cannot phrase, so the loader names it itself */
+export function declaresNoApproval(declaration: unknown): boolean {
+  return typeof declaration === 'object' && declaration !== null && !('approval' in declaration);
+}
+
 /** the shape the synthetic entry exports; a mismatch is the framework's own bug, so it throws */
 export function assertSyntheticEntry(defaultExport: unknown): asserts defaultExport is SyntheticEntry {
   if (typeof defaultExport !== 'object' || defaultExport === null) {

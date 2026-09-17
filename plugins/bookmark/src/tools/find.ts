@@ -2,6 +2,7 @@ import { defineTool } from '@collegium/sdk';
 import { z } from 'zod';
 
 export default defineTool({
+  approval: null,
   description: 'Find saved bookmarks whose address contains the given text.',
   execute: async (args, { storage }) => {
     const matches = await storage.bookmarks.findMany({ where: { url: { contains: args.query } } });

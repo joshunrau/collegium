@@ -8,10 +8,28 @@ import type { PluginToolErr } from '../../plugins.ts';
 const CONTEXT = {} as never;
 
 function wrap(execute: (args: unknown, context: { err: PluginToolErr }) => unknown) {
-  return toFrameworkTool($PluginTool.parse({ description: 'Does something.', execute, parameters: z.object({}) }));
+  return toFrameworkTool(
+    $PluginTool.parse({ approval: null, description: 'Does something.', execute, parameters: z.object({}) })
+  );
 }
 
 describe('toFrameworkTool', () => {
+  it('drops a stated null approval, leaving presence as the gate', () => {
+    expect(wrap(() => 'done')).not.toHaveProperty('approval');
+  });
+
+  it('keeps a declared approval renderer', () => {
+    const tool = toFrameworkTool(
+      $PluginTool.parse({
+        approval: () => ({ body: 'do it', presentation: 'verbatim' }),
+        description: 'Does something.',
+        execute: () => 'ok',
+        parameters: z.object({})
+      })
+    );
+    expect(tool.approval?.({})).toStrictEqual({ body: 'do it', presentation: 'verbatim' });
+  });
+
   it('wraps a returned string as the tool output text', async () => {
     const tool = wrap(() => 'done');
     expect((await tool.execute({}, CONTEXT)).unwrap()).toStrictEqual({ text: 'done' });

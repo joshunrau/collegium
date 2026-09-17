@@ -20,7 +20,8 @@ type PluginToolExecute = (args: unknown, context: { readonly [key: string]: unkn
  */
 export type $PluginTool = z.infer<typeof $PluginTool>;
 export const $PluginTool = z.strictObject({
-  approval: z.custom<NonNullable<AnyTool['approval']>>(isFunction).optional(),
+  /** the render function, or an explicit `null`: a plugin states its gate rather than implying it (§3.14) */
+  approval: z.union([z.custom<NonNullable<AnyTool['approval']>>(isFunction), z.null()]),
   concurrent: z.boolean().optional(),
   description: z.string().min(1),
   execute: z.custom<PluginToolExecute>(isFunction),
