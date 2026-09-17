@@ -19,7 +19,7 @@ export const SKILLS_TOOLSET = implementToolset(SKILLS_TOOLSET_DEF, {
       description:
         'Load the full body of a skill from your skill manifest into the conversation, or one of the reference documents that skill lists.',
       execute: (args, context) => {
-        const document = context.skills.getDocument(args.name, args.reference);
+        const document = context.skills.getDocument(context.turn.agentUsername, args.name, args.reference);
         if (!document.success) {
           return Result.err({ kind: 'invalid-arguments', message: document.error.message });
         }

@@ -25,7 +25,10 @@ export class SkillsService {
   /** the framework library, every toolset's shipped skills under `ns::skill` names, and the plugins' */
   private readonly skills: ReadonlyMap<string, Skill>;
 
-  constructor(agentRegistry: AgentRegistry, pluginsRegistry: PluginsRegistry) {
+  constructor(
+    private readonly agentRegistry: AgentRegistry,
+    pluginsRegistry: PluginsRegistry
+  ) {
     const frameworkSkills = loadSkillLibrary(path.resolve(import.meta.dirname, 'library'), BUILTIN_SKILL_NAMES);
     // a framework namespace equals its module directory (§2), which is what makes this resolvable
     const toolsetSkills = FRAMEWORK_TOOLSETS.flatMap((toolset) => {
@@ -49,20 +52,22 @@ export class SkillsService {
 
   /**
    * The document under its title, pulled on demand (§3.5) — the skill and its reference index, or
-   * one of those references. Both names are model output, so absence is the model's recoverable
-   * mistake rather than a termination.
+   * one of those references. Both names are model output, so a name outside the agent's own
+   * manifest is its recoverable mistake rather than a termination (§7.1), and a skill it was never
+   * assigned reads the same as one that does not exist: the library is not the agent's to browse.
    */
-  getDocument(name: string, referenceName?: string): Result<string, { message: string }> {
-    const skill = this.skills.get(name);
+  getDocument(agentUsername: string, name: string, referenceName?: string): Result<string, { message: string }> {
+    const skill = this.findInManifest(this.requireProfile(agentUsername), name);
     if (!skill) {
-      return Result.err({ message: `no skill named "${name}" exists` });
+      return Result.err({ message: `no skill named "${name}" is in your manifest` });
     }
     if (referenceName === undefined) {
       return Result.ok(this.renderSkill(skill));
     }
     const reference = skill.references.get(referenceName);
     if (!reference) {
-      return Result.err({ message: this.renderUnknownReference(name, skill, referenceName) });
+      // §7.1 — naming what the skill does have would hand back the index it was already given
+      return Result.err({ message: `skill "${name}" lists no reference "${referenceName}"` });
     }
     return Result.ok(`# ${reference.title}\n\n${reference.body}`);
   }
@@ -82,6 +87,12 @@ export class SkillsService {
       .join('\n');
   }
 
+  /** §3.5 — the agent reaches its own manifest and no further; every name in one resolves, by construction */
+  private findInManifest(profile: AgentProfile, name: string): Skill | undefined {
+    const assigned = BUILTIN_CORE_SKILL_NAMES.some((core) => core === name) || profile.skills.includes(name);
+    return assigned ? this.require(name) : undefined;
+  }
+
   private renderSkill(skill: Skill): string {
     const document = `# ${skill.title}\n\n${skill.body}`;
     if (skill.references.size === 0) {
@@ -98,19 +109,20 @@ export class SkillsService {
     ].join('\n\n');
   }
 
-  private renderUnknownReference(name: string, skill: Skill, referenceName: string): string {
-    if (skill.references.size === 0) {
-      return `skill "${name}" has no references`;
-    }
-    return `skill "${name}" has no reference "${referenceName}"; it has: ${Array.from(skill.references.keys()).join(', ')}`;
-  }
-
   private require(name: string): Skill {
     const skill = this.skills.get(name);
     if (!skill) {
       throw new Error(`no skill named "${name}" exists in the library`);
     }
     return skill;
+  }
+
+  private requireProfile(username: string): AgentProfile {
+    const profile = this.agentRegistry.get(username);
+    if (!profile) {
+      throw new Error(`no agent named "${username}" is registered`);
+    }
+    return profile;
   }
 
   /** §3.5 — every grant names a skill in the merged library, and never a core one; refused at boot, not mid-turn */

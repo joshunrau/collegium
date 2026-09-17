@@ -20,7 +20,7 @@ describe('SKILLS_TOOLSET', () => {
     const { context, skills } = buildContext();
     skills.getDocument.mockReturnValue(Result.ok('# Handing Work To A Peer\n\nMention them once.'));
     const result = await executeTool(load, { name: 'handing-work-to-a-peer' }, context);
-    expect(skills.getDocument).toHaveBeenCalledWith('handing-work-to-a-peer', undefined);
+    expect(skills.getDocument).toHaveBeenCalledWith(context.turn.agentUsername, 'handing-work-to-a-peer', undefined);
     expect(result.unwrap().text).toContain('# Handing Work To A Peer');
     expect(result.unwrap().replay).toBe('[loaded skill handing-work-to-a-peer]');
   });
@@ -29,7 +29,11 @@ describe('SKILLS_TOOLSET', () => {
     const { context, skills } = buildContext();
     skills.getDocument.mockReturnValue(Result.ok('# Escalation paths\n\nEscalate when.'));
     const result = await executeTool(load, { name: 'handing-work-to-a-peer', reference: 'escalation-paths' }, context);
-    expect(skills.getDocument).toHaveBeenCalledWith('handing-work-to-a-peer', 'escalation-paths');
+    expect(skills.getDocument).toHaveBeenCalledWith(
+      context.turn.agentUsername,
+      'handing-work-to-a-peer',
+      'escalation-paths'
+    );
     expect(result.unwrap().replay).toBe('[loaded reference handing-work-to-a-peer/escalation-paths]');
   });
 
@@ -42,9 +46,12 @@ describe('SKILLS_TOOLSET', () => {
 
   it('returns an unknown name to the model as its own recoverable mistake', async () => {
     const { context, skills } = buildContext();
-    skills.getDocument.mockReturnValue(Result.err({ message: 'no skill named "nope" exists' }));
+    skills.getDocument.mockReturnValue(Result.err({ message: 'no skill named "nope" is in your manifest' }));
     const result = await executeTool(load, { name: 'nope' }, context);
-    expect(result.error).toStrictEqual({ kind: 'invalid-arguments', message: 'no skill named "nope" exists' });
+    expect(result.error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message: 'no skill named "nope" is in your manifest'
+    });
   });
 
   it('is budget-exempt and retryable (§5.3, §7.2)', () => {

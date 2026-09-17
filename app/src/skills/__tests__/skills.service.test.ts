@@ -34,9 +34,14 @@ afterEach(() => {
   fs.rmSync(skillsDirectory, { force: true, recursive: true });
 });
 
+const GRANTED = buildAgentProfile({ skills: ['bookmark::saving-bookmarks'], username: 'mira' });
+
 async function buildService(profiles: AgentProfile[]): Promise<SkillsService> {
   const agentRegistry = MockFactory.createMock(AgentRegistry);
   agentRegistry.list.mockReturnValue(profiles);
+  agentRegistry.get.mockImplementation((username: string) => {
+    return username === GRANTED.username ? GRANTED : buildAgentProfile({ username });
+  });
   const pluginsRegistry = {
     skillSources: [{ directory: skillsDirectory, names: ['saving-bookmarks'], namespace: 'bookmark' }],
     toolsets: []
@@ -55,26 +60,42 @@ describe('SkillsService', () => {
   it('should load a document for every declared skill', async () => {
     const skillsService = await buildService([]);
     for (const name of BUILTIN_SKILL_NAMES) {
-      expect(skillsService.getDocument(name).success).toBe(true);
+      expect(skillsService.getDocument('mira', name).success).toBe(true);
     }
   });
 
   describe('getDocument', () => {
     it('should render the body under its title', async () => {
       const skillsService = await buildService([]);
-      expect(skillsService.getDocument('handing-work-to-a-peer').unwrap()).toMatch(
+      expect(skillsService.getDocument('mira', 'handing-work-to-a-peer').unwrap()).toMatch(
         /^# Handing work to a peer\n\nYour system/
       );
     });
 
     it('should serve a plugin skill under its qualified `ns::skill` name (§3.5)', async () => {
       const skillsService = await buildService([]);
-      expect(skillsService.getDocument('bookmark::saving-bookmarks').unwrap()).toBe('# Saving bookmarks\n\nThe body.');
+      expect(skillsService.getDocument('mira', 'bookmark::saving-bookmarks').unwrap()).toBe(
+        '# Saving bookmarks\n\nThe body.'
+      );
     });
 
     it('should refuse an unknown name as the model’s recoverable mistake', async () => {
       const skillsService = await buildService([]);
-      expect(skillsService.getDocument('missing').error?.message).toContain('no skill named "missing" exists');
+      expect(skillsService.getDocument('mira', 'missing').error?.message).toBe(
+        'no skill named "missing" is in your manifest'
+      );
+    });
+
+    it('should refuse a skill the agent was never assigned, as if it did not exist (§3.5)', async () => {
+      const skillsService = await buildService([]);
+      expect(skillsService.getDocument('vera', 'bookmark::saving-bookmarks').error?.message).toBe(
+        'no skill named "bookmark::saving-bookmarks" is in your manifest'
+      );
+    });
+
+    it('should serve a core skill to an agent granted nothing', async () => {
+      const skillsService = await buildService([]);
+      expect(skillsService.getDocument('vera', 'handing-work-to-a-peer').success).toBe(true);
     });
   });
 
@@ -85,7 +106,7 @@ describe('SkillsService', () => {
 
     it('should append the generated index beneath the skill body', async () => {
       const skillsService = await buildService([]);
-      expect(skillsService.getDocument('bookmark::saving-bookmarks').unwrap()).toBe(
+      expect(skillsService.getDocument('mira', 'bookmark::saving-bookmarks').unwrap()).toBe(
         [
           '# Saving bookmarks',
           'The body.',
@@ -98,22 +119,22 @@ describe('SkillsService', () => {
 
     it('should serve a reference under its own title', async () => {
       const skillsService = await buildService([]);
-      expect(skillsService.getDocument('bookmark::saving-bookmarks', 'identifier-style').unwrap()).toBe(
+      expect(skillsService.getDocument('mira', 'bookmark::saving-bookmarks', 'identifier-style').unwrap()).toBe(
         '# Identifier style\n\nKeep it short.'
       );
     });
 
-    it('should name what the skill does have when the reference is unknown', async () => {
+    it('should refuse an unknown reference without enumerating the ones it has (§7.1)', async () => {
       const skillsService = await buildService([]);
-      expect(skillsService.getDocument('bookmark::saving-bookmarks', 'pricing').error?.message).toBe(
-        'skill "bookmark::saving-bookmarks" has no reference "pricing"; it has: identifier-style'
+      expect(skillsService.getDocument('mira', 'bookmark::saving-bookmarks', 'pricing').error?.message).toBe(
+        'skill "bookmark::saving-bookmarks" lists no reference "pricing"'
       );
     });
 
-    it('should say so when the skill has no references at all', async () => {
+    it('should refuse a reference of a skill that has none', async () => {
       const skillsService = await buildService([]);
-      expect(skillsService.getDocument('handing-work-to-a-peer', 'pricing').error?.message).toBe(
-        'skill "handing-work-to-a-peer" has no references'
+      expect(skillsService.getDocument('mira', 'handing-work-to-a-peer', 'pricing').error?.message).toBe(
+        'skill "handing-work-to-a-peer" lists no reference "pricing"'
       );
     });
   });
@@ -121,7 +142,7 @@ describe('SkillsService', () => {
   describe('listFor', () => {
     it('should list the core skills, then the grants, each with its description', async () => {
       const skillsService = await buildService([]);
-      expect(skillsService.listFor(buildAgentProfile({ skills: ['bookmark::saving-bookmarks'] }))).toStrictEqual([
+      expect(skillsService.listFor(GRANTED)).toStrictEqual([
         {
           description: 'How to hand a task to another agent so it arrives with everything that agent needs to act.',
           name: 'handing-work-to-a-peer'
