@@ -1,3 +1,5 @@
+import { match } from 'ts-pattern';
+
 import type { InferenceFailure } from '@/inference/inference.types.ts';
 import { describeTransportReason } from '@/inference/inference.utils.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
@@ -99,8 +101,13 @@ export function renderDeliveryFailureNotice(): string {
  * saying "could not be reached" would send an operator looking at the network.
  */
 export function renderProviderRejectionNotice(status: number | undefined): string {
+  const reason = match(status)
+    .with(401, () => ' — the API key was refused')
+    .with(402, () => " — the account's balance is exhausted")
+    .with(403, () => ' — forbidden by a permission or moderation rule')
+    .otherwise(() => '');
   const code = status === undefined ? '' : ` (HTTP ${status})`;
-  return `⚠️ **Error**: The model provider rejected the request${code}`;
+  return `⚠️ **Error**: The model provider rejected the request${reason}${code}`;
 }
 
 export function renderSemanticErrorNotice(detail: string): string {

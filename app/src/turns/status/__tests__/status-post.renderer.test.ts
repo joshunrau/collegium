@@ -70,4 +70,20 @@ describe('renderProviderRejectionNotice', () => {
   it('should omit the code when the provider gave none', () => {
     expect(renderProviderRejectionNotice(undefined)).not.toContain('HTTP');
   });
+
+  it('§7.1 — should name the class of refusal for the three statuses the providers document', () => {
+    expect(renderProviderRejectionNotice(401)).toBe(
+      '⚠️ **Error**: The model provider rejected the request — the API key was refused (HTTP 401)'
+    );
+    expect(renderProviderRejectionNotice(402)).toBe(
+      "⚠️ **Error**: The model provider rejected the request — the account's balance is exhausted (HTTP 402)"
+    );
+    expect(renderProviderRejectionNotice(403)).toBe(
+      '⚠️ **Error**: The model provider rejected the request — forbidden by a permission or moderation rule (HTTP 403)'
+    );
+  });
+
+  it('§7.1 — should give any other status the number alone', () => {
+    expect(renderProviderRejectionNotice(500)).toBe('⚠️ **Error**: The model provider rejected the request (HTTP 500)');
+  });
 });
