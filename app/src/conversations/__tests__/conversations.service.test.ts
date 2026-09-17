@@ -172,12 +172,11 @@ describe('ConversationsService', () => {
     });
   });
 
-  describe('latestObservedAt', () => {
-    it('should return when the store last observed a post, and undefined before it observes any', async () => {
-      expect(await conversationsService.latestObservedAt()).toBeUndefined();
-      await conversationsService.record(post({ id: 'post-1' }));
-      await conversationsService.record(post({ id: 'post-2' }));
-      expect(await conversationsService.latestObservedAt()).toStrictEqual(new Date(1));
+  describe('findAuthoredMessage', () => {
+    it('should return the stored text of a post, and undefined for one it never recorded', async () => {
+      await conversationsService.record(post({ id: 'post-1', message: 'the trace so far' }));
+      expect(await conversationsService.findAuthoredMessage('post-1')).toBe('the trace so far');
+      expect(await conversationsService.findAuthoredMessage('post-9')).toBeUndefined();
     });
   });
 

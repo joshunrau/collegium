@@ -19,6 +19,7 @@ import { TurnsModule } from '@/turns/turns.module.ts';
 
 import { BootService } from './boot/boot.service.ts';
 import { CrashHandler } from './handlers/crash.handler.ts';
+import { LivenessService } from './liveness/liveness.service.ts';
 import { RuntimeService } from './runtime.service.ts';
 
 @Module({
@@ -40,6 +41,6 @@ import { RuntimeService } from './runtime.service.ts';
     TriggersModule,
     TurnsModule
   ],
-  providers: [BootService, CrashHandler, RuntimeService]
+  providers: [BootService, CrashHandler, LivenessService, RuntimeService]
 })
 export class RuntimeModule {}

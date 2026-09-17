@@ -34,15 +34,37 @@ describe('ChatEmitter', () => {
     chatEmitter = moduleRef.get(ChatEmitter);
   });
 
-  it('should post the boot notice with the downtime window and abandoned work (§7.3)', async () => {
+  it('should name both ends of a downtime window a clean shutdown recorded (§7.3)', async () => {
     await chatEmitter.notify({
       abandonedTurns: 2,
       agentUsernames: ['mira'],
-      downSince: new Date('2026-07-26T12:00:00Z'),
+      downtime: {
+        kind: 'clean',
+        startedAt: new Date('2026-07-26T12:05:00Z'),
+        stoppedAt: new Date('2026-07-26T12:00:00Z')
+      },
       kind: 'online'
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
-      expect.stringContaining('Offline since July 26, 2026 at 12:00:00 PM UTC. 2 in-flight turn(s) were abandoned.')
+      expect.stringContaining(
+        'Offline from July 26, 2026 at 12:00:00 PM UTC to July 26, 2026 at 12:05:00 PM UTC. 2 in-flight turn(s) were abandoned.'
+      )
+    );
+  });
+
+  it('should say since last known alive when a crash recorded no stop (§7.3)', async () => {
+    await chatEmitter.notify({
+      abandonedTurns: 0,
+      agentUsernames: ['mira'],
+      downtime: {
+        kind: 'since-last-alive',
+        lastAliveAt: new Date('2026-07-26T12:00:00Z'),
+        startedAt: new Date('2026-07-26T12:05:00Z')
+      },
+      kind: 'online'
+    });
+    expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
+      expect.stringContaining('Offline since last known alive at July 26, 2026 at 12:00:00 PM UTC.')
     );
   });
 
@@ -50,7 +72,7 @@ describe('ChatEmitter', () => {
     await chatEmitter.notify({
       abandonedTurns: 0,
       agentUsernames: ['mira', 'robin'],
-      downSince: undefined,
+      downtime: undefined,
       kind: 'online'
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(

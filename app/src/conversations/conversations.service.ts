@@ -42,16 +42,16 @@ export class ConversationsService {
     };
   }
 
+  /** the store's copy of a post the framework wrote, which is authoritative over the chat server's (§8.2) */
+  async findAuthoredMessage(postId: string): Promise<string | undefined> {
+    const post = await this.posts.findUnique({ select: { message: true }, where: { id: postId } });
+    return post?.message;
+  }
+
   /** the turn that authored this post — how /trace resolves a post id and scopes it to the turn's channel (§8.3) */
   async findAuthoringTurn(postId: string): Promise<ModelRow<'Turn'> | undefined> {
     const post = await this.posts.findUnique({ include: { authoringTurn: true }, where: { id: postId } });
     return post?.authoringTurn ?? undefined;
-  }
-
-  /** when the store last saw the world — the start of the downtime window a boot notice states (§7.3) */
-  async latestObservedAt(): Promise<Date | undefined> {
-    const latest = await this.posts.findFirst({ orderBy: { observedAt: 'desc' }, select: { observedAt: true } });
-    return latest?.observedAt;
   }
 
   async latestPostIdIn(channelId: string): Promise<string | undefined> {

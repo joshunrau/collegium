@@ -5,6 +5,20 @@ export type AbortKind = Extract<TurnStatus, 'killed' | 'stopped'>;
 
 export type Turn = ModelRow<'Turn'>;
 
+/** a status post a restart left mid-trace: which post, in which channel, under whose account (§7.3) */
+export type AbandonedStatusPost = {
+  readonly agentUsername: string;
+  readonly channelId: string;
+  readonly postId: string;
+};
+
+/** what a restart abandoned: how many turns, and the status posts among them left to close (§7.3) */
+export type AbandonedTurns = {
+  readonly count: number;
+  /** most recently started first */
+  readonly statusPosts: readonly AbandonedStatusPost[];
+};
+
 /** an amount some providers leave out, summed over the turns that reported it */
 export type ReportedTotal = { coverage: 'full' | 'partial'; total: number } | { coverage: 'none' };
 

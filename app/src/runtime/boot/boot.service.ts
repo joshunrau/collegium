@@ -1,16 +1,23 @@
 import { Injectable } from '@nestjs/common';
+import { chunk } from 'es-toolkit';
 
 import { ActivationService } from '@/activation/activation.service.ts';
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { BackfillService } from '@/conversations/backfill/backfill.service.ts';
-import { ConversationsService } from '@/conversations/conversations.service.ts';
+import { LoggingService } from '@/logging/logging.service.ts';
+import { StatusPostService } from '@/turns/status/status-post.service.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
+import type { AbandonedStatusPost } from '@/turns/turns.types.ts';
 
-export type BootReport = {
-  readonly abandonedTurns: number;
-  readonly downSince: Date | undefined;
-};
+import { LivenessService } from '../liveness/liveness.service.ts';
+
+import type { BootReport } from '../runtime.types.ts';
+
+/** a crash loop can leave hundreds of turns running, and boot must not spend hundreds of chat edits on them */
+const ABANDONED_CLOSE_LIMIT = 50;
+
+const ABANDONED_CLOSE_CONCURRENCY = 8;
 
 /**
  * §7.3 — nothing resumes, and the order is load-bearing: grants were already verified when the
@@ -25,14 +32,19 @@ export class BootService {
     private readonly activationService: ActivationService,
     private readonly approvalsService: ApprovalsService,
     private readonly backfillService: BackfillService,
-    private readonly conversationsService: ConversationsService,
+    private readonly livenessService: LivenessService,
+    private readonly loggingService: LoggingService,
     private readonly rosterService: RosterService,
+    private readonly statusPostService: StatusPostService,
     private readonly turnsService: TurnsService
   ) {}
 
   async run(): Promise<BootReport> {
-    const downSince = await this.conversationsService.latestObservedAt();
-    const abandonedTurns = await this.turnsService.abandonRunning();
+    // the last life's record is read before the stamp that overwrites it
+    const downtime = await this.livenessService.readDowntime();
+    await this.livenessService.startStamping();
+    const abandoned = await this.turnsService.abandonRunning();
+    await this.closeAbandonedStatusPosts(abandoned.statusPosts);
     await this.approvalsService.invalidateAll('restart');
     await this.backfillService.run();
     const reconciled = await this.rosterService.reconcile();
@@ -40,6 +52,18 @@ export class BootService {
       throw new Error(`failed to reconcile channel membership: ${reconciled.error.message}`);
     }
     void this.activationService.sweep();
-    return { abandonedTurns, downSince };
+    return { abandonedTurns: abandoned.count, downtime };
+  }
+
+  private async closeAbandonedStatusPosts(posts: readonly AbandonedStatusPost[]): Promise<void> {
+    const closing = posts.slice(0, ABANDONED_CLOSE_LIMIT);
+    if (posts.length > closing.length) {
+      this.loggingService.warn(
+        `left ${posts.length - closing.length} older abandoned status post(s) as they were: more than boot will edit`
+      );
+    }
+    for (const batch of chunk(closing, ABANDONED_CLOSE_CONCURRENCY)) {
+      await Promise.all(batch.map((post) => this.statusPostService.closeAbandoned(post)));
+    }
   }
 }

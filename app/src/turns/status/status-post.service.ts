@@ -8,6 +8,7 @@ import type { TurnStatus } from '@/prisma/prisma.types.ts';
 import { TurnsService } from '../turns.service.ts';
 import { renderStatusPost } from './status-post.renderer.ts';
 
+import type { AbandonedStatusPost } from '../turns.types.ts';
 import type { StatusPostState } from './status-post.renderer.ts';
 
 type OpenInput = {
@@ -45,9 +46,35 @@ export class StatusPostService {
     private readonly turnsService: TurnsService
   ) {}
 
+  /**
+   * §7.3 — a turn whose process died closes its own post from the next boot: the trace it
+   * accumulated stays and only the working line becomes an outcome. The first line is the working
+   * or outcome line by construction, so the rest of the stored text is the trace verbatim.
+   */
+  async closeAbandoned(post: AbandonedStatusPost): Promise<void> {
+    try {
+      const stored = await this.conversationsService.findAuthoredMessage(post.postId);
+      if (stored === undefined) {
+        return;
+      }
+      const text = renderStatusPost({ outcome: 'abandoned', traceLines: stored.split('\n').slice(1) });
+      const updated = await this.transportRegistry.get(post.agentUsername).updatePost(post.postId, { text });
+      if (!updated.success) {
+        this.loggingService.error(
+          new Error(`failed to close abandoned status post ${post.postId}: ${updated.error.message}`)
+        );
+        return;
+      }
+      await this.recordEdited(post.postId, text);
+    } catch (error) {
+      this.loggingService.error(new Error(`failed to close abandoned status post ${post.postId}`, { cause: error }));
+    }
+  }
+
   open(input: OpenInput): StatusPostHandle {
     const transport = this.transportRegistry.get(input.agentUsername);
     const state: StatusPostState = { traceLines: [] };
+    const openedAt = Date.now();
     let postId: string | undefined;
     let openFailed = false;
     let dirty = false;
@@ -102,6 +129,7 @@ export class StatusPostService {
         if (!touched) {
           return Promise.resolve();
         }
+        state.elapsedMs = Date.now() - openedAt;
         state.outcome = outcome;
         state.transientText = undefined;
         return schedule();

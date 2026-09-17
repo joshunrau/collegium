@@ -1,4 +1,5 @@
 import type { HaltReason } from '@/halt/halt.types.ts';
+import type { Downtime } from '@/runtime/runtime.types.ts';
 
 export declare namespace SystemEvent {
   /** the §7.4 stop, posted prominently in the main channel; only /resume clears it */
@@ -19,7 +20,7 @@ export declare namespace SystemEvent {
   type Online = {
     abandonedTurns: number;
     agentUsernames: string[];
-    downSince: Date | undefined;
+    downtime: Downtime | undefined;
     kind: 'online';
   };
 

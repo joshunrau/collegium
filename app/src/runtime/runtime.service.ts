@@ -79,7 +79,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
       await this.notificationsService.notify({
         abandonedTurns: boot.abandonedTurns,
         agentUsernames: Array.from(this.running.keys()),
-        downSince: boot.downSince,
+        downtime: boot.downtime,
         kind: 'online'
       } satisfies SystemEvent.Online);
     }

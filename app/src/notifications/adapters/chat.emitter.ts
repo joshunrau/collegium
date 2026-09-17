@@ -45,8 +45,18 @@ export class ChatEmitter extends NotificationsEmitter {
       })
       .with({ kind: 'online' }, (event) => {
         const roster = event.agentUsernames.map((username) => `\`${username}\``).join(', ');
-        const downtime =
-          event.downSince === undefined ? '' : ` Offline since ${this.dateFormatter.format(event.downSince)}.`;
+        const downtime = match(event.downtime)
+          .with(undefined, () => '')
+          .with(
+            { kind: 'clean' },
+            ({ startedAt, stoppedAt }) =>
+              ` Offline from ${this.dateFormatter.format(stoppedAt)} to ${this.dateFormatter.format(startedAt)}.`
+          )
+          .with(
+            { kind: 'since-last-alive' },
+            ({ lastAliveAt }) => ` Offline since last known alive at ${this.dateFormatter.format(lastAliveAt)}.`
+          )
+          .exhaustive();
         const abandoned =
           event.abandonedTurns === 0 ? '' : ` ${event.abandonedTurns} in-flight turn(s) were abandoned.`;
         return `🟢 **Online** — the orchestrator started with ${event.agentUsernames.length} agent(s): ${roster}.${downtime}${abandoned}`;

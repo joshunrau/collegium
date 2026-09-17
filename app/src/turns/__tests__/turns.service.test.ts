@@ -6,7 +6,7 @@ import { getModelToken } from '@/prisma/prisma.utils.ts';
 
 import { TurnsService } from '../turns.service.ts';
 
-type TurnRow = { endedAt: Date | null; id: string; status: string };
+type TurnRow = { endedAt: Date | null; id: string; startedAt: Date; status: string; statusPostId: null | string };
 type EventRow = { kind: string; payload: unknown; sequence: number; turnId: string };
 
 describe('TurnsService', () => {
@@ -27,9 +27,19 @@ describe('TurnsService', () => {
           provide: getModelToken('Turn'),
           useValue: {
             create: ({ data }: any) => {
-              const row = { actionCount: 0, endedAt: null, id: `turn-${sequence++}`, ...data };
+              const row = {
+                actionCount: 0,
+                endedAt: null,
+                id: `turn-${sequence++}`,
+                startedAt: new Date(sequence),
+                statusPostId: null,
+                ...data
+              };
               turns.push(row);
               return Promise.resolve(row);
+            },
+            findMany: ({ where }: any) => {
+              return Promise.resolve(turns.filter((turn) => turn.status === where.status).toReversed());
             },
             groupBy: () => {
               return Promise.resolve([
@@ -228,12 +238,19 @@ describe('TurnsService', () => {
     expect(turns[0]).toMatchObject({ statusPostId: 'post-9' });
   });
 
-  it('should abandon exactly the running turns', async () => {
+  it('should abandon exactly the running turns and name the status posts they left behind', async () => {
     const running = await open();
+    await turnsService.recordStatusPost(running.id, 'status-1');
+    const traceless = await open();
     const done = await open();
     await turnsService.close(done.id, 'completed');
-    expect(await turnsService.abandonRunning()).toBe(1);
+
+    expect(await turnsService.abandonRunning()).toStrictEqual({
+      count: 2,
+      statusPosts: [{ agentUsername: 'mira', channelId: 'channel-1', postId: 'status-1' }]
+    });
     expect(turns.find((turn) => turn.id === running.id)?.status).toBe('abandoned');
+    expect(turns.find((turn) => turn.id === traceless.id)?.status).toBe('abandoned');
     expect(turns.find((turn) => turn.id === done.id)?.status).toBe('completed');
   });
 });

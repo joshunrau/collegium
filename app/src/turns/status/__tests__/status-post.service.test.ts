@@ -1,6 +1,6 @@
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 
 import type { ChatTransport } from '@/chat/chat.transport.ts';
@@ -78,6 +78,21 @@ describe('StatusPostService', () => {
     expect(turnsService.recordStatusPost).toHaveBeenCalledExactlyOnceWith('turn-1', 'status-1');
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should state how long the turn ran on its outcome line (§8.1)', async () => {
+    vi.useFakeTimers();
+    const handle = statusPostService.open(OPEN_INPUT);
+
+    handle.appendTrace('→ `load_skill`');
+    vi.advanceTimersByTime(200_000);
+    await handle.close('completed');
+
+    expect(editedTexts()).toContain('✅ _done (3m 20s)_\n→ `load_skill`');
+  });
+
   it('should coalesce the lines queued while an edit is in flight into the next edit (§8.1)', async () => {
     let finishOpening: () => void = () => undefined;
     transport.send.mockReturnValueOnce(
@@ -96,7 +111,7 @@ describe('StatusPostService', () => {
 
     const text = '⏳ _working…_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`';
     expect(transport.send).toHaveBeenCalledOnce();
-    expect(editedTexts()).toStrictEqual([text, '✅ _done_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`']);
+    expect(editedTexts()).toStrictEqual([text, '✅ _done (0s)_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`']);
     expect(conversationsService.updateAuthoredMessage).toHaveBeenCalledWith('status-1', text);
   });
 
@@ -111,7 +126,7 @@ describe('StatusPostService', () => {
 
     expect(editedTexts()).toStrictEqual([
       '⏳ _working…_\n→ `load_skill`\n_writing it up_',
-      '⏹️ _killed_\n→ `load_skill`'
+      '⏹️ _killed (0s)_\n→ `load_skill`'
     ]);
   });
 
@@ -154,7 +169,7 @@ describe('StatusPostService', () => {
     );
     expect(conversationsService.updateAuthoredMessage).toHaveBeenLastCalledWith(
       'status-1',
-      '✅ _done_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`'
+      '✅ _done (0s)_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`'
     );
   });
 
@@ -168,7 +183,42 @@ describe('StatusPostService', () => {
     expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ message: 'failed to record status post status-1' })
     );
-    expect(transport.updatePost).toHaveBeenCalledExactlyOnceWith('status-1', { text: '✅ _done_\n→ `load_skill`' });
+    expect(transport.updatePost).toHaveBeenCalledExactlyOnceWith('status-1', {
+      text: '✅ _done (0s)_\n→ `load_skill`'
+    });
+  });
+
+  describe('closeAbandoned', () => {
+    const ABANDONED = { agentUsername: 'mira', channelId: 'channel-1', postId: 'status-1' };
+
+    it('should replace only the outcome line of the post a restart left mid-trace (§7.3)', async () => {
+      conversationsService.findAuthoredMessage.mockResolvedValue('⏳ _working…_\n→ `load_skill`\n_still reading_');
+
+      await statusPostService.closeAbandoned(ABANDONED);
+
+      const text = '⚪ _abandoned — the process restarted mid-turn_\n→ `load_skill`\n_still reading_';
+      expect(transport.updatePost).toHaveBeenCalledExactlyOnceWith('status-1', { text });
+      expect(conversationsService.updateAuthoredMessage).toHaveBeenCalledExactlyOnceWith('status-1', text);
+    });
+
+    it('should leave nothing behind for a turn that opened no status post (§8.1)', async () => {
+      conversationsService.findAuthoredMessage.mockResolvedValue(undefined);
+
+      await statusPostService.closeAbandoned(ABANDONED);
+
+      expect(transport.updatePost).not.toHaveBeenCalled();
+    });
+
+    it('should log a refused edit rather than fail the boot that asked for it (§7.3)', async () => {
+      conversationsService.findAuthoredMessage.mockResolvedValue('⏳ _working…_');
+      transport.updatePost.mockResolvedValue(Result.err(FAILURE));
+
+      await expect(statusPostService.closeAbandoned(ABANDONED)).resolves.toBeUndefined();
+
+      expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ message: 'failed to close abandoned status post status-1: the channel is archived' })
+      );
+    });
   });
 
   it('should log when the store rejects an edit', async () => {

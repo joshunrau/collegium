@@ -20,7 +20,15 @@ import { TurnsService } from './turns.service.ts';
 import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
 
 @Module({
-  exports: [ContextAssembler, SystemPromptRenderer, TurnControlRegistry, TurnFoldRegistry, TurnRunner, TurnsService],
+  exports: [
+    ContextAssembler,
+    StatusPostService,
+    SystemPromptRenderer,
+    TurnControlRegistry,
+    TurnFoldRegistry,
+    TurnRunner,
+    TurnsService
+  ],
   imports: [
     ApprovalsModule,
     ChannelsModule,

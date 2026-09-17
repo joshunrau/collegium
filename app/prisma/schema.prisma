@@ -131,6 +131,15 @@ model ResumeWatermark {
   resumedAt DateTime
 }
 
+// §7.3 — the downtime window is measured against the process, so the process records itself: a
+// periodic stamp bounds a crash and a stop time makes a clean shutdown exact. One row, pinned by a
+// constant id.
+model Runtime {
+  id          String    @id
+  lastAliveAt DateTime
+  stoppedAt   DateTime?
+}
+
 model TurnEvent {
   id        String        @id @default(cuid(2))
   createdAt DateTime      @default(now())

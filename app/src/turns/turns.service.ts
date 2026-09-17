@@ -7,7 +7,7 @@ import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
 import { sumUsageTotals, toReportedTotal } from './turns.utils.ts';
 
-import type { Turn, TurnEventInput, UsageReport } from './turns.types.ts';
+import type { AbandonedTurns, Turn, TurnEventInput, UsageReport } from './turns.types.ts';
 
 @Injectable()
 export class TurnsService {
@@ -16,13 +16,24 @@ export class TurnsService {
     @InjectModel('Turn') private readonly turns: Model<'Turn'>
   ) {}
 
-  /** §7.3 — nothing resumes; every turn left running by a crash is closed as abandoned */
-  async abandonRunning(): Promise<number> {
-    const { count } = await this.turns.updateMany({
-      data: { endedAt: new Date(), status: 'abandoned' },
+  /**
+   * §7.3 — nothing resumes; every turn left running by a crash is closed as abandoned. The status
+   * posts are read before the update, since afterwards nothing names which turns this boot closed.
+   */
+  async abandonRunning(): Promise<AbandonedTurns> {
+    const running = await this.turns.findMany({
+      orderBy: { startedAt: 'desc' },
+      select: { agentUsername: true, channelId: true, statusPostId: true },
       where: { status: 'running' }
     });
-    return count;
+    await this.turns.updateMany({ data: { endedAt: new Date(), status: 'abandoned' }, where: { status: 'running' } });
+    const statusPosts = running.flatMap((turn) => {
+      if (turn.statusPostId === null) {
+        return [];
+      }
+      return [{ agentUsername: turn.agentUsername, channelId: turn.channelId, postId: turn.statusPostId }];
+    });
+    return { count: running.length, statusPosts };
   }
 
   /**
