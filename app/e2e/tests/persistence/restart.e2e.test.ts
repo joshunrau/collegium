@@ -49,7 +49,8 @@ describe('Restart', () => {
     await channels.main.awaitPost({
       description: 'the boot notice stating the downtime window and abandoned work',
       match: (post) => {
-        return post.text.includes('Online') && post.text.includes('Offline since') && post.text.includes('abandoned');
+        const downtime = post.text.includes('Offline from') || post.text.includes('Offline since last known alive');
+        return post.text.includes('Online') && downtime && post.text.includes('abandoned');
       }
     });
 
