@@ -77,6 +77,8 @@ enum TurnStatus {
 
 model Post {
   id              String     @id
+  /// [PostAttachments]
+  attachments     Json?
   authorKind      AuthorKind
   authorUsername  String
   channelId       String

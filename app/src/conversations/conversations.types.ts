@@ -58,7 +58,11 @@ export type WindowEntry =
   | { readonly event: ModelRow<'TurnEvent'>; readonly kind: 'event' }
   | { readonly kind: 'post'; readonly post: ModelRow<'Post'> };
 
+/** one file a post carried, as the window names it (§3.8) — the store's shape, so the two cannot drift */
+export type PostAttachment = PrismaJson.PostAttachments['files'][number];
+
 export type ObservedPost = {
+  readonly attachments: readonly PostAttachment[];
   readonly authorKind: AuthorKind;
   readonly authorUsername: string;
   readonly channelId: string;
@@ -81,5 +85,5 @@ export type PostAuthorship = {
  */
 export type RecordablePost = Pick<
   ObservedPost,
-  'authorKind' | 'authorUsername' | 'channelId' | 'createdAt' | 'id' | 'message'
+  'attachments' | 'authorKind' | 'authorUsername' | 'channelId' | 'createdAt' | 'id' | 'message'
 >;

@@ -78,8 +78,10 @@ const postedEvent = (overrides: { message?: string; senderName?: string; type?: 
 const restPost = (overrides: Partial<$MattermostRestPost> = {}): $MattermostRestPost => ({
   channelId: 'channel-1',
   createAt: 1700000000000,
+  fileIds: [],
   id: 'post-1',
   message: 'hello',
+  metadata: { files: [] },
   originalId: '',
   type: '',
   userId: 'casey-user-id',
@@ -126,6 +128,7 @@ describe('MattermostTransport', () => {
         {
           kind: 'posted',
           post: {
+            attachments: [],
             authorKind: 'human',
             authorUsername: 'casey',
             channelId: 'channel-1',

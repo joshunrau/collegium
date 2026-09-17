@@ -53,6 +53,16 @@ declare global {
   namespace PrismaJson {
     type ApprovalArgs = unknown;
 
+    /** the files one post carried, as the window names them (§3.8); null on every row written before they were parsed */
+    type PostAttachments = {
+      readonly files: readonly {
+        readonly id: string;
+        readonly mimeType: string;
+        readonly name: string;
+        readonly size: number;
+      }[];
+    };
+
     /**
      * The segments of a library tool, structurally (§10); a bare string is a name that resolved to
      * no tool — unresolvable model output, or a framework action like the budget extension.

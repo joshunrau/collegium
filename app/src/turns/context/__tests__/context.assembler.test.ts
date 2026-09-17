@@ -28,6 +28,7 @@ const PROFILE: AgentProfile = {
 const post = (author: string, message: string, at: number): WindowEntry => ({
   kind: 'post',
   post: {
+    attachments: null,
     authoringTurnId: null,
     authorKind: author === 'casey' ? 'human' : 'agent',
     authorUsername: author,

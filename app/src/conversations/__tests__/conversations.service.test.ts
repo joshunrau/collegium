@@ -9,6 +9,7 @@ import { createObservedPost as post } from '@/testing/factories/observed-post.fa
 import { ConversationsService } from '../conversations.service.ts';
 
 type PostRow = {
+  attachments: null | PrismaJson.PostAttachments;
   authoringTurnId: null | string;
   authorKind: AuthorKind;
   authorUsername: string;
@@ -47,6 +48,7 @@ const TURNS = {
 const createPostTable = () => {
   return createModelTable<PostRow>({
     defaults: (sequence) => ({
+      attachments: null,
       authoringTurnId: null,
       isForgotten: false,
       kind: 'message',
@@ -90,6 +92,17 @@ describe('ConversationsService', () => {
       await conversationsService.record(post());
       await conversationsService.record(post(), { kind: 'reply', turnId: 'turn-1' });
       expect(table.rows[0]).toMatchObject({ authoringTurnId: 'turn-1', kind: 'reply' });
+    });
+
+    it('should record the files a post carried', async () => {
+      const file = { id: 'file-1', mimeType: 'application/pdf', name: 'q3-report.pdf', size: 421888 };
+      await conversationsService.record(post({ attachments: [file] }));
+      expect(table.rows[0]?.attachments).toStrictEqual({ files: [file] });
+    });
+
+    it('should leave the column null for a post with no files', async () => {
+      await conversationsService.record(post());
+      expect(table.rows[0]?.attachments).toBeNull();
     });
 
     it('should rethrow a write failure that is not a duplicate', async () => {

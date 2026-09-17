@@ -65,6 +65,7 @@ describe('StatusPostService', () => {
     });
     expect(conversationsService.record).toHaveBeenCalledExactlyOnceWith(
       {
+        attachments: [],
         authorKind: 'agent',
         authorUsername: 'mira',
         channelId: 'channel-1',

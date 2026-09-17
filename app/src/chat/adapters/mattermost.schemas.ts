@@ -4,13 +4,29 @@ import { $$CamelCased, $$JSONEncoded } from '@/core/core.schemas.ts';
 
 import { MattermostChannelType } from './mattermost.constants.ts';
 
+// deep-camelCased by the `$$CamelCased` wrapper each post schema already carries, so `mime_type`
+// arrives renamed and this shape needs no wrapper of its own
+const $MattermostFileInfo = z.object({
+  id: z.string().min(1),
+  mimeType: z.string().default(''),
+  name: z.string().min(1),
+  size: z.number().int().nonnegative().default(0)
+});
+
 // `props` is deliberately unparsed: real posts carry arbitrary shapes there (integration
 // attachments, client flags), nothing here reads it, and a strict schema would discard the post
 const $MattermostPostFields = z.object({
   channelId: z.string().min(1),
   createAt: z.number().int().nonnegative(),
+  fileIds: z.array(z.string().min(1)).default([]),
   id: z.string().min(1),
   message: z.string(),
+  // Mattermost populates `metadata.files` on REST reads and on the post a `posted` event carries;
+  // absent or null means the ids are all this post knows, which the window's marker says out loud
+  metadata: z
+    .object({ files: z.array($MattermostFileInfo).default([]) })
+    .nullish()
+    .transform((metadata) => metadata ?? { files: [] }),
   // empty on a post authored by a user or bot; a "system_*" tag on channel events such as joins and leaves
   type: z.string()
 });

@@ -9,7 +9,8 @@ import {
   isSystemPost,
   toChannelKind,
   toChatFailure,
-  toObservedPost
+  toObservedPost,
+  toPostAttachments
 } from '../mattermost.utils.ts';
 
 import type { $MattermostPostedEventMessage } from '../mattermost.schemas.ts';
@@ -25,8 +26,10 @@ const event = (
     post: {
       channelId: 'channel-1',
       createAt: 1700000000000,
+      fileIds: [],
       id: 'post-1',
       message: 'hello @mira',
+      metadata: { files: [] },
       type: '',
       ...post
     },
@@ -78,10 +81,23 @@ describe('toChatFailure', () => {
   });
 });
 
+describe('toPostAttachments', () => {
+  const file = { id: 'file-1', mimeType: 'application/pdf', name: 'q3-report.pdf', size: 421888 };
+
+  it('should pair each file id with its metadata', () => {
+    expect(toPostAttachments(['file-1'], [file])).toStrictEqual([file]);
+  });
+
+  it('should keep a file id whose metadata is missing', () => {
+    expect(toPostAttachments(['file-2'], [file])).toStrictEqual([{ id: 'file-2', mimeType: '', name: '', size: 0 }]);
+  });
+});
+
 describe('toObservedPost', () => {
   it('should carry the classified author kind and the post creation time', () => {
     const observed = toObservedPost(event(), createAuthorClassifier(IDENTITIES));
     expect(observed).toStrictEqual({
+      attachments: [],
       authorKind: 'human',
       authorUsername: 'casey',
       channelId: 'channel-1',

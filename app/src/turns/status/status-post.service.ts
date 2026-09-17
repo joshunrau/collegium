@@ -128,6 +128,7 @@ export class StatusPostService {
     try {
       await this.conversationsService.record(
         {
+          attachments: [],
           authorKind: 'agent',
           authorUsername: input.agentUsername,
           channelId: input.channelId,

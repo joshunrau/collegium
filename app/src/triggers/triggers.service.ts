@@ -112,6 +112,7 @@ export class TriggersService {
     }
     await this.triggers.update({ data: { postId: posted.value.postId }, where: { id: triggerId } });
     await this.conversationsService.record({
+      attachments: [],
       authorKind: 'system',
       authorUsername: posted.value.authorUsername,
       channelId: trigger.targetChannelId,

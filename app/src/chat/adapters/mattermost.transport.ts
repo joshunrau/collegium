@@ -19,6 +19,7 @@ import {
   toChannelKind,
   toChatResult,
   toObservedPost,
+  toPostAttachments,
   toUsername,
   toWebsocketUrl
 } from './mattermost.utils.ts';
@@ -180,6 +181,7 @@ export class MattermostTransport extends ChatTransport {
         }
         return [
           buildObservedPost({
+            attachments: toPostAttachments(post.fileIds, post.metadata.files),
             authorUsername,
             channelId,
             classify: this.classifyAuthor,

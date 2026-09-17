@@ -1,7 +1,7 @@
 import { Result, toErrorMessage } from '@collegium/core/utils';
 import { ClientError } from '@mattermost/client';
 
-import type { ObservedPost } from '@/conversations/conversations.types.ts';
+import type { ObservedPost, PostAttachment } from '@/conversations/conversations.types.ts';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 
 import { MattermostChannelType } from './mattermost.constants.ts';
@@ -30,7 +30,20 @@ export function toUsername(senderName: string): string {
   return senderName.replace(/^@/, '').toLowerCase();
 }
 
+/**
+ * Every file the post named, joined to the metadata describing it. Mattermost does not always send
+ * that metadata, so an id it left undescribed still yields an attachment — the window says out loud
+ * that the file has no name rather than dropping it (§3.8).
+ */
+export function toPostAttachments(
+  fileIds: readonly string[],
+  files: readonly PostAttachment[]
+): readonly PostAttachment[] {
+  return fileIds.map((id) => files.find((file) => file.id === id) ?? { id, mimeType: '', name: '', size: 0 });
+}
+
 export function buildObservedPost(input: {
+  attachments: readonly PostAttachment[];
   authorUsername: string;
   channelId: string;
   classify: AuthorClassifier;
@@ -41,6 +54,7 @@ export function buildObservedPost(input: {
 }): ObservedPost {
   const authorUsername = toUsername(input.authorUsername);
   return {
+    attachments: input.attachments,
     authorKind: input.classify(authorUsername),
     authorUsername,
     channelId: input.channelId,
@@ -54,6 +68,7 @@ export function buildObservedPost(input: {
 
 export function toObservedPost({ data }: $MattermostPostedEventMessage, classify: AuthorClassifier): ObservedPost {
   return buildObservedPost({
+    attachments: toPostAttachments(data.post.fileIds, data.post.metadata.files),
     authorUsername: data.senderName,
     channelId: data.post.channelId,
     classify,

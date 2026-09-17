@@ -73,6 +73,8 @@ export class ConversationsService {
     try {
       await this.posts.create({
         data: {
+          // undefined leaves the column null, which is what a post carrying nothing should read as
+          attachments: post.attachments.length === 0 ? undefined : { files: post.attachments },
           authoringTurnId: authorship?.turnId,
           authorKind: post.authorKind,
           authorUsername: post.authorUsername,

@@ -339,6 +339,7 @@ export class TurnRunner {
     }
     await this.conversationsService.record(
       {
+        attachments: [],
         authorKind: 'agent',
         authorUsername: input.profile.username,
         channelId: input.channelId,
@@ -637,6 +638,7 @@ export class TurnRunner {
       }
       await this.conversationsService.record(
         {
+          attachments: [],
           authorKind: 'agent',
           authorUsername: input.profile.username,
           channelId: input.channelId,

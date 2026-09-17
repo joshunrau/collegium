@@ -9,9 +9,14 @@ const event = (payload: PrismaJson.TurnEventPayload): WindowEntry => ({
   kind: 'event'
 });
 
-const post = (authorUsername: string, message: string): WindowEntry => ({
+const post = (
+  authorUsername: string,
+  message: string,
+  attachments: null | PrismaJson.PostAttachments = null
+): WindowEntry => ({
   kind: 'post',
   post: {
+    attachments,
     authoringTurnId: null,
     authorKind: 'human',
     authorUsername,
@@ -30,6 +35,16 @@ describe('toCompletionMessages', () => {
     expect(toCompletionMessages([post('casey', 'hello @mira'), post('mira', 'on it')], 'mira')).toStrictEqual([
       { content: '@casey: hello @mira', role: 'user' },
       { content: 'on it', role: 'assistant' }
+    ]);
+  });
+
+  it("should append a post's attachment lines after its text", () => {
+    const files = [{ id: 'file-1', mimeType: 'application/pdf', name: 'q3-report.pdf', size: 421888 }];
+    expect(toCompletionMessages([post('casey', 'what do you think?', { files })], 'mira')).toStrictEqual([
+      {
+        content: '@casey: what do you think?\n[attached: q3-report.pdf (application/pdf, 421888 bytes)]',
+        role: 'user'
+      }
     ]);
   });
 
