@@ -4,7 +4,7 @@ import * as path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { loadSkillLibrary } from '../skills.utils.ts';
+import { loadPluginSkillLibrary, loadSkillLibrary } from '../skills.utils.ts';
 
 const VALID = ['---', 'description: How to work an inbox down to zero.', 'title: Daily triage', '---', '', 'The body.'];
 const REFERENCE = ['---', 'description: Which folders to sweep.', 'title: Folder map', '---', 'The map.'];
@@ -17,7 +17,9 @@ const write = (relativePath: string, lines: string[]): void => {
   fs.writeFileSync(filepath, lines.join('\n'));
 };
 
-const load = (): ReturnType<typeof loadSkillLibrary<'daily-triage'>> => loadSkillLibrary(directory, ['daily-triage']);
+const load = (): ReturnType<typeof loadSkillLibrary<'daily-triage'>> => {
+  return loadSkillLibrary(directory, ['daily-triage'], 'BUILTIN_SKILL_NAMES');
+};
 
 /** a refusal names the skill and states its reason one cause down, so the assertion reads the chain */
 const refusal = (): string => {
@@ -103,6 +105,33 @@ describe('loadSkillLibrary', () => {
     write('daily-triage/evals/cases.md', REFERENCE);
     expect(load()['daily-triage'].references.size).toBe(0);
   });
+
+  it('should reject a skill directory the name list does not declare (§3.5)', () => {
+    write('daily-triage/SKILL.md', VALID);
+    write('weekly-review/SKILL.md', VALID);
+    expect(refusal()).toMatch(
+      /"weekly-review" is a skill directory no name list declares: add it to BUILTIN_SKILL_NAMES/
+    );
+  });
+
+  it('should ignore a dotted directory beside the declared skills', () => {
+    write('daily-triage/SKILL.md', VALID);
+    write('.draft-weekly-review/SKILL.md', VALID);
+    expect(Object.keys(load())).toStrictEqual(['daily-triage']);
+  });
+
+  it('should reject a loose file beneath the library root', () => {
+    write('daily-triage/SKILL.md', VALID);
+    write('README.md', REFERENCE);
+    expect(refusal()).toMatch(/"README\.md" is not a skill/);
+  });
+
+  it('should reject a skill directory when the list declares none at all (§3.5)', () => {
+    write('daily-triage/SKILL.md', VALID);
+    expect(() => loadSkillLibrary(directory, [], "the builtins toolset's skills list")).toThrow(
+      /"daily-triage" is a skill directory no name list declares/
+    );
+  });
 });
 
 describe('loadSkillLibrary references', () => {
@@ -148,5 +177,15 @@ describe('loadSkillLibrary references', () => {
   it('should reject a reference whose frontmatter is refused', () => {
     write('daily-triage/references/folder-map.md', ['---', 'title: Folder map', '---', 'The map.']);
     expect(refusal()).toMatch(/daily-triage/);
+  });
+});
+
+describe('loadPluginSkillLibrary', () => {
+  it('should name the plugin when its directory holds an undeclared skill (§3.14)', () => {
+    write('saving-bookmarks/SKILL.md', VALID);
+    write('weekly-review/SKILL.md', VALID);
+    expect(() => {
+      return loadPluginSkillLibrary({ directory, names: ['saving-bookmarks'], namespace: 'bookmark' });
+    }).toThrow('plugin "bookmark" declares a skill that could not be loaded');
   });
 });

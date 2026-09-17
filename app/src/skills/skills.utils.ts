@@ -56,6 +56,29 @@ function assertNoStrayFiles(directory: string): void {
   }
 }
 
+/**
+ * The list and the directory are two artifacts §3.5 makes agree at boot: a skill on disk that no
+ * list declares is loaded by nothing and absent from every manifest. A dotted name is the author's,
+ * and skipped; a directory that does not exist declares nothing, and so contradicts nothing.
+ */
+function assertNoUndeclaredSkills(directory: string, names: readonly string[], listName: string): void {
+  if (!fs.statSync(directory, { throwIfNoEntry: false })?.isDirectory()) {
+    return;
+  }
+  const declared = new Set<string>(names);
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) {
+      continue;
+    }
+    if (!entry.isDirectory()) {
+      throw new Error(`"${entry.name}" is not a skill: a skill library holds one directory per skill`);
+    }
+    if (!declared.has(entry.name)) {
+      throw new Error(`"${entry.name}" is a skill directory no name list declares: add it to ${listName}`);
+    }
+  }
+}
+
 /** discovered, never declared: a reference name crosses no perimeter, so nothing needs its type (§3.5) */
 function readReferences(directory: string): ReadonlyMap<string, SkillReference> {
   if (!fs.statSync(directory, { throwIfNoEntry: false })?.isDirectory()) {
@@ -106,8 +129,10 @@ function readSkill(directory: string): Skill {
  */
 export function loadSkillLibrary<const TName extends string>(
   directory: string,
-  names: readonly TName[]
+  names: readonly TName[],
+  listName: string
 ): { [TKey in TName]: Skill } {
+  assertNoUndeclaredSkills(directory, names, listName);
   const entries = names.map((name) => [name, readSkill(path.join(directory, name))]);
   return Object.fromEntries(entries) as { [TKey in TName]: Skill };
 }
@@ -119,7 +144,7 @@ export function loadSkillLibrary<const TName extends string>(
  */
 export function loadPluginSkillLibrary(source: PluginSkillSource): { [name: string]: Skill } {
   try {
-    return loadSkillLibrary(source.directory, source.names);
+    return loadSkillLibrary(source.directory, source.names, `the ${source.namespace} plugin's declared skills`);
   } catch (error) {
     throw new Error(`plugin "${source.namespace}" declares a skill that could not be loaded`, {
       cause: error

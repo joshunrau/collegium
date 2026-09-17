@@ -29,14 +29,18 @@ export class SkillsService {
     private readonly agentRegistry: AgentRegistry,
     pluginsRegistry: PluginsRegistry
   ) {
-    const frameworkSkills = loadSkillLibrary(path.resolve(import.meta.dirname, 'library'), BUILTIN_SKILL_NAMES);
+    const frameworkSkills = loadSkillLibrary(
+      path.resolve(import.meta.dirname, 'library'),
+      BUILTIN_SKILL_NAMES,
+      'BUILTIN_SKILL_NAMES'
+    );
     // a framework namespace equals its module directory (§2), which is what makes this resolvable
     const toolsetSkills = FRAMEWORK_TOOLSETS.flatMap((toolset) => {
-      const names = toolset.skills ?? [];
-      if (names.length === 0) {
-        return [];
-      }
-      const documents = loadSkillLibrary(path.resolve(import.meta.dirname, '..', toolset.name, 'skills'), names);
+      const documents = loadSkillLibrary(
+        path.resolve(import.meta.dirname, '..', toolset.name, 'skills'),
+        toolset.skills ?? [],
+        `the ${toolset.name} toolset's skills list`
+      );
       return Object.entries(documents).map(
         ([name, skill]) => [renderQualifiedSkillName(toolset.name, name), skill] as const
       );
