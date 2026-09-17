@@ -24,6 +24,18 @@ describe('renderStatusPost', () => {
     ).toBe('✅ _done_\n→ `load_skill`');
   });
 
+  it('should state the elapsed time on the outcome line, in seconds and past the minute (§8.1)', () => {
+    expect(renderStatusPost({ elapsedMs: 59_400, outcome: 'completed', traceLines: [] })).toBe('✅ _done (59s)_');
+    expect(renderStatusPost({ elapsedMs: 60_000, outcome: 'completed', traceLines: [] })).toBe('✅ _done (1m 0s)_');
+    expect(renderStatusPost({ elapsedMs: 200_000, outcome: 'killed', traceLines: [] })).toBe('⏹️ _killed (3m 20s)_');
+  });
+
+  it('should omit the elapsed time from a turn whose end was never observed (§7.3)', () => {
+    expect(renderStatusPost({ outcome: 'abandoned', traceLines: [] })).toBe(
+      '⚪ _abandoned — the process restarted mid-turn_'
+    );
+  });
+
   it('should omit an empty transient line', () => {
     expect(renderStatusPost({ traceLines: [], transientText: '' })).toBe('⏳ _working…_');
   });

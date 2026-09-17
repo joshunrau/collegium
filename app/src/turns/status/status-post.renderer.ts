@@ -9,7 +9,7 @@ const TRACE_DETAIL_LIMIT_CHARS = 150;
 const WORKING_LINE = '⏳ _working…_';
 
 /** §3.2 — deterministic code speaking as the agent: fixed strings and templated facts only */
-const OUTCOME_LINES: { readonly [K in Exclude<TurnStatus, 'running'>]: string } = {
+const OUTCOME_PHRASES: { readonly [K in Exclude<TurnStatus, 'running'>]: string } = {
   abandoned: '⚪ _abandoned — the process restarted mid-turn_',
   budget_exhausted: '⏸️ _stopped — action budget exhausted_',
   completed: '✅ _done_',
@@ -24,14 +24,33 @@ const OUTCOME_LINES: { readonly [K in Exclude<TurnStatus, 'running'>]: string } 
   stopped: '⏹️ _stopped_'
 };
 
+function formatDuration(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+  return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
+}
+
+/** §8.1 — the closing line also states how long the turn ran; every phrase ends in the closing underscore */
+function renderOutcomeLine(outcome: Exclude<TurnStatus, 'running'>, elapsedMs: number | undefined): string {
+  const phrase = OUTCOME_PHRASES[outcome];
+  return elapsedMs === undefined ? phrase : `${phrase.slice(0, -1)} (${formatDuration(elapsedMs)})_`;
+}
+
 export type StatusPostState = {
+  /** wall-clock time the turn ran, approval waits included; absent where its end was never observed */
+  elapsedMs?: number;
   outcome?: Exclude<TurnStatus, 'running'>;
   traceLines: string[];
   transientText?: string;
 };
 
 export function renderStatusPost(state: StatusPostState): string {
-  const lines = [state.outcome === undefined ? WORKING_LINE : OUTCOME_LINES[state.outcome], ...state.traceLines];
+  const lines = [
+    state.outcome === undefined ? WORKING_LINE : renderOutcomeLine(state.outcome, state.elapsedMs),
+    ...state.traceLines
+  ];
   if (state.outcome === undefined && state.transientText !== undefined && state.transientText !== '') {
     lines.push(`_${state.transientText}_`);
   }
