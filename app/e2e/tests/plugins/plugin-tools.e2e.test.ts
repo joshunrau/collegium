@@ -61,6 +61,23 @@ describe('Plugin capability', () => {
     await channels.main.awaitReplyFrom('mira', { text: reply });
   });
 
+  it('lists a skill’s references on load and serves one through skills::load (§3.5)', async () => {
+    const { channels, inference } = harness();
+    const reply = `reference-${randomUUID()}`;
+    inference.willReply(
+      { agent: 'mira', contains: 'consult your skill' },
+      toolCallResponse('skills__load', { name: 'bookmark::saving-bookmarks' })
+    );
+    inference.willReply(
+      { agent: 'mira', contains: '- identifier-style:' },
+      toolCallResponse('skills__load', { name: 'bookmark::saving-bookmarks', reference: 'identifier-style' })
+    );
+    inference.willReply({ agent: 'mira', contains: 'Bookmark identifier style' }, textResponse(reply));
+
+    await channels.main.mention('mira', 'consult your skill');
+    await channels.main.awaitReplyFrom('mira', { text: reply });
+  });
+
   it('does not prompt for the ungated list tool', async () => {
     const { channels, inference } = harness();
     const reply = `ungated-${randomUUID()}`;

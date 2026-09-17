@@ -1,6 +1,6 @@
 import type { AnyToolset } from '@collegium/core/toolsets';
 
-/** one plugin's discovered skill documents: where they sit, and the namespace qualifying them (§9) */
+/** one plugin's discovered skills: the directory holding them, and the namespace qualifying them (§3.5) */
 export type PluginSkillSource = {
   readonly directory: string;
   readonly names: readonly string[];
@@ -10,6 +10,12 @@ export type PluginSkillSource = {
 /** one discovered conventional file: the contribution's name, and the package-root-relative file declaring it */
 export type PluginConventionalFile = {
   readonly file: string;
+  readonly name: string;
+};
+
+/** one discovered conventional directory: the contribution's name, and the package-root-relative directory declaring it */
+export type PluginConventionalDirectory = {
+  readonly directory: string;
   readonly name: string;
 };
 
@@ -99,8 +105,19 @@ export declare namespace PluginLoadFailure {
     wireName: string;
   };
   type SkillNameInvalid = {
-    file: string;
+    directory: string;
     kind: 'skill-name-invalid';
+  };
+  /** a skill directory holding no procedure document */
+  type SkillDocumentMissing = {
+    directory: string;
+    kind: 'skill-document-missing';
+  };
+  /** a direct child of a convention directory that is not of the kind the convention names */
+  type UnexpectedEntry = {
+    directory: string;
+    entry: string;
+    kind: 'unexpected-entry';
   };
   /** a direct child of a convention directory the convention does not cover */
   type UnexpectedFile = {
@@ -155,9 +172,11 @@ export declare namespace PluginLoadFailure {
     | ManifestInvalid
     | ManifestMissing
     | ManifestUnreadable
+    | SkillDocumentMissing
     | SkillNameInvalid
     | ToolNameInvalid
     | ToolNameTooLong
+    | UnexpectedEntry
     | UnexpectedFile;
   type Bundle = ForbiddenImport | NotCompilable;
   type Compile = Bundle | NotImportable;

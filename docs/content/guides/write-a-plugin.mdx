@@ -3,7 +3,7 @@ title: Write a Plugin
 description: Build a plugin with durable storage, an ungated read, a gated write, and settings, then test it without a deployment.
 ---
 
-A plugin is a directory of TypeScript that the deployment compiles at boot. Its layout declares its contents: a config at `src/config.ts`, one tool per file under `src/tools/`, one skill per file under `src/skills/`. This guide builds `contacts`: an address book agents can read without approval and update only with approval.
+A plugin is a directory of TypeScript that the deployment compiles at boot. Its layout declares its contents: a config at `src/config.ts`, one tool per file under `src/tools/`, one skill per directory under `src/skills/`. This guide builds `contacts`: an address book agents can read without approval and update only with approval.
 
 Prerequisites: a running deployment, and Node.js wherever you write the plugin. You don't need a checkout of Collegium.
 
@@ -156,7 +156,19 @@ Import `@collegium/sdk`, `zod`, `node:` builtins, and your own files by relative
 
 `fetch`, `crypto`, `Intl`, and `structuredClone` are available as globals.
 
-To ship skills, add markdown files under `src/skills/`. Each `src/skills/<name>.md` becomes the grant `contacts::<name>`. The basename must be lowercase and dashed (`saving-contacts`), just as a tool's must be lowercase `snake_case`; the same rules as `src/tools/` apply to what the directory may hold. See the in-repo `bookmark` plugin for an example.
+To ship skills, add a directory per skill under `src/skills/`. Each `src/skills/<name>/` becomes the grant `contacts::<name>`, and holds its procedure at `SKILL.md`:
+
+```
+src/skills/saving-contacts/
+  SKILL.md
+  references/name-formats.md
+```
+
+The directory name must be lowercase and dashed (`saving-contacts`), just as a tool's filename must be lowercase `snake_case`. `SKILL.md` and every `references/<name>.md` carry `title` and `description` frontmatter above a markdown body.
+
+An agent pulls a skill into context with `skills::load`, and one of its references by naming that reference in the same call. It does not have to be told the references exist: the framework appends the index to the body it returns. Keep `SKILL.md` to the procedure and put the detail an agent only sometimes needs in a reference — the turn that does not need it never pays for it.
+
+A loose file under `src/skills/`, a skill directory with no `SKILL.md`, or a `references/` entry that is not a single dashed `.md` document refuses the boot rather than being skipped. See the in-repo `bookmark` plugin for a working example.
 
 ## 4. Test the Tools
 

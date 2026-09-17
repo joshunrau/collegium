@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import type { $PluginName } from '@collegium/config';
-import { SKILL_NAME_PATTERN } from '@collegium/core/skills';
+import { SKILL_DOCUMENT_FILENAME, SKILL_NAME_PATTERN } from '@collegium/core/skills';
 import { MAX_WIRE_NAME_LENGTH, renderToolWireName, TOOL_SEGMENT_PATTERN } from '@collegium/core/tools';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
@@ -13,7 +13,6 @@ import { EnvService } from '@/config/env/env.service.ts';
 import {
   CONFIG_FILE,
   SDK_SPECIFIER,
-  SKILL_EXTENSION,
   SKILLS_DIRECTORY,
   TOOL_EXTENSION,
   TOOLS_DIRECTORY,
@@ -21,9 +20,18 @@ import {
 } from '../plugins.constants.ts';
 import { PluginPackages } from '../plugins.packages.ts';
 import { $PluginPackageManifest } from '../plugins.schemas.ts';
-import { discoverConventionalFiles, isRepositoryProtocol } from './plugin.locator.utils.ts';
+import {
+  discoverConventionalDirectories,
+  discoverConventionalFiles,
+  isRepositoryProtocol
+} from './plugin.locator.utils.ts';
 
-import type { PluginConventionalFile, PluginLoadFailure, PluginSource } from '../plugins.types.ts';
+import type {
+  PluginConventionalDirectory,
+  PluginConventionalFile,
+  PluginLoadFailure,
+  PluginSource
+} from '../plugins.types.ts';
 
 @Injectable()
 export class PluginLocator {
@@ -82,10 +90,16 @@ export class PluginLocator {
     });
   }
 
-  /** every `src/skills/*.md` is a skill, named by its basename (§9) */
-  private discoverSkills(packageRoot: string): Result<PluginConventionalFile[], PluginLoadFailure.Locate> {
-    return discoverConventionalFiles(packageRoot, SKILLS_DIRECTORY, SKILL_EXTENSION, (name, file) => {
-      return SKILL_NAME_PATTERN.test(name) ? undefined : { file, kind: 'skill-name-invalid' };
+  /** every `src/skills/<name>/` is a skill, named by its directory (§3.5); what is inside it the skills module reads */
+  private discoverSkills(packageRoot: string): Result<PluginConventionalDirectory[], PluginLoadFailure.Locate> {
+    return discoverConventionalDirectories(packageRoot, SKILLS_DIRECTORY, (name, directory) => {
+      if (!SKILL_NAME_PATTERN.test(name)) {
+        return { directory, kind: 'skill-name-invalid' };
+      }
+      const document = path.join(packageRoot, directory, SKILL_DOCUMENT_FILENAME);
+      return fs.statSync(document, { throwIfNoEntry: false })?.isFile()
+        ? undefined
+        : { directory, kind: 'skill-document-missing' };
     });
   }
 

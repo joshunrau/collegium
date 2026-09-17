@@ -15,12 +15,19 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { SkillsService } from '../skills.service.ts';
 
 const PLUGIN_SKILL = ['---', 'description: How to bookmark.', 'title: Saving bookmarks', '---', 'The body.'];
+const PLUGIN_REFERENCE = ['---', 'description: How to name one.', 'title: Identifier style', '---', 'Keep it short.'];
 
 let skillsDirectory: string;
 
+const writeSkill = (relativePath: string, lines: string[]): void => {
+  const filepath = path.join(skillsDirectory, relativePath);
+  fs.mkdirSync(path.dirname(filepath), { recursive: true });
+  fs.writeFileSync(filepath, lines.join('\n'));
+};
+
 beforeEach(() => {
   skillsDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'collegium-plugin-skills-'));
-  fs.writeFileSync(path.join(skillsDirectory, 'saving-bookmarks.md'), PLUGIN_SKILL.join('\n'));
+  writeSkill('saving-bookmarks/SKILL.md', PLUGIN_SKILL);
 });
 
 afterEach(() => {
@@ -60,7 +67,7 @@ describe('SkillsService', () => {
       );
     });
 
-    it('should serve a plugin skill under its qualified `ns::skill` name (§9)', async () => {
+    it('should serve a plugin skill under its qualified `ns::skill` name (§3.5)', async () => {
       const skillsService = await buildService([]);
       expect(skillsService.getDocument('bookmark::saving-bookmarks').unwrap()).toBe('# Saving bookmarks\n\nThe body.');
     });
@@ -68,6 +75,46 @@ describe('SkillsService', () => {
     it('should refuse an unknown name as the model’s recoverable mistake', async () => {
       const skillsService = await buildService([]);
       expect(skillsService.getDocument('missing').error?.message).toContain('no skill named "missing" exists');
+    });
+  });
+
+  describe('getDocument references', () => {
+    beforeEach(() => {
+      writeSkill('saving-bookmarks/references/identifier-style.md', PLUGIN_REFERENCE);
+    });
+
+    it('should append the generated index beneath the skill body', async () => {
+      const skillsService = await buildService([]);
+      expect(skillsService.getDocument('bookmark::saving-bookmarks').unwrap()).toBe(
+        [
+          '# Saving bookmarks',
+          'The body.',
+          '## References',
+          'Load one with skills__load, naming this skill and the reference.',
+          '- identifier-style: How to name one.'
+        ].join('\n\n')
+      );
+    });
+
+    it('should serve a reference under its own title', async () => {
+      const skillsService = await buildService([]);
+      expect(skillsService.getDocument('bookmark::saving-bookmarks', 'identifier-style').unwrap()).toBe(
+        '# Identifier style\n\nKeep it short.'
+      );
+    });
+
+    it('should name what the skill does have when the reference is unknown', async () => {
+      const skillsService = await buildService([]);
+      expect(skillsService.getDocument('bookmark::saving-bookmarks', 'pricing').error?.message).toBe(
+        'skill "bookmark::saving-bookmarks" has no reference "pricing"; it has: identifier-style'
+      );
+    });
+
+    it('should say so when the skill has no references at all', async () => {
+      const skillsService = await buildService([]);
+      expect(skillsService.getDocument('handing-work-to-a-peer', 'pricing').error?.message).toBe(
+        'skill "handing-work-to-a-peer" has no references'
+      );
     });
   });
 
@@ -90,7 +137,7 @@ describe('SkillsService', () => {
   });
 
   describe('renderManifest', () => {
-    it('should carry the core skills for every agent, then its grants (§9)', async () => {
+    it('should carry the core skills for every agent, then its grants (§3.5)', async () => {
       const skillsService = await buildService([]);
       const manifest = skillsService.renderManifest(buildAgentProfile({ skills: ['bookmark::saving-bookmarks'] }));
       expect(manifest.split('\n')).toStrictEqual([
@@ -115,7 +162,7 @@ describe('SkillsService', () => {
       );
     });
 
-    it('should refuse a core skill named in config (§9)', async () => {
+    it('should refuse a core skill named in config (§3.5)', async () => {
       await expect(buildService([buildAgentProfile({ skills: ['handing-work-to-a-peer'] })])).rejects.toThrow(
         'core skill — always assigned and never granted'
       );

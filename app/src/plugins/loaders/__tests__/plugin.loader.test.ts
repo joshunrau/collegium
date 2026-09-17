@@ -238,8 +238,7 @@ describe('PluginLoader', () => {
 
   it.each([
     ['src/tools/legacy.js', 'an extension the convention does not cover'],
-    ['src/tools/shapes.d.ts', 'a compound extension'],
-    ['src/skills/notes.txt', 'a skill document that is not markdown']
+    ['src/tools/shapes.d.ts', 'a compound extension']
   ])('refuses %s rather than skipping it', async (file) => {
     writeFixture('littered', { [file]: '', 'src/config.ts': MINIMAL_CONFIG, 'src/tools/ping.ts': PING_TOOL });
     const loader = await buildLoader(fixtureRoot);
@@ -261,12 +260,31 @@ describe('PluginLoader', () => {
     expect(Object.keys(result.unwrap().toolset.tools)).toStrictEqual(['ping']);
   });
 
-  it('rejects a skill document whose basename is outside the skill grammar', async () => {
-    writeFixture('shouty', { 'src/config.ts': MINIMAL_CONFIG, 'src/skills/Saving_Bookmarks.md': '# no' });
+  it('refuses a loose file under src/skills/ rather than skipping it', async () => {
+    writeFixture('littered', { 'src/config.ts': MINIMAL_CONFIG, 'src/skills/saving-bookmarks.md': '# no' });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('littered');
+    expect(result.error?.kind).toBe('unexpected-entry');
+    expect(renderPluginLoadFailure(result.error!)).toContain('saving-bookmarks.md');
+  });
+
+  it('rejects a skill directory whose name is outside the skill grammar', async () => {
+    writeFixture('shouty', { 'src/config.ts': MINIMAL_CONFIG, 'src/skills/Saving_Bookmarks/SKILL.md': '# no' });
     const loader = await buildLoader(fixtureRoot);
     const result = await loader.load('shouty');
     expect(result.error?.kind).toBe('skill-name-invalid');
     expect(renderPluginLoadFailure(result.error!)).toContain('lowercase and dashed');
+  });
+
+  it('rejects a skill directory holding no procedure document', async () => {
+    writeFixture('hollow', {
+      'src/config.ts': MINIMAL_CONFIG,
+      'src/skills/saving-bookmarks/references/identifier-style.md': '# no'
+    });
+    const loader = await buildLoader(fixtureRoot);
+    const result = await loader.load('hollow');
+    expect(result.error?.kind).toBe('skill-document-missing');
+    expect(renderPluginLoadFailure(result.error!)).toContain('SKILL.md');
   });
 
   it('rejects a package.json that is not valid json', async () => {

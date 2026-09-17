@@ -1,3 +1,4 @@
+import { SKILL_DOCUMENT_FILENAME, SKILL_REFERENCES_DIRECTORY } from '@collegium/core/skills';
 import { match } from 'ts-pattern';
 
 import { CONFIG_FILE, SDK_SPECIFIER, SKILLS_DIRECTORY, TOOLS_DIRECTORY, ZOD_SPECIFIER } from './plugins.constants.ts';
@@ -19,7 +20,7 @@ export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
     .with(
       { kind: 'contributes-nothing' },
       ({ packageRoot }) =>
-        `${packageRoot} has no ${TOOLS_DIRECTORY}/*.ts and no ${SKILLS_DIRECTORY}/*.md — nothing to contribute`
+        `${packageRoot} has no ${TOOLS_DIRECTORY}/*.ts and no ${SKILLS_DIRECTORY}/*/${SKILL_DOCUMENT_FILENAME} — nothing to contribute`
     )
     .with({ kind: 'default-export-missing' }, ({ file }) => `${file} is missing its required default export`)
     .with(
@@ -52,8 +53,13 @@ export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
         `${manifestPath} declares no dependency on "${name}"; a plugin declares both "${SDK_SPECIFIER}" and "${ZOD_SPECIFIER}", because a range it never states is one this deployment can never check`
     )
     .with(
+      { kind: 'skill-document-missing' },
+      ({ directory }) =>
+        `${directory} has no ${SKILL_DOCUMENT_FILENAME} — a skill is a directory holding ${SKILL_DOCUMENT_FILENAME}, with any supporting documents under ${SKILL_REFERENCES_DIRECTORY}/`
+    )
+    .with(
       { kind: 'skill-name-invalid' },
-      ({ file }) => `${file} does not name a skill: the basename must be lowercase and dashed`
+      ({ directory }) => `${directory} does not name a skill: the directory name must be lowercase and dashed`
     )
     .with({ kind: 'tool-invalid' }, ({ file }) => `the tool ${file} declares is not one the framework accepts`)
     .with(
@@ -63,6 +69,11 @@ export function renderPluginLoadFailure(failure: PluginLoadFailure): string {
     .with(
       { kind: 'tool-name-too-long' },
       ({ file, wireName }) => `${file} names a tool whose wire name "${wireName}" exceeds the provider limit`
+    )
+    .with(
+      { kind: 'unexpected-entry' },
+      ({ directory, entry }) =>
+        `${entry} is not an entry ${directory}/ can hold: every direct child is a directory named for one skill`
     )
     .with(
       { kind: 'unexpected-file' },

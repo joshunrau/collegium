@@ -6,7 +6,7 @@ export function assertSkillName(value: string): void {
   }
 }
 
-/** the qualified name a toolset-shipped skill is granted and loaded by (§9) */
+/** the qualified name a toolset-shipped skill is granted and loaded by (§3.5) */
 export function renderQualifiedSkillName(namespace: string, skillName: string): string {
   return `${namespace}::${skillName}`;
 }

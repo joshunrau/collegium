@@ -2,7 +2,7 @@
 
 The authoring surface for [Collegium](https://collegium.sh) plugins.
 
-A plugin is a directory of TypeScript. The deployment mounts it, compiles it at boot, and grants it to the agents that need it. The layout declares the contents: `src/config.ts` declares settings and storage, each `src/tools/<name>.ts` declares one tool named by its filename, and each `src/skills/<name>.md` ships one skill.
+A plugin is a directory of TypeScript. The deployment mounts it, compiles it at boot, and grants it to the agents that need it. The layout declares the contents: `src/config.ts` declares settings and storage, each `src/tools/<name>.ts` declares one tool named by its filename, and each `src/skills/<name>/` ships one skill as `SKILL.md` plus any `references/<name>.md` beside it.
 
 ```sh
 npm install @collegium/sdk zod

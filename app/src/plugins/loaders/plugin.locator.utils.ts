@@ -3,7 +3,7 @@ import * as path from 'node:path';
 
 import { Result } from '@collegium/core/utils';
 
-import type { PluginConventionalFile, PluginLoadFailure } from '../plugins.types.ts';
+import type { PluginConventionalDirectory, PluginConventionalFile, PluginLoadFailure } from '../plugins.types.ts';
 
 /**
  * Direct children only: a subdirectory (`__tests__/`) is the author's, and never read. A hidden
@@ -54,6 +54,38 @@ export function discoverConventionalFiles(
       return Result.err(failure);
     }
     discovered.push({ file, name });
+  }
+  return Result.ok(discovered);
+}
+
+/**
+ * The other conventional shape: every direct child of the directory is a subdirectory holding one
+ * contribution. A file among them is refused rather than skipped (§3.14) — silently ignoring one
+ * would turn a skill an author wrote in the old single-file layout into a skill nobody ships.
+ */
+export function discoverConventionalDirectories(
+  packageRoot: string,
+  directory: string,
+  validate: (name: string, located: string) => PluginLoadFailure.Locate | undefined
+): Result<PluginConventionalDirectory[], PluginLoadFailure.Locate> {
+  const root = path.join(packageRoot, directory);
+  if (!fs.statSync(root, { throwIfNoEntry: false })?.isDirectory()) {
+    return Result.ok([]);
+  }
+  const discovered: PluginConventionalDirectory[] = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.name.startsWith('.')) {
+      continue;
+    }
+    if (!entry.isDirectory()) {
+      return Result.err({ directory, entry: entry.name, kind: 'unexpected-entry' });
+    }
+    const located = path.join(directory, entry.name);
+    const failure = validate(entry.name, located);
+    if (failure !== undefined) {
+      return Result.err(failure);
+    }
+    discovered.push({ directory: located, name: entry.name });
   }
   return Result.ok(discovered);
 }
