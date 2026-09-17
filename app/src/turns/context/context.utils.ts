@@ -11,7 +11,24 @@ function toWireName(name: PrismaJson.RecordedToolName): string {
   return typeof name === 'string' ? name : renderToolWireName(name);
 }
 
+const FENCED_CODE_BLOCK = /```[\s\S]*?```/gu;
 const TOOL_CALL_TRANSCRIPT = /^\[called [^\s(]+\([\s\S]*\)\]$/mu;
+
+/** a provider that dropped its structured `tool_calls` field leaves the call as a bare object in the text */
+function isBareCallObject(text: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'arguments' in parsed &&
+      'name' in parsed &&
+      typeof parsed.name === 'string'
+    );
+  } catch {
+    return false;
+  }
+}
 
 function renderDenial(decision: { byUsername: string; reason?: string }): string {
   return decision.reason === undefined
@@ -116,10 +133,16 @@ export function toCompletionMessages(entries: readonly WindowEntry[], selfUserna
 }
 
 /**
- * Whether output imitates the replayed transcript form instead of making a call. A model that has read
- * its own history in that form sometimes writes it back as an answer; posted, it runs nothing and
- * reads as a completed action.
+ * Whether output is a tool call written as text instead of made: the replayed transcript form a
+ * model writes back after reading its own history, or the two shapes a provider leaves behind when
+ * it fails to structure a call — a leaked `<tool_call>` marker, or the bare call object. Fenced code
+ * is stripped before the last two are tested, so prose that quotes the syntax is not mistaken for
+ * using it. Posted, any of the three runs nothing and reads as a completed action.
  */
 export function containsToolCallTranscript(text: string): boolean {
-  return TOOL_CALL_TRANSCRIPT.test(text);
+  if (TOOL_CALL_TRANSCRIPT.test(text)) {
+    return true;
+  }
+  const stripped = text.replace(FENCED_CODE_BLOCK, '').trim();
+  return stripped !== '' && (stripped.startsWith('<tool_call>') || isBareCallObject(stripped));
 }

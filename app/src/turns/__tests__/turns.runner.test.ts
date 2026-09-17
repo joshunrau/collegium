@@ -503,6 +503,18 @@ describe('TurnRunner', () => {
     });
   });
 
+  it('should reject a bare call object a provider left as text, rather than post it (§4.5)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(text('{"name":"triggers__resolve","arguments":{"id":"s8a15c97"}}')));
+    complete.mockResolvedValueOnce(Result.ok(text('resolved')));
+    const outcome = await run();
+    expect(outcome.status).toBe('completed');
+    expect(sends.map((send) => send.text)).toStrictEqual(['resolved']);
+    expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+      content: 'post rejected: a tool call written as text runs nothing — invoke the tool instead',
+      role: 'user'
+    });
+  });
+
   it('should replay reasoning with the tool call it produced and keep it on the event, never in a post (§3.12)', async () => {
     complete.mockResolvedValueOnce(
       Result.ok({ ...toolUse(['write_file']), reasoningContent: 'private thoughts' } satisfies CompletionResult)
