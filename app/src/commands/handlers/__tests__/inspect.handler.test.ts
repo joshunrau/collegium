@@ -26,8 +26,8 @@ describe('InspectHandler', () => {
     skillsService.listFor.mockReturnValue([{ description: 'How to hand work over.', name: 'handing-work-to-a-peer' }]);
     const toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listFor.mockReturnValue([
-      ['clock', 'now'],
-      ['shell', 'run']
+      { gates: false, id: ['clock', 'now'] },
+      { gates: true, id: ['shell', 'run'] }
     ]);
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -55,7 +55,9 @@ describe('InspectHandler', () => {
         '',
         'Tools:',
         '- clock: now',
-        '- shell: run',
+        '- shell: run 🔐',
+        '',
+        '🔐 requires human approval on every call (§3.7)',
         '',
         'Skills:',
         '- framework:',

@@ -84,7 +84,7 @@ describe('SystemPromptRenderer', () => {
 
   it('should state what conversations__search reaches only for an agent that holds it (§3.8)', async () => {
     expect(await render()).not.toContain('conversations__search');
-    toolRegistry.listFor.mockReturnValue([['conversations', 'search']]);
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['conversations', 'search'] }]);
     expect(await render()).toContain('conversations__search finds past posts in the channels you are in.');
   });
 

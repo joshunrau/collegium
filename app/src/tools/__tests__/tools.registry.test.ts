@@ -16,6 +16,7 @@ const NOTES_TOOLSET = defineToolset({
   name: 'notes',
   tools: {
     add: {
+      approval: (args) => ({ body: `add note "${args.text}"`, presentation: 'verbatim' }),
       description: 'Add a note.',
       execute: () => Result.ok({ text: 'added' }),
       parameters: z.object({ text: z.string() }),
@@ -71,8 +72,8 @@ describe('ToolRegistry', () => {
       username: 'owen'
     });
     const registry = new ToolRegistry(LIBRARY, [unset, set]);
-    expect(registry.listFor(unset)).not.toContainEqual(['maps', 'geocode']);
-    expect(registry.listFor(set)).toContainEqual(['maps', 'geocode']);
+    expect(registry.listFor(unset)).not.toContainEqual({ gates: false, id: ['maps', 'geocode'] });
+    expect(registry.listFor(set)).toContainEqual({ gates: false, id: ['maps', 'geocode'] });
   });
 
   it('refuses an explicit grant of a tool the agent’s settings do not enable', () => {
@@ -182,13 +183,14 @@ describe('ToolRegistry', () => {
     expect(registry.listBudgetExemptFor(profile)).toStrictEqual(['skills__load']);
   });
 
-  it('lists every tool an agent may call by identity, core first (§8.4)', () => {
-    const profile = buildAgentProfile({ tools: ['notes::add'] });
+  it('lists every tool an agent may call by identity, core first, saying which gates (§8.4)', () => {
+    const profile = buildAgentProfile({ tools: ['notes'] });
     const registry = new ToolRegistry(LIBRARY, [profile]);
     expect(registry.listFor(profile)).toStrictEqual([
-      ['skills', 'load'],
-      ['triggers', 'resolve'],
-      ['notes', 'add']
+      { gates: false, id: ['skills', 'load'] },
+      { gates: false, id: ['triggers', 'resolve'] },
+      { gates: true, id: ['notes', 'add'] },
+      { gates: false, id: ['notes', 'list'] }
     ]);
   });
 });

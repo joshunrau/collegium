@@ -105,7 +105,7 @@ export class SystemPromptRenderer {
   private renderPreamble(profile: AgentProfile): string {
     const holdsSearch = this.toolRegistry
       .listFor(profile)
-      .some(([namespace, tool]) => namespace === 'conversations' && tool === 'search');
+      .some(({ id: [namespace, tool] }) => namespace === 'conversations' && tool === 'search');
     return this.textFormatter.formatParagraphs(
       [
         '## How this works',

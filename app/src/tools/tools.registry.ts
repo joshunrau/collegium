@@ -26,6 +26,12 @@ export type RegisteredToolset = {
   readonly storage: Readonly<{ [key: string]: AnyToolsetCollection }>;
 };
 
+/** §8.4 — what an agent holds, and for each whether acting with it needs a human (§3.4) */
+export type GrantedTool = {
+  readonly gates: boolean;
+  readonly id: ToolId;
+};
+
 export type DescribedCall = {
   readonly detail: string | undefined;
   readonly displayName: string;
@@ -148,9 +154,12 @@ export class ToolRegistry {
       .map((tool) => tool.wireName);
   }
 
-  /** every tool an agent may call, core included, by identity — what an operator inspecting the agent sees (§8.4) */
-  listFor(profile: AgentProfile): readonly ToolId[] {
-    return Array.from(this.toolsFor(profile).values(), (tool) => tool.id);
+  /** every tool an agent may call, core included — what an operator inspecting the agent sees (§8.4) */
+  listFor(profile: AgentProfile): readonly GrantedTool[] {
+    return Array.from(this.toolsFor(profile).values(), (tool) => ({
+      gates: tool.definition.approval !== undefined,
+      id: tool.id
+    }));
   }
 
   /** fails loudly on a name outside the agent's set (§6.1) — never falls back */

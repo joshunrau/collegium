@@ -1,8 +1,8 @@
 import { parseQualifiedSkillName } from '@collegium/core/skills';
-import type { ToolId } from '@collegium/core/tools';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import type { SkillListing } from '@/skills/skills.service.ts';
+import type { GrantedTool } from '@/tools/tools.registry.ts';
 
 /** Mattermost rejects a post over 16383 characters; the summary, the fence and the notice ride inside this */
 const MAX_RESPONSE_CHARS = 16_000;
@@ -13,6 +13,11 @@ const TRUNCATION_NOTICE_RESERVE = 64;
 /** framework skills carry no namespace, so they group under this label */
 const FRAMEWORK_SKILL_GROUP = 'framework';
 
+/** §3.7 — the marker is on the tool, not the namespace: a namespace almost always holds both kinds */
+const GATE_MARKER = '🔐';
+
+const GATE_LEGEND = `${GATE_MARKER} requires human approval on every call (§3.7)`;
+
 function groupBy<TItem>(items: readonly TItem[], keyOf: (item: TItem) => string): Map<string, TItem[]> {
   const groups = new Map<string, TItem[]>();
   for (const item of items) {
@@ -22,12 +27,12 @@ function groupBy<TItem>(items: readonly TItem[], keyOf: (item: TItem) => string)
   return groups;
 }
 
-function renderTools(tools: readonly ToolId[]): string {
-  const byNamespace = groupBy(tools, ([namespace]) => namespace);
-  return Array.from(
-    byNamespace,
-    ([namespace, ids]) => `- ${namespace}: ${ids.map(([, name]) => name).join(', ')}`
-  ).join('\n');
+function renderTools(tools: readonly GrantedTool[]): string {
+  const byNamespace = groupBy(tools, ({ id: [namespace] }) => namespace);
+  return Array.from(byNamespace, ([namespace, granted]) => {
+    const names = granted.map(({ gates, id: [, name] }) => (gates ? `${name} ${GATE_MARKER}` : name));
+    return `- ${namespace}: ${names.join(', ')}`;
+  }).join('\n');
 }
 
 function renderSkills(skills: readonly SkillListing[]): string {
@@ -52,6 +57,7 @@ function renderSummary(report: InspectReport): string {
     '',
     'Tools:',
     renderTools(report.tools),
+    ...(report.tools.some(({ gates }) => gates) ? ['', GATE_LEGEND] : []),
     '',
     'Skills:',
     renderSkills(report.skills),
@@ -64,7 +70,7 @@ export type InspectReport = {
   readonly profile: AgentProfile;
   readonly prompt: string;
   readonly skills: readonly SkillListing[];
-  readonly tools: readonly ToolId[];
+  readonly tools: readonly GrantedTool[];
 };
 
 /** the summary sections are always whole; only the prompt, the one open-ended section, is cut to fit the post cap */
