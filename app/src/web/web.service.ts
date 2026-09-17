@@ -5,7 +5,7 @@ import { BrowserClient } from './browser/browser.client.ts';
 import { FetchClient } from './fetch/fetch.client.ts';
 import { extractTitle, needsClientRendering } from './fetch/fetch.utils.ts';
 import { MAX_LIVE_SESSIONS } from './web.constants.ts';
-import { refuseUnbrowsableUrl } from './web.policy.ts';
+import { refuseUnbrowsableUrl, resolveAndVetHost } from './web.policy.ts';
 import { capMarkdown, toMarkdown } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
@@ -119,6 +119,13 @@ export class WebService {
     const opened = await this.openSession(turnId);
     if (!opened.success) {
       return opened;
+    }
+    // after the slot is claimed, never before: a turn ending during the lookup must find a session
+    // to dispose, not claim one afterwards. The proxy would refuse the address too, but as a page
+    // that failed to load, where this is the typed refusal it is
+    const vetted = await resolveAndVetHost(new URL(url));
+    if (!vetted.success) {
+      return vetted;
     }
     return this.toSnapshot(await opened.value.navigate(url));
   }

@@ -4,17 +4,21 @@ import { Injectable } from '@nestjs/common';
 import { BrowserProcess } from './browser.process.ts';
 import { BrowserSession } from './browser.session.ts';
 import { isBrowserProvisioned } from './browser.utils.ts';
+import { PolicyProxy } from './policy.proxy.ts';
 
 import type { WebFailure } from '../web.types.ts';
 
 /**
- * The Camoufox seam: a fresh incognito context per session over the shared browser process. A
- * missing binary is refused before launch, because camoufox-js would otherwise start a
- * multi-minute download.
+ * The Camoufox seam: a fresh incognito context per session over the shared browser process, its
+ * every request leaving through the policy proxy (§3.4). A missing binary is refused before
+ * launch, because camoufox-js would otherwise start a multi-minute download.
  */
 @Injectable()
 export class BrowserClient {
-  constructor(private readonly browserProcess: BrowserProcess) {}
+  constructor(
+    private readonly browserProcess: BrowserProcess,
+    private readonly policyProxy: PolicyProxy
+  ) {}
 
   async createSession(): Promise<Result<BrowserSession, WebFailure.Unreachable>> {
     if (!isBrowserProvisioned()) {
@@ -25,7 +29,7 @@ export class BrowserClient {
     }
     try {
       const browser = await this.browserProcess.acquire();
-      const context = await browser.newContext();
+      const context = await browser.newContext({ proxy: { server: await this.policyProxy.address() } });
       return Result.ok(new BrowserSession(context, await context.newPage()));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

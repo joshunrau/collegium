@@ -3,7 +3,7 @@ import * as path from 'node:path';
 
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -12,10 +12,18 @@ import { BrowserClient } from '../browser/browser.client.ts';
 import { BrowserSession } from '../browser/browser.session.ts';
 import { FetchClient } from '../fetch/fetch.client.ts';
 import { MARKDOWN_CAP_CHARS, MAX_LIVE_SESSIONS } from '../web.constants.ts';
+import { resolveAndVetHost } from '../web.policy.ts';
 import { WebService } from '../web.service.ts';
 
 import type { FetchedResource } from '../fetch/fetch.types.ts';
 import type { RenderedCapture, WebFailure } from '../web.types.ts';
+
+vi.mock('../web.policy.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../web.policy.ts')>()),
+  resolveAndVetHost: vi.fn()
+}));
+
+const resolveMock = vi.mocked(resolveAndVetHost);
 
 const fixture = (name: string): string => {
   return fs.readFileSync(path.resolve(import.meta.dirname, 'fixtures', `${name}.html`), 'utf-8');
@@ -46,6 +54,8 @@ describe('WebService', () => {
   let webService: WebService;
 
   beforeEach(async () => {
+    resolveMock.mockReset();
+    resolveMock.mockResolvedValue(Result.ok({ address: '203.0.113.7', family: 4 }));
     browserClient = MockFactory.createMock(BrowserClient);
     fetchClient = MockFactory.createMock(FetchClient);
     session = MockFactory.createMock(BrowserSession);
@@ -95,6 +105,18 @@ describe('WebService', () => {
       session.navigate.mockResolvedValue(Result.ok(rendered({ html: `<p>${'x'.repeat(MARKDOWN_CAP_CHARS + 1)}</p>` })));
       const result = await webService.navigate('turn-1', 'https://northmoor.example/huge');
       expect(result.value?.markdown).toContain(`…page truncated at ${MARKDOWN_CAP_CHARS} characters`);
+    });
+
+    it('should refuse an address that resolves privately as a typed refusal, never a failed page (§3.4)', async () => {
+      const refused: WebFailure.UrlRefused = {
+        kind: 'url-refused',
+        reason: 'not-public-host',
+        url: 'https://intranet.northmoor.example/'
+      };
+      resolveMock.mockResolvedValueOnce(Result.err(refused));
+      const result = await webService.navigate('turn-1', 'https://intranet.northmoor.example/');
+      expect(result.error).toStrictEqual(refused);
+      expect(session.navigate).not.toHaveBeenCalled();
     });
 
     it('should surface a navigation failure untouched, since there is no page to report', async () => {

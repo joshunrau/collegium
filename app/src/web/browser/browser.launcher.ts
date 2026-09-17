@@ -10,6 +10,11 @@ import type { Browser } from 'playwright-core';
 @Injectable()
 export class CamoufoxLauncher {
   launch(): Promise<Browser> {
-    return Camoufox({ headless: true });
+    return Camoufox({
+      // Firefox skips the proxy for loopback addresses unless told otherwise, and loopback is where
+      // this host's own services listen — the one destination the policy proxy exists to refuse (§3.4)
+      firefox_user_prefs: { 'network.proxy.allow_hijacking_localhost': true },
+      headless: true
+    });
   }
 }

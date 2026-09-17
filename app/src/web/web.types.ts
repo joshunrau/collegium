@@ -12,6 +12,21 @@ export type RenderedCapture = {
   readonly url: string;
 };
 
+/** the address a name resolved to and was judged at — what a pinned connection targets (§3.4) */
+export type VettedAddress = {
+  readonly address: string;
+  readonly family: 4 | 6;
+};
+
+/**
+ * The one judgement the browser's proxy makes per request: the address to connect to, or nothing.
+ * Injectable for one reason: the real-browser suite serves its fixtures from a loopback address
+ * the production policy refuses, and a test that cannot admit its own server cannot run.
+ */
+export type AddressPolicy = {
+  readonly vet: (url: URL) => Promise<undefined | VettedAddress>;
+};
+
 /** one page, in the shape a model reads — what a plain fetch yields */
 export type WebPage = {
   readonly markdown: string;

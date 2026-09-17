@@ -53,7 +53,7 @@ export function toDecoder(charset: string): TextDecoder {
   }
 }
 
-/** undici reports every network error as a bare "fetch failed" and keeps the reason — ENOTFOUND, ECONNREFUSED — in `cause` */
+/** a lookup or socket error names its reason — ENOTFOUND, ECONNREFUSED — while an abort keeps its reason in `cause` */
 export function describeFetchError(error: unknown): string {
   if (!(error instanceof Error)) {
     return String(error);

@@ -1,6 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import type { LookupAddress } from 'node:dns';
 
-import { refuseUnbrowsableUrl } from '../web.policy.ts';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { isBlockedAddress, refuseUnbrowsableUrl, resolveAndVetHost } from '../web.policy.ts';
+
+const lookupMock = vi.hoisted(() => vi.fn<(hostname: string, options: { all: true }) => Promise<LookupAddress[]>>());
+
+vi.mock('node:dns/promises', () => ({ lookup: lookupMock }));
+
+beforeEach(() => {
+  lookupMock.mockReset();
+});
 
 describe('refuseUnbrowsableUrl', () => {
   it('should admit a public https page', () => {
@@ -21,6 +31,7 @@ describe('refuseUnbrowsableUrl', () => {
     'http://10.0.0.5/',
     'http://192.168.1.1/',
     'http://172.16.0.1/',
+    'http://100.64.0.1/',
     'http://[::1]:3000/'
   ])('should refuse %s as an address off the public web', (url) => {
     expect(refuseUnbrowsableUrl(url)).toStrictEqual({ kind: 'url-refused', reason: 'not-public-host', url });
@@ -28,5 +39,50 @@ describe('refuseUnbrowsableUrl', () => {
 
   it('should admit a public address that merely resembles a private one', () => {
     expect(refuseUnbrowsableUrl('http://172.32.0.1/')).toBeUndefined();
+  });
+});
+
+describe('isBlockedAddress', () => {
+  it.each(['100.64.0.1', '100.127.255.255', '224.0.0.1', '240.0.0.1', '255.255.255.255', 'fd12::1', '[::1]'])(
+    'should block %s',
+    (address) => {
+      expect(isBlockedAddress(address)).toBe(true);
+    }
+  );
+
+  it.each(['100.63.255.255', '100.128.0.0', '203.0.113.7', '2606:4700::1'])('should admit %s', (address) => {
+    expect(isBlockedAddress(address)).toBe(false);
+  });
+});
+
+describe('resolveAndVetHost', () => {
+  const url = new URL('https://northmoor.example/people/');
+
+  it('should hand back the first IPv4 answer of a name every answer of which is public', async () => {
+    lookupMock.mockResolvedValueOnce([
+      { address: '2606:4700::1', family: 6 },
+      { address: '203.0.113.7', family: 4 }
+    ]);
+    expect((await resolveAndVetHost(url)).value).toStrictEqual({ address: '203.0.113.7', family: 4 });
+  });
+
+  it('should refuse a name carrying a private answer beside a public one (§3.4)', async () => {
+    lookupMock.mockResolvedValueOnce([
+      { address: '203.0.113.7', family: 4 },
+      { address: '10.0.0.5', family: 4 }
+    ]);
+    expect((await resolveAndVetHost(url)).error).toStrictEqual({
+      kind: 'url-refused',
+      reason: 'not-public-host',
+      url: url.href
+    });
+  });
+
+  it('should report a name that does not resolve as the page not loading', async () => {
+    lookupMock.mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND northmoor.example'));
+    expect((await resolveAndVetHost(url)).error).toStrictEqual({
+      kind: 'navigation',
+      message: 'getaddrinfo ENOTFOUND northmoor.example'
+    });
   });
 });

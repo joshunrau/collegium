@@ -9,6 +9,7 @@ import { BrowserClient } from '../browser.client.ts';
 import { CamoufoxLauncher } from '../browser.launcher.ts';
 import { BrowserProcess } from '../browser.process.ts';
 import { isBrowserProvisioned } from '../browser.utils.ts';
+import { PolicyProxy } from '../policy.proxy.ts';
 
 import type { FormElement } from '../../snapshot/snapshot.types.ts';
 import type { BrowserSession } from '../browser.session.ts';
@@ -27,9 +28,31 @@ const FIXTURE_BY_ROUTE: { [key: string]: string } = {
 
 const PEOPLE_LINK_REF = /\[View our people →\]\([^)]+\)⟨(e\d+)⟩/u;
 
+const ELSEWHERE_LINK_REF = /\[Elsewhere\]\([^)]+\)⟨(e\d+)⟩/u;
+
+const listen = async (server: http.Server): Promise<string> => {
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (address === null || typeof address === 'string') {
+    throw new Error('the server did not bind to a port');
+  }
+  return `http://127.0.0.1:${address.port}`;
+};
+
+const close = (server: http.Server): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+};
+
 describe('browsing the fixture sites', { timeout: 60_000 }, () => {
   let baseUrl: string;
   let client: BrowserClient;
+  /** an origin the policy refuses; every request that reaches it is one the guard let through */
+  let elsewhere: http.Server;
+  let elsewhereRequests: number;
+  let elsewhereUrl: string;
+  let proxy: PolicyProxy;
   let server: http.Server;
   let session: BrowserSession;
 
@@ -39,7 +62,24 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
         'the Camoufox browser is not installed, so the real-browser suite cannot run — `pnpm install` provisions it via the postinstall step'
       );
     }
+    elsewhereRequests = 0;
+    elsewhere = http.createServer((_request, response) => {
+      elsewhereRequests += 1;
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end('<h1>elsewhere-marker</h1>');
+    });
+    elsewhereUrl = await listen(elsewhere);
     server = http.createServer((request, response) => {
+      if (request.url === '/redirect') {
+        response.writeHead(302, { location: `${elsewhereUrl}/` });
+        response.end();
+        return;
+      }
+      if (request.url === '/outbound') {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end(`<a href="${elsewhereUrl}/">Elsewhere</a>`);
+        return;
+      }
       const fixture = FIXTURE_BY_ROUTE[request.url ?? ''];
       if (!fixture) {
         response.writeHead(404, { 'content-type': 'text/html' });
@@ -49,16 +89,16 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
       response.writeHead(200, { 'content-type': 'text/html' });
       response.end(fs.readFileSync(path.join(FIXTURES_DIR, `${fixture}.html`)));
     });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const address = server.address();
-    if (address === null || typeof address === 'string') {
-      throw new Error('the fixture server did not bind to a port');
-    }
-    baseUrl = `http://127.0.0.1:${address.port}`;
-    client = new BrowserClient(new BrowserProcess(new CamoufoxLauncher()));
+    baseUrl = await listen(server);
+    // the production policy refuses loopback, which is where the fixtures are served from
+    proxy = new PolicyProxy({
+      vet: (url) => Promise.resolve(url.origin === baseUrl ? { address: '127.0.0.1', family: 4 } : undefined)
+    });
+    client = new BrowserClient(new BrowserProcess(new CamoufoxLauncher()), proxy);
   });
 
   beforeEach(async () => {
+    elsewhereRequests = 0;
     session = (await client.createSession()).unwrap();
   }, 60_000);
 
@@ -68,9 +108,27 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
 
   afterAll(async () => {
     await client.disposeAll();
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve()));
-    });
+    await proxy.onApplicationShutdown();
+    await close(server);
+    await close(elsewhere);
+  });
+
+  it('should refuse a redirect the policy refuses before it reaches its target (§3.4)', async () => {
+    const result = await session.navigate(`${baseUrl}/redirect`);
+    expect(result.success).toBe(false);
+    expect(result.error?.kind).toBe('navigation');
+    expect(elsewhereRequests).toBe(0);
+  });
+
+  it('should refuse a same-session link click the policy refuses (§3.4)', async () => {
+    const outbound = (await session.navigate(`${baseUrl}/outbound`)).unwrap();
+    const ref = ELSEWHERE_LINK_REF.exec(toMarkdown(outbound.html))?.[1];
+    if (!ref) {
+      throw new Error('the outbound link ref was not found in the markdown');
+    }
+    const after = await session.click(ref);
+    expect(after.success ? toMarkdown(after.value.html) : '').not.toContain('elsewhere-marker');
+    expect(elsewhereRequests).toBe(0);
   });
 
   const peopleLinkRef = (html: string): string => {
