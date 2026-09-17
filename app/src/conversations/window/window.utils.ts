@@ -1,3 +1,5 @@
+import { renderPostWithAttachments } from '../conversations.utils.ts';
+
 import type { WindowEntry } from '../conversations.types.ts';
 
 const CHARS_PER_TOKEN = 4;
@@ -17,7 +19,7 @@ export function estimateTokens(text: string): number {
 /** what an entry costs against the window budget: what the model will read, so a replayed result costs its replay line */
 export function entryText(entry: WindowEntry): string {
   if (entry.kind === 'post') {
-    return entry.post.message;
+    return renderPostWithAttachments(entry.post);
   }
   const { payload } = entry.event;
   return payload.kind === 'tool_result' && payload.replay !== undefined ? payload.replay : JSON.stringify(payload);

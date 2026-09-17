@@ -2,6 +2,7 @@ import { renderToolWireName } from '@collegium/core/tools';
 import { match } from 'ts-pattern';
 
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
+import { renderPostWithAttachments } from '@/conversations/conversations.utils.ts';
 import type { CompletionMessage } from '@/inference/inference.types.ts';
 import { reasoningOf } from '@/inference/inference.utils.ts';
 import type { ModelRow } from '@/prisma/prisma.types.ts';
@@ -119,10 +120,11 @@ function renderEvent(event: ModelRow<'TurnEvent'>, results: ReadonlyMap<string, 
 }
 
 function renderPost(post: ModelRow<'Post'>, selfUsername: string): CompletionMessage {
+  const content = renderPostWithAttachments(post);
   if (post.authorUsername === selfUsername) {
-    return { content: post.message, role: 'assistant' };
+    return { content, role: 'assistant' };
   }
-  return { content: `@${post.authorUsername}: ${post.message}`, role: 'user' };
+  return { content: `@${post.authorUsername}: ${content}`, role: 'user' };
 }
 
 export function toCompletionMessages(entries: readonly WindowEntry[], selfUsername: string): CompletionMessage[] {
