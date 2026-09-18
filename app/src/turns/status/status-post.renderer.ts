@@ -35,6 +35,13 @@ function formatDuration(elapsedMs: number): string {
   return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
 }
 
+/** keyed by the framework's display names and never model text (§3.2), each with how many times it completed */
+function renderCallCounts(callCounts: ReadonlyMap<string, number>): string {
+  return Array.from(callCounts, ([displayName, count]) => {
+    return count === 1 ? `\`${displayName}\`` : `\`${displayName}\` ×${count}`;
+  }).join(', ');
+}
+
 /** §8.1 — the closing line also states how long the turn ran; every phrase ends in the closing underscore */
 function renderOutcomeLine(outcome: Exclude<TurnStatus, 'running'>, elapsedMs: number | undefined): string {
   const phrase = OUTCOME_PHRASES[outcome];
@@ -42,6 +49,8 @@ function renderOutcomeLine(outcome: Exclude<TurnStatus, 'running'>, elapsedMs: n
 }
 
 export type StatusPostState = {
+  /** §8.1 — by display name, the calls the closing edit names as having possibly changed something */
+  changedCalls?: ReadonlyMap<string, number>;
   /** wall-clock time the turn ran, approval waits included; absent where its end was never observed */
   elapsedMs?: number;
   outcome?: Exclude<TurnStatus, 'running'>;
@@ -56,6 +65,9 @@ export function renderStatusPost(state: StatusPostState): string {
   ];
   if (state.outcome === undefined && state.transientText !== undefined && state.transientText !== '') {
     lines.push(`_${state.transientText}_`);
+  }
+  if (state.outcome !== undefined && state.changedCalls !== undefined && state.changedCalls.size > 0) {
+    lines.push(`_May have changed something: ${renderCallCounts(state.changedCalls)}_`);
   }
   return lines.join('\n');
 }
@@ -157,9 +169,7 @@ export function renderProviderRejectionNotice(status: number | undefined): strin
 
 /** §7.1 — appended to a failure notice, keyed by the framework's display names and never model text (§3.2) */
 export function renderMayHaveTakenEffectLine(callCounts: ReadonlyMap<string, number>): string {
-  const calls = Array.from(callCounts, ([displayName, count]) => {
-    return count === 1 ? `\`${displayName}\`` : `\`${displayName}\` ×${count}`;
-  }).join(', ');
+  const calls = renderCallCounts(callCounts);
   const total = Array.from(callCounts.values()).reduce((sum, count) => sum + count, 0);
   return total === 1
     ? `Before stopping, this call completed and may have changed something: ${calls}. Check its effect before running this again.`

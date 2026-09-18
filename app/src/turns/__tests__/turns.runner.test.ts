@@ -266,7 +266,7 @@ describe('TurnRunner', () => {
       expect.objectContaining({ authorKind: 'agent', message: 'all done' }),
       { kind: 'reply', turnId: 'turn-1' }
     );
-    expect(statusHandle.close).toHaveBeenCalledWith('completed');
+    expect(statusHandle.close).toHaveBeenCalledWith('completed', expect.any(Map));
   });
 
   it('should discard the completion that only saw the first fragment and answer the whole message', async () => {
@@ -579,6 +579,18 @@ describe('TurnRunner', () => {
       expect(sends.at(-1)?.text).toBe(
         'I hit an internal error and stopped: the vendor exploded\nBefore stopping, these calls completed and may have changed something: `prospects__create` ×2, `memory__write`. Check their effects before running this again.'
       );
+    });
+
+    it('should hand the same counts to the status post on a normal completion (§8.1)', async () => {
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['prospects__create', 'prospects__create', 'web__fetch'])));
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      toolExecutor.execute
+        .mockResolvedValueOnce(effectful)
+        .mockResolvedValueOnce(effectful)
+        .mockResolvedValueOnce({ kind: 'continue', output: 'ok' });
+      const outcome = await run();
+      expect(outcome.status).toBe('completed');
+      expect(statusHandle.close).toHaveBeenCalledWith('completed', new Map([['prospects__create', 2]]));
     });
 
     it('should post the failure alone when every completed call was retryable', async () => {
@@ -944,7 +956,7 @@ describe('TurnRunner', () => {
     const outcome = await run();
     expect(outcome.status).toBe('stopped');
     expect(sends).toHaveLength(0);
-    expect(statusHandle.close).toHaveBeenCalledWith('stopped');
+    expect(statusHandle.close).toHaveBeenCalledWith('stopped', expect.any(Map));
   });
 
   it('should return killed immediately while a completion is still in flight', async () => {
@@ -974,7 +986,7 @@ describe('TurnRunner', () => {
     turnsService.appendEvent.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
     const outcome = await run();
     expect(outcome.status).toBe('semantic_error');
-    expect(statusHandle.close).toHaveBeenCalledWith('semantic_error');
+    expect(statusHandle.close).toHaveBeenCalledWith('semantic_error', expect.any(Map));
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'semantic_error', expect.anything());
     expect(sends.at(-1)?.text).toContain('framework');
   });
@@ -1194,7 +1206,7 @@ describe('TurnRunner', () => {
     await new Promise((resolve) => setImmediate(resolve));
     turnControlRegistry.abortChannel('channel-1', 'killed');
     expect((await running).status).toBe('killed');
-    expect(statusHandle.close).toHaveBeenCalledWith('killed');
+    expect(statusHandle.close).toHaveBeenCalledWith('killed', expect.any(Map));
   });
 
   it('should end the turn as a delivery failure when the extension prompt cannot be delivered', async () => {
@@ -1264,7 +1276,7 @@ describe('TurnRunner', () => {
     conversationsService.record.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
     const outcome = await run();
     expect(outcome.status).toBe('provider_outage');
-    expect(statusHandle.close).toHaveBeenCalledWith('provider_outage');
+    expect(statusHandle.close).toHaveBeenCalledWith('provider_outage', expect.any(Map));
   });
 
   it('should accumulate reported usage, tokens and cost alike, across every completion in the turn', async () => {

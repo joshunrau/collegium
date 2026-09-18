@@ -57,7 +57,7 @@ describe('StatusPostService', () => {
   it('should open the post on the first trace line and record it as the turn status post', async () => {
     const handle = statusPostService.open(OPEN_INPUT);
     handle.appendTrace('→ `read_memory`');
-    await handle.close('completed');
+    await handle.close('completed', new Map());
 
     expect(transport.send).toHaveBeenCalledExactlyOnceWith({
       channelId: 'channel-1',
@@ -88,7 +88,7 @@ describe('StatusPostService', () => {
 
     handle.appendTrace('→ `load_skill`');
     vi.advanceTimersByTime(200_000);
-    await handle.close('completed');
+    await handle.close('completed', new Map());
 
     expect(editedTexts()).toContain('✅ _done (3m 20s)_\n→ `load_skill`');
   });
@@ -107,7 +107,7 @@ describe('StatusPostService', () => {
     handle.appendTrace('→ `read_memory`');
     finishOpening();
     await vi.waitFor(() => expect(transport.updatePost).toHaveBeenCalledOnce());
-    await handle.close('completed');
+    await handle.close('completed', new Map());
 
     const text = '⏳ _working…_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`';
     expect(transport.send).toHaveBeenCalledOnce();
@@ -122,7 +122,7 @@ describe('StatusPostService', () => {
     handle.setTransient('reading the skill');
     handle.setTransient('writing it up');
     await vi.waitFor(() => expect(transport.updatePost).toHaveBeenCalledOnce());
-    await handle.close('killed');
+    await handle.close('killed', new Map());
 
     expect(editedTexts()).toStrictEqual([
       '⏳ _working…_\n→ `load_skill`\n_writing it up_',
@@ -131,7 +131,7 @@ describe('StatusPostService', () => {
   });
 
   it('should post nothing for a turn that never traced anything', async () => {
-    await statusPostService.open(OPEN_INPUT).close('completed');
+    await statusPostService.open(OPEN_INPUT).close('completed', new Map());
 
     expect(transport.send).not.toHaveBeenCalled();
     expect(transport.updatePost).not.toHaveBeenCalled();
@@ -142,9 +142,9 @@ describe('StatusPostService', () => {
     const handle = statusPostService.open(OPEN_INPUT);
 
     handle.appendTrace('→ `load_skill`');
-    await handle.close('completed');
+    await handle.close('completed', new Map());
     handle.appendTrace('→ `write_memory`');
-    await handle.close('completed');
+    await handle.close('completed', new Map());
 
     expect(transport.send).toHaveBeenCalledOnce();
     expect(transport.updatePost).not.toHaveBeenCalled();
@@ -162,7 +162,7 @@ describe('StatusPostService', () => {
     handle.appendTrace('→ `write_memory`');
     await vi.waitFor(() => expect(loggingService.error).toHaveBeenCalledOnce());
     handle.appendTrace('→ `read_memory`');
-    await handle.close('completed');
+    await handle.close('completed', new Map());
 
     expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ message: 'failed to edit status post status-1: the channel is archived' })
@@ -178,7 +178,7 @@ describe('StatusPostService', () => {
     const handle = statusPostService.open(OPEN_INPUT);
 
     handle.appendTrace('→ `load_skill`');
-    await handle.close('completed');
+    await handle.close('completed', new Map());
 
     expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ message: 'failed to record status post status-1' })
@@ -226,7 +226,7 @@ describe('StatusPostService', () => {
     const handle = statusPostService.open(OPEN_INPUT);
 
     handle.appendTrace('→ `load_skill`');
-    await handle.close('completed');
+    await handle.close('completed', new Map());
 
     expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ message: 'failed to update the stored status post status-1' })

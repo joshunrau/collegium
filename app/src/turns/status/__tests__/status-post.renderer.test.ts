@@ -46,6 +46,18 @@ describe('renderStatusPost', () => {
   it('should omit an empty transient line', () => {
     expect(renderStatusPost({ traceLines: [], transientText: '' })).toBe('⏳ _working…_');
   });
+
+  it('should close by naming the calls that may have changed something, with counts, on any exit (§8.1)', () => {
+    const changedCalls = new Map([
+      ['memory::write', 1],
+      ['prospects::create_prospects', 3]
+    ]);
+    expect(renderStatusPost({ changedCalls, outcome: 'completed', traceLines: ['→ `web::fetch`'] })).toBe(
+      '✅ _done_\n→ `web::fetch`\n_May have changed something: `memory::write`, `prospects::create_prospects` ×3_'
+    );
+    expect(renderStatusPost({ changedCalls: new Map(), outcome: 'completed', traceLines: [] })).toBe('✅ _done_');
+    expect(renderStatusPost({ changedCalls, traceLines: [] })).toBe('⏳ _working…_');
+  });
 });
 
 describe('renderToolCallLine', () => {

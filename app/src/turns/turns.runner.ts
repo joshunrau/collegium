@@ -189,7 +189,7 @@ type TurnState = {
   /** §4.5 — the one peer this turn has addressed, whatever number of posts it emits */
   addressedPeer: string | undefined;
   readonly budget: ActionBudget;
-  /** §7.1 — by display name, how many times a call that may have taken effect ran to completion */
+  /** §7.1, §8.1 — by display name, how many times a call that may have taken effect ran to completion */
   readonly callsThatMayHaveTakenEffect: Map<string, number>;
   /** §4.5 — rejected posts and unknown tool names (§7.2) since the last call that ran */
   consecutiveRejections: number;
@@ -1278,7 +1278,7 @@ export class TurnRunner {
   /** best-effort on both writes: a close that itself fails must never leave the turn 'running' silently */
   private async writeClosingStatus(state: TurnState, status: Exclude<TurnStatus, 'running'>): Promise<TurnOutcome> {
     try {
-      await state.status.close(status);
+      await state.status.close(status, state.callsThatMayHaveTakenEffect);
     } catch (error) {
       this.loggingService.error(new Error('failed to close the status post', { cause: error }));
     }
