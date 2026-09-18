@@ -150,6 +150,43 @@ export default defineTool({
 - A tool declaring `approval: null` runs without a gate. Mark it `retryable` only if a timed-out call is safe to report as a failure. Never mark a mutation retryable.
 - `traceDetail` is the one-line summary shown in the status post.
 
+### Render the Stored Record
+
+`approval` receives a second argument beside `args`: the tool's `settings`, and each collection's three reads, `findById`, `findFirst`, and `findMany`. It gets no writes, no `err`, and no `turn`. It may be `async`.
+
+When a call acts on a stored record, read the record and show it. The approver then checks what the store holds, not the model's description of it. `src/tools/delete.ts` deletes a contact:
+
+```ts
+import { defineTool } from '@collegium/sdk';
+import { z } from 'zod';
+
+export default defineTool({
+  approval: async (args, { storage }) => {
+    const contact = await storage.contacts.findById(args.id);
+    return {
+      body: contact
+        ? `delete contact "${args.id}": ${contact.name} <${contact.email}>`
+        : `delete contact "${args.id}", which is not saved`,
+      presentation: 'verbatim'
+    };
+  },
+  description: 'Delete a saved contact.',
+  execute: async (args, { err, storage }) => {
+    if (!(await storage.contacts.deleteById(args.id))) {
+      err.invalidArguments(`no contact is saved as ${args.id}`);
+    }
+    return `contact ${args.id} deleted`;
+  },
+  parameters: z.object({
+    id: z.string().min(1).describe('Identifier the contact was saved under')
+  })
+});
+```
+
+If the model names the wrong identifier, the prompt shows the wrong contact, and the approver denies the call.
+
+Build the payload from the arguments, the settings, and your own records only. Don't call `fetch` or read files in a render. The approver must see what the call acts on, not what a network returned. A render that throws ends the turn as an error before any prompt appears.
+
 ### Files and Imports
 
 The loader reads direct children of `src/tools/` only, and refuses a file it cannot load as a tool rather than skipping it. Every direct child must end in `.ts` and carry no further extension, so `save.test.ts` and `types.d.ts` are refused there — a subdirectory such as `src/tools/__tests__/` is yours, and the loader ignores it. Keep helpers elsewhere under `src/` and import them by relative path.
@@ -187,6 +224,7 @@ import { createTestContext, PluginToolFailureError } from '@collegium/sdk/testin
 import { describe, expect, it } from 'vitest';
 
 import config from '../../config.ts';
+import deleteContact from '../delete.ts';
 import find from '../find.ts';
 import save from '../save.ts';
 
@@ -203,10 +241,17 @@ describe('contacts', () => {
     const second = save.execute({ email: 'ben@example.com', id: 'ben', name: 'Ben' }, context);
     await expect(second).rejects.toThrow(PluginToolFailureError);
   });
+
+  it('shows the approver the stored contact before a delete', async () => {
+    const context = createTestContext(config);
+    await save.execute({ email: 'ana@example.com', id: 'ana', name: 'Ana' }, context);
+    const payload = await deleteContact.approval?.({ id: 'ana' }, context);
+    expect(payload?.body).toBe('delete contact "ana": Ana <ana@example.com>');
+  });
 });
 ```
 
-`err.invalidArguments` and `err.unresolved` throw `PluginToolFailureError` here, as they do in a deployment before the framework maps them. Pass `turn` in the options to change the agent, channel, or post the tool sees.
+`err.invalidArguments` and `err.unresolved` throw `PluginToolFailureError` here, as they do in a deployment before the framework maps them. Pass `turn` in the options to change the agent, channel, or post the tool sees. The same context serves `approval`, which reads the same in-memory storage.
 
 ## 5. Install the Plugin
 

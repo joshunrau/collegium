@@ -115,6 +115,23 @@ export type ToolContextSettings<TContext> = TContext extends { readonly settings
   ? TSettings
   : unknown;
 
+/** the methods of a storage collection that leave the store as they found it: all of storage an approval render reaches (§3.4) */
+export type ToolStorageReadMethod = 'findById' | 'findFirst' | 'findMany';
+
+/**
+ * What an approval render receives, derived from what `execute` receives (§3.4): the settings where
+ * the context carries them, and of each storage handle only its read half — no service, no write,
+ * and no turn.
+ */
+export type ToolApprovalContext<TContext> = Pick<TContext, Extract<keyof TContext, 'settings'>> &
+  (TContext extends { readonly storage: infer TStorage }
+    ? {
+        readonly storage: {
+          readonly [K in keyof TStorage]: Pick<TStorage[K], Extract<keyof TStorage[K], ToolStorageReadMethod>>;
+        };
+      }
+    : unknown);
+
 /** what an execution settles to; `execute` may return it sync or promised */
 export type ToolResult = Result<ToolOutput, ToolFailure>;
 
@@ -124,12 +141,13 @@ export type ToolResult = Result<ToolOutput, ToolFailure>;
  */
 export type ToolDefinition<TContext, TParams extends z.ZodType> = {
   /**
-   * Present ⇒ the tool always gates (§5); renders the payload the approver reads and cannot decline.
+   * Present ⇒ the tool always gates (§5); renders the payload the approver reads and cannot decline,
+   * from the arguments and whatever of the settings and stored records the context holds (§3.4).
    * Optional here and required on a plugin tool (`$PluginTool`), because a framework toolset's
    * source is read by whoever maintains it while a plugin's may live in another repository: for us
    * an omission is visible, for them it is indistinguishable from a mistake (§3.14).
    */
-  approval?(args: z.infer<TParams>): ToolApprovalPayload;
+  approval?(args: z.infer<TParams>, context: ToolApprovalContext<TContext>): Promisable<ToolApprovalPayload>;
   /**
    * Present ⇒ the tool always asks (§3.7a): a question whose answer becomes the call's result,
    * never a consent decision, so there is no body to run and no denial. A tool declares this or

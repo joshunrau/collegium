@@ -1,6 +1,6 @@
 import { renderToolDisplayName, renderToolWireName } from '@collegium/core/tools';
 import type { ToolFailure, ToolId } from '@collegium/core/tools';
-import type { AnyTool, AnyToolset, AnyToolsetCollection } from '@collegium/core/toolsets';
+import type { AnyTool, AnyToolset, AnyToolsetCollection, AnyToolsetCollectionReader } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
@@ -24,6 +24,8 @@ export type RegisteredToolset = {
   readonly declaration: AnyToolset;
   readonly services: Readonly<{ [key: string]: unknown }>;
   readonly storage: Readonly<{ [key: string]: AnyToolsetCollection }>;
+  /** the read half of each collection above, and all of storage an approval render is handed (§3.4) */
+  readonly storageReaders: Readonly<{ [key: string]: AnyToolsetCollectionReader }>;
 };
 
 /** §8.4 — what an agent holds, and for each whether acting with it needs a human (§3.4) */

@@ -40,7 +40,12 @@ const MAPS_TOOLSET = defineToolset({
   }
 });
 
-const register = (declaration: AnyToolset): RegisteredToolset => ({ declaration, services: {}, storage: {} });
+const register = (declaration: AnyToolset): RegisteredToolset => ({
+  declaration,
+  services: {},
+  storage: {},
+  storageReaders: {}
+});
 
 const LIBRARY = [SKILLS_TOOLSET, TRIGGERS_TOOLSET, NOTES_TOOLSET, MAPS_TOOLSET].map(register);
 

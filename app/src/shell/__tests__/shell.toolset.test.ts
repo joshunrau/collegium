@@ -2,7 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { describe, expect, it } from 'vitest';
 
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
-import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
+import { buildToolTurnScope, executeTool, renderApproval } from '@/testing/factories/tool-turn.factory.ts';
 
 import { ShellService } from '../shell.service.ts';
 import { SHELL_TOOLSET } from '../shell.toolset.ts';
@@ -31,8 +31,8 @@ describe('SHELL_TOOLSET', () => {
     expect(result.error).toStrictEqual({ kind: 'exception', message: 'sudo is missing' });
   });
 
-  it('always gates, presenting the command verbatim and in full (§6.2)', () => {
-    const payload = run.approval?.({ command: 'rm -rf ./scratch' });
+  it('always gates, presenting the command verbatim and in full (§6.2)', async () => {
+    const payload = await renderApproval(run, { command: 'rm -rf ./scratch' });
     expect(payload).toStrictEqual({
       body: "Run this shell command as this agent's dedicated OS user:\n\n```sh\nrm -rf ./scratch\n```",
       presentation: 'verbatim'

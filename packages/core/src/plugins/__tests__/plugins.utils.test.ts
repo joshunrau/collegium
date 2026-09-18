@@ -18,7 +18,7 @@ describe('toFrameworkTool', () => {
     expect(wrap(() => 'done')).not.toHaveProperty('approval');
   });
 
-  it('keeps a declared approval renderer', () => {
+  it('keeps a declared approval renderer', async () => {
     const tool = toFrameworkTool(
       $PluginTool.parse({
         approval: () => ({ body: 'do it', presentation: 'verbatim' }),
@@ -27,7 +27,7 @@ describe('toFrameworkTool', () => {
         parameters: z.object({})
       })
     );
-    expect(tool.approval?.({})).toStrictEqual({ body: 'do it', presentation: 'verbatim' });
+    expect(await tool.approval?.({}, {})).toStrictEqual({ body: 'do it', presentation: 'verbatim' });
   });
 
   it('wraps a returned string as the tool output text', async () => {

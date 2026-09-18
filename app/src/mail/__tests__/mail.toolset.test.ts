@@ -2,7 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { describe, expect, it } from 'vitest';
 
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
-import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
+import { buildToolTurnScope, executeTool, renderApproval } from '@/testing/factories/tool-turn.factory.ts';
 
 import { MailProvider } from '../mail.provider.ts';
 import { MailRegistry } from '../mail.registry.ts';
@@ -78,8 +78,8 @@ describe('MAIL_TOOLSET', () => {
     expect(result.error).toStrictEqual({ kind: 'unresolved', message: 'connection died mid-send' });
   });
 
-  it('gates reply and send with a payload disclosing every recipient, the subject, and the body (§6.3)', () => {
-    const payload = send.approval?.({
+  it('gates reply and send with a payload disclosing every recipient, the subject, and the body (§6.3)', async () => {
+    const payload = await renderApproval(send, {
       body: 'Full text.',
       cc: ['lee@example.org'],
       subject: 'Hello',

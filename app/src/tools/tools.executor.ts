@@ -1,5 +1,5 @@
 import { DEFAULT_TOOL_TIMEOUT_MS } from '@collegium/core/tools';
-import type { ToolOutput, ToolResult, ToolTurnScope } from '@collegium/core/tools';
+import type { ToolApprovalPayload, ToolOutput, ToolResult, ToolTurnScope } from '@collegium/core/tools';
 import { Result, toErrorMessage, withTimeout } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
@@ -16,7 +16,7 @@ import type { TurnEventInput } from '@/turns/turns.types.ts';
 
 import { ToolRegistry } from './tools.registry.ts';
 
-import type { ResolvedTool } from './tools.registry.ts';
+import type { RegisteredToolset, ResolvedTool } from './tools.registry.ts';
 import type { ToolAttempt } from './tools.types.ts';
 
 type ExecuteInput = {
@@ -80,7 +80,17 @@ export class ToolExecutor {
     if (!tool.definition.approval) {
       return this.runBody(tool, args.data, input);
     }
-    const decision = await this.requestApproval(input, tool, args.data, tool.definition.approval(args.data));
+    let payload: ToolApprovalPayload;
+    try {
+      payload = await tool.definition.approval(args.data, this.assembleApprovalContext(tool, input));
+    } catch (error) {
+      return {
+        detail: `${tool.displayName} threw while rendering its approval: ${toErrorMessage(error)}`,
+        kind: 'terminal',
+        status: 'semantic_error'
+      };
+    }
+    const decision = await this.requestApproval(input, tool, args.data, payload);
     if (!decision.success) {
       return this.toApprovalFailureAttempt(decision.error);
     }
@@ -97,6 +107,18 @@ export class ToolExecutor {
         output: `denied: ${reason}`
       }))
       .exhaustive();
+  }
+
+  /** §3.4 — what a render may read: the declared settings, and the read half of the declared storage */
+  private assembleApprovalContext(
+    tool: ResolvedTool,
+    input: ExecuteInput
+  ): { readonly settings?: unknown; readonly storage?: RegisteredToolset['storageReaders'] } {
+    const { declaration, storageReaders } = tool.toolset;
+    return {
+      ...(declaration.settings && { settings: input.profile.toolSettings.get(declaration.name) }),
+      ...(declaration.storage && { storage: storageReaders })
+    };
   }
 
   /** §4 — what the toolset declared and nothing else: services and storage from boot, settings from the acting agent, the turn */
@@ -141,7 +163,7 @@ export class ToolExecutor {
     input: ExecuteInput,
     tool: ResolvedTool,
     args: unknown,
-    payload: { body: string; presentation: 'collapse' | 'verbatim' }
+    payload: ToolApprovalPayload
   ): Promise<Result<ApprovalDecision, ApprovalFailureRequest>> {
     return this.approvalsService.request({
       agentUsername: input.turn.agentUsername,
