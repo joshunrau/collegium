@@ -8,7 +8,7 @@ describe('renderApprovalContext', () => {
       renderApprovalContext({
         actionBudget: 25,
         actionNumber: 7,
-        requestedBy: { message: 'pull the deploy script\nand run it', username: 'joshua' }
+        requestedBy: { kind: 'human', message: 'pull the deploy script\nand run it', username: 'joshua' }
       })
     ).toBe('Action 7 of 25 · requested by @joshua: "pull the deploy script and run it"');
   });
@@ -17,9 +17,15 @@ describe('renderApprovalContext', () => {
     const line = renderApprovalContext({
       actionBudget: 25,
       actionNumber: 1,
-      requestedBy: { message: 'x'.repeat(200), username: 'joshua' }
+      requestedBy: { kind: 'human', message: 'x'.repeat(200), username: 'joshua' }
     });
     expect(line).toBe(`Action 1 of 25 · requested by @joshua: "${'x'.repeat(140)}…"`);
+  });
+
+  it('should name a colleague that asked without mentioning it (§3.7, §4.5)', () => {
+    expect(
+      renderApprovalContext({ actionBudget: 25, actionNumber: 4, requestedBy: { kind: 'agent', username: 'owen' } })
+    ).toBe('Action 4 of 25 · asked by colleague owen');
   });
 
   it('should say a trigger raised the turn rather than repeating text written elsewhere (§3.7)', () => {

@@ -12,7 +12,12 @@ import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
-import type { CompletionResult, CompletionUsage, InferenceFailure } from '@/inference/inference.types.ts';
+import type {
+  CompletionRequest,
+  CompletionResult,
+  CompletionUsage,
+  InferenceFailure
+} from '@/inference/inference.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -386,7 +391,7 @@ describe('TurnRunner', () => {
   });
 
   it('should tell every approval prompt where in the budget it sits and which human asked (§3.7)', async () => {
-    conversationsService.findHumanRequest.mockResolvedValue({ message: 'ship it', username: 'casey' });
+    conversationsService.findRequester.mockResolvedValue({ kind: 'human', message: 'ship it', username: 'casey' });
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture', 'lookup_fixture'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await turnRunner.run({
@@ -401,7 +406,7 @@ describe('TurnRunner', () => {
       'Action 1 of 10 · requested by @casey: "ship it"',
       'Action 2 of 10 · requested by @casey: "ship it"'
     ]);
-    expect(conversationsService.findHumanRequest).toHaveBeenCalledExactlyOnceWith('post-1');
+    expect(conversationsService.findRequester).toHaveBeenCalledExactlyOnceWith('post-1');
   });
 
   it('should say a trigger raised the turn when no human post started it (§3.7)', async () => {
@@ -409,7 +414,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
     expect(toolExecutor.execute.mock.calls[0]?.[0].contextText).toBe('Action 1 of 10 · raised by a trigger');
-    expect(conversationsService.findHumanRequest).not.toHaveBeenCalled();
+    expect(conversationsService.findRequester).not.toHaveBeenCalled();
   });
 
   it('should execute tools, record the trace, and loop until the model emits text', async () => {
@@ -1382,6 +1387,38 @@ describe('TurnRunner', () => {
     expect(complete).not.toHaveBeenCalled();
   });
 
+  it('should keep every result of one completion verbatim until the model has read it (§3.8)', async () => {
+    toolRegistry.isSupersedable.mockReturnValue(true);
+    toolRegistry.isConcurrent.mockReturnValue(true);
+    toolExecutor.execute.mockImplementation(({ call }) =>
+      { return Promise.resolve({ kind: 'continue', output: `page ${call.id}` }); }
+    );
+    const seen: string[][] = [];
+    const snapshot = (request: CompletionRequest) => {
+      seen.push(request.messages.filter((message) => message.role === 'tool').map((message) => message.content));
+    };
+    complete.mockImplementationOnce((request) => {
+      snapshot(request);
+      return Promise.resolve(Result.ok(toolUse(['workspace__read', 'workspace__read', 'workspace__read'])));
+    });
+    complete.mockImplementationOnce((request) => {
+      snapshot(request);
+      return Promise.resolve(Result.ok(toolUse(['workspace__read'])));
+    });
+    complete.mockImplementationOnce((request) => {
+      snapshot(request);
+      return Promise.resolve(Result.ok(text('done')));
+    });
+    await run();
+    expect(seen[1]).toStrictEqual(['page call-0', 'page call-1', 'page call-2']);
+    expect(seen[2]).toStrictEqual([
+      '[earlier workspace__read result superseded by a later one]',
+      '[earlier workspace__read result superseded by a later one]',
+      'page call-2',
+      'page call-0'
+    ]);
+  });
+
   it('should retire an earlier page result to its replay line once two newer ones exist (§3.8)', async () => {
     toolRegistry.isSupersedable.mockImplementation((_profile, name: string) => name === 'web__fetch');
     for (const page of ['one', 'two', 'three']) {
@@ -1391,10 +1428,12 @@ describe('TurnRunner', () => {
         replay: `[page ${page}]`
       });
     }
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch', 'web__fetch', 'web__fetch'])));
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
-    const followUp = complete.mock.calls[1]![0].messages;
+    const followUp = complete.mock.calls[3]![0].messages;
     expect(followUp.filter((message) => message.role === 'tool').map((message) => message.content)).toStrictEqual([
       '[page one]',
       'page two',

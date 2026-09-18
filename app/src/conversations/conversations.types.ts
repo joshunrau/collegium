@@ -38,6 +38,12 @@ export type SearchInput = {
   readonly until?: Date;
 };
 
+/** who asked for a turn's work, read off the triggering post: a person's words, a colleague's name, or the system bot (§3.7) */
+export type TurnRequest =
+  | { readonly kind: 'agent'; readonly username: string }
+  | { readonly kind: 'human'; readonly message: string; readonly username: string }
+  | { readonly kind: 'system' };
+
 /** the turn whose post activated the turn that authored a post — who a mention would be returning to (§7.4) */
 export type DelegatingTurn = {
   readonly agentUsername: string;

@@ -1,10 +1,17 @@
 import { Injectable } from '@nestjs/common';
+import { match } from 'ts-pattern';
 
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
-import type { ActivationSource, DelegatingTurn, PostAuthorship, RecordablePost } from './conversations.types.ts';
+import type {
+  ActivationSource,
+  DelegatingTurn,
+  PostAuthorship,
+  RecordablePost,
+  TurnRequest
+} from './conversations.types.ts';
 
 @Injectable()
 export class ConversationsService {
@@ -57,16 +64,24 @@ export class ConversationsService {
     return post?.authoringTurn ?? undefined;
   }
 
-  /** §3.7 — the words a human asked in, for the framework to quote back; an agent's or the system's are nobody's request */
-  async findHumanRequest(postId: string): Promise<undefined | { message: string; username: string }> {
+  /** §3.7 — who asked: a person's words are quoted back, a colleague is named, the system bot's post is a trigger */
+  async findRequester(postId: string): Promise<TurnRequest | undefined> {
     const post = await this.posts.findUnique({
       select: { authorKind: true, authorUsername: true, message: true },
       where: { id: postId }
     });
-    if (post?.authorKind !== 'human') {
+    if (!post) {
       return undefined;
     }
-    return { message: post.message, username: post.authorUsername };
+    return match(post)
+      .with({ authorKind: 'agent' }, ({ authorUsername }): TurnRequest => ({ kind: 'agent', username: authorUsername }))
+      .with({ authorKind: 'human' }, ({ authorUsername, message }): TurnRequest => ({
+        kind: 'human',
+        message,
+        username: authorUsername
+      }))
+      .with({ authorKind: 'system' }, (): TurnRequest => ({ kind: 'system' }))
+      .exhaustive();
   }
 
   async latestPostIdIn(channelId: string): Promise<string | undefined> {

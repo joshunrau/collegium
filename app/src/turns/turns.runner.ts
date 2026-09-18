@@ -11,6 +11,7 @@ import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import type { TurnRequest } from '@/conversations/conversations.types.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import type {
@@ -68,7 +69,6 @@ import { StatusPostService } from './status/status-post.service.ts';
 import { TurnsService } from './turns.service.ts';
 import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
 
-import type { TurnRequester } from './approval-context/approval-context.renderer.ts';
 import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
@@ -186,7 +186,7 @@ type TurnState = {
   /** §7.1 — results this turn recorded; a turn that recorded none accumulated nothing a fresh one would not rebuild */
   recordedResults: number;
   /** §3.7 — resolved once, at turn setup, and quoted on every approval prompt the turn raises */
-  readonly requestedBy: TurnRequester | undefined;
+  readonly requestedBy: TurnRequest | undefined;
   readonly status: StatusPostHandle;
   /** the supersedable results still verbatim in `messages`, oldest first (§3.8) */
   readonly supersedable: { messageIndex: number; replay: string }[];
@@ -194,6 +194,8 @@ type TurnState = {
   readonly turn: Turn;
   /** §7.2 — calls with unparseable arguments this turn has already forgiven */
   unparsedCalls: number;
+  /** §3.8 — the first message the model has not read yet: a result at or past it is never collapsed or cut short */
+  unreadFrom: number;
   usage: CompletionUsage | undefined;
 };
 
@@ -272,6 +274,7 @@ export class TurnRunner {
       transport: this.transportRegistry.get(profile.username),
       turn,
       unparsedCalls: 0,
+      unreadFrom: 0,
       usage: undefined
     };
     try {
@@ -645,6 +648,7 @@ export class TurnRunner {
       ...reasoning
     });
     state.consecutiveRejections = 0;
+    state.unreadFrom = state.messages.length;
     if (completion.content !== '') {
       state.status.setTransient(this.multiMentionPolicy.stripAgentMentions(completion.content));
     }
@@ -835,6 +839,12 @@ export class TurnRunner {
     );
   }
 
+  /** whether the oldest verbatim page is one the model has already read, so collapsing it loses nothing unseen */
+  private hasReadSupersedable(state: TurnState): boolean {
+    const oldest = state.supersedable[0];
+    return oldest !== undefined && oldest.messageIndex < state.unreadFrom;
+  }
+
   /**
    * §8.1 — resolved before anything runs, so the arguments are still raw model output: a call the
    * executor will reject as unknown keeps the name the model wrote, and one with malformed
@@ -969,7 +979,7 @@ export class TurnRunner {
     if (result.disclosure) {
       await this.discloseRecord(state, result.disclosure);
     }
-    if (this.relieveContextPressure(input, state, state.messages.length - 1) === 'exhausted') {
+    if (this.relieveContextPressure(input, state) === 'exhausted') {
       await this.postNotice(input, state, renderContextExhaustedNotice('accumulated'));
       return this.close(state, 'context_exhausted');
     }
@@ -997,43 +1007,33 @@ export class TurnRunner {
 
   /**
    * §3.8 — under pressure the count rule relaxes: stale pages collapse however recent they are, but
-   * never the result at `protectedIndex`, which the model has not read; a newest result that still
-   * does not fit is cut. Only when even that leaves the turn over its ceiling is it out of room.
+   * never a result the model has not read; the newest result, if it still does not fit, is cut.
+   * Only when even that leaves the turn over its ceiling is it out of room.
    */
-  private relieveContextPressure(
-    input: RunInput,
-    state: TurnState,
-    protectedIndex: number | undefined
-  ): 'exhausted' | 'relieved' {
+  private relieveContextPressure(input: RunInput, state: TurnState): 'exhausted' | 'relieved' {
     const ceiling = this.ceilingFor(input.profile);
-    while (
-      state.promptTokens > ceiling &&
-      state.supersedable.length > 0 &&
-      state.supersedable[0]!.messageIndex !== protectedIndex
-    ) {
+    while (state.promptTokens > ceiling && this.hasReadSupersedable(state)) {
       this.collapseOldestSupersedable(state);
     }
     if (state.promptTokens <= ceiling) {
       return 'relieved';
     }
-    return protectedIndex !== undefined && this.cutResultToFit(state, protectedIndex, ceiling)
-      ? 'relieved'
-      : 'exhausted';
+    return this.cutResultToFit(state, state.messages.length - 1, ceiling) ? 'relieved' : 'exhausted';
   }
 
   /**
    * §3.7 — who asked, read once per turn. Peer mentions lose their @ before the words can be
    * quoted back, because an approval prompt repeating one would address that peer (§4.5).
    */
-  private async resolveRequester(input: RunInput): Promise<TurnRequester | undefined> {
+  private async resolveRequester(input: RunInput): Promise<TurnRequest | undefined> {
     if (input.triggeringPostId === undefined) {
       return undefined;
     }
-    const request = await this.conversationsService.findHumanRequest(input.triggeringPostId);
-    if (!request) {
-      return undefined;
+    const request = await this.conversationsService.findRequester(input.triggeringPostId);
+    if (request?.kind !== 'human') {
+      return request;
     }
-    return { message: this.multiMentionPolicy.stripAgentMentions(request.message), username: request.username };
+    return { ...request, message: this.multiMentionPolicy.stripAgentMentions(request.message) };
   }
 
   /** everything here may throw; run() owns the boundary so no exit can leave the turn 'running' */
@@ -1117,7 +1117,7 @@ export class TurnRunner {
       messageIndex: state.messages.length - 1,
       replay: replay ?? `[earlier ${identified.call.name} result superseded by a later one]`
     });
-    while (state.supersedable.length > RETAINED_SUPERSEDABLE_RESULTS) {
+    while (state.supersedable.length > RETAINED_SUPERSEDABLE_RESULTS && this.hasReadSupersedable(state)) {
       this.collapseOldestSupersedable(state);
     }
   }
