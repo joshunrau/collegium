@@ -12,14 +12,9 @@ export function renderApprovalAge(requestedAt: Date, now: Date): string {
   return renderElapsed(now.getTime() - requestedAt.getTime());
 }
 
-/**
- * §8.4 — the listing is honest about its own scope: silence in the channels you are in is a
- * different fact from silence everywhere, and saying so names nothing that sits elsewhere.
- */
-export function renderNothingWaiting(scope: 'anywhere' | 'your-channels'): string {
-  return scope === 'anywhere'
-    ? 'Nothing is waiting on a human.'
-    : 'Nothing is waiting on a human in the channels you are in.';
+/** §8.4 — one answer whether nothing is pending or it all sits elsewhere, so the listing hints at nothing the invoker cannot see */
+export function renderNothingWaiting(): string {
+  return 'Nothing is waiting on a human in the channels you are in.';
 }
 
 /**

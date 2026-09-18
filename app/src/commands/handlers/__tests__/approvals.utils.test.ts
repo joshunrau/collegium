@@ -53,7 +53,6 @@ describe('renderPendingApprovals', () => {
 
 describe('renderNothingWaiting', () => {
   it('should distinguish quiet everywhere from quiet where you can see (§8.4)', () => {
-    expect(renderNothingWaiting('anywhere')).toBe('Nothing is waiting on a human.');
-    expect(renderNothingWaiting('your-channels')).toBe('Nothing is waiting on a human in the channels you are in.');
+    expect(renderNothingWaiting()).toBe('Nothing is waiting on a human in the channels you are in.');
   });
 });

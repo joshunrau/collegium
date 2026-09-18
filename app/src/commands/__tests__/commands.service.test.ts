@@ -90,8 +90,9 @@ describe('CommandsService', () => {
     expect(onAnnounced).toHaveBeenCalledExactlyOnceWith('post-1');
     chatGateway.postAsSystemIn.mockResolvedValueOnce(Result.err({ kind: 'api', message: 'refused' }));
     rosterService.listAgentsIn.mockReturnValueOnce([]);
-    await execute({ audience: 'channel', onAnnounced, text: 'Unit cancelled' });
+    const response = await execute({ audience: 'channel', onAnnounced, text: 'Unit cancelled' });
     expect(onAnnounced).toHaveBeenCalledOnce();
+    expect(response.text).toBe('The announcement could not be posted in this channel, so nothing was changed.');
   });
 
   it('should leave invoker output ephemeral, posting nothing', async () => {

@@ -67,10 +67,10 @@ describe('ApprovalsHandler', () => {
   });
 
   it('should say nothing is waiting when nothing is pending anywhere', async () => {
-    expect((await handle()).text).toBe('Nothing is waiting on a human.');
+    expect((await handle()).text).toBe('Nothing is waiting on a human in the channels you are in.');
   });
 
-  it('should say so distinctly when every pending approval sits in a channel the invoker is not in', async () => {
+  it('should say the same when every pending approval sits in a channel the invoker is not in (§8.4)', async () => {
     approvalsService.listPending.mockResolvedValue([pending()]);
     transport.isChannelMember.mockResolvedValue(Result.ok(false));
     expect((await handle()).text).toBe('Nothing is waiting on a human in the channels you are in.');

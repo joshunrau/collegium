@@ -35,12 +35,9 @@ export class ApprovalsHandler extends CommandHandler {
       return named.error;
     }
     const pending = await this.approvalsService.listPending(named?.value);
-    if (pending.length === 0) {
-      return { audience: 'invoker', text: renderNothingWaiting('anywhere') };
-    }
     const visible = await this.keepVisibleTo(pending, input.userId);
     if (visible.length === 0) {
-      return { audience: 'invoker', text: renderNothingWaiting('your-channels') };
+      return { audience: 'invoker', text: renderNothingWaiting() };
     }
     return { audience: 'invoker', text: renderPendingApprovals(visible, new Date()) };
   }

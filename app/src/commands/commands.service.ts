@@ -20,6 +20,8 @@ type InvokerResponse = {
 /** Mattermost renders nothing for an empty response, which is right when the channel already has it */
 const SILENT: InvokerResponse = { responseType: 'ephemeral', text: '' };
 
+const UNANNOUNCED = 'The announcement could not be posted in this channel, so nothing was changed.';
+
 /**
  * Runs one command and places its output. Channel-visible output is the system bot's (§3.2): an
  * `in_channel` command response is attributed to the invoking human instead, which makes mechanical
@@ -77,9 +79,14 @@ export class CommandsService {
     await response.afterAnnouncing?.();
     if (announced !== undefined) {
       await response.onAnnounced?.(announced);
+      return SILENT;
+    }
+    // §3.15 — work that only exists once announced did not happen, and the invoker must not read otherwise
+    if (response.onAnnounced) {
+      return { responseType: 'ephemeral', text: UNANNOUNCED };
     }
     // A4 — an interrupt notice is the only record a stopped turn leaves (the engine posts none of
     // its own), so one that reached no channel is told to the invoker rather than lost
-    return announced === undefined ? { responseType: 'ephemeral', text: response.text } : SILENT;
+    return { responseType: 'ephemeral', text: response.text };
   }
 }
