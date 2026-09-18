@@ -149,6 +149,22 @@ describe('ToolRegistry', () => {
     expect(registry.resolveFor(granted, 'maps::measure').error).toMatchObject({ kind: 'unknown-tool' });
   });
 
+  it('resolves a bare tool segment only where one granted tool carries it (§3.4)', () => {
+    const todos = defineToolset({
+      name: 'todos',
+      tools: {
+        add: { description: 'Add a todo.', execute: () => Result.ok({ text: 'added' }), parameters: z.object({}) }
+      }
+    });
+    const notesOnly = buildAgentProfile({ tools: ['notes'] });
+    const both = buildAgentProfile({ tools: ['notes', 'todos'], username: 'owen' });
+    const registry = new ToolRegistry([...LIBRARY, register(todos)], [notesOnly, both]);
+    expect(registry.resolveFor(notesOnly, 'add').unwrap().displayName).toBe('notes::add');
+    expect(registry.resolveFor(both, 'add').error).toMatchObject({ kind: 'unknown-tool' });
+    expect(registry.resolveFor(both, 'list').unwrap().displayName).toBe('notes::list');
+    expect(registry.resolveFor(notesOnly, 'measure').error).toMatchObject({ kind: 'unknown-tool' });
+  });
+
   it('offers the model one spelling of each tool, however many it accepts (§1)', () => {
     const profile = buildAgentProfile({ tools: ['notes'] });
     const registry = new ToolRegistry(LIBRARY, [profile]);

@@ -47,9 +47,10 @@ export type DescribedCall = {
 export class ToolRegistry {
   /**
    * Every spelling one of the agent's tools may arrive in, derived from the set below: the wire
-   * name, and the `ns::tool` form the framework's own approval posts put in the agent's own window
-   * (§3.4). Both keys are rendered from one identity at boot, so resolution stays lookup and
-   * nothing parses a name; a name claiming no granted tool still ends the turn (§7.2).
+   * name, the `ns::tool` form the framework's own approval posts put in the agent's own window, and
+   * the bare tool segment where only one granted tool carries it (§3.4). Every key is rendered from
+   * one identity at boot, so resolution stays lookup and nothing parses a name; a name claiming no
+   * granted tool still ends the turn (§7.2).
    */
   private readonly agentCallableTools: ReadonlyMap<string, ReadonlyMap<string, ResolvedTool>>;
 
@@ -105,11 +106,18 @@ export class ToolRegistry {
     return tools;
   }
 
-  /** the one place a second spelling is admitted, and it is rendered from the same identity as the first */
+  /** the one place further spellings are admitted, each rendered from the same identity as the first */
   private static toCallableNames(tools: ReadonlyMap<string, ResolvedTool>): ReadonlyMap<string, ResolvedTool> {
     const callable = new Map(tools);
+    const carriersBySegment = new Map<string, number>();
     for (const tool of tools.values()) {
       callable.set(tool.displayName, tool);
+      carriersBySegment.set(tool.id[1], (carriersBySegment.get(tool.id[1]) ?? 0) + 1);
+    }
+    for (const tool of tools.values()) {
+      if (carriersBySegment.get(tool.id[1]) === 1) {
+        callable.set(tool.id[1], tool);
+      }
     }
     return callable;
   }
