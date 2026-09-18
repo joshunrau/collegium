@@ -20,6 +20,18 @@ export type ToolCall = {
 };
 
 /**
+ * A call the provider structured but whose arguments never parsed. Kept apart from `ToolCall`
+ * rather than widening `arguments`, so nothing downstream can mistake broken bytes for arguments
+ * and every consumer is forced by the type to decide what to do with it (§7.2).
+ */
+export type UnparsedToolCall = {
+  readonly id: string;
+  readonly name: string;
+  /** exactly what the provider sent, unaltered; never shown to the model */
+  readonly rawArguments: string;
+};
+
+/**
  * Reasoning travels with the assistant message it produced, in memory within the turn and through
  * the `assistant_message` event across turns, because a thinking-mode provider rejects a replayed
  * assistant message without it. DeepSeek hands it back as text; OpenRouter as structured blocks
@@ -65,7 +77,7 @@ export declare namespace CompletionResult {
   type ToolUse = CompletionReasoning & {
     content: string;
     kind: 'tool-use';
-    toolCalls: readonly ToolCall[];
+    toolCalls: readonly (ToolCall | UnparsedToolCall)[];
     usage: CompletionUsage | undefined;
   };
   /**

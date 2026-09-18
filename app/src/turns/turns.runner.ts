@@ -28,6 +28,7 @@ import {
   describeInferenceFailure,
   estimateMessageTokens,
   estimateRequestTokens,
+  isUnparsedToolCall,
   reasoningOf
 } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
@@ -539,7 +540,15 @@ export class TurnRunner {
     state: TurnState,
     completion: CompletionResult.ToolUse
   ): Promise<TurnOutcome | undefined> {
-    const calls = completion.toolCalls.map((call) => this.identify(input, call));
+    const parsedCalls: ToolCall[] = [];
+    for (const call of completion.toolCalls) {
+      if (isUnparsedToolCall(call)) {
+        await this.postNotice(input, state, renderSemanticErrorNotice('my reply could not be understood'));
+        return this.close(state, 'semantic_error');
+      }
+      parsedCalls.push(call);
+    }
+    const calls = parsedCalls.map((call) => this.identify(input, call));
     const reasoning = reasoningOf(completion);
     await this.turnsService.appendEvent(state.turn.id, {
       content: completion.content,
@@ -554,7 +563,7 @@ export class TurnRunner {
     this.pushMessage(state, {
       content: completion.content,
       role: 'assistant',
-      toolCalls: completion.toolCalls,
+      toolCalls: parsedCalls,
       ...reasoning
     });
     state.consecutiveRejections = 0;

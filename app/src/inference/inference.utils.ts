@@ -13,7 +13,9 @@ import type {
   CompletionUsage,
   InferenceFailure,
   ProviderCredentialFailure,
-  SystemPrompt
+  SystemPrompt,
+  ToolCall,
+  UnparsedToolCall
 } from './inference.types.ts';
 
 function addReportedAmount(left: number | undefined, right: number | undefined): number | undefined {
@@ -39,6 +41,10 @@ export function estimateMessageTokens(message: CompletionMessage): number {
 /** the whole request as the provider receives it — system prompt, tool definitions and messages — by the same ruler (§3.8) */
 export function estimateRequestTokens(request: CompletionRequest): number {
   return estimateTokens(JSON.stringify(toCompletionBody(request)));
+}
+
+export function isUnparsedToolCall(call: ToolCall | UnparsedToolCall): call is UnparsedToolCall {
+  return 'rawArguments' in call;
 }
 
 export function renderSystemPrompt(prompt: SystemPrompt): string {

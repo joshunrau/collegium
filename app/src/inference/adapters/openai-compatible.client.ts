@@ -16,7 +16,8 @@ import type {
   CompletionRequest,
   CompletionResult,
   InferenceFailure,
-  ToolCall
+  ToolCall,
+  UnparsedToolCall
 } from '../inference.types.ts';
 import type { AssembledCompletion } from './stream.assembler.ts';
 
@@ -203,13 +204,18 @@ export class OpenAICompatibleClient extends InferenceClient {
     reasoning: CompletionReasoning
   ): Result<CompletionResult, InferenceFailure> {
     if (assembled.toolCalls.length > 0) {
-      const toolCalls: ToolCall[] = [];
+      const toolCalls: (ToolCall | UnparsedToolCall)[] = [];
       for (const call of assembled.toolCalls) {
-        const args = this.parseJson(call.arguments);
-        if (call.id === '' || call.name === '' || args === undefined) {
+        // a call with no identity cannot be answered or named to a human; broken arguments can be both (§7.2)
+        if (call.id === '' || call.name === '') {
           return Result.err(MALFORMED_COMPLETION);
         }
-        toolCalls.push({ arguments: args, id: call.id, name: call.name });
+        const args = this.parseJson(call.arguments);
+        toolCalls.push(
+          args === undefined
+            ? { id: call.id, name: call.name, rawArguments: call.arguments }
+            : { arguments: args, id: call.id, name: call.name }
+        );
       }
       return Result.ok({
         content: assembled.content,

@@ -221,12 +221,54 @@ describe('OpenAICompatibleClient', () => {
     });
   });
 
-  it('classifies a tool call whose arguments are not valid JSON as malformed', async () => {
+  it('surfaces a call whose arguments are not valid JSON as an unparsed call carrying the raw text (§7.2)', async () => {
     fetchMock.mockResolvedValueOnce(
       completionResponse(
         {
           content: null,
           tool_calls: [{ function: { arguments: '{oops', name: 'read_memory' }, id: 'call-1', index: 0 }]
+        },
+        undefined,
+        'tool_calls'
+      )
+    );
+
+    const result = await client.complete(completionRequest);
+
+    expect(result.value).toMatchObject({
+      kind: 'tool-use',
+      toolCalls: [{ id: 'call-1', name: 'read_memory', rawArguments: '{oops' }]
+    });
+  });
+
+  it('keeps the other calls of a completion usable when one is unparsed', async () => {
+    fetchMock.mockResolvedValueOnce(
+      completionResponse(
+        {
+          content: null,
+          tool_calls: [
+            { function: { arguments: '{oops', name: 'read_memory' }, id: 'call-1', index: 0 },
+            { function: { arguments: '{"name":"triage"}', name: 'load_skill' }, id: 'call-2', index: 1 }
+          ]
+        },
+        undefined,
+        'tool_calls'
+      )
+    );
+
+    const result = await client.complete(completionRequest);
+
+    expect(result.value).toMatchObject({
+      toolCalls: [{ rawArguments: '{oops' }, { arguments: { name: 'triage' }, id: 'call-2' }]
+    });
+  });
+
+  it('still classifies a tool call with no id or no name as a malformed completion', async () => {
+    fetchMock.mockResolvedValueOnce(
+      completionResponse(
+        {
+          content: null,
+          tool_calls: [{ function: { arguments: '{}', name: 'read_memory' }, id: '', index: 0 }]
         },
         undefined,
         'tool_calls'

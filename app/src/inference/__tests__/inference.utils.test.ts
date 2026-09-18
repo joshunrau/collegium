@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { bootProbeRequest, describeInferenceFailure, estimateRequestTokens } from '../inference.utils.ts';
+import { bootProbeRequest, describeInferenceFailure, estimateRequestTokens, isUnparsedToolCall } from '../inference.utils.ts';
 
 import type { CompletionRequest } from '../inference.types.ts';
 
@@ -59,5 +59,12 @@ describe('estimateRequestTokens', () => {
     expect(estimateRequestTokens({ ...request, systemPrompt: { dynamic: '', stable: '' } })).toBeLessThan(
       estimateRequestTokens(request)
     );
+  });
+});
+
+describe('isUnparsedToolCall', () => {
+  it('should tell a call whose arguments never parsed from one whose arguments did', () => {
+    expect(isUnparsedToolCall({ id: 'call-1', name: 'read_memory', rawArguments: '{oops' })).toBe(true);
+    expect(isUnparsedToolCall({ arguments: {}, id: 'call-1', name: 'read_memory' })).toBe(false);
   });
 });
