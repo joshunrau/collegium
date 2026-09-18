@@ -38,6 +38,15 @@ const GRANTABLE_SKILL_NAME_SET = new Set<string>(BUILTIN_GRANTABLE_SKILL_NAMES);
 
 const CORE_SKILL_NAME_SET = new Set<string>(BUILTIN_CORE_SKILL_NAMES);
 
+/** the zone database is the only authority on what a zone name is, and Intl is where this process holds it */
+const assertIanaTimezone: z.core.CheckFn<string> = (ctx) => {
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: ctx.value });
+  } catch {
+    ctx.issues.push({ code: 'custom', input: ctx.value, message: `"${ctx.value}" is not an IANA timezone` });
+  }
+};
+
 /** per-namespace settings, validated generically at boot against the schema each toolset declares (§8) */
 export type $ToolSettings = z.infer<typeof $ToolSettings>;
 export const $ToolSettings = z.record(z.string().regex(TOOL_SEGMENT_PATTERN), z.unknown());
@@ -189,6 +198,60 @@ export const $AgentDefaults = z.strictObject({
     )
 });
 
+export type $TimeOfDay = z.infer<typeof $TimeOfDay>;
+export const $TimeOfDay = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+  .describe('A time of day as "HH:MM", 24-hour, read in this schedule’s timezone');
+
+export type $Weekday = z.infer<typeof $Weekday>;
+export const $Weekday = z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
+
+export type $ScheduleRecurrence = z.infer<typeof $ScheduleRecurrence>;
+export const $ScheduleRecurrence = z
+  .discriminatedUnion('every', [
+    z.strictObject({
+      atMinute: z.number().int().min(0).max(59).describe('Minute past the hour'),
+      every: z.literal('hour')
+    }),
+    z.strictObject({ at: $TimeOfDay, every: z.literal('day') }),
+    z.strictObject({ at: $TimeOfDay, every: z.literal('weekday') }),
+    z.strictObject({ at: $TimeOfDay, every: z.literal('week'), onDay: $Weekday }),
+    z.strictObject({
+      at: $TimeOfDay,
+      every: z.literal('month'),
+      onDayOfMonth: z.number().int().min(1).max(28).describe('Day of the month, at most 28 so every month has one')
+    })
+  ])
+  .describe('How often this schedule fires. Every shape is a wall-clock time in the schedule’s timezone.');
+
+/** lowercase and dashed: what an operator names one piece of recurring work, and what the announcement points at */
+export type $ScheduleHandle = z.infer<typeof $ScheduleHandle>;
+export const $ScheduleHandle = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9_-]*$/)
+  .max(64);
+
+export type $ScheduleDeclaration = z.infer<typeof $ScheduleDeclaration>;
+export const $ScheduleDeclaration = z.strictObject({
+  channel: $ChannelHandle.describe(
+    'Handle of the channel the announcement is posted in. The agent must be a member, and a DM can never be one (§4.2).'
+  ),
+  prompt: z
+    .string()
+    .min(1)
+    .max(2_000)
+    .describe(
+      'What the system bot posts when this schedule fires, verbatim. Operator-written, never model-written (§3.2).'
+    ),
+  recurrence: $ScheduleRecurrence,
+  timezone: z
+    .string()
+    .check(assertIanaTimezone)
+    .optional()
+    .describe('IANA timezone the recurrence is read in. Defaults to display.timezone.')
+});
+
 /** one agent as written: its username is the key it sits under */
 export type $AgentDeclaration = z.infer<typeof $AgentDeclaration>;
 export const $AgentDeclaration = z.strictObject({
@@ -211,6 +274,12 @@ export const $AgentDeclaration = z.strictObject({
     ),
   model: $ModelRef.optional().describe('Overrides agentDefaults.model. Required when no default is set.'),
   personality: $Personality.optional().describe('Overrides agentDefaults.personality for this agent'),
+  schedules: z
+    .record($ScheduleHandle, $ScheduleDeclaration)
+    .default({})
+    .describe(
+      'Recurring work for this agent, by handle. Each firing writes a trigger row the system bot posts when the channel is next idle (§4.2). An agent cannot create, change or remove one (§9).'
+    ),
   skills: z
     .array($SkillGrant)
     .default([])
@@ -350,6 +419,7 @@ export type $DisplayConfig = z.infer<typeof $DisplayConfig>;
 export const $DisplayConfig = z.strictObject({
   timezone: z
     .string()
+    .check(assertIanaTimezone)
     .default(CONFIG_DEFAULTS.display.timezone)
     .describe('The IANA timezone every date rendered into a post is shown in')
 });

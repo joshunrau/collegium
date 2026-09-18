@@ -18,6 +18,7 @@ type SourceRendering = {
 const ATTACHED_BODY_FILENAME = 'message.md';
 
 const SOURCES: { readonly [Source in TriggerSource]: SourceRendering } = {
+  cron: { bodyDescribesItself: true, label: 'Scheduled' },
   mail: { bodyDescribesItself: true, label: 'New Mail' },
   webhook: { bodyDescribesItself: false, label: 'Webhook' }
 };

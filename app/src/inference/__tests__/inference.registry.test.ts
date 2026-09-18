@@ -32,6 +32,7 @@ function agent(username: string, model: $ModelRef): AgentDefinition {
     expertise: 'testing',
     model,
     personality: undefined,
+    schedules: {},
     skills: [],
     systemPrompt: `You are ${username}.`,
     tools: [],

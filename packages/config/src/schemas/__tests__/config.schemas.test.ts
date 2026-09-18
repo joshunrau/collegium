@@ -13,6 +13,7 @@ const declaration = (tools: $AgentDeclaration['tools']): $AgentDeclaration => ({
     name: 'deepseek-v4-flash',
     provider: 'deepseek'
   },
+  schedules: {},
   skills: [],
   systemPrompt: 'You are Mira Turner',
   tools,
@@ -23,6 +24,19 @@ const config: ConfigInput = {
   agents: { mira: declaration([]) },
   providers: { deepseek: { apiKey: 'key_1' } }
 };
+
+const schedule = (overrides: object) => ({
+  channel: 'ops',
+  prompt: 'Sweep the shared mailbox for anything that arrived overnight.',
+  recurrence: { at: '08:30', every: 'weekday' },
+  ...overrides
+});
+
+const scheduled = (schedules: object) => ({
+  ...config,
+  agents: { mira: { ...declaration([]), schedules } },
+  mattermost: { channels: { ops: { triggeringMode: 'mention-required' } } }
+});
 
 const issuePaths = (input: unknown) => {
   return $Config.safeParse(input).error?.issues.map((issue) => issue.path.join('.')) ?? [];
@@ -211,6 +225,29 @@ describe('$Config', () => {
 
   it('should reject a plugin named twice', () => {
     expect($Config.safeParse({ ...config, plugins: ['bookmark', 'bookmark'] }).success).toBe(false);
+  });
+
+  it('should accept a schedule announcing in a declared channel (§4.2)', () => {
+    expect($Config.safeParse(scheduled({ 'morning-sweep': schedule({}) })).success).toBe(true);
+  });
+
+  it('should refuse a schedule naming a channel nothing declares', () => {
+    expect(issuePaths(scheduled({ 'morning-sweep': schedule({ channel: 'nowhere' }) }))).toStrictEqual([
+      'agents.mira.schedules.morning-sweep.channel'
+    ]);
+  });
+
+  it('should refuse a malformed recurrence and an unknown timezone, naming the agent and the handle', () => {
+    expect(
+      issuePaths(scheduled({ 'morning-sweep': schedule({ recurrence: { at: '25:00', every: 'day' } }) }))
+    ).toStrictEqual(['agents.mira.schedules.morning-sweep.recurrence.at']);
+    expect(issuePaths(scheduled({ 'morning-sweep': schedule({ timezone: 'Mars/Olympus' }) }))).toStrictEqual([
+      'agents.mira.schedules.morning-sweep.timezone'
+    ]);
+  });
+
+  it('should refuse a schedule handle outside the lowercase-dashed grammar', () => {
+    expect($Config.safeParse(scheduled({ 'Morning Sweep': schedule({}) })).success).toBe(false);
   });
 });
 

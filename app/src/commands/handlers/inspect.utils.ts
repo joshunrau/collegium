@@ -46,6 +46,17 @@ function renderSkills(skills: readonly SkillListing[]): string {
     .join('\n');
 }
 
+function renderSchedules(schedules: readonly InspectedSchedule[]): readonly string[] {
+  if (schedules.length === 0) {
+    return [];
+  }
+  return [
+    '',
+    'Schedules:',
+    ...schedules.map(({ channel, handle, nextOccurrence }) => `- ${handle} (~${channel}): next ${nextOccurrence}`)
+  ];
+}
+
 function renderSummary(report: InspectReport): string {
   const { profile } = report;
   return [
@@ -61,14 +72,23 @@ function renderSummary(report: InspectReport): string {
     '',
     'Skills:',
     renderSkills(report.skills),
+    ...renderSchedules(report.schedules),
     '',
     'System prompt in this channel:'
   ].join('\n');
 }
 
+/** one schedule as the listing shows it: when it next fires is already in the operator timezone (§8.4) */
+export type InspectedSchedule = {
+  readonly channel: string;
+  readonly handle: string;
+  readonly nextOccurrence: string;
+};
+
 export type InspectReport = {
   readonly profile: AgentProfile;
   readonly prompt: string;
+  readonly schedules: readonly InspectedSchedule[];
   readonly skills: readonly SkillListing[];
   readonly tools: readonly GrantedTool[];
 };

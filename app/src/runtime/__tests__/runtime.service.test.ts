@@ -26,6 +26,7 @@ import { LoggingService } from '@/logging/logging.service.ts';
 import { MailBootService } from '@/mail/boot/boot.service.ts';
 import { MailInboundService } from '@/mail/inbound/inbound.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
+import { SchedulesService } from '@/schedules/schedules.service.ts';
 import { ShellService } from '@/shell/shell.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
@@ -43,6 +44,7 @@ const DEFINITION: AgentDefinition = {
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   personality: undefined,
+  schedules: {},
   skills: [],
   systemPrompt: 'You are Mira.',
   tools: [],
@@ -69,6 +71,7 @@ describe('RuntimeService', () => {
   let notificationsService: MockedInstance<NotificationsService>;
   let resyncService: MockedInstance<ResyncService>;
   let rosterService: MockedInstance<RosterService>;
+  let schedulesService: MockedInstance<SchedulesService>;
   let shellService: MockedInstance<ShellService>;
   let skillsService: MockedInstance<SkillsService>;
   let toolRegistry: MockedInstance<ToolRegistry>;
@@ -101,6 +104,7 @@ describe('RuntimeService', () => {
         { provide: NotificationsService, useValue: notificationsService },
         { provide: ResyncService, useValue: resyncService },
         { provide: RosterService, useValue: rosterService },
+        { provide: SchedulesService, useValue: schedulesService },
         { provide: ShellService, useValue: shellService },
         { provide: SkillsService, useValue: skillsService },
         { provide: ToolRegistry, useValue: toolRegistry },
@@ -153,6 +157,8 @@ describe('RuntimeService', () => {
     resyncService = MockFactory.createMock(ResyncService);
     resyncService.recover.mockResolvedValue([]);
     rosterService = MockFactory.createMock(RosterService);
+    schedulesService = MockFactory.createMock(SchedulesService);
+    schedulesService.reconcile.mockResolvedValue(undefined);
     shellService = MockFactory.createMock(ShellService);
     shellService.assertProvisioned.mockResolvedValue(undefined);
     skillsService = MockFactory.createMock(SkillsService);
@@ -204,6 +210,17 @@ describe('RuntimeService', () => {
     expect(skillsService.assertGrantedToolsCoverSkills).toHaveBeenCalledExactlyOnceWith(
       new Map([['mira', [['memory', 'write']]]])
     );
+  });
+
+  it('should reconcile and start the schedule ticker once the roster has (§4.2)', async () => {
+    const runtimeService = await compile();
+    schedulesService.reconcile.mockImplementation(() => {
+      expect(bootService.run).toHaveBeenCalled();
+      return Promise.resolve();
+    });
+    await runtimeService.onApplicationBootstrap();
+    expect(schedulesService.reconcile).toHaveBeenCalledOnce();
+    expect(schedulesService.start).toHaveBeenCalledOnce();
   });
 
   it('should create each agent workspace private to the process (§6.1)', async () => {

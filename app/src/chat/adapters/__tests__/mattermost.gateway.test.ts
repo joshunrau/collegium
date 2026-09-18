@@ -92,6 +92,7 @@ const definition = (username: string): AgentDefinition => ({
   contextBudgetTokens: 8000,
   expertise: 'code review',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
+  schedules: {},
   skills: [],
   systemPrompt: `You are ${username}`,
   tools: [],

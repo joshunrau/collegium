@@ -95,6 +95,7 @@ app/src/
   queue/          the per (agent, channel) pending pointer
   resources/      the one place a file config.json names beneath RESOURCES_ROOT is read off disk
   runtime/        boot orchestration, shutdown, crash handling
+  schedules/      config-declared recurring work: the occurrence arithmetic and the ticker that records a cron trigger (§4.2)
   shell/          the §A2 confinement seam: per-agent OS user derivation, sudo-scoped execution, boot probe
   skills/         the skill library and manifest, and the one place a skill document is read off disk
   testing/        test-only factories and mocks, excluded from the build

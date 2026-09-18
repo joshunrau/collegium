@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
+import { SchedulesRegistry } from '@/schedules/schedules.registry.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { SystemPromptRenderer } from '@/turns/context/system-prompt.renderer.ts';
@@ -12,13 +14,15 @@ import { renderInspectResponse } from './inspect.utils.ts';
 
 import type { CommandInput, CommandResponse } from '../commands.types.ts';
 
-/** §8.4 — what an agent is and what it is given: its model, effective tools and skills, and the prompt a turn here would assemble */
+/** §8.4 — what an agent is and what it is given: its model, effective tools, skills and schedules, and the prompt a turn here would assemble */
 @Injectable()
 export class InspectHandler extends CommandHandler {
   readonly trigger = 'inspect';
 
   constructor(
     private readonly agentRegistry: AgentRegistry,
+    private readonly dateFormatter: DateFormatter,
+    private readonly schedulesRegistry: SchedulesRegistry,
     private readonly skillsService: SkillsService,
     private readonly systemPromptRenderer: SystemPromptRenderer,
     private readonly toolRegistry: ToolRegistry
@@ -42,6 +46,13 @@ export class InspectHandler extends CommandHandler {
       text: renderInspectResponse({
         profile,
         prompt,
+        schedules: this.schedulesRegistry
+          .listUpcomingFor(profile.username, new Date())
+          .map(({ channel, handle, nextOccurrenceAt }) => ({
+            channel,
+            handle,
+            nextOccurrence: this.dateFormatter.format(nextOccurrenceAt)
+          })),
         skills: this.skillsService.listFor(profile),
         tools: this.toolRegistry.listFor(profile)
       })

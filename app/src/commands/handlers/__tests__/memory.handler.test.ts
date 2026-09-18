@@ -16,8 +16,9 @@ describe('MemoryHandler', () => {
   let memoryHandler: MemoryHandler;
   let memoryService: MockedInstance<MemoryService>;
 
-  const handle = (text: string) =>
-    memoryHandler.handle({ channelId: 'channel-1', text, userId: 'casey-id', username: 'casey' });
+  const handle = (text: string) => {
+    return memoryHandler.handle({ channelId: 'channel-1', text, userId: 'casey-id', username: 'casey' });
+  };
 
   beforeEach(async () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);

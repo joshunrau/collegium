@@ -36,6 +36,7 @@ const agent = (username: string, overrides: Partial<AgentDefinition> = {}): Agen
   contextBudgetTokens: 8000,
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
+  schedules: {},
   skills: [],
   systemPrompt: `You are ${username}`,
   tools: [],

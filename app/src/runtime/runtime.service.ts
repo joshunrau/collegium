@@ -21,6 +21,7 @@ import { MailBootService } from '@/mail/boot/boot.service.ts';
 import { MailInboundService } from '@/mail/inbound/inbound.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
 import type { SystemEvent } from '@/notifications/notifications.types.ts';
+import { SchedulesService } from '@/schedules/schedules.service.ts';
 import { ShellService } from '@/shell/shell.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -53,6 +54,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     private readonly notificationsService: NotificationsService,
     private readonly resyncService: ResyncService,
     private readonly rosterService: RosterService,
+    private readonly schedulesService: SchedulesService,
     private readonly shellService: ShellService,
     private readonly skillsService: SkillsService,
     private readonly toolRegistry: ToolRegistry,
@@ -90,6 +92,8 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     // after boot: the DM check needs connected transports and the membership check a reconciled roster
     await this.mailBootService.assertReadyAndAnnounceOutages();
     this.mailInboundService.start();
+    await this.schedulesService.reconcile();
+    this.schedulesService.start();
     this.loggingService.log(`connected ${this.running.size} agent(s), listening for messages`);
     if (this.configService.get('notifications.lifecycle')) {
       await this.notificationsService.notify({

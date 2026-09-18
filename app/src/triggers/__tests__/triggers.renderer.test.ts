@@ -65,6 +65,16 @@ describe('renderTriggerPost', () => {
     expect(rendered.files).toStrictEqual([]);
   });
 
+  it('should carry a schedule’s prompt verbatim under its own heading, with no summary line (§4.2)', () => {
+    const rendered = renderTriggerPost(
+      trigger({ body: 'Sweep the shared mailbox.', id: 'morning-sweep', subject: 'morning-sweep' }, 'cron'),
+      MAX_POST_SIZE
+    );
+    expect(rendered.message).toBe(
+      '🔔 Scheduled → @mira\n\nHandle ⟨morning-sweep⟩, then mark it done with `triggers__resolve("trigger-1")`.\n\nSweep the shared mailbox.'
+    );
+  });
+
   it('should attach a body too large to post, saying so in place of the text', () => {
     const body = 'x'.repeat(MAX_POST_SIZE);
     const rendered = renderTriggerPost(trigger({ body, subject: 'Invoice overdue' }, 'mail'), MAX_POST_SIZE);

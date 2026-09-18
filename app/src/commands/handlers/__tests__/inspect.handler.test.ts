@@ -2,6 +2,8 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
+import { SchedulesRegistry } from '@/schedules/schedules.registry.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { buildAgentProfile } from '@/testing/factories/agent-profile.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -24,6 +26,12 @@ describe('InspectHandler', () => {
     systemPromptRenderer.render.mockResolvedValue('You are Mira.');
     const skillsService = MockFactory.createMock(SkillsService);
     skillsService.listFor.mockReturnValue([{ description: 'How to hand work over.', name: 'handing-work-to-a-peer' }]);
+    const dateFormatter = MockFactory.createMock(DateFormatter);
+    dateFormatter.format.mockReturnValue('September 18, 2026 at 9:00:00 AM UTC');
+    const schedulesRegistry = MockFactory.createMock(SchedulesRegistry);
+    schedulesRegistry.listUpcomingFor.mockReturnValue([
+      { channel: 'ops', handle: 'morning-sweep', nextOccurrenceAt: new Date('2026-09-18T09:00:00Z') }
+    ]);
     const toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listFor.mockReturnValue([
       { gates: false, id: ['clock', 'now'] },
@@ -33,6 +41,8 @@ describe('InspectHandler', () => {
       providers: [
         InspectHandler,
         { provide: AgentRegistry, useValue: agentRegistry },
+        { provide: DateFormatter, useValue: dateFormatter },
+        { provide: SchedulesRegistry, useValue: schedulesRegistry },
         { provide: SystemPromptRenderer, useValue: systemPromptRenderer },
         { provide: SkillsService, useValue: skillsService },
         { provide: ToolRegistry, useValue: toolRegistry }
@@ -67,6 +77,9 @@ describe('InspectHandler', () => {
         'Skills:',
         '- framework:',
         '  - handing-work-to-a-peer — How to hand work over.',
+        '',
+        'Schedules:',
+        '- morning-sweep (~ops): next September 18, 2026 at 9:00:00 AM UTC',
         '',
         'System prompt in this channel:',
         '```text',

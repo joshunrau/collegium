@@ -33,7 +33,6 @@ enum AuthorKind {
   system
 }
 
-// cron joins this when its adapter lands
 /// what a post is to the agent whose turn authored it; `message` is every post observed rather than authored
 enum PostKind {
   message
@@ -43,6 +42,7 @@ enum PostKind {
 }
 
 enum TriggerSource {
+  cron
   mail
   webhook
 }
@@ -234,6 +234,15 @@ model Trigger {
 // One row per agent mailbox: where inbound polling has read to. Created at first connection
 // without announcing existing mail; the serialization is the provider adapter's own, and
 // nothing else parses it.
+/// §4.2 — the occurrence a declared schedule last announced. State, not a declaration: the row
+/// appears when its declaration first does and is deleted when the declaration goes, so config stays
+/// the only place a schedule is defined.
+model ScheduleState {
+  id           String    @id
+  firstSeenAt  DateTime  @default(now())
+  lastFiredFor DateTime?
+}
+
 model MailCursor {
   id            String   @id @default(cuid(2))
   agentUsername String   @unique

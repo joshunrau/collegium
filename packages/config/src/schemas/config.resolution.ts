@@ -21,6 +21,17 @@ function resolveConfig(declaration: $ConfigDeclaration, issues: z.core.$ZodRawIs
   const agents: { [username: string]: AgentDefinition } = {};
   const agentsByMissingProvider = new Map<string, string[]>();
   for (const [username, declared] of Object.entries(config.agents)) {
+    for (const [handle, schedule] of Object.entries(declared.schedules)) {
+      // membership is held in Mattermost, not here (§3.1); what config can answer is whether the channel exists
+      if (!config.mattermost.channels[schedule.channel] && schedule.channel !== config.mattermost.mainChannel) {
+        issues.push({
+          code: 'custom',
+          input: schedule.channel,
+          message: `agent "${username}" schedule "${handle}" announces in channel "${schedule.channel}", which mattermost.channels does not declare`,
+          path: ['agents', username, 'schedules', handle, 'channel']
+        });
+      }
+    }
     const model = declared.model ?? config.agentDefaults.model;
     if (!model) {
       issues.push({

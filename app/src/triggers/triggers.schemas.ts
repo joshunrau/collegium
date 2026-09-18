@@ -18,8 +18,8 @@ const $TriggerReference = z.looseObject({
 export type $TriggerIntakeBody = z.infer<typeof $TriggerIntakeBody>;
 export const $TriggerIntakeBody = z.object({
   reference: $TriggerReference.describe('A short pointer at the source event — never the work itself (A1)'),
-  // deliberately narrower than the Prisma TriggerSource enum: intake accepts only webhooks today,
-  // and each future source (cron, imap) widens this literal when its adapter actually lands
+  // deliberately narrower than the Prisma TriggerSource enum: the other sources record their rows
+  // in-process, so this endpoint is the webhook's alone until a source arrives that is HTTP-shaped
   source: z.literal('webhook').default('webhook'),
   targetAgentUsername: z.string().min(1),
   targetChannelId: z.string().min(1)

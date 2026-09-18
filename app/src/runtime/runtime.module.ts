@@ -12,6 +12,7 @@ import { HaltModule } from '@/halt/halt.module.ts';
 import { InferenceModule } from '@/inference/inference.module.ts';
 import { MailModule } from '@/mail/mail.module.ts';
 import { NotificationsModule } from '@/notifications/notifications.module.ts';
+import { SchedulesModule } from '@/schedules/schedules.module.ts';
 import { ShellModule } from '@/shell/shell.module.ts';
 import { SkillsModule } from '@/skills/skills.module.ts';
 import { ToolsModule } from '@/tools/tools.module.ts';
@@ -37,6 +38,7 @@ import { RuntimeService } from './runtime.service.ts';
     InferenceModule,
     MailModule,
     NotificationsModule,
+    SchedulesModule,
     ShellModule,
     SkillsModule,
     ToolsModule,

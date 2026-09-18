@@ -193,6 +193,19 @@ export class TriggersService {
     return Result.ok();
   }
 
+  /**
+   * §4.2 — a repeating source's fresh firing closes its own earlier ones, so an outstanding list
+   * holds at most one firing per series. The dedupe key prefix is what names the series; the
+   * resolution hooks are deliberately not run, since this is the framework closing a row nobody
+   * acted on rather than an agent claiming it handled something.
+   */
+  async resolveSupersededBy(trigger: Trigger, dedupeKeyPrefix: string): Promise<void> {
+    await this.triggers.updateMany({
+      data: { resolvedAt: new Date(), status: 'resolved' },
+      where: { dedupeKey: { startsWith: dedupeKeyPrefix }, id: { not: trigger.id }, status: { not: 'resolved' } }
+    });
+  }
+
   /** whether this system post announced a trigger — its turn was already started by the flush that posted it */
   async wasAnnouncedBy(postId: string): Promise<boolean> {
     return (await this.triggers.count({ where: { postId } })) > 0;
