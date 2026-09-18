@@ -90,6 +90,19 @@ function toWireToolCall(toolCall: ToolCall) {
   };
 }
 
+/**
+ * A rejection for the request's length, told apart from every other 4xx by the provider's own
+ * words: each spells it differently and none documents the string, so the markers are a set.
+ */
+const CONTEXT_OVERFLOW_MARKERS = [
+  'context_length_exceeded',
+  'context length',
+  'maximum context',
+  'too many tokens',
+  'reduce the length of the messages',
+  'prompt is too long'
+];
+
 /** the request in Chat Completions wire form: system prompt leading, streamed with usage on the last chunk, tools omitted when none are offered */
 export function toCompletionBody(request: CompletionRequest) {
   const { provider } = request.model;
@@ -108,4 +121,9 @@ export function toCompletionBody(request: CompletionRequest) {
         .map(toWireTool)
     })
   };
+}
+
+export function isContextOverflowBody(body: string): boolean {
+  const lowered = body.toLowerCase();
+  return CONTEXT_OVERFLOW_MARKERS.some((marker) => lowered.includes(marker));
 }

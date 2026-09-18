@@ -64,6 +64,9 @@ export function describeTransportReason(failure: InferenceFailure.Transport): st
 /** for the logs, never for a post: the runtime's and the provider's own words are not deterministic output (§3.2) */
 export function describeInferenceFailure(failure: InferenceFailure): string {
   return match(failure)
+    .with({ kind: 'context-overflow' }, ({ status }) => {
+      return `the provider refused the request for its length${status === undefined ? '' : ` (HTTP ${status})`}`;
+    })
     .with({ kind: 'malformed' }, ({ message }) => `the completion was malformed: ${message}`)
     .with({ kind: 'provider' }, ({ message }) => `the provider rejected the request: ${message}`)
     .with({ kind: 'transport' }, (transport) => {

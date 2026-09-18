@@ -5,7 +5,7 @@ import { InferenceClient } from '../inference.client.ts';
 import { $CompletionChunk } from '../inference.schemas.ts';
 import { reasoningOf } from '../inference.utils.ts';
 import { createIdleAbort } from '../resilience/idle-abort.utils.ts';
-import { toCompletionBody } from './openai-compatible.utils.ts';
+import { isContextOverflowBody, toCompletionBody } from './openai-compatible.utils.ts';
 import { readServerSentEvents } from './sse.utils.ts';
 import { StreamAssembler } from './stream.assembler.ts';
 import { classifyTransportError } from './transport-reason.utils.ts';
@@ -79,6 +79,12 @@ export class OpenAICompatibleClient extends InferenceClient {
       } satisfies InferenceFailure.Transport);
     }
     const body = await response.text().catch(() => undefined);
+    if (isContextOverflowBody(body ?? '')) {
+      return Result.err({
+        kind: 'context-overflow',
+        status: response.status
+      } satisfies InferenceFailure.ContextOverflow);
+    }
     const status = `${this.providerLabel} responded with status ${response.status}`;
     return Result.err({
       kind: 'provider',
@@ -92,6 +98,12 @@ export class OpenAICompatibleClient extends InferenceClient {
     const status = typeof error.code === 'number' ? error.code : undefined;
     if (status !== undefined && isRetryableStatus(status)) {
       return Result.err({ kind: 'transport', reason: 'http_status', status } satisfies InferenceFailure.Transport);
+    }
+    if (isContextOverflowBody(error.message)) {
+      return Result.err({
+        kind: 'context-overflow',
+        ...(status !== undefined && { status })
+      } satisfies InferenceFailure.ContextOverflow);
     }
     return Result.err({
       kind: 'provider',

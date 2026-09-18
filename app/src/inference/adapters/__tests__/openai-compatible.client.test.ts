@@ -434,6 +434,14 @@ describe('OpenAICompatibleClient', () => {
     await expectFailure({ kind: 'transport', reason: 'http_status', status: 429 });
   });
 
+  it('classifies a rejection naming context length as a context overflow, never a provider failure (§7.1)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response("This model's maximum context length is 65536 tokens", { status: 400 })
+    );
+
+    await expectFailure({ kind: 'context-overflow', status: 400 });
+  });
+
   it('classifies another client error as a provider failure', async () => {
     fetchMock.mockResolvedValueOnce(new Response('unknown model', { status: 400 }));
 

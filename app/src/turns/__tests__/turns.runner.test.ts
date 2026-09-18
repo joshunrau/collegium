@@ -648,6 +648,23 @@ describe('TurnRunner', () => {
     );
   });
 
+  it('should end a turn the provider refused for length as context exhausted, naming the cause (§7.1)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(
+      Result.err({ kind: 'context-overflow', status: 400 } satisfies InferenceFailure.ContextOverflow)
+    );
+    const outcome = await run();
+    expect(outcome.status).toBe('context_exhausted');
+    expect(sends.at(-1)?.text).toContain('ran out of room in my context part-way through this turn');
+  });
+
+  it('should call a starting context the provider refused a configuration problem (§7.1)', async () => {
+    complete.mockResolvedValueOnce(Result.err({ kind: 'context-overflow' } satisfies InferenceFailure.ContextOverflow));
+    const outcome = await run();
+    expect(outcome.status).toBe('context_exhausted');
+    expect(sends.at(-1)?.text).toContain('My starting context does not fit');
+  });
+
   it('should log why inference failed, so a rejected request is diagnosable from the logs', async () => {
     complete.mockResolvedValueOnce(
       Result.err({ kind: 'provider', message: 'deepseek responded with status 400: invalid schema', status: 400 })

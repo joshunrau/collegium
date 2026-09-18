@@ -1,0 +1,2 @@
+-- TurnStatus gains `context_exhausted`. The column is TEXT with no CHECK constraint, so the
+-- guarantee is the client's and nothing on disk changes.

@@ -112,7 +112,12 @@ export declare namespace InferenceFailure {
     kind: 'malformed';
     message: string;
   };
-  type Any = Malformed | Provider | Transport;
+  /** the provider refused the request for its length: the turn built a prompt its model cannot hold (§7.1) */
+  type ContextOverflow = {
+    kind: 'context-overflow';
+    status?: number;
+  };
+  type Any = ContextOverflow | Malformed | Provider | Transport;
 }
 
 export type InferenceFailure = InferenceFailure.Any;

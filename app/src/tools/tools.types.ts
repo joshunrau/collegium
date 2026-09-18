@@ -21,7 +21,13 @@ export declare namespace ToolAttempt {
     kind: 'terminal';
     status: Exclude<
       TurnStatus,
-      'abandoned' | 'budget_exhausted' | 'completed' | 'provider_outage' | 'provider_rejected' | 'running'
+      | 'abandoned'
+      | 'budget_exhausted'
+      | 'completed'
+      | 'context_exhausted'
+      | 'provider_outage'
+      | 'provider_rejected'
+      | 'running'
     >;
   };
   type Any = Continue | Terminal;

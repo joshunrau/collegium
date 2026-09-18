@@ -40,6 +40,7 @@ import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
 import {
   renderBudgetExhaustedNotice,
   renderChainLengthLimitNotice,
+  renderContextExhaustedNotice,
   renderContextShortfallLine,
   renderDelegationLimitNotice,
   renderDeliveryFailureNotice,
@@ -115,6 +116,8 @@ type TurnState = {
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
   readonly messages: CompletionMessage[];
+  /** §7.1 — results this turn recorded; a turn that recorded none accumulated nothing a fresh one would not rebuild */
+  recordedResults: number;
   readonly status: StatusPostHandle;
   /** the supersedable results still verbatim in `messages`, oldest first (§3.8) */
   readonly supersedable: { messageIndex: number; replay: string }[];
@@ -183,6 +186,7 @@ export class TurnRunner {
         channelId
       }),
       messages: [],
+      recordedResults: 0,
       status: this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id }),
       supersedable: [],
       transport: this.transportRegistry.get(profile.username),
@@ -277,6 +281,14 @@ export class TurnRunner {
     if (failure.kind === 'malformed') {
       await this.postNotice(input, state, renderSemanticErrorNotice('my reply could not be understood'));
       return this.close(state, 'semantic_error');
+    }
+    if (failure.kind === 'context-overflow') {
+      await this.postNotice(
+        input,
+        state,
+        renderContextExhaustedNotice(state.recordedResults === 0 ? 'initial' : 'accumulated')
+      );
+      return this.close(state, 'context_exhausted');
     }
     if (failure.kind === 'provider') {
       await this.postNotice(input, state, renderProviderRejectionNotice(failure.status));
@@ -671,6 +683,7 @@ export class TurnRunner {
       ...(attempt.replay !== undefined && { replay: attempt.replay })
     });
     state.messages.push({ content: attempt.output, role: 'tool', toolCallId: identified.call.id });
+    state.recordedResults += 1;
     this.supersedeStaleResults(input, state, identified, attempt.replay);
     if (attempt.disclosure) {
       await this.discloseRecord(state, attempt.disclosure);

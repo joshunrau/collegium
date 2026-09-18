@@ -5,6 +5,9 @@ export type AbortKind = Extract<TurnStatus, 'killed' | 'stopped'>;
 
 export type Turn = ModelRow<'Turn'>;
 
+/** how a turn ran out of room: results it accumulated and could not retire, or a starting context that never fit (§7.1) */
+export type ContextExhaustionCause = 'accumulated' | 'initial';
+
 /** a status post a restart left mid-trace: which post, in which channel, under whose account (§7.3) */
 export type AbandonedStatusPost = {
   readonly agentUsername: string;

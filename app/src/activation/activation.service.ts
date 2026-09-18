@@ -26,11 +26,13 @@ import { DebounceService } from './debounce/debounce.service.ts';
  * §7.1 — the queue drains only into a turn that can plausibly make progress. After a provider
  * outage or rejection, semantic error, side-effect ambiguity, or delivery failure it is left
  * standing: a drain would start a turn that inherits the same failure, looping until the hourly
- * ceiling halts everything.
+ * ceiling halts everything. Context exhaustion is not inherited: what overflowed was one turn's own
+ * results, and the window a fresh turn assembles is bounded by its budget.
  */
 const PROGRESS_EXITS: ReadonlySet<TurnStatus> = new Set<TurnStatus>([
   'budget_exhausted',
   'completed',
+  'context_exhausted',
   'denied',
   'killed',
   'stopped'

@@ -348,6 +348,16 @@ describe('ActivationService', () => {
     });
   });
 
+  it('should drain the queue after a turn ran out of context, which a fresh turn does not inherit (§7.1)', async () => {
+    turnRunner.run.mockResolvedValueOnce({ status: 'context_exhausted', turnId: 'turn-1' });
+    queueService.drain.mockResolvedValueOnce(undefined);
+    queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
+    queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
+    await activationService.onPost(PROFILE, post());
+    await settle();
+    expect(turnRunner.run).toHaveBeenCalledTimes(2);
+  });
+
   it('should absorb a queue entry left standing into the turn the next post starts', async () => {
     queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
     await activationService.onPost(PROFILE, post());

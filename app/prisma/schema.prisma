@@ -59,6 +59,7 @@ enum TurnStatus {
   abandoned
   budget_exhausted
   completed
+  context_exhausted
   denied
   halted
   killed

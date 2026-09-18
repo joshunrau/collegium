@@ -4,6 +4,8 @@ import type { InferenceFailure } from '@/inference/inference.types.ts';
 import { describeTransportReason } from '@/inference/inference.utils.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 
+import type { ContextExhaustionCause } from '../turns.types.ts';
+
 const TRACE_DETAIL_LIMIT_CHARS = 150;
 
 const WORKING_LINE = '⏳ _working…_';
@@ -13,6 +15,7 @@ const OUTCOME_PHRASES: { readonly [K in Exclude<TurnStatus, 'running'>]: string 
   abandoned: '⚪ _abandoned — the process restarted mid-turn_',
   budget_exhausted: '⏸️ _stopped — action budget exhausted_',
   completed: '✅ _done_',
+  context_exhausted: '⚠️ _stopped — ran out of context_',
   delivery_failure: '⚠️ _stopped — the chat server refused a post_',
   denied: '🛑 _stopped — a human denied an action_',
   halted: '🛑 _stopped — global halt_',
@@ -102,6 +105,19 @@ export function renderDelegationLimitNotice(): string {
 /** §4.5 — the turn could not produce output the framework would accept; the reason is in the trace */
 export function renderOutputRefusedNotice(): string {
   return 'I could not produce a reply the framework would accept and stopped. The reason is in the trace.';
+}
+
+/** §7.1 — the turn ran out of room, not the provider; each cause names where the human should look */
+export function renderContextExhaustedNotice(cause: ContextExhaustionCause): string {
+  return match(cause)
+    .with(
+      'accumulated',
+      () => 'I ran out of room in my context part-way through this turn and stopped. What I did so far is in the trace.'
+    )
+    .with('initial', () => {
+      return "My starting context does not fit my model's window. This is a configuration problem — the context budget against the model — not something I can work around.";
+    })
+    .exhaustive();
 }
 
 /** §7.1 — a bare denial ends the turn and the agent asks how to proceed */

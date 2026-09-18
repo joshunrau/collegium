@@ -1,7 +1,7 @@
 import type { $ModelRef } from '@collegium/config';
 import { describe, expect, it } from 'vitest';
 
-import { toCompletionBody } from '../openai-compatible.utils.ts';
+import { isContextOverflowBody, toCompletionBody } from '../openai-compatible.utils.ts';
 
 import type { CompletionRequest } from '../../inference.types.ts';
 
@@ -198,5 +198,17 @@ describe('toCompletionBody', () => {
       role: 'assistant',
       tool_calls: [{ function: { arguments: '{"path":"a.md"}', name: 'write_file' }, id: 'call-1', type: 'function' }]
     });
+  });
+});
+
+describe('isContextOverflowBody', () => {
+  it('should recognise each provider’s own wording for a length rejection (§7.1)', () => {
+    expect(isContextOverflowBody("This model's maximum context length is 65536 tokens")).toBe(true);
+    expect(isContextOverflowBody('{"error":{"code":"context_length_exceeded"}}')).toBe(true);
+    expect(isContextOverflowBody('prompt is too long: 210000 tokens > 200000 maximum')).toBe(true);
+  });
+
+  it('should leave an unrelated rejection alone', () => {
+    expect(isContextOverflowBody('invalid api key')).toBe(false);
   });
 });
