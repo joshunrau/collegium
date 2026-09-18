@@ -1,0 +1,2 @@
+-- TurnEventKind gains `steering_received` (§7.5). The column is TEXT with no CHECK constraint, so
+-- the guarantee is the client's and nothing on disk changes.

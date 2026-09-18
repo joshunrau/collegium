@@ -74,6 +74,11 @@ export function renderToolCallLine(toolName: string, detail?: string): string {
   return `→ \`${toolName} ${elided}\``;
 }
 
+/** §7.5 — the channel learns of a steer from the turn's own status post, since the command's response is ephemeral */
+export function renderSteeringLine(byUsername: string): string {
+  return `↩ _steered by @${byUsername}_`;
+}
+
 /** §5.2 — the 👀 must never silently promise a read that did not happen */
 export function renderContextShortfallLine(): string {
   return '⚠️ _context could not reach back to the earliest queued message_';

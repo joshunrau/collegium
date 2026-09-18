@@ -61,6 +61,7 @@ import {
   renderProviderRejectionNotice,
   renderSemanticErrorNotice,
   renderSideEffectAmbiguityNotice,
+  renderSteeringLine,
   renderToolCallLine
 } from './status/status-post.renderer.ts';
 import { StatusPostService } from './status/status-post.service.ts';
@@ -72,7 +73,7 @@ import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle } from './status/status-post.service.ts';
-import type { Turn, TurnOpenFailure, TurnOutcome } from './turns.types.ts';
+import type { Steering, Turn, TurnOpenFailure, TurnOutcome } from './turns.types.ts';
 
 /** §3.8 — how many of a turn's supersedable results stay verbatim; the rest read as their replay line */
 const RETAINED_SUPERSEDABLE_RESULTS = 2;
@@ -284,6 +285,47 @@ export class TurnRunner {
       state.control.release();
       state.fold.release();
     }
+  }
+
+  /**
+   * §7.5 — each steer spends an attempt, is kept on the trace, and reaches the model as the human
+   * speaking, prefixed exactly as a post is. It is new information, so the count of rejected posts
+   * starts again (§4.5). Returns the outcome where the budget ends the turn instead.
+   */
+  private async absorbSteering(
+    input: RunInput,
+    state: TurnState,
+    taken: readonly Steering[]
+  ): Promise<TurnOutcome | undefined> {
+    for (const [index, steering] of taken.entries()) {
+      let denial: string | undefined;
+      if (state.budget.trySpendOnSteer() === 'exhausted') {
+        const exhaustion = await this.handleExhaustion(input, state);
+        if (exhaustion.kind === 'ended') {
+          return exhaustion.outcome;
+        }
+        if (exhaustion.kind === 'voice-only') {
+          denial = exhaustion.text;
+        } else {
+          state.budget.trySpendOnSteer();
+        }
+      }
+      await this.turnsService.appendEvent(state.turn.id, { kind: 'steering_received', ...steering });
+      this.pushMessage(state, { content: `@${steering.byUsername}: ${steering.text}`, role: 'user' });
+      state.status.appendTrace(renderSteeringLine(steering.byUsername));
+      state.consecutiveRejections = 0;
+      if (denial !== undefined) {
+        // the remaining steers are words the human said; they are heard, but no further attempt is spent
+        for (const rest of taken.slice(index + 1)) {
+          await this.turnsService.appendEvent(state.turn.id, { kind: 'steering_received', ...rest });
+          this.pushMessage(state, { content: `@${rest.byUsername}: ${rest.text}`, role: 'user' });
+          state.status.appendTrace(renderSteeringLine(rest.byUsername));
+        }
+        this.pushMessage(state, { content: denial, role: 'user' });
+        return undefined;
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -967,6 +1009,10 @@ export class TurnRunner {
     const client = this.inferenceRegistry.getClientForModel(profile.model);
     let folds = 0;
     for (;;) {
+      const steered = await this.absorbSteering(input, state, state.control.takeSteering());
+      if (steered) {
+        return steered;
+      }
       const completion = await this.complete(input, state, client, assembled.request);
       if (completion === 'killed') {
         return this.close(state, 'killed');
@@ -991,6 +1037,16 @@ export class TurnRunner {
         if (this.exceedsCeiling(input, state)) {
           await this.postNotice(input, state, renderContextExhaustedNotice('initial'));
           return this.close(state, 'context_exhausted');
+        }
+        continue;
+      }
+      // §7.5 — a completion made before the correction is thrown away unrecorded and unexecuted,
+      // as §4.4 throws away the completion that only saw half a request
+      const arrived = state.control.takeSteering();
+      if (arrived.length > 0) {
+        const steeredLate = await this.absorbSteering(input, state, arrived);
+        if (steeredLate) {
+          return steeredLate;
         }
         continue;
       }

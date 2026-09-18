@@ -120,6 +120,10 @@ function renderEvent(event: ModelRow<'TurnEvent'>, results: ReadonlyMap<string, 
       .with({ kind: 'record_written' }, (payload): CompletionMessage[] => [
         { content: `[recorded: ${payload.description}]`, role: 'user' }
       ])
+      // §7.5 — a steer reads exactly as the post it resembles, so a later turn hears the human speaking
+      .with({ kind: 'steering_received' }, (payload): CompletionMessage[] => [
+        { content: `@${payload.byUsername}: ${payload.text}`, role: 'user' }
+      ])
       .with({ kind: 'tool_result' }, (): CompletionMessage[] => [])
       .exhaustive()
   );

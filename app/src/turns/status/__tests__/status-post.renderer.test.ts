@@ -4,8 +4,15 @@ import {
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
   renderStatusPost,
+  renderSteeringLine,
   renderToolCallLine
 } from '../status-post.renderer.ts';
+
+describe('renderSteeringLine', () => {
+  it('should name the human who steered the turn (§7.5)', () => {
+    expect(renderSteeringLine('casey')).toBe('↩ _steered by @casey_');
+  });
+});
 
 describe('renderStatusPost', () => {
   it('should stand alone as a working line before anything is traced', () => {

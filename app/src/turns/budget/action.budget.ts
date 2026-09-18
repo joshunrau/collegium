@@ -61,6 +61,15 @@ export class ActionBudget {
 
   /** a §4.5-rejected post also spends an attempt, so its retry loop stays inside the budget */
   trySpendOnRejectedPost(): 'exhausted' | 'spent' {
+    return this.spendOne();
+  }
+
+  /** §7.5 — a steer is not a tool call, but it is an instruction the model acts on, so it spends an attempt (§5.3) */
+  trySpendOnSteer(): 'exhausted' | 'spent' {
+    return this.spendOne();
+  }
+
+  private spendOne(): 'exhausted' | 'spent' {
     if (this.spent >= this.limit) {
       return 'exhausted';
     }

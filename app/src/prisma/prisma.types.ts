@@ -55,6 +55,11 @@ type TurnEventPayloadByKind = {
     reference: string;
     supersededDescriptions: string[];
   };
+  /** §7.5 — a human corrected this turn mid-flight; replayed to a later turn as the human speaking */
+  steering_received: {
+    byUsername: string;
+    text: string;
+  };
   tool_result: {
     callId: string;
     output: string;

@@ -745,6 +745,94 @@ describe('TurnRunner', () => {
     });
   });
 
+  describe('steering (§7.5)', () => {
+    const steer = (text = 'use staging') => {
+      return turnControlRegistry.steerChannel('channel-1', { byUsername: 'casey', text });
+    };
+
+    it('should read a steer that arrived during a tool call before the next completion, as the human speaking', async () => {
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+      toolExecutor.execute.mockImplementationOnce(() => {
+        steer();
+        return Promise.resolve({ kind: 'continue', output: 'ok' } satisfies ToolAttempt);
+      });
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      const outcome = await run();
+      expect(outcome.status).toBe('completed');
+      expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+        content: '@casey: use staging',
+        role: 'user'
+      });
+      expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
+        byUsername: 'casey',
+        kind: 'steering_received',
+        text: 'use staging'
+      });
+      expect(statusHandle.appendTrace).toHaveBeenCalledWith('↩ _steered by @casey_');
+      expect(turnsService.close).toHaveBeenCalledWith(
+        'turn-1',
+        'completed',
+        expect.objectContaining({ actionCount: 2 })
+      );
+    });
+
+    it('should discard a completion made while a steer was in flight, running nothing and posting nothing of it', async () => {
+      complete.mockImplementationOnce(() => {
+        steer();
+        return Promise.resolve(Result.ok(toolUse(['lookup_fixture'], 'premature')));
+      });
+      complete.mockImplementationOnce(() => {
+        steer('and be brief');
+        return Promise.resolve(Result.ok(text('premature answer')));
+      });
+      complete.mockResolvedValueOnce(Result.ok(text('corrected')));
+      const outcome = await run();
+      expect(outcome.status).toBe('completed');
+      expect(toolExecutor.execute).not.toHaveBeenCalled();
+      expect(sends.map((send) => send.text)).toStrictEqual(['corrected']);
+      expect(turnsService.appendEvent.mock.calls.map(([, event]: any) => event.kind)).toStrictEqual([
+        'steering_received',
+        'steering_received',
+        'assistant_message'
+      ]);
+    });
+
+    it('should let a fold win over a steer and read the steer before the re-assembled completion (§4.4)', async () => {
+      complete.mockImplementationOnce(() => {
+        offerFragment('post-2');
+        steer();
+        return Promise.resolve(Result.ok(text('half')));
+      });
+      complete.mockResolvedValueOnce(Result.ok(text('all of it')));
+      await runFolding();
+      expect(contextAssembler.assemble).toHaveBeenCalledTimes(2);
+      expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+        content: '@casey: use staging',
+        role: 'user'
+      });
+      expect(sends.map((send) => send.text)).toStrictEqual(['all of it']);
+    });
+
+    it('should prompt for an extension when a steer exhausts the budget (§5.3)', async () => {
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+      toolExecutor.execute.mockImplementationOnce(() => {
+        steer();
+        return Promise.resolve({ kind: 'continue', output: 'ok' } satisfies ToolAttempt);
+      });
+      const outcome = (
+        await turnRunner.run({
+          chainLength: 1,
+          channelId: 'channel-1',
+          depth: 0,
+          profile: { ...PROFILE, actionBudget: 1 },
+          rootPostId: 'post-0'
+        })
+      ).unwrap();
+      expect(approvalsService.request).toHaveBeenCalledOnce();
+      expect(outcome.status).toBe('budget_exhausted');
+    });
+  });
+
   it('should count an invocation denied before execution as one attempt and ask how to proceed', async () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['gated_fixture'])));
     toolExecutor.execute.mockResolvedValue({

@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
-import type { AbortKind } from '../turns.types.ts';
+import type { AbortKind, Steering } from '../turns.types.ts';
 
 type ControlEntry = {
   channelId: string;
   onKill: (() => void)[];
   requested?: AbortKind;
+  /** §7.5 — steering handed to this turn and not yet read; in memory, like every other flag here */
+  steering: Steering[];
 };
 
 export type TurnControlHandle = {
@@ -15,6 +17,8 @@ export type TurnControlHandle = {
   /** aborts on /kill — handed to the request in flight, so it stops streaming for a turn that is gone */
   killSignal: AbortSignal;
   release(): void;
+  /** the steering handed to this turn since the last call, clearing the buffer (§7.5) */
+  takeSteering(): readonly Steering[];
 };
 
 /**
@@ -46,7 +50,7 @@ export class TurnControlRegistry {
   }
 
   register(turnId: string, channelId: string): TurnControlHandle {
-    const entry: ControlEntry = { channelId, onKill: [] };
+    const entry: ControlEntry = { channelId, onKill: [], steering: [] };
     this.entries.set(turnId, entry);
     const killed = new Promise<'killed'>((resolve) => entry.onKill.push(() => resolve('killed')));
     const controller = new AbortController();
@@ -55,7 +59,21 @@ export class TurnControlRegistry {
       aborted: () => entry.requested,
       killed,
       killSignal: controller.signal,
-      release: () => this.entries.delete(turnId)
+      release: () => this.entries.delete(turnId),
+      takeSteering: () => entry.steering.splice(0)
     };
+  }
+
+  /** §7.5 — hands one instruction to every running turn in the channel; synchronous, so a releasing turn takes it or is gone */
+  steerChannel(channelId: string, steering: Steering): number {
+    let steered = 0;
+    for (const entry of this.entries.values()) {
+      if (entry.channelId !== channelId) {
+        continue;
+      }
+      entry.steering.push(steering);
+      steered += 1;
+    }
+    return steered;
   }
 }

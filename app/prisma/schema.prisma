@@ -60,6 +60,7 @@ enum TurnEventKind {
   ask_requested
   assistant_message
   record_written
+  steering_received
   tool_result
 }
 

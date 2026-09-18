@@ -3,6 +3,12 @@ import type { ModelRow, TurnStatus } from '@/prisma/prisma.types.ts';
 /** how a §7.5 command ends a running turn — the status it will close with */
 export type AbortKind = Extract<TurnStatus, 'killed' | 'stopped'>;
 
+/** §7.5 — one human sentence handed to a running turn, read before its next completion */
+export type Steering = {
+  readonly byUsername: string;
+  readonly text: string;
+};
+
 export type Turn = ModelRow<'Turn'>;
 
 /** how a turn ran out of room: results it accumulated and could not retire, or a starting context that never fit (§7.1) */

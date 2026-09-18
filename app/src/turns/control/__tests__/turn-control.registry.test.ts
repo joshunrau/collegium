@@ -28,6 +28,15 @@ describe('TurnControlRegistry', () => {
     expect(control.aborted()).toBe('killed');
   });
 
+  it('should buffer steering for the turns in the channel alone, until each takes it (§7.5)', () => {
+    const inChannel = registry.register('turn-1', 'channel-1');
+    const elsewhere = registry.register('turn-2', 'channel-2');
+    expect(registry.steerChannel('channel-1', { byUsername: 'casey', text: 'use staging' })).toBe(1);
+    expect(inChannel.takeSteering()).toStrictEqual([{ byUsername: 'casey', text: 'use staging' }]);
+    expect(inChannel.takeSteering()).toStrictEqual([]);
+    expect(elsewhere.takeSteering()).toStrictEqual([]);
+  });
+
   it('should resolve the kill race on kill alone, and not for a released turn', async () => {
     const control = registry.register('turn-1', 'channel-1');
     registry.abortChannel('channel-1', 'stopped');

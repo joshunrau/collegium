@@ -143,6 +143,12 @@ describe('toCompletionMessages', () => {
     ]);
   });
 
+  it('should replay a steering event as the human speaking (§7.5)', () => {
+    expect(
+      toCompletionMessages([event({ byUsername: 'casey', kind: 'steering_received', text: 'use staging' })], 'mira')
+    ).toStrictEqual([{ content: '@casey: use staging', role: 'user' }]);
+  });
+
   it('should fold a denial into the result of the call it refused, naming the human', () => {
     const entries = [
       event({
