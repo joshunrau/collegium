@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AgentsModule } from '@/agents/agents.module.ts';
 import { ApprovalsModule } from '@/approvals/approvals.module.ts';
 import { ChannelsModule } from '@/channels/channels.module.ts';
 import { ChatModule } from '@/chat/chat.module.ts';
@@ -31,6 +32,7 @@ import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
     TurnsService
   ],
   imports: [
+    AgentsModule,
     ApprovalsModule,
     ChannelsModule,
     ChatModule,
