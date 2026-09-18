@@ -5,6 +5,7 @@ import { $Env, $ProvisioningEnv } from '../env.schemas.ts';
 const env: Omit<{ [K in keyof $Env]: string }, 'APP_PUBLIC_URL'> = {
   APP_HOST: '127.0.0.1',
   APP_PORT: '3000',
+  CALLBACK_TOKEN: 'callback-token-for-tests-'.padEnd(40, '-'),
   CONFIG_PATH: '/etc/collegium/config.json',
   DATABASE_URL: 'file:///var/lib/collegium.db',
   MATTERMOST_LOCAL_URL: 'http://mattermost:8065',
@@ -121,5 +122,13 @@ describe('$ProvisioningEnv', () => {
 
   it('should reject a malformed email', () => {
     expect($ProvisioningEnv.safeParse({ ...admin, MATTERMOST_ADMIN_EMAIL: 'admin' }).success).toBe(false);
+  });
+});
+
+describe('$Env callback secrets', () => {
+  it('should require a callback token of at least 32 characters and treat a blank trigger token as absent (§6.4)', () => {
+    expect($Env.safeParse({ ...env, CALLBACK_TOKEN: 'short' }).success).toBe(false);
+    expect($Env.safeParse({ ...env, TRIGGER_TOKEN: '' }).data?.TRIGGER_TOKEN).toBeUndefined();
+    expect($Env.safeParse({ ...env, TRIGGER_TOKEN: 'short' }).success).toBe(false);
   });
 });

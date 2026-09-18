@@ -15,6 +15,7 @@ import { COMMAND_TRIGGER, COMMANDS_PATH, describeCommandSurface } from '../comma
  */
 @Injectable()
 export class CommandReconcilerService {
+  private readonly callbackToken: string;
   private readonly callbackUrl: string;
 
   constructor(
@@ -22,12 +23,17 @@ export class CommandReconcilerService {
     envService: EnvService,
     private readonly loggingService: LoggingService
   ) {
+    this.callbackToken = envService.get('CALLBACK_TOKEN');
     this.callbackUrl = `${removeTrailingSlash(envService.get('APP_PUBLIC_URL'))}${COMMANDS_PATH}`;
   }
 
   async reconcile(): Promise<void> {
     const commands = describeCommandSurface();
-    await this.chatGateway.declareCommandSurface({ callbackUrl: this.callbackUrl, commands });
+    await this.chatGateway.declareCommandSurface({
+      callbackToken: this.callbackToken,
+      callbackUrl: this.callbackUrl,
+      commands
+    });
     // a release before the plugin registered one dotted command per subcommand under this account
     const relics = await this.chatGateway.deleteOwnedSlashCommands();
     const removed = relics > 0 ? `, removed ${relics} relic slash command(s)` : '';

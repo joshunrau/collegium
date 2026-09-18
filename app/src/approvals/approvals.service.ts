@@ -1,6 +1,7 @@
 import { removeTrailingSlash, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
+import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
@@ -43,6 +44,7 @@ export class ApprovalsService {
 
   constructor(
     @InjectModel('Approval') private readonly approvals: Model<'Approval'>,
+    private readonly callbackSigner: CallbackSigner,
     envService: EnvService,
     private readonly loggingService: LoggingService,
     private readonly pendingRegistry: PendingRegistry,
@@ -234,8 +236,12 @@ export class ApprovalsService {
     const opened = await this.transportRegistry.get(row.turn.agentUsername).openDialog({
       callbackId: row.id,
       elements: [{ displayName: 'Reason', name: 'reason', type: 'textarea' }],
-      // the submission carries no username, so the decider's identity rides the dialog state
-      state: input.byUsername,
+      // the submission carries no username, so the decider's identity rides the dialog state, signed
+      // with the approval since the state comes back from the decider's own client (§6.4)
+      state: JSON.stringify({
+        byUsername: input.byUsername,
+        signature: this.callbackSigner.sign(['reason', row.id, input.byUsername])
+      }),
       submitLabel: 'Deny',
       title: `Deny ${renderApprovalActionName(row.toolNamespace, row.toolName)} with a reason`,
       triggerId: input.triggerId,
@@ -257,7 +263,11 @@ export class ApprovalsService {
       await this.readPostLimit(input)
     );
     const sent = await this.transportRegistry.get(input.agentUsername).send({
-      attachments: renderApprovalActions({ approvalId, decisionsUrl: this.decisionsUrl }),
+      attachments: renderApprovalActions({
+        approvalId,
+        decisionsUrl: this.decisionsUrl,
+        sign: (parts) => this.callbackSigner.sign(parts)
+      }),
       channelId: input.channelId,
       files: prompt.files,
       text: prompt.text

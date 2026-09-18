@@ -93,6 +93,12 @@ export const $Env = z
       .describe(
         'The address Mattermost calls back on to deliver approval decisions, slash commands, and triggers. Defaults to the bind address, which is right only when the app is reached where it binds; a deployment whose Mattermost is a container of its own — or a server elsewhere — must state this.'
       ),
+    CALLBACK_TOKEN: z
+      .string()
+      .min(32)
+      .describe(
+        'A shared secret the Mattermost plugin presents on POST /commands, and the key that signs each approval decision callback. A second control beside keeping APP_PORT off the public network (§6.4), not a replacement for it. Generate it with `openssl rand -hex 32`; rotate it by changing the value and redeploying the app and the plugin together.'
+      ),
     CONFIG_PATH: z
       .string()
       .min(1)
@@ -121,6 +127,9 @@ export const $Env = z
       ),
     RESOURCES_ROOT: $$Blankable(z.string().min(1)).describe(
       'The directory holding the files `config.json` names by relative path, such as the HTML template outbound mail is wrapped in. Mounted read-only, and needed only when config names such a file.'
+    ),
+    TRIGGER_TOKEN: $$Blankable(z.string().min(32)).describe(
+      'A shared secret a trigger sender presents on POST /triggers, and nothing else: it cannot run a command or answer an approval, so a webhook integration never holds Mattermost’s credential. Leave it unset to disable HTTP trigger intake; every request is then refused. Generate it as for CALLBACK_TOKEN, and never reuse that value here.'
     ),
     WORKSPACE_ROOT: z
       .string()

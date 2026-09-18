@@ -16,8 +16,10 @@ import (
 
 const teamID = "team-1"
 
+const callbackToken = "test-callback-token"
+
 func declaration(callbackURL string) string {
-	return `{"callbackUrl":"` + callbackURL + `","commands":[{"trigger":"stop","hint":"","purpose":"Abort turns"},{"trigger":"forget","hint":"{post-id}","purpose":"Forget a post"}]}`
+	return `{"callbackToken":"` + callbackToken + `","callbackUrl":"` + callbackURL + `","commands":[{"trigger":"stop","hint":"","purpose":"Abort turns"},{"trigger":"forget","hint":"{post-id}","purpose":"Forget a post"}]}`
 }
 
 func newTestPlugin(t *testing.T) (*Plugin, *plugintest.API) {
@@ -46,13 +48,20 @@ func grantDeclaration(api *plugintest.API) {
 	api.On("RegisterCommand", mock.Anything).Return(nil)
 }
 
+// forwarded is what the app received: the command, and the bearer that says the plugin sent it
+type forwarded struct {
+	forwardedCommand
+	Authorization string
+}
+
 // answeringApp stands in for the app, recording what it was forwarded and answering with body
-func answeringApp(t *testing.T, body string) (*httptest.Server, *forwardedCommand) {
+func answeringApp(t *testing.T, body string) (*httptest.Server, *forwarded) {
 	t.Helper()
-	received := &forwardedCommand{}
+	received := &forwarded{}
 	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(raw, received)
+		_ = json.Unmarshal(raw, &received.forwardedCommand)
+		received.Authorization = r.Header.Get("Authorization")
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(app.Close)
@@ -92,6 +101,12 @@ func TestDeclareSurfaceRefusesAnInvalidDeclaration(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, declare(p, "user-1", `{"callbackUrl":"ftp://x","commands":[]}`).Code)
 }
 
+func TestDeclareSurfaceRequiresACallbackToken(t *testing.T) {
+	p, api := newTestPlugin(t)
+	api.On("HasPermissionToTeam", "user-1", teamID, model.PermissionManageOwnSlashCommands).Return(true)
+	require.Equal(t, http.StatusBadRequest, declare(p, "user-1", `{"callbackUrl":"http://app:3000/commands","commands":[{"trigger":"stop","hint":"","purpose":"Abort turns"}]}`).Code)
+}
+
 func TestExecuteCommandForwardsToTheDeclaringApp(t *testing.T) {
 	app, received := answeringApp(t, `{"response_type":"ephemeral","text":"Usage: /collegium forget {post-id}"}`)
 	p, api := newTestPlugin(t)
@@ -103,7 +118,8 @@ func TestExecuteCommandForwardsToTheDeclaringApp(t *testing.T) {
 		ChannelId: "channel-1", Command: "/collegium forget  post-9 ", TeamId: teamID, UserId: "user-1",
 	})
 	require.Nil(t, appErr)
-	require.Equal(t, forwardedCommand{ChannelID: "channel-1", TeamID: teamID, Text: "forget  post-9", UserID: "user-1", UserName: "casey"}, *received)
+	require.Equal(t, forwardedCommand{ChannelID: "channel-1", TeamID: teamID, Text: "forget  post-9", UserID: "user-1", UserName: "casey"}, received.forwardedCommand)
+	require.Equal(t, "Bearer "+callbackToken, received.Authorization)
 	require.Equal(t, &model.CommandResponse{ResponseType: "ephemeral", Text: "Usage: /collegium forget {post-id}"}, response)
 }
 

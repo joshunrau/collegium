@@ -29,11 +29,15 @@ type Command struct {
 // Surface is what one deployment declares for its team: where to forward executions, and the
 // subcommands to autocomplete. It is persisted per team so activation can re-register it.
 type Surface struct {
-	CallbackURL string    `json:"callbackUrl"`
-	Commands    []Command `json:"commands"`
+	CallbackToken string    `json:"callbackToken"`
+	CallbackURL   string    `json:"callbackUrl"`
+	Commands      []Command `json:"commands"`
 }
 
 func (s Surface) Validate() error {
+	if s.CallbackToken == "" {
+		return fmt.Errorf("callbackToken must be set")
+	}
 	parsed, err := url.Parse(s.CallbackURL)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 		return fmt.Errorf("callbackUrl must be an absolute http(s) URL, got %q", s.CallbackURL)

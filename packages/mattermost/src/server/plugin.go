@@ -183,6 +183,7 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 	if err != nil {
 		return nil, model.NewAppError("ExecuteCommand", "collegium.forward.request", nil, err.Error(), http.StatusInternalServerError)
 	}
+	request.Header.Set("Authorization", "Bearer "+surface.CallbackToken)
 	request.Header.Set("Content-Type", "application/json")
 	response, err := p.forwarder.Do(request)
 	if err != nil {

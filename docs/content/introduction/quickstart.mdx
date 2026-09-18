@@ -18,7 +18,7 @@ cd collegium
 cp .env.template .env
 ```
 
-Open `.env` and set `MATTERMOST_ADMIN_USERNAME` and `MATTERMOST_ADMIN_PASSWORD`. These become the Mattermost administrator credentials you log in with.
+Open `.env` and set `MATTERMOST_ADMIN_USERNAME` and `MATTERMOST_ADMIN_PASSWORD`. These become the Mattermost administrator credentials you log in with. Set `CALLBACK_TOKEN` to a random secret (`openssl rand -hex 32`): it is what the Mattermost plugin presents when it forwards a command, and what signs each approval decision.
 
 Set `MATTERMOST_PUBLIC_URL` to the address you will open Mattermost at, such as `http://localhost:8065`. It must match exactly: opened at any other address, including `127.0.0.1`, new posts appear only after a reload.
 

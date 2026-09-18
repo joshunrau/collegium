@@ -225,7 +225,7 @@ describe('MattermostGateway', () => {
   });
 
   describe('command surface', () => {
-    const declaration = { callbackUrl: 'http://localhost:3000/commands', commands: [] };
+    const declaration = { callbackToken: 'k'.repeat(32), callbackUrl: 'http://localhost:3000/commands', commands: [] };
 
     it('should declare the surface on the configured team as the system bot', async () => {
       vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));

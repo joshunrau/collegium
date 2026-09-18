@@ -95,13 +95,18 @@ describe('MattermostClient', () => {
   });
 
   describe('declarePluginCommandSurface', () => {
-    const declaration = { callbackUrl: 'https://app.test/commands', commands: [], teamId: 'team-1' };
+    const declaration = {
+      callbackToken: 'k'.repeat(32),
+      callbackUrl: 'https://app.test/commands',
+      commands: [],
+      teamId: 'team-1'
+    };
 
     it("should PUT the surface to the plugin's team route as the bot", async () => {
       vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
       await client.declarePluginCommandSurface(declaration);
       expect(fetch).toHaveBeenCalledWith('https://mattermost.test/plugins/sh.collegium/api/v1/teams/team-1/commands', {
-        body: JSON.stringify({ callbackUrl: 'https://app.test/commands', commands: [] }),
+        body: JSON.stringify({ callbackToken: 'k'.repeat(32), callbackUrl: 'https://app.test/commands', commands: [] }),
         headers: { authorization: 'Bearer bot-token', 'content-type': 'application/json' },
         method: 'PUT'
       });

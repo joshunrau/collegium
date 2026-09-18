@@ -2,6 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts';
 import { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { EnvService } from '@/config/env/env.service.ts';
@@ -27,6 +28,8 @@ type ApprovalRow = {
 };
 
 const TURN = { agentUsername: 'mira', channelId: 'channel-1' };
+
+const RAW_TOKEN = 'r'.repeat(32);
 
 describe('ApprovalsService', () => {
   let approvalsService: ApprovalsService;
@@ -55,7 +58,7 @@ describe('ApprovalsService', () => {
       return Promise.resolve(Result.ok());
     });
     const envService = MockFactory.createMock(EnvService);
-    envService.get.mockReturnValue('http://localhost:3000');
+    envService.get.mockImplementation((key) => (key === 'CALLBACK_TOKEN' ? RAW_TOKEN : 'http://localhost:3000'));
     const transportRegistry = MockFactory.createMock(TransportRegistry);
     transportRegistry.get.mockReturnValue(transport);
     loggingService = MockFactory.createMock(LoggingService);
@@ -63,6 +66,7 @@ describe('ApprovalsService', () => {
       providers: [
         ApprovalsService,
         PendingRegistry,
+        CallbackSigner,
         { provide: EnvService, useValue: envService },
         { provide: LoggingService, useValue: loggingService },
         { provide: TransportRegistry, useValue: transportRegistry },
@@ -208,6 +212,9 @@ describe('ApprovalsService', () => {
     expect(transport.openDialog).toHaveBeenCalledWith(
       expect.objectContaining({ callbackId: rows[0]!.id, triggerId: 'trigger-1' })
     );
+    const dialog = transport.openDialog.mock.calls[0]![0];
+    expect(JSON.parse(dialog.state ?? '')).toStrictEqual({ byUsername: 'casey', signature: expect.any(String) });
+    expect(JSON.stringify([dialog, transport.send.mock.calls])).not.toContain(RAW_TOKEN);
     expect(rows[0]?.status).toBe('pending');
     await approvalsService.decideWithReason({
       approvalId: rows[0]!.id,

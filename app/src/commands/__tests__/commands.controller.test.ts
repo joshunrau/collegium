@@ -2,6 +2,10 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 
+import { CallbackTokenGuard } from '@/chat/callback-auth/callback-token.guard.ts';
+import { EnvService } from '@/config/env/env.service.ts';
+import { createEnvServiceMock } from '@/testing/factories/env-service.factory.ts';
+
 import { CommandsController } from '../commands.controller.ts';
 import { COMMAND_TRIGGERS } from '../commands.definitions.ts';
 import { CommandRegistry } from '../commands.registry.ts';
@@ -45,7 +49,10 @@ describe('CommandsController', () => {
     execute = vi.fn(() => Promise.resolve({ responseType: 'ephemeral', text: 'stopping' }));
     const moduleRef = await Test.createTestingModule({
       controllers: [CommandsController],
-      providers: [{ provide: CommandsService, useValue: { execute } }]
+      providers: [
+        { provide: CommandsService, useValue: { execute } },
+        { provide: EnvService, useValue: createEnvServiceMock() }
+      ]
     }).compile();
     commandsController = moduleRef.get(CommandsController);
   });
@@ -62,6 +69,10 @@ describe('CommandsController', () => {
       username: 'casey'
     });
     expect(response).toStrictEqual({ response_type: 'ephemeral', text: 'stopping' });
+  });
+
+  it('should stand behind the callback token guard, so no body is read without it (§6.4)', () => {
+    expect(Reflect.getMetadata('__guards__', CommandsController)).toStrictEqual([CallbackTokenGuard]);
   });
 
   it('should refuse a body without the fields the plugin forwards', async () => {

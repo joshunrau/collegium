@@ -10,6 +10,7 @@ const baseEnv = (): $Env => ({
   APP_HOST: 'localhost',
   APP_PORT: 3000,
   APP_PUBLIC_URL: 'http://localhost:3000',
+  CALLBACK_TOKEN: 'c'.repeat(32),
   CONFIG_PATH: '/tmp/collegium-test/config.json',
   DATABASE_URL: 'file:///tmp/collegium-test/db.sqlite',
   MATTERMOST_LOCAL_URL: 'http://localhost:8065',

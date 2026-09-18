@@ -14,7 +14,7 @@ import { ProvisioningService } from '@/provisioning/provisioning.service.ts';
 
 import { E2E_RESOURCE_PREFIX } from './constants.ts';
 import { copyDatabaseTemplate } from './database.ts';
-import { REPOSITORY_PLUGINS_ROOT } from './env.ts';
+import { E2E_CALLBACK_TOKEN, REPOSITORY_PLUGINS_ROOT } from './env.ts';
 import { createWorkspaceId } from './utils/naming.utils.ts';
 
 import type { HarnessEnv } from './env.ts';
@@ -88,6 +88,7 @@ export function setupProvisioning(options: { runs: number }): Provisioning {
     const env: Omit<HarnessEnv, 'APP_PUBLIC_URL'> = {
       APP_HOST: '127.0.0.1',
       APP_PORT: '3000',
+      CALLBACK_TOKEN: E2E_CALLBACK_TOKEN,
       CONFIG_PATH: configPath,
       DATABASE_URL: databaseUrl,
       MATTERMOST_LOCAL_URL: cluster.url,

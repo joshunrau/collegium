@@ -76,14 +76,18 @@ describe('renderResolvedPrompt', () => {
 
 describe('renderApprovalActions', () => {
   it('should give every button a plain alphanumeric id and carry the action in its context (§3.7)', () => {
-    const [attachment] = renderApprovalActions({ approvalId: 'approval-1', decisionsUrl: 'http://host/decisions' });
+    const [attachment] = renderApprovalActions({
+      approvalId: 'approval-1',
+      decisionsUrl: 'http://host/decisions',
+      sign: (parts) => parts.join('|')
+    });
     expect(attachment?.actions?.map((action) => [action.id, action.integration.context?.action])).toStrictEqual([
       ['approve', 'approve'],
       ['deny', 'deny'],
       ['reason', 'deny-with-reason']
     ]);
     expect(attachment?.actions?.[0]?.integration).toStrictEqual({
-      context: { action: 'approve', approvalId: 'approval-1' },
+      context: { action: 'approve', approvalId: 'approval-1', signature: 'decision|approval-1|approve' },
       url: 'http://host/decisions'
     });
   });

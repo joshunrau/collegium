@@ -7,13 +7,15 @@ import { CredentialsService } from '@/credentials/credentials.service.ts';
 import { LoggerFactory } from '@/logging/logging.factory.ts';
 
 import { MattermostGateway } from './adapters/mattermost.gateway.ts';
+import { CallbackSigner } from './callback-auth/callback-signer.service.ts';
 import { ChatGateway } from './chat.gateway.ts';
 import { TransportRegistry } from './transports/transport.registry.ts';
 
 @Module({
-  exports: [ChatGateway, TransportRegistry],
+  exports: [CallbackSigner, ChatGateway, TransportRegistry],
   imports: [CredentialsModule],
   providers: [
+    CallbackSigner,
     {
       inject: [ConfigService, EnvService, LoggerFactory, CredentialsService],
       provide: ChatGateway,

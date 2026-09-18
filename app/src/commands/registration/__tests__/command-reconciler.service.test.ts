@@ -18,7 +18,9 @@ describe('CommandReconcilerService', () => {
   beforeEach(async () => {
     // a public URL with a trailing slash must not compose a double-slashed callback
     const envService = MockFactory.createMock(EnvService);
-    envService.get.mockReturnValue('https://collegium.example.com/');
+    envService.get.mockImplementation((key) => {
+      return key === 'CALLBACK_TOKEN' ? 'k'.repeat(32) : 'https://collegium.example.com/';
+    });
     const moduleRef = await Test.createTestingModule({
       providers: [
         CommandReconcilerService,
@@ -36,6 +38,7 @@ describe('CommandReconcilerService', () => {
   it('should declare every subcommand against the callback url', async () => {
     await commandReconcilerService.reconcile();
     expect(chatGateway.declareCommandSurface).toHaveBeenCalledExactlyOnceWith({
+      callbackToken: 'k'.repeat(32),
       callbackUrl: 'https://collegium.example.com/commands',
       commands: COMMAND_TRIGGERS.map((trigger) => ({ ...COMMAND_DEFINITIONS[trigger], trigger }))
     });

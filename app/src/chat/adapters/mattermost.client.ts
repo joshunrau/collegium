@@ -54,7 +54,11 @@ export class MattermostClient {
    */
   async declarePluginCommandSurface(params: CommandSurfaceDeclaration & { teamId: string }): Promise<void> {
     const response = await fetch(`${this.sdk.getUrl()}${commandSurfaceRoute(params.teamId)}`, {
-      body: JSON.stringify({ callbackUrl: params.callbackUrl, commands: params.commands }),
+      body: JSON.stringify({
+        callbackToken: params.callbackToken,
+        callbackUrl: params.callbackUrl,
+        commands: params.commands
+      }),
       headers: { authorization: `Bearer ${this.sdk.getToken()}`, 'content-type': 'application/json' },
       method: 'PUT'
     });

@@ -7,6 +7,7 @@ import { EnvService } from '../env.service.ts';
 const mockEnv: Omit<{ [K in keyof $Env]: string }, 'APP_PUBLIC_URL'> = {
   APP_HOST: '0.0.0.0',
   APP_PORT: '3000',
+  CALLBACK_TOKEN: 'callback-token-for-tests-'.padEnd(40, '-'),
   CONFIG_PATH: '/dev/null',
   DATABASE_URL: 'file:///dev/null',
   MATTERMOST_LOCAL_URL: 'http://mattermost:8065',

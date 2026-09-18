@@ -1,10 +1,13 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
+
+import { CallbackTokenGuard } from '@/chat/callback-auth/callback-token.guard.ts';
 
 import { COMMANDS_PATH } from './commands.definitions.ts';
 import { $CommandRequestBody } from './commands.schemas.ts';
 import { CommandsService } from './commands.service.ts';
 
 @Controller()
+@UseGuards(CallbackTokenGuard)
 export class CommandsController {
   constructor(private readonly commandsService: CommandsService) {}
 

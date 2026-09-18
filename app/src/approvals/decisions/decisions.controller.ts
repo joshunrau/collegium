@@ -1,18 +1,36 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, UnauthorizedException } from '@nestjs/common';
+
+import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts';
+import { LoggingService } from '@/logging/logging.service.ts';
 
 import { renderDecisionRefusal } from '../approvals.renderer.ts';
 import { $MattermostActionBody, $MattermostDialogSubmissionBody } from '../approvals.schemas.ts';
 import { ApprovalsService } from '../approvals.service.ts';
 
+/**
+ * §6.4 — Mattermost assembles these requests from a button's context and a dialog's state and can
+ * set no header of its own, so each carries a signature over its one approval, verified here
+ * before the service is reached. A mismatch is logged rather than answered: it means the request
+ * did not come from a genuine callback for this approval, so there is no approver to answer.
+ */
 @Controller('decisions')
 export class DecisionsController {
-  constructor(private readonly approvalsService: ApprovalsService) {}
+  constructor(
+    private readonly approvalsService: ApprovalsService,
+    private readonly callbackSigner: CallbackSigner,
+    private readonly loggingService: LoggingService
+  ) {}
 
   // Mattermost treats anything but 200 as an action integration error
   @HttpCode(200)
   @Post()
   async decide(@Body() body: unknown): Promise<{ ephemeral_text?: string }> {
     const action = $MattermostActionBody.parse(body);
+    this.assertSigned(
+      ['decision', action.context.approvalId, action.context.action],
+      action.context.signature,
+      action.context.approvalId
+    );
     const outcome = await this.approvalsService.decide({
       action: action.context.action,
       approvalId: action.context.approvalId,
@@ -30,12 +48,24 @@ export class DecisionsController {
     if (submission.cancelled) {
       return {};
     }
+    this.assertSigned(
+      ['reason', submission.callbackId, submission.state.byUsername],
+      submission.state.signature,
+      submission.callbackId
+    );
     const outcome = await this.approvalsService.decideWithReason({
       approvalId: submission.callbackId,
       byUserId: submission.userId,
-      byUsername: submission.state,
+      byUsername: submission.state.byUsername,
       reason: submission.submission.reason
     });
     return outcome.success ? {} : { error: renderDecisionRefusal(outcome.error) };
+  }
+
+  private assertSigned(parts: readonly string[], signature: string, approvalId: string): void {
+    if (!this.callbackSigner.verify(parts, signature)) {
+      this.loggingService.warn(`refused a decision callback for approval ${approvalId}: its signature did not verify`);
+      throw new UnauthorizedException();
+    }
   }
 }

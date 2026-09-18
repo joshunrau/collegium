@@ -89,7 +89,12 @@ export function renderResolvedPrompt(input: PromptInput, decision: ApprovalDecis
  * must be plain alphanumerics — Mattermost's action route rejects hyphenated ids with a 404 — so
  * the id and the context's action name differ for deny-with-reason.
  */
-export function renderApprovalActions(input: { approvalId: string; decisionsUrl: string }): MessageAttachment[] {
+/** the renderer is handed the signing function and never the key; each button's context signs its own action (§6.4) */
+export function renderApprovalActions(input: {
+  approvalId: string;
+  decisionsUrl: string;
+  sign: (parts: readonly string[]) => string;
+}): MessageAttachment[] {
   const action = (
     id: string,
     decision: 'approve' | 'deny' | 'deny-with-reason',
@@ -97,7 +102,14 @@ export function renderApprovalActions(input: { approvalId: string; decisionsUrl:
     style?: 'danger' | 'primary'
   ) => ({
     id,
-    integration: { context: { action: decision, approvalId: input.approvalId }, url: input.decisionsUrl },
+    integration: {
+      context: {
+        action: decision,
+        approvalId: input.approvalId,
+        signature: input.sign(['decision', input.approvalId, decision])
+      },
+      url: input.decisionsUrl
+    },
     name,
     ...(style && { style })
   });

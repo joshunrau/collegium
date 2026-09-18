@@ -13,7 +13,7 @@ import { withTimeout } from '@collegium/core/utils';
 
 import { ACTION_BUDGET, E2E_RESOURCE_PREFIX, PROJECT_ROOT } from './constants.ts';
 import { copyDatabaseTemplate } from './database.ts';
-import { REPOSITORY_PLUGINS_ROOT } from './env.ts';
+import { E2E_CALLBACK_TOKEN, E2E_TRIGGER_TOKEN, REPOSITORY_PLUGINS_ROOT } from './env.ts';
 import { InferenceStub, textResponse } from './inference.ts';
 import { PENDING, ProbeAbortError, waitFor } from './utils/wait.utils.ts';
 
@@ -271,11 +271,13 @@ class CollegiumProcess {
         APP_HOST: COLLEGIUM_FIXTURE.bindHost,
         APP_PORT: String(this.port),
         APP_PUBLIC_URL: this.publicUrl,
+        CALLBACK_TOKEN: E2E_CALLBACK_TOKEN,
         CONFIG_PATH: this.configPath,
         DATABASE_URL: this.databaseUrl,
         MATTERMOST_LOCAL_URL: this.mattermost.url,
         MATTERMOST_TEAM: this.mattermost.teamName,
         PLUGINS_ROOT: REPOSITORY_PLUGINS_ROOT,
+        TRIGGER_TOKEN: E2E_TRIGGER_TOKEN,
         WORKSPACE_ROOT: this.workspaceRoot
       };
       this.child = spawn(process.execPath, ['dist/main.js'], {

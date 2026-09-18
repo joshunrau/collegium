@@ -16,6 +16,8 @@ export type SubcommandDeclaration = {
 
 /** what one deployment declares for its team: where to forward executions, and the subcommands, in order */
 export type CommandSurfaceDeclaration = {
+  /** presented as a bearer on every forwarded execution, so the app knows the plugin sent it (§6.4) */
+  readonly callbackToken: string;
   readonly callbackUrl: string;
   readonly commands: readonly SubcommandDeclaration[];
 };

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
+import { E2E_TRIGGER_TOKEN } from '../../support/env.ts';
 import { setupHarness } from '../../support/harness.ts';
 import { textResponse, toolCallResponse, toolCallsResponse } from '../../support/inference.ts';
 import { defineScenario } from '../../support/scenario.ts';
@@ -220,7 +221,7 @@ describe('Loop control: chain length', () => {
         targetAgentUsername: agents.mira.username,
         targetChannelId: channels.main.id
       }),
-      headers: { 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${E2E_TRIGGER_TOKEN}`, 'content-type': 'application/json' },
       method: 'POST'
     });
     expect(response.status).toBe(202);
