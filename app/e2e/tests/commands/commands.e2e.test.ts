@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { QUEUED_ACKNOWLEDGEMENT_EMOJI } from '@/activation/activation.constants.ts';
 
+import { E2E_TRIGGER_TOKEN } from '../../support/env.ts';
 import { setupHarness } from '../../support/harness.ts';
 import { textResponse, toolCallResponse } from '../../support/inference.ts';
 import { defineScenario } from '../../support/scenario.ts';
@@ -98,7 +99,7 @@ describe('Ephemeral commands', () => {
         targetAgentUsername: agents.mira.username,
         targetChannelId: channels.main.id
       }),
-      headers: { 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${E2E_TRIGGER_TOKEN}`, 'content-type': 'application/json' },
       method: 'POST'
     });
     const { id } = (await response.json()) as { id: string };

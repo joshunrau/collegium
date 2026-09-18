@@ -4,6 +4,7 @@ import * as path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { signDecision } from '../../support/callbacks.ts';
 import { setupHarness } from '../../support/harness.ts';
 import { textResponse, toolCallResponse, toolCallsResponse } from '../../support/inference.ts';
 import { defineScenario } from '../../support/scenario.ts';
@@ -386,7 +387,7 @@ describe('Approver identity', () => {
     const me = await channels.main.whoAmI();
     await fetch(`${app.url}/decisions`, {
       body: JSON.stringify({
-        context: { action: 'approve', approval_id: approvalId },
+        context: { action: 'approve', approval_id: approvalId, signature: signDecision(approvalId, 'approve') },
         user_id: me.id,
         user_name: 'ceo-of-acme'
       }),
@@ -413,7 +414,7 @@ describe('Approver identity', () => {
     const approvalId = app.pendingApprovalId();
     await fetch(`${app.url}/decisions`, {
       body: JSON.stringify({
-        context: { action: 'approve', approval_id: approvalId },
+        context: { action: 'approve', approval_id: approvalId, signature: signDecision(approvalId, 'approve') },
         user_id: agents.mira.userId,
         user_name: agents.mira.username
       }),
