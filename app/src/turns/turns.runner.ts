@@ -191,7 +191,7 @@ type TurnState = {
   readonly budget: ActionBudget;
   /** §7.1 — by display name, how many times a call that may have taken effect ran to completion */
   readonly callsThatMayHaveTakenEffect: Map<string, number>;
-  /** §4.5 — rejected posts since the last call that ran */
+  /** §4.5 — rejected posts and unknown tool names (§7.2) since the last call that ran */
   consecutiveRejections: number;
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
@@ -385,6 +385,31 @@ export class TurnRunner {
       kind: 'admitted',
       position: { actionBudget: state.budget.limitCount, actionNumber: state.budget.spentCount }
     };
+  }
+
+  /**
+   * §7.2 — a call naming no tool the agent holds is answered with the tools it does, and counts
+   * toward §4.5's rejections in a row, so a model that keeps misnaming ends as refused output does.
+   * The ending call is answered too, so the window can replay the completion that made it.
+   */
+  private async answerUnknownTool(
+    input: RunInput,
+    state: TurnState,
+    identified: IdentifiedCall,
+    output: string
+  ): Promise<TurnOutcome | undefined> {
+    await this.turnsService.appendEvent(state.turn.id, {
+      callId: identified.call.id,
+      kind: 'tool_result',
+      output,
+      toolName: identified.recordedName
+    });
+    if (state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT) {
+      return this.closeWithFailureNotice(input, state, 'semantic_error', renderOutputRefusedNotice());
+    }
+    state.consecutiveRejections += 1;
+    this.pushMessage(state, { content: output, role: 'tool', toolCallId: identified.call.id });
+    return undefined;
   }
 
   /**
@@ -693,7 +718,6 @@ export class TurnRunner {
       toolCalls: completion.toolCalls.map(toReplayableToolCall),
       ...reasoning
     });
-    state.consecutiveRejections = 0;
     state.unreadFrom = state.messages.length;
     if (completion.content !== '') {
       state.status.setTransient(this.multiMentionPolicy.stripAgentMentions(completion.content));
@@ -778,8 +802,8 @@ export class TurnRunner {
 
   /**
    * §7.2 — a granted tool's arguments that never parsed are answered once, spending an attempt like
-   * any invocation, without the tool ever seeing them; the second in a turn, or one for a tool the
-   * agent does not hold, ends the turn as the semantic error it always was.
+   * any invocation, without the tool ever seeing them; the second in a turn ends the turn as the
+   * semantic error it always was. A call naming no tool the agent holds is answered as its name.
    */
   private async forgiveUnparsedCall(
     input: RunInput,
@@ -788,7 +812,24 @@ export class TurnRunner {
     position: number,
     identified: UnparsedCall
   ): Promise<UnparsedCallDisposition> {
-    if (!identified.isGranted || state.unparsedCalls >= UNPARSED_CALL_LIMIT) {
+    if (!identified.isGranted) {
+      const admission = await this.admit(input, state, identified);
+      if (admission.kind === 'ended') {
+        return { kind: 'dispatched', outcome: admission.outcome };
+      }
+      if (admission.kind === 'voice-only') {
+        await this.answerUnrun(state, calls.slice(position), admission.text);
+        return { kind: 'dispatched', outcome: undefined };
+      }
+      const outcome = await this.answerUnknownTool(
+        input,
+        state,
+        identified,
+        this.toolRegistry.renderUnknownToolResult(input.profile, identified.call.name)
+      );
+      return outcome ? { kind: 'dispatched', outcome } : { kind: 'forgiven' };
+    }
+    if (state.unparsedCalls >= UNPARSED_CALL_LIMIT) {
       const outcome = await this.closeWithFailureNotice(
         input,
         state,
@@ -817,6 +858,7 @@ export class TurnRunner {
       toolName: identified.recordedName
     });
     this.pushMessage(state, { content: UNPARSED_ARGUMENTS_RESULT, role: 'tool', toolCallId: identified.call.id });
+    state.consecutiveRejections = 0;
     return { kind: 'forgiven' };
   }
 
@@ -1016,6 +1058,10 @@ export class TurnRunner {
     if (attempt.kind === 'terminal') {
       return this.closeOnToolFailure(input, state, identified, attempt);
     }
+    if (attempt.kind === 'unknown-tool') {
+      return this.answerUnknownTool(input, state, identified, attempt.output);
+    }
+    state.consecutiveRejections = 0;
     const published = attempt.post === undefined ? undefined : await this.publishToolPost(input, state, attempt.post);
     if (published?.kind === 'undelivered') {
       return published.outcome;

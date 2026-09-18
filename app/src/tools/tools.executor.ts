@@ -62,7 +62,7 @@ export class ToolExecutor {
   async execute(input: ExecuteInput): Promise<ToolAttempt> {
     const resolved = this.toolRegistry.resolveFor(input.profile, input.call.name);
     if (!resolved.success) {
-      return { detail: resolved.error.message, kind: 'terminal', status: 'semantic_error' };
+      return { kind: 'unknown-tool', output: resolved.error.message };
     }
     const tool = resolved.value;
     const args = tool.definition.parameters.safeParse(input.call.arguments);

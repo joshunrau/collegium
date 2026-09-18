@@ -160,9 +160,9 @@ describe('ToolExecutor', () => {
     expect((attempt as { output: string }).output).toContain('invalid arguments for fixture__echo');
   });
 
-  it('ends the turn on a name outside the set (§6.1)', async () => {
+  it('answers a name outside the set with the tools the agent can call (§7.2)', async () => {
     const attempt = await execute('ghost__tool', {});
-    expect(attempt).toMatchObject({ kind: 'terminal', status: 'semantic_error' });
+    expect(attempt).toMatchObject({ kind: 'unknown-tool', output: expect.stringContaining('fixture__gated') });
   });
 
   it('gates on approval presence, running only once approved (§5)', async () => {

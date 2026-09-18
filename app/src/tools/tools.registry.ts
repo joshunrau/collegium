@@ -50,7 +50,7 @@ export class ToolRegistry {
    * name, the `ns::tool` form the framework's own approval posts put in the agent's own window, and
    * the bare tool segment where only one granted tool carries it (§3.4). Every key is rendered from
    * one identity at boot, so resolution stays lookup and nothing parses a name; a name claiming no
-   * granted tool still ends the turn (§7.2).
+   * granted tool is answered with the ones that are (§7.2).
    */
   private readonly agentCallableTools: ReadonlyMap<string, ReadonlyMap<string, ResolvedTool>>;
 
@@ -173,11 +173,17 @@ export class ToolRegistry {
     }));
   }
 
-  /** fails loudly on a name outside the agent's set (§6.1) — never falls back */
+  /** §7.2 — what a call naming no granted tool reads: the name it used, and the tools it can call by the names it calls them */
+  renderUnknownToolResult(profile: AgentProfile, name: string): string {
+    const callable = Array.from(this.toolsFor(profile).keys()).join(', ');
+    return `no tool named "${name}" exists in your tool set; the tools you can call are: ${callable}`;
+  }
+
+  /** never falls back to a nearby name (§6.1): a name outside the agent's set resolves to nothing */
   resolveFor(profile: AgentProfile, name: string): Result<ResolvedTool, ToolFailure.UnknownTool> {
     const tool = this.callableToolsFor(profile).get(name);
     if (!tool) {
-      return Result.err({ kind: 'unknown-tool', message: `no tool named "${name}" exists in your tool set` });
+      return Result.err({ kind: 'unknown-tool', message: this.renderUnknownToolResult(profile, name) });
     }
     return Result.ok(tool);
   }

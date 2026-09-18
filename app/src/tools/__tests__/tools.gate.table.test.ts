@@ -371,7 +371,7 @@ const ROWS: readonly GateRow[] = [
     expected: 'unresolved-tool',
     grants: [],
     id: 'unknown-tool-unresolved',
-    note: 'a name claiming no granted tool ends the turn (§6.1, §7.2)'
+    note: 'a name claiming no granted tool is answered, and nothing runs (§6.1, §7.2)'
   },
   {
     args: {},
@@ -444,7 +444,7 @@ const toOutcome = (attempt: ToolAttempt, requestedApproval: boolean, asked: bool
   if (asked) {
     return 'asks';
   }
-  if (attempt.kind === 'terminal' && attempt.detail.startsWith('no tool named ')) {
+  if (attempt.kind === 'unknown-tool') {
     return 'unresolved-tool';
   }
   if (attempt.kind === 'continue' && attempt.output.startsWith('invalid arguments for ')) {

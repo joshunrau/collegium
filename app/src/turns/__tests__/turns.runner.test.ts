@@ -690,6 +690,42 @@ describe('TurnRunner', () => {
     expect(complete).toHaveBeenCalledTimes(1);
   });
 
+  describe('a call naming no tool the agent holds (§7.2)', () => {
+    const UNKNOWN: ToolAttempt = {
+      kind: 'unknown-tool',
+      output: 'no tool named "ghost" exists; the tools you can call are: a__b'
+    };
+
+    it('should answer it with the tools the agent can call and continue, spending an attempt', async () => {
+      toolExecutor.execute.mockResolvedValueOnce(UNKNOWN);
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['ghost'])));
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      const outcome = await run();
+      expect(outcome.status).toBe('completed');
+      expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+        content: UNKNOWN.output,
+        role: 'tool',
+        toolCallId: 'call-0'
+      });
+      expect(turnsService.close).toHaveBeenCalledWith(
+        'turn-1',
+        'completed',
+        expect.objectContaining({ actionCount: 1 })
+      );
+    });
+
+    it('should end the turn on the third in a row, as refused output does (§4.5)', async () => {
+      toolExecutor.execute.mockResolvedValue(UNKNOWN);
+      complete.mockResolvedValue(Result.ok(toolUse(['ghost'])));
+      const outcome = await run();
+      expect(outcome.status).toBe('semantic_error');
+      expect(complete).toHaveBeenCalledTimes(3);
+      expect(sends.map((send) => send.text)).toStrictEqual([
+        'I could not produce a reply the framework would accept and stopped. The reason is in the trace.'
+      ]);
+    });
+  });
+
   describe('a tool call whose arguments never parsed (§7.2)', () => {
     const grant = () => {
       toolRegistry.describeCall.mockReturnValue({
@@ -768,11 +804,18 @@ describe('TurnRunner', () => {
       ]);
     });
 
-    it('should end the turn on the first such call for a tool the agent does not hold', async () => {
+    it('should answer such a call for a tool the agent does not hold as the unknown name it is', async () => {
+      toolRegistry.renderUnknownToolResult.mockReturnValue('no tool named "does_not_exist" exists');
       complete.mockResolvedValueOnce(Result.ok(unparsedUse([unparsedCall('does_not_exist', '{oops')])));
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
       const outcome = await run();
-      expect(outcome.status).toBe('semantic_error');
+      expect(outcome.status).toBe('completed');
       expect(toolExecutor.execute).not.toHaveBeenCalled();
+      expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+        content: 'no tool named "does_not_exist" exists',
+        role: 'tool',
+        toolCallId: 'call-0'
+      });
     });
 
     it('should ask for an extension before forgiving a call on an exhausted budget (§5.3)', async () => {

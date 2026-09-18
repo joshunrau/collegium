@@ -34,7 +34,12 @@ export declare namespace ToolAttempt {
       | 'running'
     >;
   };
-  type Any = Continue | Terminal;
+  /** §7.2 — the call named no tool the agent holds and did not run; the model reads what it can call instead */
+  type UnknownTool = {
+    kind: 'unknown-tool';
+    output: string;
+  };
+  type Any = Continue | Terminal | UnknownTool;
 }
 
 export type ToolAttempt = ToolAttempt.Any;
