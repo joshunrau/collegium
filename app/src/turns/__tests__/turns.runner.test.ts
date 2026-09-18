@@ -1,3 +1,4 @@
+import { renderReplayLine } from '@collegium/core/tools';
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -1429,8 +1430,8 @@ describe('TurnRunner', () => {
     await run();
     expect(seen[1]).toStrictEqual(['page call-0', 'page call-1', 'page call-2']);
     expect(seen[2]).toStrictEqual([
-      '[earlier workspace__read result superseded by a later one]',
-      '[earlier workspace__read result superseded by a later one]',
+      renderReplayLine('earlier workspace__read result'),
+      renderReplayLine('earlier workspace__read result'),
       'page call-2',
       'page call-0'
     ]);

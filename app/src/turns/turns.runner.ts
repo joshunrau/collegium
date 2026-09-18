@@ -1,3 +1,4 @@
+import { renderReplayLine } from '@collegium/core/tools';
 import type { ToolPost, ToolTurnScope } from '@collegium/core/tools';
 import { CHARS_PER_TOKEN, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
@@ -1116,7 +1117,7 @@ export class TurnRunner {
     }
     state.supersedable.push({
       messageIndex: state.messages.length - 1,
-      replay: replay ?? `[earlier ${identified.call.name} result superseded by a later one]`
+      replay: replay ?? renderReplayLine(`earlier ${identified.call.name} result`)
     });
     while (state.supersedable.length > RETAINED_SUPERSEDABLE_RESULTS && this.hasReadSupersedable(state)) {
       this.collapseOldestSupersedable(state);

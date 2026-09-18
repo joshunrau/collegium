@@ -28,9 +28,14 @@ export function assertWireNameWithinLimit(id: ToolId): void {
   }
 }
 
-/** what a later turn reads in place of a result the model already acted on: what it was and how big, never the text (§3.8) */
-export function renderReplayLine(subject: string, text: string): string {
-  return `[${subject}: ${text.length} characters, not carried into later turns]`;
+/**
+ * What a later turn reads in place of a result the model already acted on: what it was and how big,
+ * never the text (§3.8). Worded as history, because a bare size reads to a model as a call that
+ * returned nothing useful, and it reports the page unreadable instead of calling again.
+ */
+export function renderReplayLine(subject: string, text?: string): string {
+  const size = text === undefined ? '' : `: ${text.length} characters`;
+  return `[${subject}${size}, already read and no longer shown — call the tool again to reread it]`;
 }
 
 /** the replay line for a result worth replacing, or nothing for one short enough to keep verbatim */
