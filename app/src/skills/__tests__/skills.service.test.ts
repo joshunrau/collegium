@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { BUILTIN_SKILL_NAMES } from '@collegium/core/skills';
+import type { ToolId } from '@collegium/core/tools';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -173,6 +174,50 @@ describe('SkillsService', () => {
       const manifest = skillsService.renderManifest(buildAgentProfile());
       expect(manifest).toContain('- handing-work-to-a-peer:');
       expect(manifest).toContain('- understanding-collegium:');
+    });
+  });
+
+  describe('assertGrantedToolsCoverSkills', () => {
+    const writeSkillRequiring = (tools: string): void => {
+      writeSkill('saving-bookmarks/SKILL.md', [
+        '---',
+        'description: How to bookmark.',
+        'title: Saving bookmarks',
+        `tools: ${tools}`,
+        '---',
+        'The body.'
+      ]);
+    };
+
+    const held = (...ids: readonly ToolId[]) => new Map([[GRANTED.username, ids]]);
+
+    it('should refuse an agent granted a skill that calls a tool it does not hold (§3.5)', async () => {
+      writeSkillRequiring('[mail::send]');
+      const skillsService = await buildService([GRANTED]);
+      expect(() => skillsService.assertGrantedToolsCoverSkills(held(['memory', 'write']))).toThrow(
+        'agent "mira" is granted the skill "bookmark::saving-bookmarks", which calls "mail::send", but holds no such tool'
+      );
+    });
+
+    it('should accept a ref the agent holds and a namespace one of its tools is in', async () => {
+      writeSkillRequiring('[mail::send, memory]');
+      const skillsService = await buildService([GRANTED]);
+      expect(() =>
+        { return skillsService.assertGrantedToolsCoverSkills(held(['mail', 'send'], ['memory', 'write'])); }
+      ).not.toThrow();
+    });
+
+    it('should refuse a namespace the agent holds no tool in', async () => {
+      writeSkillRequiring('[mail]');
+      const skillsService = await buildService([GRANTED]);
+      expect(() => skillsService.assertGrantedToolsCoverSkills(held(['memory', 'write']))).toThrow(
+        'which calls "mail", but holds no such tool'
+      );
+    });
+
+    it('should check nothing for a skill that declares nothing', async () => {
+      const skillsService = await buildService([GRANTED]);
+      expect(() => skillsService.assertGrantedToolsCoverSkills(new Map())).not.toThrow();
     });
   });
 

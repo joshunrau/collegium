@@ -2,7 +2,8 @@ import * as path from 'node:path';
 
 import { BUILTIN_CORE_SKILL_NAMES, BUILTIN_SKILL_NAMES, renderQualifiedSkillName } from '@collegium/core/skills';
 import type { Skill } from '@collegium/core/skills';
-import { renderToolWireName } from '@collegium/core/tools';
+import { renderToolDisplayName, renderToolWireName } from '@collegium/core/tools';
+import type { ToolId } from '@collegium/core/tools';
 import { SKILLS_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
@@ -52,6 +53,28 @@ export class SkillsService {
     });
     this.skills = new Map([...Object.entries(frameworkSkills), ...toolsetSkills, ...pluginSkills]);
     this.verifyGrants(agentRegistry.list());
+  }
+
+  /**
+   * §3.5 — the tools each granted skill declares, against what its agent actually holds. Boot hands
+   * the tool registry's answer in rather than this asking for it, because tools imports skills: the
+   * rule lives here and the data comes to it.
+   */
+  assertGrantedToolsCoverSkills(toolIdsByAgent: ReadonlyMap<string, readonly ToolId[]>): void {
+    for (const profile of this.agentRegistry.list()) {
+      const held = toolIdsByAgent.get(profile.username) ?? [];
+      const namespaces = new Set(held.map(([namespace]) => namespace));
+      const refs = new Set(held.map(renderToolDisplayName));
+      for (const listing of this.listFor(profile)) {
+        for (const required of this.require(listing.name).tools) {
+          if (required.includes('::') ? !refs.has(required) : !namespaces.has(required)) {
+            throw new Error(
+              `agent "${profile.username}" is granted the skill "${listing.name}", which calls "${required}", but holds no such tool`
+            );
+          }
+        }
+      }
+    }
   }
 
   /**

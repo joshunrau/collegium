@@ -166,7 +166,7 @@ src/skills/saving-contacts/
   references/name-formats.md
 ```
 
-The directory name must be lowercase and dashed (`saving-contacts`), just as a tool's filename must be lowercase `snake_case`. `SKILL.md` and every `references/<name>.md` carry `title` and `description` frontmatter above a markdown body.
+The directory name must be lowercase and dashed (`saving-contacts`), just as a tool's filename must be lowercase `snake_case`. `SKILL.md` and every `references/<name>.md` carry `title` and `description` frontmatter above a markdown body. `SKILL.md` may also carry `tools`, naming what the procedure calls — `tools: [mail, conversations::search]`, a namespace or a single `namespace::tool` ref. An agent granted the skill without one of them refuses the boot, rather than the model discovering it three steps in. Any other frontmatter key refuses the boot too, so a misspelled one is never silently dropped.
 
 An agent pulls a skill into context with `skills::load`, and one of its references by naming that reference in the same call. It does not have to be told the references exist: the framework appends the index to the body it returns. Keep `SKILL.md` to the procedure and put the detail an agent only sometimes needs in a reference — the turn that does not need it never pays for it.
 

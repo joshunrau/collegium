@@ -12,7 +12,7 @@ import {
   BUILTIN_GRANTABLE_SKILL_NAMES,
   QUALIFIED_SKILL_NAME_PATTERN
 } from '@collegium/core/skills';
-import { TOOL_SEGMENT_PATTERN } from '@collegium/core/tools';
+import { TOOL_REF_PATTERN, TOOL_SEGMENT_PATTERN } from '@collegium/core/tools';
 import { CORE_TOOLSET_DEFS, TOOL_GRANT_GROUPS } from '@collegium/core/toolsets';
 import type { ToolGrant } from '@collegium/core/toolsets';
 import { isUnique } from '@collegium/core/utils';
@@ -31,9 +31,6 @@ import { schemaTable } from '../meta.ts';
 // on agentDefaults when it can be stated once for every agent; a toolset's knob is a field of that
 // toolset's own settings schema and never appears here; a framework-wide behaviour goes in the
 // section named for the SPEC concept that defines it.
-
-/** plugin grants keep the same two shapes as framework grants; existence is verified at boot, after plugins load (§8) */
-const PLUGIN_GRANT_PATTERN = /^[a-z](?:_?[a-z0-9])*(?:::[a-z](?:_?[a-z0-9])*)?$/;
 
 const CORE_NAMESPACE_SET = new Set<string>(CORE_TOOLSET_DEFS.map((def) => def.name));
 
@@ -124,7 +121,7 @@ export const $ToolGrant = z
       });
       return;
     }
-    if (!PLUGIN_GRANT_PATTERN.test(ctx.value)) {
+    if (!TOOL_REF_PATTERN.test(ctx.value)) {
       ctx.issues.push({
         code: 'custom',
         input: ctx.value,

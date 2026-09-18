@@ -50,9 +50,22 @@ describe('loadSkillLibrary', () => {
         body: 'The body.',
         description: 'How to work an inbox down to zero.',
         references: new Map(),
-        title: 'Daily triage'
+        title: 'Daily triage',
+        tools: []
       }
     });
+  });
+
+  it('should reject a frontmatter key the schema does not name (§3.5)', () => {
+    write('daily-triage/SKILL.md', [
+      '---',
+      'description: How to work.',
+      'title: Daily triage',
+      'tool: [mail]',
+      '---',
+      'The body.'
+    ]);
+    expect(refusal()).toMatch(/invalid skill at/);
   });
 
   it('should read a quoted value carrying a colon', () => {
@@ -144,7 +157,8 @@ describe('loadSkillLibrary references', () => {
     expect(load()['daily-triage'].references.get('folder-map')).toStrictEqual({
       body: 'The map.',
       description: 'Which folders to sweep.',
-      title: 'Folder map'
+      title: 'Folder map',
+      tools: []
     });
   });
 

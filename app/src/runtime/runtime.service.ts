@@ -22,6 +22,8 @@ import { MailInboundService } from '@/mail/inbound/inbound.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
 import type { SystemEvent } from '@/notifications/notifications.types.ts';
 import { ShellService } from '@/shell/shell.service.ts';
+import { SkillsService } from '@/skills/skills.service.ts';
+import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 
 import { BootService } from './boot/boot.service.ts';
@@ -52,6 +54,8 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     private readonly resyncService: ResyncService,
     private readonly rosterService: RosterService,
     private readonly shellService: ShellService,
+    private readonly skillsService: SkillsService,
+    private readonly toolRegistry: ToolRegistry,
     private readonly transportRegistry: TransportRegistry,
     private readonly triggersService: TriggersService
   ) {}
@@ -65,6 +69,14 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     await this.inferenceRegistry.assertCredentialsVerified(Object.values(this.configService.get('agents')));
     // §6.1 — fail loudly here if a shell-holding agent's dedicated OS user is not provisioned, before any turn can run
     await this.shellService.assertProvisioned(this.agentRegistry.list());
+    // §3.5 — a skill naming a tool its agent does not hold is a turn that goes wrong in the middle; refuse it here
+    this.skillsService.assertGrantedToolsCoverSkills(
+      new Map(
+        this.agentRegistry
+          .list()
+          .map((profile) => [profile.username, this.toolRegistry.listFor(profile).map(({ id }) => id)])
+      )
+    );
     await Promise.all(
       this.agentRegistry.list().map((profile) => fs.mkdir(profile.workspaceDir, { mode: 0o700, recursive: true }))
     );

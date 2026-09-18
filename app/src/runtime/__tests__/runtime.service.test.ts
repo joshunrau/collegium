@@ -27,10 +27,12 @@ import { MailBootService } from '@/mail/boot/boot.service.ts';
 import { MailInboundService } from '@/mail/inbound/inbound.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
 import { ShellService } from '@/shell/shell.service.ts';
+import { SkillsService } from '@/skills/skills.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { createObservedPost } from '@/testing/factories/observed-post.factory.ts';
+import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 
 import { BootService } from '../boot/boot.service.ts';
@@ -68,6 +70,8 @@ describe('RuntimeService', () => {
   let resyncService: MockedInstance<ResyncService>;
   let rosterService: MockedInstance<RosterService>;
   let shellService: MockedInstance<ShellService>;
+  let skillsService: MockedInstance<SkillsService>;
+  let toolRegistry: MockedInstance<ToolRegistry>;
   let transport: MockedInstance<ChatTransport>;
   let transportRegistry: MockedInstance<TransportRegistry>;
   let triggersService: MockedInstance<TriggersService>;
@@ -98,6 +102,8 @@ describe('RuntimeService', () => {
         { provide: ResyncService, useValue: resyncService },
         { provide: RosterService, useValue: rosterService },
         { provide: ShellService, useValue: shellService },
+        { provide: SkillsService, useValue: skillsService },
+        { provide: ToolRegistry, useValue: toolRegistry },
         { provide: TransportRegistry, useValue: transportRegistry },
         { provide: TriggersService, useValue: triggersService }
       ]
@@ -149,6 +155,9 @@ describe('RuntimeService', () => {
     rosterService = MockFactory.createMock(RosterService);
     shellService = MockFactory.createMock(ShellService);
     shellService.assertProvisioned.mockResolvedValue(undefined);
+    skillsService = MockFactory.createMock(SkillsService);
+    toolRegistry = MockFactory.createMock(ToolRegistry);
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['memory', 'write'] }]);
     transportRegistry = MockFactory.createMock(TransportRegistry);
     triggersService = MockFactory.createMock(TriggersService);
   });
@@ -184,6 +193,17 @@ describe('RuntimeService', () => {
     await expect(runtimeService.onApplicationBootstrap()).rejects.toThrow('provider credential verification failed');
     expect(chatGateway.connect).not.toHaveBeenCalled();
     expect(bootService.run).not.toHaveBeenCalled();
+  });
+
+  it('should verify each granted skill’s tools against what its agent holds, before any turn can run (§3.5)', async () => {
+    const runtimeService = await compile();
+    skillsService.assertGrantedToolsCoverSkills.mockImplementation(() => {
+      expect(chatGateway.connect).not.toHaveBeenCalled();
+    });
+    await runtimeService.onApplicationBootstrap();
+    expect(skillsService.assertGrantedToolsCoverSkills).toHaveBeenCalledExactlyOnceWith(
+      new Map([['mira', [['memory', 'write']]]])
+    );
   });
 
   it('should create each agent workspace private to the process (§6.1)', async () => {
