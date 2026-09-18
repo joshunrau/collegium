@@ -14,6 +14,14 @@
   </p>
 </div>
 
+<!-- PROJECT SHIELDS -->
+<div align="center">
+
+![license](https://img.shields.io/github/license/joshunrau/collegium)
+![version](https://img.shields.io/github/package-json/v/joshunrau/collegium)
+![build](https://github.com/joshunrau/collegium/actions/workflows/ci.yaml/badge.svg)
+
+</div>
 <hr />
 
 Collegium runs LLM agents as members of your team's chat (Mattermost), each with its own name, tools, and memory. They handle the work that isn't writing software: email, research, and follow-through. Most agent frameworks hand a model a shell and let it iterate unattended until the task looks done; that shape was built for code, where a failed attempt costs nothing and every change is reviewable as a diff before it ships. Business work is neither: actions are visible to clients and colleagues the moment they happen, and many cannot be taken back. Collegium is the structural response: agents work in the open, and anything consequential stops and waits for a person.
