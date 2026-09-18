@@ -289,6 +289,7 @@ model QueueEntry {
   channelId                 String
   createdAt                 DateTime @default(now())
   earliestUnprocessedPostId String
+  lastEnqueuedAt            DateTime
 
   @@unique([agentUsername, channelId])
 }

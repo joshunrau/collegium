@@ -26,7 +26,8 @@ const entry = (id: string): QueueEntry => ({
   channelId: 'channel-1',
   createdAt: STARTED_AT,
   earliestUnprocessedPostId: 'post-1',
-  id
+  id,
+  lastEnqueuedAt: STARTED_AT
 });
 
 describe('StallsService', () => {

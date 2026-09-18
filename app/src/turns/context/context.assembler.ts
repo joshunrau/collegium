@@ -9,6 +9,8 @@ import { toCompletionMessages } from './context.utils.ts';
 import { SystemPromptRenderer } from './system-prompt.renderer.ts';
 
 export type AssembledContext = {
+  /** §5.2 — taken before the store is read, so every post recorded earlier was there to be read */
+  readonly assembledAt: Date;
   readonly request: CompletionRequest;
   /** which posts the window reached — how a draining turn learns its context fell short (§5.2) */
   readonly windowPostIds: ReadonlySet<string>;
@@ -30,6 +32,7 @@ export class ContextAssembler {
 
   async assemble(input: { channelId: string; profile: AgentProfile }): Promise<AssembledContext> {
     const { channelId, profile } = input;
+    const assembledAt = new Date();
     const { entries, oldestAt } = await this.windowService.build({
       agentUsername: profile.username,
       budgetTokens: profile.contextBudgetTokens,
@@ -41,6 +44,7 @@ export class ContextAssembler {
       windowReachesBackTo: oldestAt
     });
     return {
+      assembledAt,
       request: {
         cacheKey: JSON.stringify([profile.username, channelId]),
         messages: toCompletionMessages(entries, profile.username),

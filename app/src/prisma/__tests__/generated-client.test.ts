@@ -14,7 +14,12 @@ describe('the generated Prisma client', () => {
 
   it('should round-trip a row against a database built from the migrations', async () => {
     const created = await database.client.queueEntry.create({
-      data: { agentUsername: 'mira', channelId: 'channel-1', earliestUnprocessedPostId: 'post-1' }
+      data: {
+        agentUsername: 'mira',
+        channelId: 'channel-1',
+        earliestUnprocessedPostId: 'post-1',
+        lastEnqueuedAt: new Date(0)
+      }
     });
     const found = await database.client.queueEntry.findUniqueOrThrow({ where: { id: created.id } });
     expect(found).toStrictEqual(created);

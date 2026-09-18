@@ -195,6 +195,8 @@ type TurnState = {
   readonly callsThatMayHaveTakenEffect: Map<string, number>;
   /** §4.5 — rejected posts and unknown tool names (§7.2) since the last call that ran */
   consecutiveRejections: number;
+  /** §5.2 — when the context was last assembled, and the posts its window held */
+  contextAssembledAt: Date;
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
   /** §7.6 — whether a post of this turn named anyone, or its output did before the §7.4 limits stripped it */
@@ -216,6 +218,7 @@ type TurnState = {
   /** §3.8 — the first message the model has not read yet: a result at or past it is never collapsed or cut short */
   unreadFrom: number;
   usage: CompletionUsage | undefined;
+  windowPostIds: ReadonlySet<string>;
 };
 
 /**
@@ -281,6 +284,7 @@ export class TurnRunner {
       budget: new ActionBudget(profile.actionBudget),
       callsThatMayHaveTakenEffect: new Map(),
       consecutiveRejections: 0,
+      contextAssembledAt: new Date(),
       control: this.turnControlRegistry.register(turn.id, channelId),
       fold: this.turnFoldRegistry.register({
         agentUsername: profile.username,
@@ -298,7 +302,8 @@ export class TurnRunner {
       turn,
       unparsedCalls: 0,
       unreadFrom: 0,
-      usage: undefined
+      usage: undefined,
+      windowPostIds: new Set()
     };
     try {
       return Result.ok(await this.runLoop(input, state));
@@ -984,6 +989,8 @@ export class TurnRunner {
   private loadAssembledContext(state: TurnState, assembled: AssembledContext): void {
     state.messages.splice(0, state.messages.length, ...assembled.request.messages);
     state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
+    state.contextAssembledAt = assembled.assembledAt;
+    state.windowPostIds = assembled.windowPostIds;
   }
 
   /**
@@ -1379,6 +1386,11 @@ export class TurnRunner {
     } catch (error) {
       this.loggingService.error(new Error(`failed to close turn ${state.turn.id} as ${status}`, { cause: error }));
     }
-    return { status, turnId: state.turn.id };
+    return {
+      contextAssembledAt: state.contextAssembledAt,
+      status,
+      turnId: state.turn.id,
+      windowPostIds: state.windowPostIds
+    };
   }
 }

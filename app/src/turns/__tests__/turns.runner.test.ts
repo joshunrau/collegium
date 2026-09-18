@@ -112,6 +112,7 @@ describe('TurnRunner', () => {
     };
     contextAssembler = MockFactory.createMock(ContextAssembler);
     contextAssembler.assemble.mockResolvedValue({
+      assembledAt: new Date(0),
       request: {
         cacheKey: 'mira:channel-1',
         messages: [{ content: '@casey: hi', role: 'user' }],
@@ -1067,13 +1068,23 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     statusHandle.close.mockRejectedValueOnce(new Error('the status post is gone'));
     turnsService.close.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
-    expect(await run()).toStrictEqual({ status: 'completed', turnId: 'turn-1' });
+    expect(await run()).toStrictEqual({
+      contextAssembledAt: new Date(0),
+      status: 'completed',
+      turnId: 'turn-1',
+      windowPostIds: new Set(['post-0'])
+    });
   });
 
   it('should log, not throw, when disposing the browsing session fails', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     webService.endTurn.mockRejectedValueOnce(new Error('the browser is wedged'));
-    expect(await run()).toStrictEqual({ status: 'completed', turnId: 'turn-1' });
+    expect(await run()).toStrictEqual({
+      contextAssembledAt: new Date(0),
+      status: 'completed',
+      turnId: 'turn-1',
+      windowPostIds: new Set(['post-0'])
+    });
     expect(loggingService.error).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'failed to dispose the browsing session' })
     );
@@ -1537,6 +1548,7 @@ describe('TurnRunner', () => {
   });
 
   const assembledWith = (content: string) => ({
+    assembledAt: new Date(0),
     request: {
       cacheKey: 'mira:channel-1',
       messages: [{ content, role: 'user' as const }],

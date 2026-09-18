@@ -73,10 +73,14 @@ export declare namespace TurnOpenFailure {
 
 export type TurnOpenFailure = TurnOpenFailure.Any;
 
-/** what activation branches on when a turn ends: drain the queue, or leave it standing (§7.1) */
+/** what activation branches on when a turn ends: drain the queue, leave it standing (§7.1), or consume it (§5.2) */
 export type TurnOutcome = {
+  /** when the assembly the turn last used began reading the store */
+  readonly contextAssembledAt: Date;
   readonly status: Exclude<TurnStatus, 'running'>;
   readonly turnId: string;
+  /** the posts in the window the turn last assembled its context from */
+  readonly windowPostIds: ReadonlySet<string>;
 };
 
 /** the payload union is the source of truth; `appendEvent` derives the `kind` column from it */

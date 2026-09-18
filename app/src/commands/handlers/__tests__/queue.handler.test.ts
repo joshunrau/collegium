@@ -17,7 +17,8 @@ const ENTRY = {
   channelId: 'channel-1',
   createdAt: new Date(0),
   earliestUnprocessedPostId: 'post-1',
-  id: 'entry-1'
+  id: 'entry-1',
+  lastEnqueuedAt: new Date(0)
 };
 
 describe('QueueHandler', () => {
