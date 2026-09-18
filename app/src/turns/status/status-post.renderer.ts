@@ -155,6 +155,17 @@ export function renderProviderRejectionNotice(status: number | undefined): strin
   return `⚠️ **Error**: The model provider rejected the request${reason}${code}`;
 }
 
+/** §7.1 — appended to a failure notice, keyed by the framework's display names and never model text (§3.2) */
+export function renderMayHaveTakenEffectLine(callCounts: ReadonlyMap<string, number>): string {
+  const calls = Array.from(callCounts, ([displayName, count]) => {
+    return count === 1 ? `\`${displayName}\`` : `\`${displayName}\` ×${count}`;
+  }).join(', ');
+  const total = Array.from(callCounts.values()).reduce((sum, count) => sum + count, 0);
+  return total === 1
+    ? `Before stopping, this call completed and may have changed something: ${calls}. Check its effect before running this again.`
+    : `Before stopping, these calls completed and may have changed something: ${calls}. Check their effects before running this again.`;
+}
+
 export function renderSemanticErrorNotice(detail: string): string {
   return `I hit an internal error and stopped: ${detail}`;
 }

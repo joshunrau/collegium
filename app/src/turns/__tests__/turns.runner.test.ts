@@ -562,6 +562,46 @@ describe('TurnRunner', () => {
     expect(sends.at(-1)?.text).toContain('cannot confirm');
   });
 
+  describe('a failure after calls that may have taken effect (§7.1)', () => {
+    const effectful: ToolAttempt = { kind: 'continue', mayHaveTakenEffect: true, output: 'ok' };
+    const failure: ToolAttempt = { detail: 'the vendor exploded', kind: 'terminal', status: 'semantic_error' };
+
+    it('should name each completed call and how often it ran in the failure post', async () => {
+      complete.mockResolvedValueOnce(
+        Result.ok(toolUse(['prospects__create', 'prospects__create', 'memory__write', 'x']))
+      );
+      toolExecutor.execute
+        .mockResolvedValueOnce(effectful)
+        .mockResolvedValueOnce(effectful)
+        .mockResolvedValueOnce(effectful)
+        .mockResolvedValueOnce(failure);
+      await run();
+      expect(sends.at(-1)?.text).toBe(
+        'I hit an internal error and stopped: the vendor exploded\nBefore stopping, these calls completed and may have changed something: `prospects__create` ×2, `memory__write`. Check their effects before running this again.'
+      );
+    });
+
+    it('should post the failure alone when every completed call was retryable', async () => {
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch', 'x'])));
+      toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', output: 'ok' }).mockResolvedValueOnce(failure);
+      await run();
+      expect(sends.at(-1)?.text).toBe('I hit an internal error and stopped: the vendor exploded');
+    });
+
+    it('should not count a call whose post was refused, since it wrote nothing (§3.15)', async () => {
+      multiMentionPolicy.refusesSecondAddressee.mockReturnValueOnce(true);
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign', 'x'])));
+      toolExecutor.execute
+        .mockResolvedValueOnce({
+          ...effectful,
+          post: { onPublished: () => Promise.resolve(), text: '@owen take this' }
+        })
+        .mockResolvedValueOnce(failure);
+      await run();
+      expect(sends.at(-1)?.text).toBe('I hit an internal error and stopped: the vendor exploded');
+    });
+  });
+
   it('should end the turn as provider_outage once transport retries are exhausted, spending nothing', async () => {
     complete.mockResolvedValueOnce(
       Result.err({ kind: 'transport', reason: 'unknown' } satisfies InferenceFailure.Transport)
@@ -914,7 +954,10 @@ describe('TurnRunner', () => {
     transportSend.mockResolvedValueOnce(Result.err({ kind: 'api', message: 'mattermost is down' }));
     const outcome = await run();
     expect(outcome.status).toBe('delivery_failure');
-    expect(conversationsService.record).not.toHaveBeenCalled();
+    expect(conversationsService.record).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'lost reply' }),
+      expect.anything()
+    );
     expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
       content: 'lost reply',
       kind: 'assistant_message',
@@ -1118,7 +1161,9 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(Array.from({ length: 11 }, () => 'lookup_fixture'))));
     const outcome = await run();
     expect(outcome.status).toBe('delivery_failure');
-    expect(sends).toHaveLength(0);
+    expect(sends.map((send) => send.text)).toStrictEqual([
+      '⚠️ **Error**: The chat server refused a post I had to make'
+    ]);
   });
 
   it('should close under the status a cancelled extension implies, posting nothing (§7.5)', async () => {

@@ -178,7 +178,7 @@ describe('ToolExecutor', () => {
         toolNamespace: 'fixture'
       })
     );
-    expect(attempt).toStrictEqual({ kind: 'continue', output: 'ran deploy' });
+    expect(attempt).toStrictEqual({ kind: 'continue', mayHaveTakenEffect: true, output: 'ran deploy' });
   });
 
   it('ends the turn on a bare denial, naming the denier and the display name (§5.4)', async () => {
@@ -235,6 +235,7 @@ describe('ToolExecutor', () => {
     expect(attempt).toStrictEqual({
       disclosure: { body: 'the body', description: 'a fact', reference: 'record-1' },
       kind: 'continue',
+      mayHaveTakenEffect: true,
       output: 'recorded'
     });
   });

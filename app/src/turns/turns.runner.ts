@@ -58,6 +58,7 @@ import {
   renderDeliveryFailureNotice,
   renderDenialNotice,
   renderExtensionPrompt,
+  renderMayHaveTakenEffectLine,
   renderOutputRefusedNotice,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
@@ -173,10 +174,23 @@ type ToolPostOutcome =
   | { kind: 'refused'; output: string }
   | { kind: 'undelivered'; outcome: TurnOutcome };
 
+/** §7.1 — the exits whose notice names the calls that may already have changed something */
+type FailureStatus = Extract<
+  TurnStatus,
+  | 'context_exhausted'
+  | 'delivery_failure'
+  | 'provider_outage'
+  | 'provider_rejected'
+  | 'semantic_error'
+  | 'side_effect_ambiguous'
+>;
+
 type TurnState = {
   /** §4.5 — the one peer this turn has addressed, whatever number of posts it emits */
   addressedPeer: string | undefined;
   readonly budget: ActionBudget;
+  /** §7.1 — by display name, how many times a call that may have taken effect ran to completion */
+  readonly callsThatMayHaveTakenEffect: Map<string, number>;
   /** §4.5 — rejected posts since the last call that ran */
   consecutiveRejections: number;
   readonly control: TurnControlHandle;
@@ -259,6 +273,7 @@ export class TurnRunner {
     const state: TurnState = {
       addressedPeer: undefined,
       budget: new ActionBudget(profile.actionBudget),
+      callsThatMayHaveTakenEffect: new Map(),
       consecutiveRejections: 0,
       control: this.turnControlRegistry.register(turn.id, channelId),
       fold: this.turnFoldRegistry.register({
@@ -284,8 +299,14 @@ export class TurnRunner {
       this.loggingService.error(
         new Error(`the turn for "${profile.username}" hit a framework error`, { cause: error })
       );
-      await this.postNotice(input, state, renderSemanticErrorNotice('something went wrong inside the framework'));
-      return Result.ok(await this.close(state, 'semantic_error'));
+      return Result.ok(
+        await this.closeWithFailureNotice(
+          input,
+          state,
+          'semantic_error',
+          renderSemanticErrorNotice('something went wrong inside the framework')
+        )
+      );
     } finally {
       try {
         await this.webService.endTurn(turn.id);
@@ -395,22 +416,9 @@ export class TurnRunner {
     return Math.floor(profile.contextWindowTokens * TURN_PROMPT_CEILING_SHARE);
   }
 
-  /** best-effort on both writes: a close that itself fails must never leave the turn 'running' silently */
-  private async close(state: TurnState, status: Exclude<TurnStatus, 'running'>): Promise<TurnOutcome> {
-    try {
-      await state.status.close(status);
-    } catch (error) {
-      this.loggingService.error(new Error('failed to close the status post', { cause: error }));
-    }
-    try {
-      await this.turnsService.close(state.turn.id, status, {
-        actionCount: state.budget.spentCount,
-        usage: state.usage
-      });
-    } catch (error) {
-      this.loggingService.error(new Error(`failed to close turn ${state.turn.id} as ${status}`, { cause: error }));
-    }
-    return { status, turnId: state.turn.id };
+  /** every exit but a §7.1 failure, which closes through `closeWithFailureNotice` */
+  private close(state: TurnState, status: Exclude<TurnStatus, 'running' | FailureStatus>): Promise<TurnOutcome> {
+    return this.writeClosingStatus(state, status);
   }
 
   private async closeOnInferenceFailure(
@@ -423,23 +431,30 @@ export class TurnRunner {
       new Error(`inference failed for "${input.profile.username}": ${describeInferenceFailure(failure)}`)
     );
     if (failure.kind === 'malformed') {
-      await this.postNotice(input, state, renderSemanticErrorNotice('my reply could not be understood'));
-      return this.close(state, 'semantic_error');
-    }
-    if (failure.kind === 'context-overflow') {
-      await this.postNotice(
+      return this.closeWithFailureNotice(
         input,
         state,
+        'semantic_error',
+        renderSemanticErrorNotice('my reply could not be understood')
+      );
+    }
+    if (failure.kind === 'context-overflow') {
+      return this.closeWithFailureNotice(
+        input,
+        state,
+        'context_exhausted',
         renderContextExhaustedNotice(state.recordedResults === 0 ? 'initial' : 'accumulated')
       );
-      return this.close(state, 'context_exhausted');
     }
     if (failure.kind === 'provider') {
-      await this.postNotice(input, state, renderProviderRejectionNotice(failure.status));
-      return this.close(state, 'provider_rejected');
+      return this.closeWithFailureNotice(
+        input,
+        state,
+        'provider_rejected',
+        renderProviderRejectionNotice(failure.status)
+      );
     }
-    await this.postNotice(input, state, renderProviderOutageNotice(failure));
-    return this.close(state, 'provider_outage');
+    return this.closeWithFailureNotice(input, state, 'provider_outage', renderProviderOutageNotice(failure));
   }
 
   private async closeOnToolFailure(
@@ -456,18 +471,48 @@ export class TurnRunner {
         toolName: identified.recordedName
       });
     }
-    const notice = match(attempt.status)
-      .with('delivery_failure', () => renderDeliveryFailureNotice())
-      .with('denied', () => renderDenialNotice())
-      .with('semantic_error', () => renderSemanticErrorNotice(attempt.detail))
-      .with('side_effect_ambiguous', () => renderSideEffectAmbiguityNotice(identified.displayName))
-      // §7.5 — a cancellation posts no follow-up; the command or halt already spoke
-      .with('halted', 'killed', 'stopped', () => undefined)
-      .exhaustive();
-    if (notice !== undefined) {
-      await this.postNotice(input, state, notice);
-    }
-    return this.close(state, attempt.status);
+    return (
+      match(attempt.status)
+        .with('delivery_failure', (status) => {
+          return this.closeWithFailureNotice(input, state, status, renderDeliveryFailureNotice());
+        })
+        .with('semantic_error', (status) => {
+          return this.closeWithFailureNotice(input, state, status, renderSemanticErrorNotice(attempt.detail));
+        })
+        .with('side_effect_ambiguous', (status) => {
+          return this.closeWithFailureNotice(
+            input,
+            state,
+            status,
+            renderSideEffectAmbiguityNotice(identified.displayName)
+          );
+        })
+        .with('denied', async (status) => {
+          await this.postNotice(input, state, renderDenialNotice());
+          return this.close(state, status);
+        })
+        // §7.5 — a cancellation posts no follow-up; the command or halt already spoke
+        .with('halted', 'killed', 'stopped', (status) => this.close(state, status))
+        .exhaustive()
+    );
+  }
+
+  /** §7.1 — the notice and what the turn may already have changed go out as one post, then the turn closes */
+  private async closeWithFailureNotice(
+    input: RunInput,
+    state: TurnState,
+    status: FailureStatus,
+    notice: string
+  ): Promise<TurnOutcome> {
+    const { callsThatMayHaveTakenEffect } = state;
+    await this.postNotice(
+      input,
+      state,
+      callsThatMayHaveTakenEffect.size === 0
+        ? notice
+        : `${notice}\n${renderMayHaveTakenEffectLine(callsThatMayHaveTakenEffect)}`
+    );
+    return this.writeClosingStatus(state, status);
   }
 
   /**
@@ -491,7 +536,7 @@ export class TurnRunner {
     const sent = await this.publish(input, state, content, 'reply');
     if (!sent.success) {
       this.loggingService.error(new Error(`failed to post final output: ${sent.error.message}`));
-      return this.close(state, 'delivery_failure');
+      return this.closeWithFailureNotice(input, state, 'delivery_failure', renderDeliveryFailureNotice());
     }
     return this.close(state, 'completed');
   }
@@ -550,8 +595,7 @@ export class TurnRunner {
     }
     // checked before the spend: the rejection that ends the turn buys nothing, so it costs nothing
     if (state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT) {
-      await this.postNotice(input, state, renderOutputRefusedNotice());
-      return this.close(state, 'semantic_error');
+      return this.closeWithFailureNotice(input, state, 'semantic_error', renderOutputRefusedNotice());
     }
     state.consecutiveRejections += 1;
     if (state.budget.trySpendOnRejectedPost() === 'exhausted') {
@@ -745,8 +789,13 @@ export class TurnRunner {
     identified: UnparsedCall
   ): Promise<UnparsedCallDisposition> {
     if (!identified.isGranted || state.unparsedCalls >= UNPARSED_CALL_LIMIT) {
-      await this.postNotice(input, state, renderSemanticErrorNotice('a tool call I made could not be read'));
-      return { kind: 'dispatched', outcome: await this.close(state, 'semantic_error') };
+      const outcome = await this.closeWithFailureNotice(
+        input,
+        state,
+        'semantic_error',
+        renderSemanticErrorNotice('a tool call I made could not be read')
+      );
+      return { kind: 'dispatched', outcome };
     }
     state.unparsedCalls += 1;
     this.loggingService.warn(
@@ -807,7 +856,10 @@ export class TurnRunner {
       turnId: state.turn.id
     });
     if (!decision.success) {
-      return { kind: 'ended', outcome: await this.close(state, 'delivery_failure') };
+      return {
+        kind: 'ended',
+        outcome: await this.closeWithFailureNotice(input, state, 'delivery_failure', renderDeliveryFailureNotice())
+      };
     }
     return (
       match<ApprovalDecision, Promise<Exhaustion>>(decision.value)
@@ -940,7 +992,10 @@ export class TurnRunner {
     const sent = await this.publish(input, state, text, 'notice');
     if (!sent.success) {
       this.loggingService.error(new Error(`failed to publish a tool post: ${sent.error.message}`));
-      return { kind: 'undelivered', outcome: await this.close(state, 'delivery_failure') };
+      return {
+        kind: 'undelivered',
+        outcome: await this.closeWithFailureNotice(input, state, 'delivery_failure', renderDeliveryFailureNotice())
+      };
     }
     return { kind: 'published', postId: sent.value.postId };
   }
@@ -966,6 +1021,10 @@ export class TurnRunner {
       return published.outcome;
     }
     const result = published?.kind === 'refused' ? { kind: 'continue' as const, output: published.output } : attempt;
+    if (result.mayHaveTakenEffect) {
+      const { callsThatMayHaveTakenEffect: counts } = state;
+      counts.set(identified.displayName, (counts.get(identified.displayName) ?? 0) + 1);
+    }
     await this.turnsService.appendEvent(state.turn.id, {
       callId: identified.call.id,
       kind: 'tool_result',
@@ -983,8 +1042,12 @@ export class TurnRunner {
       await this.discloseRecord(state, result.disclosure);
     }
     if (this.relieveContextPressure(input, state) === 'exhausted') {
-      await this.postNotice(input, state, renderContextExhaustedNotice('accumulated'));
-      return this.close(state, 'context_exhausted');
+      return this.closeWithFailureNotice(
+        input,
+        state,
+        'context_exhausted',
+        renderContextExhaustedNotice('accumulated')
+      );
     }
     return undefined;
   }
@@ -1046,8 +1109,7 @@ export class TurnRunner {
     this.loadAssembledContext(state, assembled);
     this.noteShortfall(input, state, assembled);
     if (this.exceedsCeiling(input, state)) {
-      await this.postNotice(input, state, renderContextExhaustedNotice('initial'));
-      return this.close(state, 'context_exhausted');
+      return this.closeWithFailureNotice(input, state, 'context_exhausted', renderContextExhaustedNotice('initial'));
     }
     const client = this.inferenceRegistry.getClientForModel(profile.model);
     let folds = 0;
@@ -1078,8 +1140,12 @@ export class TurnRunner {
         this.loadAssembledContext(state, assembled);
         this.noteShortfall(input, state, assembled);
         if (this.exceedsCeiling(input, state)) {
-          await this.postNotice(input, state, renderContextExhaustedNotice('initial'));
-          return this.close(state, 'context_exhausted');
+          return this.closeWithFailureNotice(
+            input,
+            state,
+            'context_exhausted',
+            renderContextExhaustedNotice('initial')
+          );
         }
         continue;
       }
@@ -1161,5 +1227,23 @@ export class TurnRunner {
       state.fold.stopAbsorbing();
     }
     return takes;
+  }
+
+  /** best-effort on both writes: a close that itself fails must never leave the turn 'running' silently */
+  private async writeClosingStatus(state: TurnState, status: Exclude<TurnStatus, 'running'>): Promise<TurnOutcome> {
+    try {
+      await state.status.close(status);
+    } catch (error) {
+      this.loggingService.error(new Error('failed to close the status post', { cause: error }));
+    }
+    try {
+      await this.turnsService.close(state.turn.id, status, {
+        actionCount: state.budget.spentCount,
+        usage: state.usage
+      });
+    } catch (error) {
+      this.loggingService.error(new Error(`failed to close turn ${state.turn.id} as ${status}`, { cause: error }));
+    }
+    return { status, turnId: state.turn.id };
   }
 }
