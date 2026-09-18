@@ -20,7 +20,8 @@ import type {
   ApprovalFailureRequest,
   ApprovalPayloadTooLarge,
   ApprovalRequest,
-  DecisionInput
+  DecisionInput,
+  PendingApproval
 } from './approvals.types.ts';
 import type {
   DecisionFailure,
@@ -100,6 +101,24 @@ export class ApprovalsService {
   /** §7.3 and §7.4 — a stale prompt must not be clickable into confusion or action */
   async invalidateAll(reason: 'halt' | 'restart'): Promise<number> {
     return this.cancelWhere({}, reason);
+  }
+
+  /**
+   * §8.4 — every approval still parked on a human, oldest first, since the oldest blocks the
+   * deepest queue (§5.2). Who may see one is the caller's rule, not this module's: approvals own
+   * what is pending, never who is entitled to read it.
+   */
+  async listPending(agentUsername?: string): Promise<PendingApproval[]> {
+    const rows = await this.findPending(agentUsername === undefined ? {} : { turn: { agentUsername } });
+    return rows
+      .map((row) => ({
+        actionName: renderApprovalActionName(row.toolNamespace, row.toolName),
+        agentUsername: row.turn.agentUsername,
+        channelId: row.turn.channelId,
+        promptPostId: row.promptPostId,
+        requestedAt: row.createdAt
+      }))
+      .toSorted((left, right) => left.requestedAt.getTime() - right.requestedAt.getTime());
   }
 
   /**
@@ -213,7 +232,7 @@ export class ApprovalsService {
     return claimed.count > 0;
   }
 
-  private async findPending(where: { turn?: { channelId: string } }): Promise<ApprovalRow[]> {
+  private async findPending(where: { turn?: { agentUsername?: string; channelId?: string } }): Promise<ApprovalRow[]> {
     return this.approvals.findMany({ include: { turn: true }, where: { ...where, status: 'pending' } });
   }
 

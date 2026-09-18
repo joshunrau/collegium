@@ -17,6 +17,7 @@ import { ApprovalsService } from '../approvals.service.ts';
 import { ApprovalPendingRegistry } from '../decisions/approval-pending.registry.ts';
 
 type ApprovalRow = {
+  createdAt: Date;
   decidedByUsername?: string;
   id: string;
   payloadText: string;
@@ -43,7 +44,7 @@ describe('ApprovalsService', () => {
     events = [];
     updates = [];
     const table = createModelTable<ApprovalRow>({
-      defaults: (sequence) => ({ id: `approval-${sequence}`, promptPostId: null }),
+      defaults: (sequence) => ({ createdAt: new Date(sequence), id: `approval-${sequence}`, promptPostId: null }),
       relations: { turn: () => TURN }
     });
     rows = table.rows;
@@ -384,6 +385,34 @@ describe('ApprovalsService', () => {
       await vi.waitFor(() => expect(rows).toHaveLength(1));
       expect(loggingService.warn).toHaveBeenCalled();
       await approvalsService.resolve(rows[0]!.id, { byUsername: 'casey', kind: 'approved' });
+      await pending;
+    });
+  });
+
+  describe('§8.4 listing', () => {
+    it('should list only pending approvals, oldest first, named as the listing shows them', async () => {
+      const { outcome: first } = await request();
+      const { outcome: second } = await request();
+      await approvalsService.resolve(rows[1]!.id, { byUsername: 'casey', kind: 'approved' });
+      await second;
+      expect(await approvalsService.listPending()).toStrictEqual([
+        {
+          actionName: 'workspace::write',
+          agentUsername: 'mira',
+          channelId: 'channel-1',
+          promptPostId: 'prompt-1',
+          requestedAt: rows[0]!.createdAt
+        }
+      ]);
+      await approvalsService.cancelPendingIn('channel-1', 'stop');
+      await first;
+    });
+
+    it('should narrow the listing to one agent when asked', async () => {
+      const { outcome: pending } = await request();
+      expect(await approvalsService.listPending('omar')).toStrictEqual([]);
+      expect(await approvalsService.listPending('mira')).toHaveLength(1);
+      await approvalsService.cancelPendingIn('channel-1', 'stop');
       await pending;
     });
   });

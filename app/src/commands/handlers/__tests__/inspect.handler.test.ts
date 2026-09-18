@@ -42,7 +42,12 @@ describe('InspectHandler', () => {
   });
 
   it('should report the agent with the prompt it would receive in this channel, to the caller alone', async () => {
-    const response = await inspectHandler.handle({ channelId: 'channel-1', text: ' mira ', username: 'casey' });
+    const response = await inspectHandler.handle({
+      channelId: 'channel-1',
+      text: ' mira ',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(systemPromptRenderer.render).toHaveBeenCalledWith({ channelId: 'channel-1', profile: MIRA });
     expect(response).toStrictEqual({
       audience: 'invoker',
@@ -72,7 +77,12 @@ describe('InspectHandler', () => {
   });
 
   it('should refuse an unknown agent', async () => {
-    const response = await inspectHandler.handle({ channelId: 'channel-1', text: 'dana', username: 'casey' });
+    const response = await inspectHandler.handle({
+      channelId: 'channel-1',
+      text: 'dana',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(response).toStrictEqual({
       audience: 'invoker',
       text: 'No agent "dana". Usage: /collegium inspect {agent}'
@@ -80,7 +90,12 @@ describe('InspectHandler', () => {
   });
 
   it('should refuse trailing arguments with the usage line', async () => {
-    const response = await inspectHandler.handle({ channelId: 'channel-1', text: 'mira now', username: 'casey' });
+    const response = await inspectHandler.handle({
+      channelId: 'channel-1',
+      text: 'mira now',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(response).toStrictEqual({ audience: 'invoker', text: 'Usage: /collegium inspect {agent}' });
   });
 });

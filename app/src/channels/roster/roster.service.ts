@@ -69,6 +69,12 @@ export class RosterService {
       .map(([id, record]) => ({ channelId: id, name: renderChannelName(record, agentUsername) }));
   }
 
+  /** the channel as a human reading a cross-channel listing names it (§8.4); unknown where no agent is in it */
+  nameOf(channelId: string, selfUsername: string): string | undefined {
+    const record = this.channels.get(channelId);
+    return record && renderChannelName(record, selfUsername);
+  }
+
   /**
    * The agent's own arrival is the one moment the channel is described whole, since nothing
    * before it could see inside; every other movement edits the members already known.

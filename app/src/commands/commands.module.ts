@@ -17,6 +17,7 @@ import { TurnsModule } from '@/turns/turns.module.ts';
 import { CommandsController } from './commands.controller.ts';
 import { CommandRegistry } from './commands.registry.ts';
 import { CommandsService } from './commands.service.ts';
+import { ApprovalsHandler } from './handlers/approvals.handler.ts';
 import { ForgetHandler } from './handlers/forget.handler.ts';
 import { InspectHandler } from './handlers/inspect.handler.ts';
 import { KillHandler } from './handlers/kill.handler.ts';
@@ -34,6 +35,7 @@ import type { CommandHandler } from './commands.handler.ts';
 
 /** the module's one list of handler classes — the registry's boot check makes omissions loud */
 const COMMAND_HANDLER_CLASSES = [
+  ApprovalsHandler,
   ForgetHandler,
   InspectHandler,
   KillHandler,

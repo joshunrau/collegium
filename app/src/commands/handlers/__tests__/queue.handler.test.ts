@@ -24,7 +24,8 @@ describe('QueueHandler', () => {
   let queueHandler: QueueHandler;
   let queueService: MockedInstance<QueueService>;
 
-  const handle = (text: string) => queueHandler.handle({ channelId: 'channel-1', text, username: 'casey' });
+  const handle = (text: string) =>
+    queueHandler.handle({ channelId: 'channel-1', text, userId: 'casey-id', username: 'casey' });
 
   beforeEach(async () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);

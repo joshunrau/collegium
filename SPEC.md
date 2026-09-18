@@ -701,6 +701,7 @@ Every command is a subcommand of one slash command, `/collegium`, so typing `/co
 - **`/collegium stop`** — abort current turns in this channel at the next boundary. Posts.
 - **`/collegium kill`** — abandon current turns in this channel immediately. Posts.
 - **`/collegium resume`** — clear a global halt.
+- **`/collegium approvals [{agent}]`** — every approval still waiting on a human, in the channels you are in, oldest first, each naming the agent, the action, its age, and a link to its prompt. Ephemeral. §3.7 gives an approval no timeout and §5.2 lets work accumulate behind it without bound, so a parked prompt is the thing most worth finding without scrolling for it, and the oldest one is the one blocking the deepest queue. The channel filter is the same live-membership check that decides who may answer one (§3.7): the listing shows what a member could already see, and says so plainly when there is nothing to show rather than hinting at what is elsewhere. It decides nothing — the buttons on the prompt post remain the only way to answer.
 - **`/collegium queue {agent}`** — show pending depth and the oldest unprocessed post. Ephemeral.
 - **`/collegium queue {agent} clear`** — discard the standing queue entry, so the next drain does not run work a configuration change made stale. Posts. The posts themselves stay; only the pointer goes, which is why this is not a deletion of anything §5.2 holds.
 - **`/collegium triggers {agent}`** — list outstanding triggers. Ephemeral.

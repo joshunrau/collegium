@@ -54,7 +54,12 @@ describe('TraceHandler', () => {
   it('should render the full event sequence, ephemerally', async () => {
     conversationsService.findAuthoringTurn.mockResolvedValue(TURN);
     turnsService.listEvents.mockResolvedValue(EVENTS as never);
-    const response = await traceHandler.handle({ channelId: 'channel-1', text: 'post-9', username: 'casey' });
+    const response = await traceHandler.handle({
+      channelId: 'channel-1',
+      text: 'post-9',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(response.audience).toBe('invoker');
     expect(response.text).toContain('Trace for turn turn-1 (mira on deepseek-v4-flash, completed, depth 0, chain 1):');
     expect(response.text).toContain('1. called `write_file` with {"path":"a.md"}');
@@ -63,14 +68,24 @@ describe('TraceHandler', () => {
   });
 
   it('should refuse a bare /trace with the usage line', async () => {
-    const response = await traceHandler.handle({ channelId: 'channel-1', text: '  ', username: 'casey' });
+    const response = await traceHandler.handle({
+      channelId: 'channel-1',
+      text: '  ',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(response).toStrictEqual({ audience: 'invoker', text: 'Usage: /collegium trace {post-id}' });
     expect(conversationsService.findAuthoringTurn).not.toHaveBeenCalled();
   });
 
   it('should refuse a post whose turn ran in another channel', async () => {
     conversationsService.findAuthoringTurn.mockResolvedValue({ ...TURN, channelId: 'channel-9' });
-    const response = await traceHandler.handle({ channelId: 'channel-1', text: 'post-9', username: 'casey' });
+    const response = await traceHandler.handle({
+      channelId: 'channel-1',
+      text: 'post-9',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(response).toStrictEqual({
       audience: 'invoker',
       text: 'No turn authored post post-9 in this channel.'

@@ -29,7 +29,12 @@ describe('StopHandler', () => {
   });
 
   it('should flag every running turn and cancel every pending decision in the channel', async () => {
-    const response = await stopHandler.handle({ channelId: 'channel-1', text: '', username: 'casey' });
+    const response = await stopHandler.handle({
+      channelId: 'channel-1',
+      text: '',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(turnControlRegistry.abortChannel).toHaveBeenCalledWith('channel-1', 'stopped');
     expect(pendingDecisionsService.cancelPendingIn).toHaveBeenCalledWith('channel-1', 'stop');
     expect(response).toStrictEqual({ audience: 'channel', text: '⏹️ Stopped 2 turn(s) before any further tool call.' });
@@ -37,7 +42,12 @@ describe('StopHandler', () => {
 
   it('should say nothing is running when no turn was flagged', async () => {
     turnControlRegistry.abortChannel.mockReturnValue(0);
-    const response = await stopHandler.handle({ channelId: 'channel-1', text: '', username: 'casey' });
+    const response = await stopHandler.handle({
+      channelId: 'channel-1',
+      text: '',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(response).toStrictEqual({ audience: 'channel', text: '⏹️ Nothing running here to stop.' });
     expect(pendingDecisionsService.cancelPendingIn).toHaveBeenCalledWith('channel-1', 'stop');
   });

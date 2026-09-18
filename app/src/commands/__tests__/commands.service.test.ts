@@ -17,7 +17,7 @@ import { CommandsService } from '../commands.service.ts';
 import type { CommandHandler } from '../commands.handler.ts';
 import type { CommandResponse } from '../commands.types.ts';
 
-const INPUT = { channelId: 'channel-1', text: 'resume', username: 'casey' };
+const INPUT = { channelId: 'channel-1', text: 'resume', userId: 'casey-id', username: 'casey' };
 
 const toHandler = (response: CommandResponse): CommandHandler => ({
   handle: () => Promise.resolve(response),

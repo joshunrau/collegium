@@ -21,16 +21,18 @@ describe('renderUsage', () => {
 describe('describeCommandSurface', () => {
   it('should declare every subcommand with its hint and purpose, in order', () => {
     expect(describeCommandSurface()[0]).toStrictEqual({
-      hint: '{post-id}',
-      purpose: 'Remove a post from agent context',
-      trigger: 'forget'
+      hint: '[agent]',
+      purpose: 'List approvals waiting on a human',
+      trigger: 'approvals'
     });
   });
 });
 
 describe('renderSurfaceUsage', () => {
   it('should list every subcommand under the bare usage line', () => {
-    expect(renderSurfaceUsage()).toContain('Usage: /collegium {subcommand}\n- /collegium forget {post-id} — Remove');
+    expect(renderSurfaceUsage()).toContain(
+      'Usage: /collegium {subcommand}\n- /collegium approvals [agent] — List approvals waiting on a human'
+    );
     expect(renderSurfaceUsage()).toContain('- /collegium resume — Clear a global halt');
   });
 });

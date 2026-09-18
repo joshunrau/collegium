@@ -30,7 +30,12 @@ describe('ResumeHandler', () => {
 
   it('should clear the halt and hold the drain-and-flush sweep until the announcement posts', async () => {
     haltService.resume.mockResolvedValue(Result.ok());
-    const response = await resumeHandler.handle({ channelId: 'channel-1', text: '', username: 'casey' });
+    const response = await resumeHandler.handle({
+      channelId: 'channel-1',
+      text: '',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(haltService.resume).toHaveBeenCalledWith('casey');
     expect(response.audience).toBe('channel');
     expect(activationService.sweep).not.toHaveBeenCalled();
@@ -40,14 +45,24 @@ describe('ResumeHandler', () => {
 
   it('should report that nothing is halted, sweeping nothing', async () => {
     haltService.resume.mockResolvedValue(Result.err({ kind: 'not-halted' }));
-    const response = await resumeHandler.handle({ channelId: 'channel-1', text: '', username: 'casey' });
+    const response = await resumeHandler.handle({
+      channelId: 'channel-1',
+      text: '',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(response).toStrictEqual({ audience: 'channel', text: 'Nothing is halted.' });
     expect(activationService.sweep).not.toHaveBeenCalled();
   });
 
   it('should post the refusal while the raising condition still holds, sweeping nothing', async () => {
     haltService.resume.mockResolvedValue(Result.err({ channelId: 'channel-9', kind: 'violation-standing' }));
-    const response = await resumeHandler.handle({ channelId: 'channel-1', text: '', username: 'casey' });
+    const response = await resumeHandler.handle({
+      channelId: 'channel-1',
+      text: '',
+      userId: 'casey-id',
+      username: 'casey'
+    });
     expect(response.text).toContain('channel-9');
     expect(activationService.sweep).not.toHaveBeenCalled();
   });

@@ -61,11 +61,13 @@ describe('CommandsController', () => {
     const response = await commandsController.handle({
       channel_id: 'channel-1',
       text: 'memory mira prune ref-1',
+      user_id: 'casey-id',
       user_name: 'casey'
     });
     expect(execute).toHaveBeenCalledExactlyOnceWith({
       channelId: 'channel-1',
       text: 'memory mira prune ref-1',
+      userId: 'casey-id',
       username: 'casey'
     });
     expect(response).toStrictEqual({ response_type: 'ephemeral', text: 'stopping' });
@@ -77,6 +79,13 @@ describe('CommandsController', () => {
 
   it('should refuse a body without the fields the plugin forwards', async () => {
     await expect(commandsController.handle({ text: 'stop' })).rejects.toThrow();
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a forwarded command carrying no user id (§3.7)', async () => {
+    await expect(
+      commandsController.handle({ channel_id: 'channel-1', text: 'approvals', user_name: 'casey' })
+    ).rejects.toThrow();
     expect(execute).not.toHaveBeenCalled();
   });
 });

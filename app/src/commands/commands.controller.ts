@@ -18,6 +18,7 @@ export class CommandsController {
     const response = await this.commandsService.execute({
       channelId: command.channel_id,
       text: command.text,
+      userId: command.user_id,
       username: command.user_name
     });
     return { response_type: response.responseType, text: response.text };
