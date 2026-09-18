@@ -118,7 +118,8 @@ describe('TurnsService', () => {
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
-      modelName: 'deepseek-v4-flash'
+      modelName: 'deepseek-v4-flash',
+      rootPostId: 'post-root'
     });
   };
 

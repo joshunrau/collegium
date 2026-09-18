@@ -32,6 +32,7 @@ const TURNS = {
     channelId: 'channel-1',
     depth: 0,
     id: 'turn-0',
+    rootPostId: 'post-root',
     triggeringPostId: null
   },
   'turn-1': {
@@ -40,6 +41,7 @@ const TURNS = {
     channelId: 'channel-1',
     depth: AUTHORING_TURN_DEPTH,
     id: 'turn-1',
+    rootPostId: 'post-root',
     triggeringPostId: 'post-0'
   }
 } as const;
@@ -112,7 +114,7 @@ describe('ConversationsService', () => {
   });
 
   describe('findActivationSource', () => {
-    it('should report the author beside the depth and chain length of the turn that authored the post', async () => {
+    it('should report the author beside the depth, chain length and root of the turn that authored the post', async () => {
       await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'owen' }), {
         kind: 'reply',
         turnId: 'turn-1'
@@ -122,7 +124,8 @@ describe('ConversationsService', () => {
         authorUsername: 'owen',
         delegator: undefined,
         parentChainLength: 2,
-        parentDepth: AUTHORING_TURN_DEPTH
+        parentDepth: AUTHORING_TURN_DEPTH,
+        parentRootPostId: 'post-root'
       });
     });
 
@@ -147,7 +150,8 @@ describe('ConversationsService', () => {
         authorUsername: 'casey',
         delegator: undefined,
         parentChainLength: undefined,
-        parentDepth: undefined
+        parentDepth: undefined,
+        parentRootPostId: undefined
       });
     });
 

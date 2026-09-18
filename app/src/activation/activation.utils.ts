@@ -32,6 +32,19 @@ export const toActivationChainLength = (source: ActivationSource | undefined): n
 };
 
 /**
+ * §7.4 — the post one chain descends from. A human's or the system bot's post starts a chain and is
+ * its own root; an agent-authored post continues the root its parent recorded, and falls back to the
+ * activating post where the parent predates the column, since a chain that spans a restart does not
+ * continue (§7.3).
+ */
+export const toActivationRootPostId = (source: ActivationSource | undefined, triggeringPostId: string): string => {
+  if (source?.authorKind !== 'agent') {
+    return triggeringPostId;
+  }
+  return source.parentRootPostId ?? triggeringPostId;
+};
+
+/**
  * §4.4 — only a human's own further fragments fold into the turn answering them. A trigger
  * announcement and a peer's mention have no follow-on sentence to wait for, and a turn nobody is
  * still typing at should never discard a completion.

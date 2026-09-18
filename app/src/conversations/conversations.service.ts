@@ -27,7 +27,9 @@ export class ConversationsService {
    */
   async findActivationSource(postId: string): Promise<ActivationSource | undefined> {
     const post = await this.posts.findUnique({
-      include: { authoringTurn: { select: { chainLength: true, depth: true, triggeringPostId: true } } },
+      include: {
+        authoringTurn: { select: { chainLength: true, depth: true, rootPostId: true, triggeringPostId: true } }
+      },
       where: { id: postId }
     });
     if (!post) {
@@ -38,7 +40,8 @@ export class ConversationsService {
       authorUsername: post.authorUsername,
       delegator: await this.findDelegator(post.authoringTurn?.triggeringPostId),
       parentChainLength: post.authoringTurn?.chainLength,
-      parentDepth: post.authoringTurn?.depth
+      parentDepth: post.authoringTurn?.depth,
+      parentRootPostId: post.authoringTurn?.rootPostId ?? undefined
     };
   }
 

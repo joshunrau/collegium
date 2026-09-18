@@ -123,6 +123,8 @@ type RunInput = {
   /** §4.4 — the human whose further fragments this turn absorbs; absent on every other turn */
   foldAuthorUsername?: string;
   profile: AgentProfile;
+  /** §7.4 — the human or trigger post this turn's chain descends from */
+  rootPostId: string;
   triggeringPostId?: string;
 };
 
@@ -150,7 +152,11 @@ type CallIdentity = {
 };
 
 /** a call the executor may run, with the detail its tool renders for the status post */
-type RunnableCall = CallIdentity & { readonly call: ToolCall; readonly detail: string | undefined; readonly kind: 'runnable' };
+type RunnableCall = CallIdentity & {
+  readonly call: ToolCall;
+  readonly detail: string | undefined;
+  readonly kind: 'runnable';
+};
 
 /** a call whose arguments never parsed: answered or refused by the runner, never executed (§7.2) */
 type UnparsedCall = CallIdentity & { readonly call: UnparsedToolCall; readonly kind: 'unparsed' };
@@ -233,6 +239,7 @@ export class TurnRunner {
       channelId,
       depth: input.depth,
       modelName: profile.model.name,
+      rootPostId: input.rootPostId,
       triggeringPostId: input.triggeringPostId
     });
     const state: TurnState = {
@@ -430,7 +437,8 @@ export class TurnRunner {
       this.loggingService.error(new Error(`failed to post final output: ${sent.error.message}`));
       return this.close(state, 'delivery_failure');
     }
-    state.addressedPeer = this.multiMentionPolicy.addresseesOf(this.asAddressablePost(input, content))[0] ?? state.addressedPeer;
+    state.addressedPeer =
+      this.multiMentionPolicy.addresseesOf(this.asAddressablePost(input, content))[0] ?? state.addressedPeer;
     await this.conversationsService.record(
       {
         attachments: [],

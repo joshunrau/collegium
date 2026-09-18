@@ -51,6 +51,8 @@ export type ActivationSource = {
   readonly delegator: DelegatingTurn | undefined;
   readonly parentChainLength: number | undefined;
   readonly parentDepth: number | undefined;
+  /** §7.4 — the root the parent turn recorded, absent where the parent predates the column */
+  readonly parentRootPostId: string | undefined;
 };
 
 /** one slot in the channel window: a post, or one trace event of the reading agent's own turns (§3.8) */

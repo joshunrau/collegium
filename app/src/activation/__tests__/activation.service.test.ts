@@ -130,6 +130,7 @@ describe('ActivationService', () => {
       channelId: 'channel-1',
       depth: 0,
       profile: PROFILE,
+      rootPostId: 'post-1',
       triggeringPostId: 'post-1'
     });
   });
@@ -162,7 +163,8 @@ describe('ActivationService', () => {
       authorUsername: 'collegium',
       delegator: undefined,
       parentChainLength: undefined,
-      parentDepth: undefined
+      parentDepth: undefined,
+      parentRootPostId: undefined
     });
     await activationService.onPost(PROFILE, post({ authorKind: 'system', authorUsername: 'collegium' }));
     await settle();
@@ -175,7 +177,8 @@ describe('ActivationService', () => {
       authorUsername: 'owen',
       delegator: undefined,
       parentChainLength: 4,
-      parentDepth: 4
+      parentDepth: 4,
+      parentRootPostId: 'post-root'
     });
     await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
     await settle();
@@ -188,7 +191,8 @@ describe('ActivationService', () => {
       authorUsername: 'owen',
       delegator: { agentUsername: 'mira', depth: 0 },
       parentChainLength: 2,
-      parentDepth: 1
+      parentDepth: 1,
+      parentRootPostId: 'post-root'
     });
     await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
     await settle();
@@ -201,7 +205,8 @@ describe('ActivationService', () => {
       authorUsername: 'owen',
       delegator: { agentUsername: 'omar', depth: 0 },
       parentChainLength: 2,
-      parentDepth: 1
+      parentDepth: 1,
+      parentRootPostId: 'post-root'
     });
     await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
     await settle();
@@ -214,7 +219,8 @@ describe('ActivationService', () => {
       authorUsername: 'owen',
       delegator: undefined,
       parentChainLength: undefined,
-      parentDepth: undefined
+      parentDepth: undefined,
+      parentRootPostId: undefined
     });
     await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
     await settle();
@@ -344,6 +350,7 @@ describe('ActivationService', () => {
       depth: 0,
       drainedFromPostId: 'post-7',
       profile: PROFILE,
+      rootPostId: 'post-7',
       triggeringPostId: 'post-7'
     });
   });
@@ -369,6 +376,7 @@ describe('ActivationService', () => {
       depth: 0,
       drainedFromPostId: 'post-7',
       profile: PROFILE,
+      rootPostId: 'post-1',
       triggeringPostId: 'post-1'
     });
   });
@@ -571,6 +579,7 @@ describe('ActivationService', () => {
         depth: 0,
         drainedFromPostId: 'post-7',
         profile: PROFILE,
+        rootPostId: 'post-7',
         triggeringPostId: 'post-7'
       });
       expect(triggersService.peekPending).toHaveBeenCalledWith('channel-2');

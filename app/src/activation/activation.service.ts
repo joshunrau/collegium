@@ -19,7 +19,12 @@ import { TurnFoldRegistry } from '@/turns/folding/turn-fold.registry.ts';
 import { TurnRunner } from '@/turns/turns.runner.ts';
 
 import { QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
-import { toActivationChainLength, toActivationDepth, toFoldAuthorUsername } from './activation.utils.ts';
+import {
+  toActivationChainLength,
+  toActivationDepth,
+  toActivationRootPostId,
+  toFoldAuthorUsername
+} from './activation.utils.ts';
 import { DebounceService } from './debounce/debounce.service.ts';
 
 /**
@@ -356,6 +361,7 @@ export class ActivationService {
         drainedFromPostId: input.drainedFromPostId,
         foldAuthorUsername: toFoldAuthorUsername(source),
         profile,
+        rootPostId: toActivationRootPostId(source, input.triggeringPostId),
         triggeringPostId: input.triggeringPostId
       });
       status = outcome.status;

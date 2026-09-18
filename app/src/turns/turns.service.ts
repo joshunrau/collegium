@@ -106,6 +106,7 @@ export class TurnsService {
     channelId: string;
     depth: number;
     modelName: string;
+    rootPostId: string;
     triggeringPostId?: string;
   }): Promise<Turn> {
     return this.turns.create({
@@ -115,6 +116,7 @@ export class TurnsService {
         channelId: input.channelId,
         depth: input.depth,
         modelName: input.modelName,
+        rootPostId: input.rootPostId,
         status: 'running',
         triggeringPostId: input.triggeringPostId
       }
