@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 
 import { latestOccurrence, nextOccurrence, zonedInstant } from '../schedules.utils.ts';
 
-const VANCOUVER = 'America/Vancouver';
+const LOS_ANGELES = 'America/Los_Angeles';
 
 const DAILY_AT_NINE: $ScheduleRecurrence = { at: '09:00', every: 'day' };
 
-const latest = (recurrence: $ScheduleRecurrence, after: string, now: string, timezone = VANCOUVER) => {
+const latest = (recurrence: $ScheduleRecurrence, after: string, now: string, timezone = LOS_ANGELES) => {
   return latestOccurrence(recurrence, timezone, { after: new Date(after), now: new Date(now) })?.toISOString();
 };
 
@@ -30,7 +30,7 @@ describe('latestOccurrence', () => {
   });
 
   it('should skip the weekend for a weekday recurrence', () => {
-    // Monday 2026-09-14 in Vancouver, asked for on the Sunday after
+    // Monday 2026-09-14 in Los Angeles, asked for on the Sunday after
     expect(latest({ at: '09:00', every: 'weekday' }, '2026-09-13T00:00:00Z', '2026-09-20T20:00:00Z')).toBe(
       '2026-09-18T16:00:00.000Z'
     );
@@ -65,6 +65,6 @@ describe('zonedInstant', () => {
 describe('nextOccurrence', () => {
   it('should be strictly after the moment asked about', () => {
     const from = new Date('2026-09-16T16:00:00Z');
-    expect(nextOccurrence(DAILY_AT_NINE, VANCOUVER, from).toISOString()).toBe('2026-09-17T16:00:00.000Z');
+    expect(nextOccurrence(DAILY_AT_NINE, LOS_ANGELES, from).toISOString()).toBe('2026-09-17T16:00:00.000Z');
   });
 });
