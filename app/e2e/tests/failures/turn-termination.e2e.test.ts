@@ -35,6 +35,24 @@ describe('Turn termination', () => {
     expect(notice.text).toContain('does_not_exist');
   });
 
+  it('forgives one tool call whose arguments never parsed and continues the turn (§7.2)', async () => {
+    const { channels, inference } = harness();
+    const reply = `recovered-${randomUUID()}`;
+    inference.willReply(
+      { agent: 'mira', contains: 'garbled' },
+      toolCallsResponse([{ arguments: {}, name: 'memory__write', rawArguments: '{"content": "unterminated' }])
+    );
+    inference.willReply({ agent: 'mira' }, textResponse(reply));
+
+    await channels.main.mention('mira', 'garbled call please');
+    await channels.main.awaitReplyFrom('mira', { text: reply });
+
+    const followUp = inference.requestsFor('mira').at(-1)!;
+    const fedBack = followUp.messages.find((message) => message.role === 'tool');
+    expect(fedBack).toMatchObject({ content: 'the arguments to this call were not valid JSON, so the call did not run' });
+    expect(JSON.stringify(followUp.messages)).not.toContain('unterminated');
+  });
+
   it('retries a transport error invisibly and posts nothing (§7.2)', async () => {
     const { channels, inference } = harness();
     const reply = `recovered-${randomUUID()}`;

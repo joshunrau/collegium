@@ -50,6 +50,21 @@ describe('renderTrace', () => {
     );
   });
 
+  it('should show the head of argument text that never parsed beside its result (§7.2)', () => {
+    const text = renderTrace(TURN, [
+      event({
+        callId: 'c1',
+        kind: 'tool_result',
+        output: 'the arguments to this call were not valid JSON, so the call did not run',
+        rawArgumentsPreview: '{"path": "a.txt", "content": "unterminated',
+        toolName: ['workspace', 'write']
+      })
+    ]);
+    expect(text).toContain(
+      '1. `workspace::write` → the arguments to this call were not valid JSON, so the call did not run (arguments as sent: {"path": "a.txt", "content": "unterminated)'
+    );
+  });
+
   it('should append the reason to a decision that carries one', () => {
     const text = renderTrace(TURN, [
       event({

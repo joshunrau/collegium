@@ -21,7 +21,8 @@ import type {
   CompletionResult,
   CompletionUsage,
   InferenceFailure,
-  ToolCall
+  ToolCall,
+  UnparsedToolCall
 } from '@/inference/inference.types.ts';
 import {
   addCompletionUsage,
@@ -29,7 +30,8 @@ import {
   estimateMessageTokens,
   estimateRequestTokens,
   isUnparsedToolCall,
-  reasoningOf
+  reasoningOf,
+  toReplayableToolCall
 } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
@@ -96,6 +98,15 @@ const RESULT_TRUNCATION_MARKER = '\n…result truncated to fit the context windo
 /** §3.8 — below this a cut result is not long but the turn has no room, and the honest outcome is exhaustion */
 const RESULT_MIN_TOKENS = 500;
 
+/** §7.2 — how many calls with unparseable arguments a turn survives; the second is a pattern, not a mistake */
+const UNPARSED_CALL_LIMIT = 1;
+
+/** §7.2 — how much of the provider's broken argument text the trace keeps; the model never sees any of it */
+const RAW_ARGUMENTS_PREVIEW_CHARS = 200;
+
+/** §7.2 — what the model reads instead of a diagnosis: no parameter, no type, no accepted set */
+const UNPARSED_ARGUMENTS_RESULT = 'the arguments to this call were not valid JSON, so the call did not run';
+
 /** the bounds config states for every turn: §7.4 depth and chain length, §4.4 folds; the §5.3 budget is the agent's own */
 type TurnLimits = {
   readonly chainLengthLimit: number;
@@ -130,13 +141,24 @@ type BudgetPosition = { readonly actionBudget: number; readonly actionNumber: nu
 /** what admitting a call to the budget came to; an extension is spent inside admission and never surfaces */
 type Admission = Exclude<Exhaustion, { kind: 'extended' }> | { kind: 'admitted'; position: BudgetPosition };
 
-/** one call of a completion, resolved once: the structural name for the record, the display name for humans (§1) */
-type IdentifiedCall = {
-  readonly call: ToolCall;
-  readonly detail: string | undefined;
+/** what a call resolves to, once: the structural name for the record, the display name for humans (§1) */
+type CallIdentity = {
   readonly displayName: string;
+  /** whether the name resolved to a tool this agent holds; only such a call may be forgiven its arguments (§7.2) */
+  readonly isGranted: boolean;
   readonly recordedName: PrismaJson.RecordedToolName;
 };
+
+/** a call the executor may run, with the detail its tool renders for the status post */
+type RunnableCall = CallIdentity & { readonly call: ToolCall; readonly detail: string | undefined; readonly kind: 'runnable' };
+
+/** a call whose arguments never parsed: answered or refused by the runner, never executed (§7.2) */
+type UnparsedCall = CallIdentity & { readonly call: UnparsedToolCall; readonly kind: 'unparsed' };
+
+type IdentifiedCall = RunnableCall | UnparsedCall;
+
+/** what answering an unparsed call came to: forgiven and answered in place, or the dispatch loop returns with this outcome */
+type UnparsedCallDisposition = { kind: 'dispatched'; outcome: TurnOutcome | undefined } | { kind: 'forgiven' };
 
 type TurnState = {
   readonly budget: ActionBudget;
@@ -156,6 +178,8 @@ type TurnState = {
   readonly supersedable: { messageIndex: number; replay: string }[];
   readonly transport: ChatTransport;
   readonly turn: Turn;
+  /** §7.2 — calls with unparseable arguments this turn has already forgiven */
+  unparsedCalls: number;
   usage: CompletionUsage | undefined;
 };
 
@@ -226,6 +250,7 @@ export class TurnRunner {
       supersedable: [],
       transport: this.transportRegistry.get(profile.username),
       turn,
+      unparsedCalls: 0,
       usage: undefined
     };
     try {
@@ -266,7 +291,9 @@ export class TurnRunner {
       }
       state.budget.trySpend(isExempt);
     }
-    state.status.appendTrace(renderToolCallLine(identified.displayName, identified.detail));
+    state.status.appendTrace(
+      renderToolCallLine(identified.displayName, identified.kind === 'runnable' ? identified.detail : undefined)
+    );
     return {
       kind: 'admitted',
       position: { actionBudget: state.budget.limitCount, actionNumber: state.budget.spentCount }
@@ -540,21 +567,13 @@ export class TurnRunner {
     state: TurnState,
     completion: CompletionResult.ToolUse
   ): Promise<TurnOutcome | undefined> {
-    const parsedCalls: ToolCall[] = [];
-    for (const call of completion.toolCalls) {
-      if (isUnparsedToolCall(call)) {
-        await this.postNotice(input, state, renderSemanticErrorNotice('my reply could not be understood'));
-        return this.close(state, 'semantic_error');
-      }
-      parsedCalls.push(call);
-    }
-    const calls = parsedCalls.map((call) => this.identify(input, call));
+    const calls = completion.toolCalls.map((call) => this.identify(input, call));
     const reasoning = reasoningOf(completion);
     await this.turnsService.appendEvent(state.turn.id, {
       content: completion.content,
       kind: 'assistant_message',
       toolCalls: calls.map(({ call, recordedName }) => ({
-        args: call.arguments,
+        args: toReplayableToolCall(call).arguments,
         callId: call.id,
         toolName: recordedName
       })),
@@ -563,7 +582,7 @@ export class TurnRunner {
     this.pushMessage(state, {
       content: completion.content,
       role: 'assistant',
-      toolCalls: parsedCalls,
+      toolCalls: completion.toolCalls.map(toReplayableToolCall),
       ...reasoning
     });
     state.consecutiveRejections = 0;
@@ -571,7 +590,16 @@ export class TurnRunner {
       state.status.setTransient(this.multiMentionPolicy.stripAgentMentions(completion.content));
     }
     for (let position = 0; position < calls.length;) {
-      const batch = this.takeBatch(input, calls, position);
+      const first = calls[position]!;
+      if (first.kind === 'unparsed') {
+        const disposition = await this.forgiveUnparsedCall(input, state, calls, position, first);
+        if (disposition.kind === 'dispatched') {
+          return disposition.outcome;
+        }
+        position += 1;
+        continue;
+      }
+      const batch = this.takeBatch(input, first, calls.slice(position + 1));
       const positions: BudgetPosition[] = [];
       for (const identified of batch) {
         const admission = await this.admit(input, state, identified);
@@ -636,6 +664,45 @@ export class TurnRunner {
 
   private exceedsCeiling(input: RunInput, state: TurnState): boolean {
     return state.promptTokens > this.ceilingFor(input.profile);
+  }
+
+  /**
+   * §7.2 — a granted tool's arguments that never parsed are answered once, spending an attempt like
+   * any invocation, without the tool ever seeing them; the second in a turn, or one for a tool the
+   * agent does not hold, ends the turn as the semantic error it always was.
+   */
+  private async forgiveUnparsedCall(
+    input: RunInput,
+    state: TurnState,
+    calls: readonly IdentifiedCall[],
+    position: number,
+    identified: UnparsedCall
+  ): Promise<UnparsedCallDisposition> {
+    if (!identified.isGranted || state.unparsedCalls >= UNPARSED_CALL_LIMIT) {
+      await this.postNotice(input, state, renderSemanticErrorNotice('a tool call I made could not be read'));
+      return { kind: 'dispatched', outcome: await this.close(state, 'semantic_error') };
+    }
+    state.unparsedCalls += 1;
+    this.loggingService.warn(
+      `"${input.profile.username}" called ${identified.displayName} with arguments that did not parse, forgiven once (${input.profile.model.provider}/${input.profile.model.name})`
+    );
+    const admission = await this.admit(input, state, identified);
+    if (admission.kind === 'ended') {
+      return { kind: 'dispatched', outcome: admission.outcome };
+    }
+    if (admission.kind === 'voice-only') {
+      await this.answerUnrun(state, calls.slice(position), admission.text);
+      return { kind: 'dispatched', outcome: undefined };
+    }
+    await this.turnsService.appendEvent(state.turn.id, {
+      callId: identified.call.id,
+      kind: 'tool_result',
+      output: UNPARSED_ARGUMENTS_RESULT,
+      rawArgumentsPreview: identified.call.rawArguments.slice(0, RAW_ARGUMENTS_PREVIEW_CHARS),
+      toolName: identified.recordedName
+    });
+    this.pushMessage(state, { content: UNPARSED_ARGUMENTS_RESULT, role: 'tool', toolCallId: identified.call.id });
+    return { kind: 'forgiven' };
   }
 
   /**
@@ -713,14 +780,18 @@ export class TurnRunner {
    * executor will reject as unknown keeps the name the model wrote, and one with malformed
    * arguments describes itself by name alone.
    */
-  private identify(input: RunInput, call: ToolCall): IdentifiedCall {
-    const described = this.toolRegistry.describeCall({ args: call.arguments, name: call.name, profile: input.profile });
-    return {
-      call,
-      detail: described?.detail,
+  private identify(input: RunInput, call: ToolCall | UnparsedToolCall): IdentifiedCall {
+    const args = isUnparsedToolCall(call) ? {} : call.arguments;
+    const described = this.toolRegistry.describeCall({ args, name: call.name, profile: input.profile });
+    const identity: CallIdentity = {
       displayName: described?.displayName ?? call.name,
+      isGranted: described !== undefined,
       recordedName: described?.id ?? call.name
     };
+    if (isUnparsedToolCall(call)) {
+      return { ...identity, call, kind: 'unparsed' };
+    }
+    return { ...identity, call, detail: described?.detail, kind: 'runnable' };
   }
 
   /** §3.8 — the request as assembled is measured whole; everything pushed afterwards adds its own estimate */
@@ -930,18 +1001,25 @@ export class TurnRunner {
     }
   }
 
-  /** §5.1 — the calls that may run together: a run of concurrent calls, or the next call alone */
-  private takeBatch(input: RunInput, calls: readonly IdentifiedCall[], start: number): IdentifiedCall[] {
-    const runsConcurrently = (identified: IdentifiedCall) => {
+  /**
+   * §5.1 — the calls that may run together: a run of concurrent calls, or the first alone. A call
+   * that will not run (§7.2) closes the run, having no place in a batch whose ordering means something.
+   */
+  private takeBatch(input: RunInput, first: RunnableCall, rest: readonly IdentifiedCall[]): RunnableCall[] {
+    const runsConcurrently = (identified: RunnableCall) => {
       return this.toolRegistry.isConcurrent(input.profile, identified.call.name);
     };
-    let end = start + 1;
-    if (runsConcurrently(calls[start]!)) {
-      while (end < calls.length && runsConcurrently(calls[end]!)) {
-        end += 1;
-      }
+    const batch = [first];
+    if (!runsConcurrently(first)) {
+      return batch;
     }
-    return calls.slice(start, end);
+    for (const next of rest) {
+      if (next.kind === 'unparsed' || !runsConcurrently(next)) {
+        break;
+      }
+      batch.push(next);
+    }
+    return batch;
   }
 
   /**

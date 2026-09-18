@@ -47,6 +47,11 @@ export function isUnparsedToolCall(call: ToolCall | UnparsedToolCall): call is U
   return 'rawArguments' in call;
 }
 
+/** §7.2 — the call as the model may read it again: broken argument text is never read back, so it replays as an empty object */
+export function toReplayableToolCall(call: ToolCall | UnparsedToolCall): ToolCall {
+  return isUnparsedToolCall(call) ? { arguments: {}, id: call.id, name: call.name } : call;
+}
+
 export function renderSystemPrompt(prompt: SystemPrompt): string {
   return [prompt.stable, prompt.dynamic].filter((part) => part !== '').join('\n\n');
 }

@@ -56,6 +56,17 @@ const toolUse = (names: string[], content = '', usage?: CompletionUsage): Comple
   usage
 });
 
+const UNPARSED_RESULT = 'the arguments to this call were not valid JSON, so the call did not run';
+
+const unparsedCall = (name: string, rawArguments: string, id = 'call-0') => ({ id, name, rawArguments });
+
+const unparsedUse = (calls: CompletionResult.ToolUse['toolCalls']): CompletionResult => ({
+  content: '',
+  kind: 'tool-use',
+  toolCalls: calls,
+  usage: undefined
+});
+
 describe('TurnRunner', () => {
   let approvalsService: MockedInstance<ApprovalsService>;
   let complete: Mock<InferenceClient['complete']>;
@@ -575,6 +586,91 @@ describe('TurnRunner', () => {
     const outcome = await run();
     expect(outcome.status).toBe('semantic_error');
     expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  describe('a tool call whose arguments never parsed (§7.2)', () => {
+    const grant = () => {
+      toolRegistry.describeCall.mockReturnValue({ detail: undefined, displayName: 'workspace::write', id: ['workspace', 'write'] });
+    };
+
+    it('should forgive one such call for a granted tool, spending an attempt and running nothing', async () => {
+      grant();
+      complete.mockResolvedValueOnce(Result.ok(unparsedUse([unparsedCall('workspace__write', '{"content": "unterminated')])));
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      const outcome = await run();
+      expect(outcome.status).toBe('completed');
+      expect(toolExecutor.execute).not.toHaveBeenCalled();
+      expect(statusHandle.appendTrace).toHaveBeenCalledWith('→ `workspace::write`');
+      expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'completed', expect.objectContaining({ actionCount: 1 }));
+      const followUp = complete.mock.calls[1]![0].messages;
+      expect(followUp.at(-1)).toStrictEqual({ content: UNPARSED_RESULT, role: 'tool', toolCallId: 'call-0' });
+      expect(JSON.stringify(followUp)).not.toContain('unterminated');
+    });
+
+    it('should keep at most two hundred characters of the raw text, on the trace event alone', async () => {
+      grant();
+      const raw = `{"content": "${'x'.repeat(300)}`;
+      complete.mockResolvedValueOnce(Result.ok(unparsedUse([unparsedCall('workspace__write', raw)])));
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      await run();
+      expect(turnsService.appendEvent).toHaveBeenCalledWith(
+        'turn-1',
+        expect.objectContaining({ kind: 'tool_result', output: UNPARSED_RESULT, rawArgumentsPreview: raw.slice(0, 200) })
+      );
+      expect(turnsService.appendEvent).toHaveBeenCalledWith(
+        'turn-1',
+        expect.objectContaining({ kind: 'assistant_message', toolCalls: [expect.objectContaining({ args: {} })] })
+      );
+    });
+
+    it('should run the valid calls of a completion beside the forgiven one, never grouping them', async () => {
+      grant();
+      toolRegistry.isConcurrent.mockReturnValue(true);
+      complete.mockResolvedValueOnce(
+        Result.ok(
+          unparsedUse([
+            { arguments: {}, id: 'call-0', name: 'workspace__write' },
+            unparsedCall('workspace__write', '{oops', 'call-1'),
+            { arguments: {}, id: 'call-2', name: 'workspace__write' }
+          ])
+        )
+      );
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      await run();
+      expect(toolExecutor.execute.mock.calls.map(([input]) => input.call.id)).toStrictEqual(['call-0', 'call-2']);
+    });
+
+    it('should end the turn on the second such call, saying so under its own name', async () => {
+      grant();
+      complete.mockResolvedValueOnce(Result.ok(unparsedUse([unparsedCall('workspace__write', '{oops')])));
+      complete.mockResolvedValueOnce(Result.ok(unparsedUse([unparsedCall('workspace__write', '{oops again')])));
+      const outcome = await run();
+      expect(outcome.status).toBe('semantic_error');
+      expect(complete).toHaveBeenCalledTimes(2);
+      expect(sends.map((send) => send.text)).toStrictEqual([
+        'I hit an internal error and stopped: a tool call I made could not be read'
+      ]);
+    });
+
+    it('should end the turn on the first such call for a tool the agent does not hold', async () => {
+      complete.mockResolvedValueOnce(Result.ok(unparsedUse([unparsedCall('does_not_exist', '{oops')])));
+      const outcome = await run();
+      expect(outcome.status).toBe('semantic_error');
+      expect(toolExecutor.execute).not.toHaveBeenCalled();
+    });
+
+    it('should ask for an extension before forgiving a call on an exhausted budget (§5.3)', async () => {
+      grant();
+      complete.mockResolvedValueOnce(Result.ok(unparsedUse([unparsedCall('workspace__write', '{oops')])));
+      const outcome = await turnRunner.run({
+        chainLength: 1,
+        channelId: 'channel-1',
+        depth: 0,
+        profile: { ...PROFILE, actionBudget: 0 }
+      });
+      expect(approvalsService.request).toHaveBeenCalledOnce();
+      expect(outcome.status).toBe('budget_exhausted');
+    });
   });
 
   it('should count an invocation denied before execution as one attempt and ask how to proceed', async () => {

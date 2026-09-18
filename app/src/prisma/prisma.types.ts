@@ -45,6 +45,8 @@ type TurnEventPayloadByKind = {
   tool_result: {
     callId: string;
     output: string;
+    /** §7.2 — the head of argument text that never parsed, for the trace alone */
+    rawArgumentsPreview?: string;
     /** what the window replays in place of the output; the trace still shows the output */
     replay?: string;
     toolName: PrismaJson.RecordedToolName;

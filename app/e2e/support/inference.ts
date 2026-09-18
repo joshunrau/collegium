@@ -105,7 +105,7 @@ function toScriptedMessage(response: Exclude<InferenceStub.Response, { kind: 'fa
     content: response.content ?? null,
     role: 'assistant',
     tool_calls: response.toolCalls.map((call) => ({
-      function: { arguments: JSON.stringify(call.arguments), name: call.name },
+      function: { arguments: call.rawArguments ?? JSON.stringify(call.arguments), name: call.name },
       id: randomUUID(),
       type: 'function'
     }))
@@ -231,6 +231,8 @@ declare namespace InferenceStub {
   type ToolCallSpec = {
     arguments: { [key: string]: unknown };
     name: string;
+    /** sent in place of the serialised arguments: what a provider emits when its serialiser breaks (§7.2) */
+    rawArguments?: string;
   };
 }
 

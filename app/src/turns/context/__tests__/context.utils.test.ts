@@ -117,6 +117,28 @@ describe('toCompletionMessages', () => {
     ]);
   });
 
+  it('should replay a forgiven call beside its unparseable-arguments result, never the raw text (§7.2)', () => {
+    const entries = [
+      event({
+        content: '',
+        kind: 'assistant_message',
+        toolCalls: [{ args: {}, callId: 'c1', toolName: ['workspace', 'write'] }]
+      }),
+      event({
+        callId: 'c1',
+        kind: 'tool_result',
+        output: 'the arguments to this call were not valid JSON, so the call did not run',
+        rawArgumentsPreview: '{"content": "unterminated',
+        toolName: ['workspace', 'write']
+      })
+    ];
+
+    expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
+      { content: '', role: 'assistant', toolCalls: [{ arguments: {}, id: 'c1', name: 'workspace__write' }] },
+      { content: 'the arguments to this call were not valid JSON, so the call did not run', role: 'tool', toolCallId: 'c1' }
+    ]);
+  });
+
   it('should fold a denial into the result of the call it refused, naming the human', () => {
     const entries = [
       event({

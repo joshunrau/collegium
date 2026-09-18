@@ -32,7 +32,10 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload): string {
       { kind: 'record_written' },
       (event) => `record ${event.reference} written: ${event.description} — ${event.body}`
     )
-    .with({ kind: 'tool_result' }, (event) => `\`${toDisplayName(event.toolName)}\` → ${event.output}`)
+    .with({ kind: 'tool_result' }, (event) => {
+      const sent = event.rawArgumentsPreview === undefined ? '' : ` (arguments as sent: ${event.rawArgumentsPreview})`;
+      return `\`${toDisplayName(event.toolName)}\` → ${event.output}${sent}`;
+    })
     .exhaustive();
 }
 
