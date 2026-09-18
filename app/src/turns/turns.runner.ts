@@ -613,7 +613,7 @@ export class TurnRunner {
   ): Promise<TurnOutcome | undefined> {
     const truncated = completion.kind === 'truncated';
     const content = truncated ? completion.content : await this.enforceChainLimits(input, state, completion.content);
-    let rejection = truncated ? TRUNCATED_OUTPUT_REJECTION : this.rejectionOf(input, state, content);
+    let rejection = truncated ? TRUNCATED_OUTPUT_REJECTION : await this.rejectionOf(input, state, content);
     const reasoning = reasoningOf(completion);
     if (rejection === undefined) {
       return this.closeWithFinalOutput(input, state, content, reasoning);
@@ -966,6 +966,24 @@ export class TurnRunner {
     state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
   }
 
+  /**
+   * §4.5 — a post over the substrate's limit (§6.2) is refused, never truncated. The limit counts
+   * characters as Mattermost does, by code point. Where it cannot be read, the post is attempted as
+   * it stands and the substrate decides.
+   */
+  private async measureAgainstPostLimit(
+    state: TurnState,
+    text: string
+  ): Promise<undefined | { length: number; limit: number }> {
+    const limit = await state.transport.maxPostSizeChars();
+    if (!limit.success) {
+      this.loggingService.warn(`could not read MaxPostSize to bound a post: ${limit.error.message}`);
+      return undefined;
+    }
+    const length = Array.from(text).length;
+    return length > limit.value ? { length, limit: limit.value } : undefined;
+  }
+
   /** §5.2 — checked on every assembly, since a fold rebuilds the window and can lose the reach the first one had */
   private noteShortfall(input: RunInput, state: TurnState, assembled: AssembledContext): void {
     if (input.drainedFromPostId !== undefined && !assembled.windowPostIds.has(input.drainedFromPostId)) {
@@ -1030,6 +1048,13 @@ export class TurnRunner {
     }
     if (this.multiMentionPolicy.refusesSecondAddressee(addressable, state.addressedPeer)) {
       return { kind: 'refused', output: `post refused: this turn has already addressed @${state.addressedPeer}` };
+    }
+    const oversize = await this.measureAgainstPostLimit(state, text);
+    if (oversize) {
+      return {
+        kind: 'refused',
+        output: `post refused: it is ${oversize.length} characters and a post holds at most ${oversize.limit} — shorten what you pass`
+      };
     }
     const sent = await this.publish(input, state, text, 'notice');
     if (!sent.success) {
@@ -1099,11 +1124,12 @@ export class TurnRunner {
   }
 
   /**
-   * Why a final output cannot post as-is, or nothing. Neither is a semantic failure: the model
-   * produced valid output that breaks a framework rule it cannot see (§4.5), or wrote a tool call
-   * as text where only a real call runs anything, and one retry is cheap either way.
+   * Why a final output cannot post as-is, or nothing. None is a semantic failure: the model
+   * produced valid output that breaks a framework rule it cannot see (§4.5), wrote a tool call as
+   * text where only a real call runs anything, or wrote more than a post holds, and one retry is
+   * cheap in every case.
    */
-  private rejectionOf(input: RunInput, state: TurnState, content: string): string | undefined {
+  private async rejectionOf(input: RunInput, state: TurnState, content: string): Promise<string | undefined> {
     const post = this.asAddressablePost(input, content);
     if (this.multiMentionPolicy.refuses(post)) {
       return 'post rejected: multiple agent mentions';
@@ -1113,6 +1139,10 @@ export class TurnRunner {
     }
     if (containsToolCallTranscript(content)) {
       return 'post rejected: a tool call written as text runs nothing — invoke the tool instead';
+    }
+    const oversize = await this.measureAgainstPostLimit(state, content);
+    if (oversize) {
+      return `post rejected: the reply is ${oversize.length} characters and a post holds at most ${oversize.limit} — answer more briefly, or post the first part and say what remains`;
     }
     return undefined;
   }

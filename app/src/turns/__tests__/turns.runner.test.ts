@@ -88,6 +88,7 @@ describe('TurnRunner', () => {
   let turnFoldRegistry: TurnFoldRegistry;
   let turnRunner: TurnRunner;
   let loggingService: MockedInstance<LoggingService>;
+  let maxPostSizeChars: Mock<ChatTransport['maxPostSizeChars']>;
   let turnsService: MockedInstance<TurnsService>;
   let typingHandle: { stop: Mock };
   let typingIndicatorService: MockedInstance<TypingIndicatorService>;
@@ -135,7 +136,8 @@ describe('TurnRunner', () => {
       return Promise.resolve(Result.ok({ createdAt: new Date(5000), postId: `post-${sends.length}` }));
     });
     const transportRegistry = MockFactory.createMock(TransportRegistry);
-    transportRegistry.get.mockReturnValue({ send: transportSend } as unknown as ChatTransport);
+    maxPostSizeChars = vi.fn().mockResolvedValue(Result.ok(16_383));
+    transportRegistry.get.mockReturnValue({ maxPostSizeChars, send: transportSend } as unknown as ChatTransport);
     typingHandle = { stop: vi.fn() };
     typingIndicatorService = MockFactory.createMock(TypingIndicatorService);
     typingIndicatorService.start.mockReturnValue(typingHandle);
@@ -1358,6 +1360,38 @@ describe('TurnRunner', () => {
     const outcome = await run();
     expect(outcome.status).toBe('completed');
     expect(sends.map((send) => send.text)).toStrictEqual(['@owen, please take this']);
+  });
+
+  it('should reject a reply longer than a post holds, stating both lengths, and never truncate it (§4.5)', async () => {
+    maxPostSizeChars.mockResolvedValue(Result.ok(10));
+    complete.mockResolvedValueOnce(Result.ok(text('ééééééééééé')));
+    complete.mockResolvedValueOnce(Result.ok(text('short')));
+    const outcome = await run();
+    expect(outcome.status).toBe('completed');
+    expect(sends.map((send) => send.text)).toStrictEqual(['short']);
+    expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+      content: expect.stringContaining('the reply is 11 characters and a post holds at most 10'),
+      role: 'user'
+    });
+  });
+
+  it('should refuse a tool post longer than a post holds as the call’s result, writing nothing (§4.5)', async () => {
+    maxPostSizeChars.mockResolvedValue(Result.ok(10));
+    const onPublished = vi.fn(() => Promise.resolve());
+    toolExecutor.execute.mockResolvedValueOnce({
+      kind: 'continue',
+      mayHaveTakenEffect: true,
+      output: 'unit assigned',
+      post: { onPublished, text: '@owen take this long unit' }
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(onPublished).not.toHaveBeenCalled();
+    expect(complete.mock.calls[1]![0].messages.at(-1)).toMatchObject({
+      content: expect.stringContaining('post refused: it is 25 characters'),
+      role: 'tool'
+    });
   });
 
   it('should count a truncated completion and a tool call written as text against the same limit (§4.5)', async () => {
