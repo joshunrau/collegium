@@ -235,7 +235,7 @@ The preamble also states the one runtime fact about the filesystem an agent cann
 
 _What is deliberately not there:_ the time, and the host's operating system, git state and processes. The time is a tool call, `builtins::now`, and not a line in the prompt, because a prompt that changes every minute is a prompt the provider's cache matches only up to the minute — the prompt-caching paragraph below is the reason. The rest is ambient state the agent was not granted, and a snapshot of it in the prompt is a read nobody approved — the §A2 surface widened by prose rather than by config. An agent that needs git state holds `shell::run` and asks for it under the gate.
 
-The framework renders the behavioral baseline for every agent on every turn. It covers task intent, routine autonomy, scope changes, proportionate verification, collaboration, progress updates, reusable memory, and disagreement. These are advisory instructions about how the model should work, separate from runtime facts and optional tone.
+The framework renders the behavioral baseline for every agent on every turn. It covers task intent, routine autonomy, scope changes, recovery from failure, proportionate verification, untrusted tool content, collaboration, progress updates, reusable memory, and disagreement. These are advisory instructions about how the model should work, separate from runtime facts and optional tone.
 
 A personality adds a stance to that baseline. You select one of the framework's fixed personalities per agent or through `agentDefaults`. The baseline and personalities live in code and share the framework's version history.
 
