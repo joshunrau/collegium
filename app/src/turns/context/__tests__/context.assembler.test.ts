@@ -62,7 +62,11 @@ describe('ContextAssembler', () => {
 
   beforeEach(async () => {
     systemPromptRenderer = MockFactory.createMock(SystemPromptRenderer);
-    systemPromptRenderer.renderParts.mockResolvedValue({ dynamic: '', stable: 'You are Mira.\n\n## How this works' });
+    systemPromptRenderer.renderParts.mockResolvedValue({
+      dynamic: '',
+      memories: '',
+      stable: 'You are Mira.\n\n## How this works'
+    });
     const toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.describeFor.mockReturnValue([{ description: 'Load a skill.', name: 'load_skill', parameters: {} }]);
     windowService = MockFactory.createMock(WindowService);
@@ -84,7 +88,11 @@ describe('ContextAssembler', () => {
 
   it('should put the rendered prompt and the tool definitions on the request', async () => {
     const request = await assemble();
-    expect(request.systemPrompt).toStrictEqual({ dynamic: '', stable: 'You are Mira.\n\n## How this works' });
+    expect(request.systemPrompt).toStrictEqual({
+      dynamic: '',
+      memories: '',
+      stable: 'You are Mira.\n\n## How this works'
+    });
     expect(request.tools.map((tool) => tool.name)).toStrictEqual(['load_skill']);
   });
 

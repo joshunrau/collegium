@@ -13,6 +13,7 @@ import { PluginsModule } from '@/plugins/plugins.module.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
 import { ShellModule } from '@/shell/shell.module.ts';
 import { SkillsModule } from '@/skills/skills.module.ts';
+import { TasksModule } from '@/tasks/tasks.module.ts';
 import { TriggersModule } from '@/triggers/triggers.module.ts';
 import { WebModule } from '@/web/web.module.ts';
 
@@ -41,6 +42,7 @@ const SERVICE_TOKENS: readonly ServiceToken<unknown>[] = FRAMEWORK_TOOLSETS.flat
     PluginsModule,
     ShellModule,
     SkillsModule,
+    TasksModule,
     TriggersModule,
     WebModule
   ],

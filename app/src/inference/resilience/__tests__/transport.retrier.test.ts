@@ -10,7 +10,7 @@ const completionRequest: CompletionRequest = {
   cacheKey: 'mira:channel-1',
   messages: [{ content: 'Hello', role: 'user' }],
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
-  systemPrompt: { dynamic: '', stable: 'Be helpful' },
+  systemPrompt: { dynamic: '', memories: '', stable: 'Be helpful' },
   tools: []
 };
 

@@ -17,11 +17,12 @@ describe('buildConfigJsonSchema', () => {
 
   it('should embed each framework settings schema with its top-level required stripped (§8)', () => {
     const settings = schema.properties.agents.additionalProperties.properties.toolSettings.properties;
-    expect(Object.keys(settings)).toStrictEqual(['mail', 'memory', 'web']);
+    expect(Object.keys(settings)).toStrictEqual(['mail', 'memory', 'tasks', 'web']);
     expect(settings.mail?.required).toBeUndefined();
     expect(Object.keys(schema.properties.agentDefaults.properties.toolSettings.properties)).toStrictEqual([
       'mail',
       'memory',
+      'tasks',
       'web'
     ]);
   });

@@ -145,7 +145,8 @@ describe('SkillsService', () => {
       const skillsService = await buildService([]);
       expect(skillsService.listFor(GRANTED)).toStrictEqual([
         {
-          description: 'How to hand a task to another agent so it arrives with everything that agent needs to act.',
+          description:
+            'How to decide whether to hand a task to another agent, and how to hand it over so the result can be judged.',
           name: 'handing-work-to-a-peer'
         },
         {
@@ -163,7 +164,7 @@ describe('SkillsService', () => {
       const skillsService = await buildService([]);
       const manifest = skillsService.renderManifest(buildAgentProfile({ skills: ['bookmark::saving-bookmarks'] }));
       expect(manifest.split('\n')).toStrictEqual([
-        '- handing-work-to-a-peer: How to hand a task to another agent so it arrives with everything that agent needs to act.',
+        '- handing-work-to-a-peer: How to decide whether to hand a task to another agent, and how to hand it over so the result can be judged.',
         '- understanding-collegium: What Collegium is and who controls what. Use when a person asks what you are, how you are governed, why a turn stopped or an action was refused, or what a /collegium command does.',
         '- bookmark::saving-bookmarks: How to bookmark.'
       ]);

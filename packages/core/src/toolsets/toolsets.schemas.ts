@@ -90,6 +90,26 @@ export const $WebSearchSettings = z
   })
   .describe('The search provider behind web::search. Absent, the agent is not offered web::search.');
 
+export type $TasksSettings = z.infer<typeof $TasksSettings>;
+export const $TasksSettings = z
+  .strictObject({
+    openUnitCap: z
+      .number()
+      .int()
+      .min(1)
+      .default(20)
+      .describe(
+        'How many open units one agent may hold as creator in one channel; an assignment past it is refused (§3.15).'
+      ),
+    shownInPrompt: z
+      .number()
+      .int()
+      .min(1)
+      .default(20)
+      .describe('How many open units the prompt lists before it states a remainder count instead (§3.15).')
+  })
+  .describe('The bounds on delegated work (§3.15). Every field has a default, so a bare grant works.');
+
 export type $WebSettings = z.infer<typeof $WebSettings>;
 export const $WebSettings = z
   .strictObject({

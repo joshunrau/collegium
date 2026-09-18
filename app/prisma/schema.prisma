@@ -64,6 +64,14 @@ enum TurnEventKind {
   tool_result
 }
 
+enum WorkUnitState {
+  assigned
+  blocked
+  review
+  done
+  cancelled
+}
+
 enum TurnStatus {
   abandoned
   budget_exhausted
@@ -142,6 +150,31 @@ model Turn {
 // is the Turn table's, so the window survives a restart and a crash-looping instance cannot grant
 // itself a fresh allowance every boot; this row only says where the trailing hour starts counting
 // from, which is what `/resume` advances. One row, pinned by a constant key.
+// §3.15 — one thing one agent handed to another, in one channel. Every state it has been in was
+// announced in a post, and the row names the post that created it and the post that last changed
+// it, which is what keeps it a control state pointing at posts (A1) rather than work held nowhere
+// else. The row is written only after that post has landed, so neither id is ever null. There is
+// no unassigned state: a unit exists because someone handed it over.
+model WorkUnit {
+  id               String        @id @default(cuid(2))
+  assigneeUsername String
+  channelId        String
+  closedAt         DateTime?
+  context          String
+  createdAt        DateTime      @default(now())
+  creatorUsername  String
+  criteria         String
+  lastPostId       String
+  originPostId     String
+  outcome          String
+  state            WorkUnitState
+  updatedAt        DateTime      @updatedAt
+
+  @@index([channelId, state])
+  @@index([channelId, creatorUsername])
+  @@index([channelId, assigneeUsername])
+}
+
 model ResumeWatermark {
   key       String   @id
   resumedAt DateTime

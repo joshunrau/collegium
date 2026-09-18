@@ -1,12 +1,14 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
+import { TasksService } from '@/tasks/tasks.service.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -32,6 +34,8 @@ describe('SystemPromptRenderer', () => {
   let systemPromptRenderer: SystemPromptRenderer;
   let toolRegistry: MockedInstance<ToolRegistry>;
   let windowService: MockedInstance<WindowService>;
+  let agentRegistry: MockedInstance<AgentRegistry>;
+  let tasksService: MockedInstance<TasksService>;
 
   beforeEach(async () => {
     memoryService = MockFactory.createMock(MemoryService);
@@ -46,6 +50,10 @@ describe('SystemPromptRenderer', () => {
     windowService = MockFactory.createMock(WindowService);
     windowService.reachesBackTo.mockReturnValue(undefined);
     windowService.readRecentActions.mockResolvedValue([]);
+    agentRegistry = MockFactory.createMock(AgentRegistry);
+    agentRegistry.settingsFor.mockReturnValue(undefined);
+    tasksService = MockFactory.createMock(TasksService);
+    tasksService.listOpenFor.mockResolvedValue([]);
     const moduleRef = await Test.createTestingModule({
       providers: [
         SystemPromptRenderer,
@@ -54,7 +62,9 @@ describe('SystemPromptRenderer', () => {
         { provide: RosterService, useValue: rosterService },
         { provide: SkillsService, useValue: skillsService },
         { provide: ToolRegistry, useValue: toolRegistry },
-        { provide: WindowService, useValue: windowService }
+        { provide: WindowService, useValue: windowService },
+        { provide: AgentRegistry, useValue: agentRegistry },
+        { provide: TasksService, useValue: tasksService }
       ]
     }).compile();
     systemPromptRenderer = moduleRef.get(SystemPromptRenderer);
@@ -177,10 +187,11 @@ Colleagues in this channel:
     const updated = await renderParts();
     expect(updated.stable).toBe(initial.stable);
     expect(updated.stable).toContain('## Skills');
+    expect(initial.memories).toBe('');
     expect(initial.dynamic).toBe('');
-    expect(updated.dynamic).toContain('## Memories');
+    expect(updated.memories).toContain('## Memories');
     expect(updated.dynamic).toContain('## Peers');
-    expect(await render()).toBe(`${updated.stable}\n\n${updated.dynamic}`);
+    expect(await render()).toBe(`${updated.stable}\n\n${updated.memories}\n\n${updated.dynamic}`);
   });
 
   it('should omit the earlier actions section when the window reaches the start of the channel (§3.8)', async () => {
@@ -212,13 +223,57 @@ Colleagues in this channel:
     expect((await renderParts(new Date(1000))).dynamic).toContain('- [fetched https://x/a] (x2)\n- [ran ls (0)]');
   });
 
-  it('should place the earlier actions between memories and peers in the dynamic half (§3.8)', async () => {
+  it('should place the earlier actions after the memories boundary and before peers (§3.8)', async () => {
     memoryService.list.mockResolvedValue([{ description: 'casey prefers bullets', reference: 'memory-1' }]);
     rosterService.getPeers.mockReturnValue([PEER]);
     windowService.readRecentActions.mockResolvedValue(['[read notes.md (12 bytes)]']);
-    const { dynamic, stable } = await renderParts(new Date(1000));
+    const { dynamic, memories, stable } = await renderParts(new Date(1000));
     expect(stable).not.toContain('## Earlier in this channel');
-    expect(dynamic.indexOf('## Earlier in this channel')).toBeGreaterThan(dynamic.indexOf('## Memories'));
+    expect(memories).toContain('## Memories');
+    expect(memories).not.toContain('## Earlier in this channel');
     expect(dynamic.indexOf('## Earlier in this channel')).toBeLessThan(dynamic.indexOf('## Peers'));
+  });
+
+  it('should list open work for an agent holding a tasks tool, oldest first, capped with a remainder (§3.15)', async () => {
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['tasks', 'assign'] }]);
+    agentRegistry.settingsFor.mockReturnValue({ openUnitCap: 20, shownInPrompt: 1 });
+    tasksService.listOpenFor.mockResolvedValue([
+      {
+        assigneeUsername: 'tess',
+        createdAt: new Date(Date.now() - 2 * 3_600_000),
+        creatorUsername: 'mira',
+        outcome: 'a schedule for the offsite',
+        reference: 'abcd1234',
+        state: 'assigned'
+      },
+      {
+        assigneeUsername: 'mira',
+        createdAt: new Date(),
+        creatorUsername: 'tess',
+        outcome: 'a venue shortlist',
+        reference: 'efgh5678',
+        state: 'review'
+      }
+    ]);
+    const { dynamic } = await renderParts();
+    expect(dynamic).toContain(
+      '## Open work\n\nUnits you handed over or were handed in this channel, oldest first; read one in full with tasks__read:\n\n- [abcd1234] to @tess · assigned · 2h 0m — a schedule for the offsite\n\n…and 1 more.'
+    );
+    expect(tasksService.listOpenFor).toHaveBeenCalledWith({ agentUsername: 'mira', channelId: 'channel-1' });
+  });
+
+  it('should omit open work for an agent holding no tasks tool (§3.15)', async () => {
+    tasksService.listOpenFor.mockResolvedValue([
+      {
+        assigneeUsername: 'tess',
+        createdAt: new Date(),
+        creatorUsername: 'mira',
+        outcome: 'anything',
+        reference: 'abcd1234',
+        state: 'assigned'
+      }
+    ]);
+    expect((await renderParts()).dynamic).not.toContain('## Open work');
+    expect(tasksService.listOpenFor).not.toHaveBeenCalled();
   });
 });

@@ -30,7 +30,7 @@ export function toPromptCaching(request: CompletionRequest) {
     .with('openai', () => ({ prompt_cache_breakpoint: { mode: 'explicit' } as const }))
     .otherwise(() => undefined);
   const content = breakpoint
-    ? [request.systemPrompt.stable, request.systemPrompt.dynamic]
+    ? [request.systemPrompt.stable, request.systemPrompt.memories, request.systemPrompt.dynamic]
         .filter((text) => text !== '')
         .map((text) => ({ text, type: 'text' as const, ...breakpoint }))
     : renderSystemPrompt(request.systemPrompt);

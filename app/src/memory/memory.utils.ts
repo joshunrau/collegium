@@ -1,11 +1,10 @@
-import type { MemoryFailure } from './memory.types.ts';
+import { renderReference } from '@/utils/reference.utils.ts';
 
-/** eight base36 characters is ~2×10¹² values; at the fifty-entry cap a collision is ~6×10⁻¹⁰, and every character dropped multiplies that by 36 */
-const MEMORY_REFERENCE_LENGTH = 8;
+import type { MemoryFailure } from './memory.types.ts';
 
 /** what the model, the trace, and /memory show for an entry: a prefix of its id, which the store resolves back (§3.6) */
 export function renderMemoryReference(id: string): string {
-  return id.slice(0, MEMORY_REFERENCE_LENGTH);
+  return renderReference(id);
 }
 
 export function renderUnresolvedReference(failure: MemoryFailure.Unresolved): string {

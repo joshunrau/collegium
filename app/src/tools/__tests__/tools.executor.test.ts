@@ -55,8 +55,9 @@ const FIXTURE_TOOLSET = defineToolset({
     },
     poster: {
       description: 'Returns a post beside its text.',
-      execute: () =>
-        { return Result.ok({ post: { onPublished: () => Promise.resolve(), text: '@owen take this' }, text: 'handed' }); },
+      execute: () => {
+        return Result.ok({ post: { onPublished: () => Promise.resolve(), text: '@owen take this' }, text: 'handed' });
+      },
       parameters: z.object({})
     },
     sleepy: {

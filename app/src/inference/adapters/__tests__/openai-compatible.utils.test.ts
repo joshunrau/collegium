@@ -13,7 +13,7 @@ const request: CompletionRequest = {
   cacheKey: 'mira:channel-1',
   messages: [{ content: 'Hello', role: 'user' }],
   model: DEEPSEEK_FLASH,
-  systemPrompt: { dynamic: 'Current memories and peers', stable: 'Instructions and skills' },
+  systemPrompt: { dynamic: 'Current memories and peers', memories: '', stable: 'Instructions and skills' },
   tools: []
 };
 
@@ -138,7 +138,7 @@ describe('toCompletionBody', () => {
     const body = toCompletionBody({
       ...request,
       messages: [{ content: 'All done', role: 'assistant' }],
-      systemPrompt: { dynamic: '', stable: 'Be helpful' }
+      systemPrompt: { dynamic: '', memories: '', stable: 'Be helpful' }
     });
 
     expect(body.messages).toStrictEqual([

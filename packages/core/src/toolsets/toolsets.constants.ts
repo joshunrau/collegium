@@ -1,5 +1,5 @@
 import { renderToolDisplayName } from '../tools.ts';
-import { $MailSettings, $MemorySettings, $WebSettings } from './toolsets.schemas.ts';
+import { $MailSettings, $MemorySettings, $TasksSettings, $WebSettings } from './toolsets.schemas.ts';
 
 import type { ToolsetDef } from './toolsets.types.ts';
 
@@ -24,6 +24,12 @@ export const MEMORY_TOOLSET_DEF = {
 export const SHELL_TOOLSET_DEF = { name: 'shell', tools: ['run'] } as const satisfies ToolsetDef;
 
 export const SKILLS_TOOLSET_DEF = { name: 'skills', tools: ['load'] } as const satisfies ToolsetDef;
+
+export const TASKS_TOOLSET_DEF = {
+  name: 'tasks',
+  settings: $TasksSettings,
+  tools: ['assign', 'close', 'read', 'report']
+} as const satisfies ToolsetDef;
 
 export const TRIGGERS_TOOLSET_DEF = { name: 'triggers', tools: ['resolve'] } as const satisfies ToolsetDef;
 
@@ -51,6 +57,7 @@ export const GRANTABLE_TOOLSET_DEFS = [
   MAIL_TOOLSET_DEF,
   MEMORY_TOOLSET_DEF,
   SHELL_TOOLSET_DEF,
+  TASKS_TOOLSET_DEF,
   WEB_TOOLSET_DEF,
   WORKSPACE_TOOLSET_DEF
 ] as const;

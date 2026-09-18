@@ -28,7 +28,7 @@ export function bootProbeRequest(model: $ModelRef): CompletionRequest {
     cacheKey: 'boot-verification',
     messages: [{ content: 'ping', role: 'user' }],
     model,
-    systemPrompt: { dynamic: '', stable: '' },
+    systemPrompt: { dynamic: '', memories: '', stable: '' },
     tools: []
   };
 }
@@ -53,7 +53,7 @@ export function toReplayableToolCall(call: ToolCall | UnparsedToolCall): ToolCal
 }
 
 export function renderSystemPrompt(prompt: SystemPrompt): string {
-  return [prompt.stable, prompt.dynamic].filter((part) => part !== '').join('\n\n');
+  return [prompt.stable, prompt.memories, prompt.dynamic].filter((part) => part !== '').join('\n\n');
 }
 
 export function describeCredentialRefusal({

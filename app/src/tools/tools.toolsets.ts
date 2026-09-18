@@ -8,6 +8,7 @@ import { MAIL_TOOLSET } from '@/mail/mail.toolset.ts';
 import { MEMORY_TOOLSET } from '@/memory/memory.toolset.ts';
 import { SHELL_TOOLSET } from '@/shell/shell.toolset.ts';
 import { SKILLS_TOOLSET } from '@/skills/skills.toolset.ts';
+import { TASKS_TOOLSET } from '@/tasks/tasks.toolset.ts';
 import { TRIGGERS_TOOLSET } from '@/triggers/triggers.toolset.ts';
 import { WEB_TOOLSET } from '@/web/web.toolset.ts';
 import { WORKSPACE_TOOLSET } from '@/workspace/workspace.toolset.ts';
@@ -21,6 +22,7 @@ const IMPLEMENTATIONS = {
   memory: MEMORY_TOOLSET,
   shell: SHELL_TOOLSET,
   skills: SKILLS_TOOLSET,
+  tasks: TASKS_TOOLSET,
   triggers: TRIGGERS_TOOLSET,
   web: WEB_TOOLSET,
   workspace: WORKSPACE_TOOLSET

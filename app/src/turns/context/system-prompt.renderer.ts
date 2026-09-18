@@ -1,5 +1,7 @@
+import { TASKS_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Injectable } from '@nestjs/common';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { PERSONALITY_PROMPTS } from '@/agents/personalities/personalities.constants.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
@@ -10,6 +12,8 @@ import { renderSystemPrompt } from '@/inference/inference.utils.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
 import { deriveShellHomeDir } from '@/shell/shell.utils.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
+import { TasksService } from '@/tasks/tasks.service.ts';
+import { renderOpenUnitLine } from '@/tasks/tasks.utils.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 import { RECENT_ACTION_LINES } from './context.constants.ts';
@@ -23,9 +27,11 @@ import { collapseRepeatedLines } from './system-prompt.utils.ts';
 @Injectable()
 export class SystemPromptRenderer {
   constructor(
+    private readonly agentRegistry: AgentRegistry,
     private readonly memoryService: MemoryService,
     private readonly rosterService: RosterService,
     private readonly skillsService: SkillsService,
+    private readonly tasksService: TasksService,
     private readonly textFormatter: TextFormatter,
     private readonly toolRegistry: ToolRegistry,
     private readonly windowService: WindowService
@@ -55,14 +61,19 @@ export class SystemPromptRenderer {
       this.renderPreamble(profile),
       this.renderSkills(profile)
     ];
+    const memories = [this.renderMemories(await this.memoryService.list(profile.username))];
     const dynamic = [
-      this.renderMemories(await this.memoryService.list(profile.username)),
       await this.renderRecentActions(channelId, profile, input.windowReachesBackTo),
-      this.renderPeers(channelId, profile)
+      this.renderPeers(channelId, profile),
+      await this.renderOpenWork(channelId, profile)
     ];
     return {
       dynamic: this.textFormatter.formatParagraphs(
         dynamic.filter((section) => section !== undefined),
+        {}
+      ),
+      memories: this.textFormatter.formatParagraphs(
+        memories.filter((section) => section !== undefined),
         {}
       ),
       stable: this.textFormatter.formatParagraphs(
@@ -120,6 +131,31 @@ export class SystemPromptRenderer {
           memories.map((memory) => `[${memory.reference}] ${memory.description}`)
         )
       }
+    );
+  }
+
+  /** §3.15 — the units this agent owes or is owed here; a unit is never truncated, the list is */
+  private async renderOpenWork(channelId: string, profile: AgentProfile): Promise<string | undefined> {
+    const holdsTasks = this.toolRegistry.listFor(profile).some(({ id: [namespace] }) => namespace === 'tasks');
+    if (!holdsTasks) {
+      return undefined;
+    }
+    const units = await this.tasksService.listOpenFor({ agentUsername: profile.username, channelId });
+    if (units.length === 0) {
+      return undefined;
+    }
+    const shown = this.agentRegistry.settingsFor(TASKS_TOOLSET_DEF, profile.username)?.shownInPrompt ?? units.length;
+    const now = new Date();
+    const lines = units.slice(0, shown).map((unit) => renderOpenUnitLine(unit, profile.username, now));
+    const remainder = units.length - lines.length;
+    return this.textFormatter.formatParagraphs(
+      [
+        '## Open work',
+        'Units you handed over or were handed in this channel, oldest first; read one in full with tasks__read:',
+        '{listing}',
+        ...(remainder > 0 ? [`…and ${remainder} more.`] : [])
+      ],
+      { listing: this.textFormatter.formatBullets(lines) }
     );
   }
 
