@@ -30,12 +30,12 @@ describe('TASKS_TOOLSET', () => {
 
   it('should return the assignment post addressed to the assignee, whose landing commits the unit (§3.15)', async () => {
     tasksService.prepareAssign.mockResolvedValue(
-      Result.ok({ prepared: PREPARED, text: '@owen — work unit `unit-abc`' })
+      Result.ok({ addressee: 'owen', prepared: PREPARED, text: '@owen — work unit `unit-abc`' })
     );
     tasksService.commitAssign.mockResolvedValue(undefined);
     const result = await executeTool(TASKS_TOOLSET.tools.assign, ASSIGN_ARGS, context);
     expect(result.value).toMatchObject({
-      post: { text: '@owen — work unit `unit-abc`' },
+      post: { addressee: 'owen', text: '@owen — work unit `unit-abc`' },
       text: 'unit unit-abc assigned to @owen'
     });
     expect(tasksService.commitAssign).not.toHaveBeenCalled();

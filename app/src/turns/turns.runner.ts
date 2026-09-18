@@ -927,14 +927,15 @@ export class TurnRunner {
    * output (§7.1); landed and recorded, the tool is told, and only then writes.
    */
   private async publishToolPost(input: RunInput, state: TurnState, post: ToolPost): Promise<ToolPostOutcome> {
-    const addressable = this.asAddressablePost(input, post.text);
+    const text = this.multiMentionPolicy.stripAgentMentionsExcept(post.text, post.addressee);
+    const addressable = this.asAddressablePost(input, text);
     if (this.multiMentionPolicy.refuses(addressable)) {
       return { kind: 'refused', output: 'post refused: it addresses more than one colleague' };
     }
     if (this.multiMentionPolicy.refusesSecondAddressee(addressable, state.addressedPeer)) {
       return { kind: 'refused', output: `post refused: this turn has already addressed @${state.addressedPeer}` };
     }
-    const sent = await this.publish(input, state, post.text, 'notice');
+    const sent = await this.publish(input, state, text, 'notice');
     if (!sent.success) {
       this.loggingService.error(new Error(`failed to publish a tool post: ${sent.error.message}`));
       return { kind: 'undelivered', outcome: await this.close(state, 'delivery_failure') };

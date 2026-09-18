@@ -121,6 +121,7 @@ describe('TurnRunner', () => {
     multiMentionPolicy.addresseesOf.mockReturnValue([]);
     multiMentionPolicy.refuses.mockReturnValue(false);
     multiMentionPolicy.refusesSecondAddressee.mockReturnValue(false);
+    multiMentionPolicy.stripAgentMentionsExcept.mockImplementation((text: string) => text);
     multiMentionPolicy.stripAgentMentions.mockImplementation((content) => content);
     const statusPostService = MockFactory.createMock(StatusPostService);
     statusPostService.open.mockReturnValue(statusHandle);
@@ -1008,6 +1009,22 @@ describe('TurnRunner', () => {
       expect(sends.map((send) => send.text)).toStrictEqual(['@owen — work unit `abcd1234`', 'handed over']);
     });
 
+    it('should let a tool post mention its addressee alone (§4.5)', async () => {
+      multiMentionPolicy.stripAgentMentionsExcept.mockImplementation((text: string, addressee: string | undefined) => {
+        return text.replaceAll(/@(\w+)/gu, (mention, name: string) => (name === addressee ? mention : name));
+      });
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
+      toolExecutor.execute.mockResolvedValueOnce({
+        kind: 'continue',
+        output: 'assigned',
+        post: { addressee: 'owen', onPublished: () => Promise.resolve(), text: '@owen take this from @tess' }
+      });
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      await run();
+      expect(sends[0]?.text).toBe('@owen take this from tess');
+      expect(multiMentionPolicy.stripAgentMentionsExcept).toHaveBeenCalledWith('@owen take this from @tess', 'owen');
+    });
+
     it('should refuse a post addressing a second peer as the call’s result, writing nothing', async () => {
       const onPublished = vi.fn<(postId: string) => Promise<void>>();
       multiMentionPolicy.refusesSecondAddressee.mockReturnValueOnce(true);
@@ -1390,9 +1407,9 @@ describe('TurnRunner', () => {
   it('should keep every result of one completion verbatim until the model has read it (§3.8)', async () => {
     toolRegistry.isSupersedable.mockReturnValue(true);
     toolRegistry.isConcurrent.mockReturnValue(true);
-    toolExecutor.execute.mockImplementation(({ call }) =>
-      { return Promise.resolve({ kind: 'continue', output: `page ${call.id}` }); }
-    );
+    toolExecutor.execute.mockImplementation(({ call }) => {
+      return Promise.resolve({ kind: 'continue', output: `page ${call.id}` });
+    });
     const seen: string[][] = [];
     const snapshot = (request: CompletionRequest) => {
       seen.push(request.messages.filter((message) => message.role === 'tool').map((message) => message.content));

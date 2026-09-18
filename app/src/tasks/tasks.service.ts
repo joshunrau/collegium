@@ -2,6 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
+import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
@@ -43,8 +44,8 @@ type TransitionInput = {
   readonly reference: string;
 };
 
-/** what a verb rendered but has not written: the post text the framework publishes, and what to commit once it has landed */
-type Prepared<TPrepared> = { readonly prepared: TPrepared; readonly text: string };
+/** what a verb rendered but has not written: the post text the framework publishes, the one peer it addresses, and what to commit once it has landed */
+type Prepared<TPrepared> = { readonly addressee?: string; readonly prepared: TPrepared; readonly text: string };
 
 /**
  * §3.15 — the record of delegated work. Every verb is two methods: `prepare*` validates against
@@ -60,6 +61,7 @@ export class TasksService {
     private readonly agentRegistry: AgentRegistry,
     configService: ConfigService,
     private readonly loggingService: LoggingService,
+    private readonly multiMentionPolicy: MultiMentionPolicy,
     private readonly rosterService: RosterService,
     @InjectModel('Turn') private readonly turns: Model<'Turn'>,
     @InjectModel('WorkUnit') private readonly units: Model<'WorkUnit'>
@@ -150,7 +152,7 @@ export class TasksService {
       id: createRecordId(),
       outcome: input.outcome
     };
-    return Result.ok({ prepared, text: renderAssignmentPost(prepared) });
+    return Result.ok({ addressee: prepared.assigneeUsername, prepared, text: renderAssignmentPost(prepared) });
   }
 
   /** §8.4 — a person may cancel a unit its creator will never reach; the post is the system bot's, and names no agent with an @ */
@@ -169,7 +171,10 @@ export class TasksService {
     }
     return Result.ok({
       prepared: { to: 'cancelled', unitId: unit.value.id },
-      text: renderHumanCancellationPost(unit.value, input.byUsername)
+      text: renderHumanCancellationPost(
+        { ...unit.value, outcome: this.multiMentionPolicy.stripAgentMentions(unit.value.outcome) },
+        input.byUsername
+      )
     });
   }
 
@@ -206,6 +211,7 @@ export class TasksService {
       return Result.err({ from: unit.value.state, kind: 'illegal-transition', to: input.to });
     }
     return Result.ok({
+      addressee: unit.value.creatorUsername,
       prepared: { to: input.to, unitId: unit.value.id },
       text: renderReportPost(unit.value, input.to, input.summary)
     });

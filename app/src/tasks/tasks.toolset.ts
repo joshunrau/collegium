@@ -37,9 +37,9 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         if (!prepared.success) {
           return refused(prepared.error);
         }
-        const { prepared: unit, text } = prepared.value;
+        const { addressee, prepared: unit, text } = prepared.value;
         return Result.ok({
-          post: { onPublished: (postId) => context.tasks.commitAssign(unit, postId), text },
+          post: { addressee, onPublished: (postId) => context.tasks.commitAssign(unit, postId), text },
           text: `unit ${unit.id.slice(0, 8)} assigned to @${unit.assigneeUsername}`
         });
       },
@@ -122,9 +122,9 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         if (!prepared.success) {
           return refused(prepared.error);
         }
-        const { prepared: transition, text } = prepared.value;
+        const { addressee, prepared: transition, text } = prepared.value;
         return Result.ok({
-          post: { onPublished: (postId) => context.tasks.commitTransition(transition, postId), text },
+          post: { addressee, onPublished: (postId) => context.tasks.commitTransition(transition, postId), text },
           text: `unit ${args.reference} reported ${args.state}`
         });
       },

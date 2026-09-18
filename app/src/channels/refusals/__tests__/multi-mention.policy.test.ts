@@ -104,6 +104,14 @@ describe('MultiMentionPolicy', () => {
     });
   });
 
+  describe('stripAgentMentionsExcept', () => {
+    it('should keep the addressee’s mention and strip every other agent’s (§4.5)', () => {
+      expect(multiMentionPolicy.stripAgentMentionsExcept('@owen, ask @tess and @casey', 'owen')).toBe(
+        '@owen, ask tess and @casey'
+      );
+    });
+  });
+
   describe('stripAgentMentions', () => {
     it('should strip agent mentions and leave human mentions alone', () => {
       expect(multiMentionPolicy.stripAgentMentions('asking @owen about what @casey said')).toBe(

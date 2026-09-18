@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
+import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
@@ -40,6 +41,8 @@ describe('TasksService', () => {
       return channelId === 'channel-1' ? [MIRA, OWEN, OMAR] : [MIRA];
     });
     loggingService = MockFactory.createMock(LoggingService);
+    const multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
+    multiMentionPolicy.stripAgentMentions.mockImplementation((text: string) => text.replaceAll('@omar', 'omar'));
     const moduleRef = await Test.createTestingModule({
       providers: [
         TasksService,
@@ -49,6 +52,7 @@ describe('TasksService', () => {
           useValue: createConfigServiceMock({ turns: { chainLengthLimit: 3, delegationDepthLimit: 2 } })
         },
         { provide: LoggingService, useValue: loggingService },
+        { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         { provide: RosterService, useValue: rosterService },
         {
           provide: getModelToken('Turn'),
@@ -178,6 +182,16 @@ describe('TasksService', () => {
 
   it('should let a person cancel an open unit, naming the parties without a mention (§8.4)', async () => {
     const unit = await assign();
+    await tasksService.commitAssign({ ...unit, id: 'unit-x', outcome: 'ask @omar for the venue' }, 'post-x');
+    const stripped = (
+      await tasksService.prepareCancelOnHumanAuthority({
+        agentUsername: 'mira',
+        byUsername: 'casey',
+        channelId: 'channel-1',
+        reference: 'unit-x'
+      })
+    ).unwrap();
+    expect(stripped.text).toContain(': ask omar for the venue');
     const prepared = (
       await tasksService.prepareCancelOnHumanAuthority({
         agentUsername: 'mira',
