@@ -91,11 +91,12 @@ describe('TransportRetrier', () => {
     expect(attemptTimes).toStrictEqual([0]);
   });
 
-  it('does not retry a malformed response', async () => {
-    complete.mockResolvedValue(failure({ kind: 'malformed', message: 'completion returned empty content' }));
+  it('retries a malformed completion as transport (§7.2)', async () => {
+    complete
+      .mockResolvedValueOnce(failure({ kind: 'malformed', message: 'completion returned empty content' }))
+      .mockResolvedValueOnce(completion);
 
-    await completeWithTimers();
-
-    expect(attemptTimes).toStrictEqual([0]);
+    await expect(completeWithTimers()).resolves.toStrictEqual(completion);
+    expect(attemptTimes).toStrictEqual([0, 100]);
   });
 });

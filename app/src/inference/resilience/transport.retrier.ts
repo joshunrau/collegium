@@ -14,6 +14,11 @@ export class TransportRetrier extends InferenceClient {
     super();
   }
 
+  /** §7.2 — a malformed completion is a delivery the provider got wrong, retried as transport */
+  private static isRetried(failure: InferenceFailure): boolean {
+    return failure.kind === 'transport' || failure.kind === 'malformed';
+  }
+
   /** an aborted request is never retried: its turn is gone, and a retry would spend a full prompt on nobody */
   async complete(
     request: CompletionRequest,
@@ -21,10 +26,11 @@ export class TransportRetrier extends InferenceClient {
   ): Promise<Result<CompletionResult, InferenceFailure>> {
     let result = await this.inner.complete(request, options);
     for (let attempt = 1; attempt < this.policy.maxAttempts; attempt++) {
-      if (result.success || result.error.kind !== 'transport' || options.signal?.aborted) {
+      if (result.success || !TransportRetrier.isRetried(result.error) || options.signal?.aborted) {
         return result;
       }
-      await delay(result.error.retryAfterMs ?? this.policy.backoffMs * 2 ** (attempt - 1));
+      const retryAfterMs = result.error.kind === 'transport' ? result.error.retryAfterMs : undefined;
+      await delay(retryAfterMs ?? this.policy.backoffMs * 2 ** (attempt - 1));
       if (options.signal?.aborted) {
         return result;
       }
