@@ -1,3 +1,69 @@
+## [0.0.1-beta.23](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.22...v0.0.1-beta.23) (2026-09-18)
+
+### ⚠ BREAKING CHANGES
+
+- **plugins:** a plugin tool compiled without `approval` no longer loads. Add `approval: null`
+  to every tool that does not gate.
+
+### Features
+
+- **approvals:** let an agent ask the channel a question and wait for the answer ([ed24e61](https://github.com/joshunrau/collegium/commit/ed24e6176e55482d653c2e62544aea305d32e3ad))
+- **approvals:** say which action this is and who asked above every approval payload ([d8a7492](https://github.com/joshunrau/collegium/commit/d8a74929e51384f3427e25b977672bd3a6cd1d81))
+- **chat:** parse the files a post carries ([c5c0fb3](https://github.com/joshunrau/collegium/commit/c5c0fb3c910f4edffcc771b3c6a36a33a5373360))
+- **chat:** require a shared secret on every callback endpoint ([87ea5f2](https://github.com/joshunrau/collegium/commit/87ea5f20fd2052b1a11f756892a6e7e3145c5b6a))
+- **commands:** add /collegium steer ([cf5f018](https://github.com/joshunrau/collegium/commit/cf5f0181e47cdcd7f119f74f402f96252b2921b7))
+- **commands:** add /collegium units to list and cancel delegated work ([b149658](https://github.com/joshunrau/collegium/commit/b14965877c7226b03194e90145f3623e7baba33c))
+- **commands:** list the approvals still waiting on a human ([ee88049](https://github.com/joshunrau/collegium/commit/ee88049e216a0a65b1341b8372b7007e6d535c10))
+- **commands:** mark which of an agent's tools need a human ([e852d5e](https://github.com/joshunrau/collegium/commit/e852d5e5b3fddeba57c4e32f8a2ab6e46d3356f1))
+- **config:** let systemPrompt name a file beneath RESOURCES_ROOT ([98c1bc0](https://github.com/joshunrau/collegium/commit/98c1bc0066050d218319d9049eb60604a304f6e6))
+- **conversations:** name a post's attached files in the window ([329c1bc](https://github.com/joshunrau/collegium/commit/329c1bc3fe0056f8067c44e1a06d7b11b0c63d50))
+- **inference:** classify a length rejection as a context overflow ([b94d409](https://github.com/joshunrau/collegium/commit/b94d409804443decbea663c9f4e2375b4c5de401))
+- **inference:** surface a call with unparseable arguments instead of failing the completion ([001a559](https://github.com/joshunrau/collegium/commit/001a5597c827455201de42f9a7a2fe39f7e8e3ff))
+- **memory:** evict the least recently used entry rather than the oldest written ([8b2131f](https://github.com/joshunrau/collegium/commit/8b2131ff3256953fd7fca1583fcf68641ddd95b6))
+- **memory:** record when an entry's body was last read ([9ac8763](https://github.com/joshunrau/collegium/commit/9ac8763dfaba994acad88d969fa74422cef9d95f))
+- **runtime:** verify provider credentials at boot ([258e2d5](https://github.com/joshunrau/collegium/commit/258e2d5e05bf1650fd418bb7bd5f135d6869f667))
+- **schedules:** declare recurring work in config and announce it as a trigger ([3d1cb90](https://github.com/joshunrau/collegium/commit/3d1cb90cf0f065be85f486cc1186fcd75f5a59a7))
+- **skills:** add the understanding-collegium core skill ([91c0dee](https://github.com/joshunrau/collegium/commit/91c0deee3dfda3387803617946d662d18cf0ac32))
+- **skills:** declare the tools a skill needs and refuse an uncovered grant at boot ([e456cd1](https://github.com/joshunrau/collegium/commit/e456cd11fd052e44f0c6d931b295c0672db53adb))
+- **skills:** let a skill ship reference documents beside its procedure ([ebd52f9](https://github.com/joshunrau/collegium/commit/ebd52f9db178cf9bd6069cfe95d1b4559ce9eb1e))
+- **tasks:** record delegated work as units whose every state change is a post ([e5a99f4](https://github.com/joshunrau/collegium/commit/e5a99f4f2819c96138fcffd20bab77e4207bb820))
+- **tools:** let a framework tool return a post the runner publishes ([fe66889](https://github.com/joshunrau/collegium/commit/fe6688922f14195b45e6855479aa6a484d8b1fb1))
+- **turns:** bound a turn to one addressed peer across every post it emits ([79b07c5](https://github.com/joshunrau/collegium/commit/79b07c5ea5509210aa78ed40c7de2becb68a7c16))
+- **turns:** count a chain by its root and refuse the turn past the limit at admission ([bf834b3](https://github.com/joshunrau/collegium/commit/bf834b32c5489d15cd2496d8956645df69b99109))
+- **turns:** forgive one tool call with unparseable arguments per turn ([de6efd9](https://github.com/joshunrau/collegium/commit/de6efd97486beffe62d438ef992c9077af0e7aed))
+- **turns:** let a running turn take steering from a human ([a9b9753](https://github.com/joshunrau/collegium/commit/a9b975395af0518225f19b2896d2357a409f5c0e))
+- **turns:** list the agent's own earlier actions past the window in the prompt ([50a9f6d](https://github.com/joshunrau/collegium/commit/50a9f6daf3add30a515a78a967ba1b270119eb6a))
+- **turns:** name the agent's directories in the preamble ([0035985](https://github.com/joshunrau/collegium/commit/0035985fbd65a158ad44474118ce39e462a32e7e))
+- **turns:** record the post every chain descends from on each turn ([78db7dd](https://github.com/joshunrau/collegium/commit/78db7dd044e4d271528311fcfe03b897e4140c3d))
+- **turns:** retire stale pages under context pressure and stop when they run out ([032a162](https://github.com/joshunrau/collegium/commit/032a162f496f8a1ccb6d4e0258644128d1cd9a04))
+- **turns:** state how long a turn ran on the status post's closing line ([6098426](https://github.com/joshunrau/collegium/commit/60984261c9de3f49c1e29f3c1547f65899abd7a4))
+- **workspace:** read the workspace with typed, ungated tools ([9e8fa9e](https://github.com/joshunrau/collegium/commit/9e8fa9e5b1975774ae5032a487b4d5c5e7e1f994))
+
+### Bug Fixes
+
+- **activation:** drop a peer mention the chain limit refused rather than re-queue it ([c6eb387](https://github.com/joshunrau/collegium/commit/c6eb3877e8f09f7f40910c2f576d3416e6d2b120))
+- **approvals:** strip peer mentions from a question and an approval payload before posting ([3fbb043](https://github.com/joshunrau/collegium/commit/3fbb043290b6c6eb88f52554bac1ee9534d64449))
+- **commands:** report a cancellation that did not post and hint at no approval elsewhere ([a63a3b1](https://github.com/joshunrau/collegium/commit/a63a3b1370a4d29a99ff869315f53575689036a9))
+- **memory:** rebuild the memory table so the migration applies to a store with rows ([aff9c3c](https://github.com/joshunrau/collegium/commit/aff9c3c1674e2a9057dc5a167f146604eec757ef))
+- **runtime:** close abandoned status posts and measure downtime against the process ([6428618](https://github.com/joshunrau/collegium/commit/6428618c1fba4454ac5eb5e0170c41af874a7593))
+- **skills:** refuse a skill directory no name list declares ([ceba454](https://github.com/joshunrau/collegium/commit/ceba4548735c55b35c083566118eaa292d98f8f2))
+- **skills:** refuse a skill outside the acting agent's manifest ([6ec1e94](https://github.com/joshunrau/collegium/commit/6ec1e94ebfdb25127611f9e96cd63bdcc6d8567c))
+- **turns:** end a turn after two consecutive rejected posts ([0a2935f](https://github.com/joshunrau/collegium/commit/0a2935fbef172767325ce3fe4628e2739c815488))
+- **turns:** import the agents module the prompt renderer now needs ([ee5af87](https://github.com/joshunrau/collegium/commit/ee5af8716f7dc8f6229afd3f25ce9e033c12ac57))
+- **turns:** keep unread results verbatim and name a colleague that asked ([6518030](https://github.com/joshunrau/collegium/commit/6518030c99a1fd6e8a8920720bf0a4f7f85b4045))
+- **turns:** let a tool post mention only the peer it addresses ([05e657d](https://github.com/joshunrau/collegium/commit/05e657d01cea43f7b52e8c3a82514205ddff2ebe))
+- **turns:** name the class of a provider rejection by its status code ([5032bc0](https://github.com/joshunrau/collegium/commit/5032bc05b73fc1c2ee0053e61300ec8444dc4219))
+- **turns:** reject a leaked tool call written as text ([de44b7b](https://github.com/joshunrau/collegium/commit/de44b7bd135b1502a2fe244d7ffc2d544a8ab240))
+- **web:** answer a non-http proxy request with 400 instead of crashing the process ([f192700](https://github.com/joshunrau/collegium/commit/f192700a9622e2fd014a44e4d62118dc8770664c))
+- **web:** resolve and pin every address the web tools open ([7df163f](https://github.com/joshunrau/collegium/commit/7df163fdb060f6254dc2f79ad6062265e7b1475d))
+- **workspace:** skip symlinks and stop a grep pattern that outruns its budget ([bf0a4a6](https://github.com/joshunrau/collegium/commit/bf0a4a6e6d1599b77a15a061b3c5128c89794d04))
+
+### Refactoring
+
+- **core:** move the token estimate behind one seam ([b2bebe0](https://github.com/joshunrau/collegium/commit/b2bebe0223bcfbb6a8a7b8ccc44d9f6b3a0b5dab))
+- **plugins:** require a plugin tool to state whether it gates ([d911941](https://github.com/joshunrau/collegium/commit/d91194138eb666733328f52fa34af9a82e370d09))
+- **turns:** render memory writes and deletes as ordinary tool-call lines ([b3d6af7](https://github.com/joshunrau/collegium/commit/b3d6af710e9520f17cfb4e471c9f95f1599f5f83))
+
 ## [0.0.1-beta.22](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.20...v0.0.1-beta.22) (2026-09-16)
 
 ### Features
