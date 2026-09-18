@@ -22,17 +22,21 @@ const SCENARIO = defineScenario({
 describe('Turn termination', () => {
   const harness = setupHarness(SCENARIO);
 
-  it('ends the turn and posts the error under the agent’s name on a semantic error (§7.1)', async () => {
-    const { agents, channels, inference } = harness();
-    inference.willReply({ agent: 'mira', contains: 'break' }, toolCallResponse('does_not_exist'));
+  it('answers a call naming no granted tool with the tools the agent holds and continues the turn (§7.2)', async () => {
+    const { channels, inference } = harness();
+    const reply = `renamed-${randomUUID()}`;
+    inference.willReply({ agent: 'mira', contains: 'misname' }, toolCallResponse('does_not_exist'));
+    inference.willReply({ agent: 'mira' }, textResponse(reply));
 
-    await channels.main.mention('mira', 'break please');
-    const notice = await channels.main.awaitPost({
-      description: 'the semantic error notice under the agent’s name',
-      match: (post) => post.authorId === agents.mira.userId && post.text.includes('internal error')
-    });
+    await channels.main.mention('mira', 'misname a tool please');
+    await channels.main.awaitReplyFrom('mira', { text: reply });
 
-    expect(notice.text).toContain('does_not_exist');
+    const fedBack = inference
+      .requestsFor('mira')
+      .at(-1)!
+      .messages.findLast((message) => message.role === 'tool');
+    expect(fedBack?.content).toContain('no tool named "does_not_exist"');
+    expect(fedBack?.content).toContain('memory__write');
   });
 
   it('forgives one tool call whose arguments never parsed and continues the turn (§7.2)', async () => {

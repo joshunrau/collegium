@@ -1,4 +1,4 @@
-import type { ToolResult, ToolTurnScope } from '@collegium/core/tools';
+import type { ToolApprovalPayload, ToolResult, ToolTurnScope } from '@collegium/core/tools';
 import type { AnyTool } from '@collegium/core/toolsets';
 
 export function buildToolTurnScope(overrides: Partial<ToolTurnScope> = {}): ToolTurnScope {
@@ -21,4 +21,9 @@ export async function executeTool(
   context: { readonly [key: string]: unknown; readonly turn: ToolTurnScope }
 ): Promise<ToolResult> {
   return tool.execute(args, context);
+}
+
+/** renders one concrete toolset tool's approval through the loose `AnyTool` surface, for a render that reads nothing but its arguments */
+export async function renderApproval(tool: AnyTool, args: unknown): Promise<ToolApprovalPayload | undefined> {
+  return tool.approval?.(args, {});
 }

@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
-import type { LockHandle } from '../channels.types.ts';
+import type { HeldLock, LockHandle } from '../channels.types.ts';
+
+type Holder = {
+  readonly acquiredAt: Date;
+  readonly handle: LockHandle;
+};
 
 /**
  * The concurrency unit of §5.1: one turn at a time per (agent, channel). In-memory only — §7.3
@@ -8,18 +13,18 @@ import type { LockHandle } from '../channels.types.ts';
  */
 @Injectable()
 export class ChannelLockService {
-  private readonly holders = new Map<string, Map<string, LockHandle>>();
+  private readonly holders = new Map<string, Map<string, Holder>>();
 
   /** synchronous by construction — no await between observing a free channel and claiming it (§5.1) */
   acquire(agentUsername: string, channelId: string): LockHandle | undefined {
-    const channelHolders = this.holders.get(channelId) ?? new Map<string, LockHandle>();
+    const channelHolders = this.holders.get(channelId) ?? new Map<string, Holder>();
     if (channelHolders.has(agentUsername)) {
       return undefined;
     }
     const handle: LockHandle = {
       release: () => {
         const current = this.holders.get(channelId);
-        if (current?.get(agentUsername) !== handle) {
+        if (current?.get(agentUsername)?.handle !== handle) {
           return;
         }
         current.delete(agentUsername);
@@ -28,7 +33,7 @@ export class ChannelLockService {
         }
       }
     };
-    channelHolders.set(agentUsername, handle);
+    channelHolders.set(agentUsername, { acquiredAt: new Date(), handle });
     this.holders.set(channelId, channelHolders);
     return handle;
   }
@@ -40,5 +45,12 @@ export class ChannelLockService {
   /** one input to §4.2 idle-gating — activation composes it with pending approvals and debounce */
   isChannelIdle(channelId: string): boolean {
     return (this.holders.get(channelId)?.size ?? 0) === 0;
+  }
+
+  /** every lock held now — what the §7.6 sweep measures a long turn against */
+  listHeld(): HeldLock[] {
+    return [...this.holders].flatMap(([channelId, channelHolders]) => {
+      return [...channelHolders].map(([agentUsername, { acquiredAt }]) => ({ acquiredAt, agentUsername, channelId }));
+    });
   }
 }

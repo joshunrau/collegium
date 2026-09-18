@@ -23,7 +23,8 @@ export const CONFIG_DEFAULTS = {
     systemBotUsername: 'orchestrator'
   },
   notifications: {
-    lifecycle: true
+    lifecycle: true,
+    stalls: { longTurnMs: 1_800_000, standingQueueMs: 600_000 }
   },
   providers: {
     deepseek: { baseUrl: 'https://api.deepseek.com' },

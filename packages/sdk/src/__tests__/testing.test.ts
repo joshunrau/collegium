@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { defineConfig } from '../index.ts';
 import { createTestContext, PluginToolFailureError } from '../testing.ts';
 
+import type { ApprovalContextFor } from '../tool.ts';
+
 const config = defineConfig({
   settings: z.strictObject({ limit: z.number().int().default(3) }),
   storage: { notes: z.object({ body: z.string().min(1), pinned: z.boolean().default(false) }) }
@@ -45,6 +47,16 @@ describe('createTestContext', () => {
     expect(await storage.notes.updateById('a', { pinned: true })).toMatchObject({ body: 'draft', pinned: true });
     await expect(storage.notes.updateById('a', { body: '' })).rejects.toThrow(z.ZodError);
     expect(await storage.notes.updateById('missing', { pinned: true })).toBeNull();
+  });
+
+  it('builds a context an approval render reads the stored record through (§3.4)', async () => {
+    const render = async (args: { id: string }, { settings, storage }: ApprovalContextFor<typeof config>) => {
+      const note = await storage.notes.findById(args.id);
+      return `delete "${note?.body}" (limit ${settings.limit})`;
+    };
+    const context = createTestContext(config);
+    await context.storage.notes.create({ body: 'draft', id: 'a' });
+    expect(await render({ id: 'a' }, context)).toBe('delete "draft" (limit 3)');
   });
 
   it('raises the failure the framework wrapper catches', () => {

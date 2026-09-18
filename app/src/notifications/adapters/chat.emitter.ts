@@ -1,8 +1,12 @@
+import type { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
 
 import { ChatGateway } from '@/chat/chat.gateway.ts';
+import type { ChatFailure } from '@/chat/chat.types.ts';
+import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
+import { renderElapsed } from '@/formatting/durations/duration.utils.ts';
 
 import { NotificationsEmitter } from '../notifications.emitter.ts';
 
@@ -12,31 +16,52 @@ import type { SystemEvent } from '../notifications.types.ts';
 export class ChatEmitter extends NotificationsEmitter {
   constructor(
     private readonly chatGateway: ChatGateway,
-    private readonly dateFormatter: DateFormatter
+    private readonly dateFormatter: DateFormatter,
+    private readonly transportRegistry: TransportRegistry
   ) {
     super();
   }
 
   async notify(event: SystemEvent): Promise<void> {
     const content = this.renderSystemEvent(event);
-    // a correction belongs under the post it corrects; everything else is framework-wide news for the main channel
+    // a notice about one channel belongs in it; everything else is framework-wide news for the main channel
     const posted =
-      'channelId' in event
-        ? await this.chatGateway.postAsSystemIn(event.channelId, content)
-        : await this.chatGateway.postAsSystem(content);
+      'channelId' in event ? await this.postIn(event, content) : await this.chatGateway.postAsSystem(content);
     if (!posted.success) {
       throw new Error(`mattermost refused the notice post: ${posted.error.message}`);
     }
   }
 
+  /**
+   * §7.6 — a stall notice the system bot is refused goes under the agent's own account, which is
+   * how a DM is recognised, as `/collegium` announcements recognise one (§7.5): by whether the
+   * notice landed rather than by asking what kind of channel it is.
+   */
+  private async postIn(
+    event: Extract<SystemEvent, { channelId: string }>,
+    content: string
+  ): Promise<Result<{ postId: string }, ChatFailure>> {
+    const posted = await this.chatGateway.postAsSystemIn(event.channelId, content);
+    const isStall = event.kind === 'dropped-handoff' || event.kind === 'long-turn' || event.kind === 'standing-queue';
+    if (posted.success || !isStall) {
+      return posted;
+    }
+    return this.transportRegistry.get(event.agentUsername).send({ channelId: event.channelId, text: content });
+  }
+
   private renderSystemEvent(event: SystemEvent): string {
     return (
       match(event)
-        // the agent is named without its @: a mention from the system bot would activate the very turn this refuses
+        // an agent is named without its @ throughout: a mention from the system bot activates the agent it names (§7.6)
         .with(
           { kind: 'chain-limit-refusal' },
           ({ agentUsername, limit }) =>
             `⛔ \`${agentUsername}\` was not activated: this chain has reached its limit of ${limit} turns. A fresh post from a person starts a fresh chain.`
+        )
+        .with(
+          { kind: 'dropped-handoff' },
+          ({ agentUsername, peerUsername }) =>
+            `↪️ \`${agentUsername}\` replied here without addressing anyone, so \`${peerUsername}\`, whose mention started that turn, was not woken. A post addressing \`${peerUsername}\` passes the reply on.`
         )
         .with({ kind: 'halt' }, ({ reason }) => {
           const cause =
@@ -45,7 +70,15 @@ export class ChatEmitter extends NotificationsEmitter {
               : `respond-to-all channel ${reason.channelId} now holds ${reason.agentUsernames.length} agents (${reason.agentUsernames.join(', ')})`;
           return `🛑 **Halted** — ${cause}. No agent will act until a human posts /collegium resume.`;
         })
-        .with({ kind: 'multi-mention-refusal' }, () => '⚠️ Address one agent per message.')
+        .with(
+          { kind: 'long-turn' },
+          ({ agentUsername, heldMs }) =>
+            `⏳ \`${agentUsername}\` has been in one turn here for ${renderElapsed(heldMs)} without waiting on anyone. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.`
+        )
+        // §4.5 — the refusal carries its remedy: a handle inside code is no mention in Mattermost's grammar
+        .with({ kind: 'multi-mention-refusal' }, () => {
+          return '⚠️ Address one agent per message. To name an agent without addressing it, put its handle in backticks: `@username`.';
+        })
         .with({ kind: 'offline' }, (event) => {
           return event.reason === 'crash'
             ? '🔴 **Offline** — the orchestrator crashed. Agents are not responding.'
@@ -71,6 +104,11 @@ export class ChatEmitter extends NotificationsEmitter {
             event.requeuedTurns === 0 ? '' : ` ${event.requeuedTurns} that had not yet acted went back into the queue.`;
           return `🟢 **Online** — the orchestrator started with ${event.agentUsernames.length} agent(s): ${roster}.${downtime}${abandoned}${requeued}`;
         })
+        .with(
+          { kind: 'standing-queue' },
+          ({ agentUsername }) =>
+            `⏸️ \`${agentUsername}\` has work waiting here and no turn running. A post addressing \`${agentUsername}\` starts the turn that reads it; /collegium queue ${agentUsername} shows what waits.`
+        )
         .exhaustive()
     );
   }

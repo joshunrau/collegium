@@ -3,6 +3,8 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ChatGateway } from '@/chat/chat.gateway.ts';
+import { ChatTransport } from '@/chat/chat.transport.ts';
+import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
@@ -14,8 +16,13 @@ import { ChatEmitter } from '../chat.emitter.ts';
 describe('ChatEmitter', () => {
   let chatEmitter: ChatEmitter;
   let chatGateway: MockedInstance<ChatGateway>;
+  let transport: MockedInstance<ChatTransport>;
 
   beforeEach(async () => {
+    transport = MockFactory.createMock(ChatTransport);
+    transport.send.mockResolvedValue(Result.ok({ createdAt: new Date(0), postId: 'post-2' }));
+    const transportRegistry = MockFactory.createMock(TransportRegistry);
+    transportRegistry.get.mockReturnValue(transport);
     chatGateway = MockFactory.createMock(ChatGateway);
     chatGateway.postAsSystem.mockResolvedValue(
       Result.ok({ authorUsername: 'collegium', createdAt: new Date(0), postId: 'post-1' })
@@ -28,7 +35,8 @@ describe('ChatEmitter', () => {
         ChatEmitter,
         DateFormatter,
         { provide: ChatGateway, useValue: chatGateway },
-        { provide: ConfigService, useValue: createConfigServiceMock() }
+        { provide: ConfigService, useValue: createConfigServiceMock() },
+        { provide: TransportRegistry, useValue: transportRegistry }
       ]
     }).compile();
     chatEmitter = moduleRef.get(ChatEmitter);
@@ -95,7 +103,10 @@ describe('ChatEmitter', () => {
 
   it('should post the §4.5 correction as a fixed template in the offending channel', async () => {
     await chatEmitter.notify({ channelId: 'channel-1', kind: 'multi-mention-refusal' });
-    expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith('channel-1', '⚠️ Address one agent per message.');
+    expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
+      'channel-1',
+      '⚠️ Address one agent per message. To name an agent without addressing it, put its handle in backticks: `@username`.'
+    );
     expect(chatGateway.postAsSystem).not.toHaveBeenCalled();
   });
 
@@ -111,6 +122,36 @@ describe('ChatEmitter', () => {
       '⛔ `mira` was not activated: this chain has reached its limit of 200 turns. A fresh post from a person starts a fresh chain.'
     );
     expect(chatGateway.postAsSystem).not.toHaveBeenCalled();
+  });
+
+  it('should post the §7.6 long-turn notice in the channel, naming the agent without a mention', async () => {
+    await chatEmitter.notify({ agentUsername: 'mira', channelId: 'channel-1', heldMs: 1_860_000, kind: 'long-turn' });
+    expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
+      'channel-1',
+      '⏳ `mira` has been in one turn here for 31m without waiting on anyone. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.'
+    );
+  });
+
+  it('should post the §7.6 dropped hand-off notice naming both agents without a mention', async () => {
+    await chatEmitter.notify({
+      agentUsername: 'naomi',
+      channelId: 'channel-1',
+      kind: 'dropped-handoff',
+      peerUsername: 'sam'
+    });
+    expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
+      'channel-1',
+      '↪️ `naomi` replied here without addressing anyone, so `sam`, whose mention started that turn, was not woken. A post addressing `sam` passes the reply on.'
+    );
+  });
+
+  it('should post a §7.6 notice the system bot is refused under the agent’s own account, as in a DM', async () => {
+    chatGateway.postAsSystemIn.mockResolvedValue(Result.err({ kind: 'api', message: 'not a member' }));
+    await chatEmitter.notify({ agentUsername: 'mira', channelId: 'dm-1', kind: 'standing-queue' });
+    expect(transport.send).toHaveBeenCalledWith({
+      channelId: 'dm-1',
+      text: '⏸️ `mira` has work waiting here and no turn running. A post addressing `mira` starts the turn that reads it; /collegium queue mira shows what waits.'
+    });
   });
 
   it('should post the §7.4 halt notice naming the turn ceiling', async () => {

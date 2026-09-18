@@ -84,6 +84,24 @@ export class ConversationsService {
       .exhaustive();
   }
 
+  /**
+   * §5.2 — whether the channel's store took, at or after `since`, a post a finished turn could owe
+   * an answer to. The agent's own posts, the system bot's and status posts are never such a post.
+   */
+  async hasPostsObservedSince(input: { agentUsername: string; channelId: string; since: Date }): Promise<boolean> {
+    const observed = await this.posts.findFirst({
+      select: { id: true },
+      where: {
+        authorKind: { not: 'system' },
+        authorUsername: { not: input.agentUsername },
+        channelId: input.channelId,
+        kind: { not: 'status' },
+        observedAt: { gte: input.since }
+      }
+    });
+    return observed !== null;
+  }
+
   async latestPostIdIn(channelId: string): Promise<string | undefined> {
     const latest = await this.posts.findFirst({
       orderBy: { createdAt: 'desc' },

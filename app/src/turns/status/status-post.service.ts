@@ -24,7 +24,8 @@ type OpenInput = {
  */
 export type StatusPostHandle = {
   appendTrace(line: string): void;
-  close(outcome: Exclude<TurnStatus, 'running'>): Promise<void>;
+  /** §8.1 — the closing edit names, by display name and count, the calls that may have changed something */
+  close(outcome: Exclude<TurnStatus, 'running'>, changedCalls: ReadonlyMap<string, number>): Promise<void>;
   /** text alongside a tool call is transient status, replaced on the next edit (§3.3) */
   setTransient(text: string): void;
 };
@@ -125,10 +126,11 @@ export class StatusPostService {
         state.traceLines.push(line);
         void schedule();
       },
-      close: (outcome) => {
+      close: (outcome, changedCalls) => {
         if (!touched) {
           return Promise.resolve();
         }
+        state.changedCalls = changedCalls;
         state.elapsedMs = Date.now() - openedAt;
         state.outcome = outcome;
         state.transientText = undefined;

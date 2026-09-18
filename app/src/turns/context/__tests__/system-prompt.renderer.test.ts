@@ -47,6 +47,7 @@ describe('SystemPromptRenderer', () => {
     toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listBudgetExemptFor.mockReturnValue(['builtins__now', 'skills__load']);
     toolRegistry.listFor.mockReturnValue([]);
+    toolRegistry.listGrantedNamespacesFor.mockReturnValue([]);
     windowService = MockFactory.createMock(WindowService);
     windowService.reachesBackTo.mockReturnValue(undefined);
     windowService.readRecentActions.mockResolvedValue([]);
@@ -169,14 +170,21 @@ Your saved memories; read a full body with memory__read when it matters:
 
 ## Peers
 
-Colleagues in this channel:
+Colleagues in this channel, with the toolsets each holds:
 
-- @tess — scheduling`);
+- @tess — scheduling (toolsets: none)`);
   });
 
   it('should ask the roster for the peers of this agent in this channel', async () => {
     await render();
     expect(rosterService.getPeers).toHaveBeenCalledWith('channel-1', 'mira');
+  });
+
+  it('should list the toolsets each peer was granted by namespace (§3.11)', async () => {
+    rosterService.getPeers.mockReturnValue([PEER]);
+    toolRegistry.listGrantedNamespacesFor.mockReturnValue(['prospects', 'tasks', 'web']);
+    expect((await renderParts()).dynamic).toContain('- @tess — scheduling (toolsets: prospects, tasks, web)');
+    expect(toolRegistry.listGrantedNamespacesFor).toHaveBeenCalledWith(PEER);
   });
 
   it('should keep instructions and skills stable when memories and peers change', async () => {

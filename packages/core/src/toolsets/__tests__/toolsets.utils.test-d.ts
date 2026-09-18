@@ -18,6 +18,19 @@ const FULL_TOOLSET = defineToolset({
   storage: { rows: z.object({ url: z.string() }) },
   tools: {
     open: {
+      approval: async (args, context) => {
+        expectTypeOf(context.settings).toEqualTypeOf<{ limit: number }>();
+        expectTypeOf(await context.storage.rows.findById(`${args.id}`)).toEqualTypeOf<CollectionRecord<{
+          url: string;
+        }> | null>();
+        // @ts-expect-error — a render reads storage and never writes it (§3.4)
+        void context.storage.rows.deleteById;
+        // @ts-expect-error — a render reaches no service (§3.4)
+        void context.fake;
+        // @ts-expect-error — a render is handed no turn (§3.4)
+        void context.turn;
+        return { body: `open row ${args.id}`, presentation: 'verbatim' };
+      },
       description: 'Open a row.',
       execute: (args) => {
         expectTypeOf(args).toEqualTypeOf<{ id: number }>();

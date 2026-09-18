@@ -7,6 +7,7 @@ import { ChatModule } from '@/chat/chat.module.ts';
 import { ConversationsModule } from '@/conversations/conversations.module.ts';
 import { InferenceModule } from '@/inference/inference.module.ts';
 import { MemoryModule } from '@/memory/memory.module.ts';
+import { NotificationsModule } from '@/notifications/notifications.module.ts';
 import { SkillsModule } from '@/skills/skills.module.ts';
 import { TasksModule } from '@/tasks/tasks.module.ts';
 import { ToolsModule } from '@/tools/tools.module.ts';
@@ -39,6 +40,7 @@ import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
     ConversationsModule,
     InferenceModule,
     MemoryModule,
+    NotificationsModule,
     SkillsModule,
     TasksModule,
     ToolsModule,

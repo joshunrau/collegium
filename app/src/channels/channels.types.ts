@@ -1,5 +1,12 @@
 import type { ChannelKind } from '@/chat/chat.types.ts';
 
+/** a channel lock someone holds now, and since when (§5.1) */
+export type HeldLock = {
+  readonly acquiredAt: Date;
+  readonly agentUsername: string;
+  readonly channelId: string;
+};
+
 export type LockHandle = {
   release(): void;
 };

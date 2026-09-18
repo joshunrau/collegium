@@ -20,6 +20,8 @@ import type {
   InferenceFailure
 } from '@/inference/inference.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { NotificationsService } from '@/notifications/notifications.service.ts';
+import { TasksService } from '@/tasks/tasks.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -79,8 +81,10 @@ describe('TurnRunner', () => {
   let contextAssembler: MockedInstance<ContextAssembler>;
   let conversationsService: MockedInstance<ConversationsService>;
   let multiMentionPolicy: MockedInstance<MultiMentionPolicy>;
+  let notificationsService: MockedInstance<NotificationsService>;
   let sends: { channelId: string; text: string }[];
   let statusHandle: { appendTrace: any; close: any; setTransient: any };
+  let tasksService: MockedInstance<TasksService>;
   let toolExecutor: MockedInstance<ToolExecutor>;
   let toolRegistry: MockedInstance<ToolRegistry>;
   let transportSend: Mock<(message: { channelId: string; text: string }) => Promise<unknown>>;
@@ -88,6 +92,7 @@ describe('TurnRunner', () => {
   let turnFoldRegistry: TurnFoldRegistry;
   let turnRunner: TurnRunner;
   let loggingService: MockedInstance<LoggingService>;
+  let maxPostSizeChars: Mock<ChatTransport['maxPostSizeChars']>;
   let turnsService: MockedInstance<TurnsService>;
   let typingHandle: { stop: Mock };
   let typingIndicatorService: MockedInstance<TypingIndicatorService>;
@@ -107,6 +112,7 @@ describe('TurnRunner', () => {
     };
     contextAssembler = MockFactory.createMock(ContextAssembler);
     contextAssembler.assemble.mockResolvedValue({
+      assembledAt: new Date(0),
       request: {
         cacheKey: 'mira:channel-1',
         messages: [{ content: '@casey: hi', role: 'user' }],
@@ -118,6 +124,9 @@ describe('TurnRunner', () => {
     });
     const inferenceRegistry = MockFactory.createMock(InferenceRegistry);
     inferenceRegistry.getClientForModel.mockReturnValue({ complete });
+    notificationsService = MockFactory.createMock(NotificationsService);
+    tasksService = MockFactory.createMock(TasksService);
+    tasksService.prepareExhaustionReport.mockResolvedValue(undefined);
     multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
     multiMentionPolicy.addresseesOf.mockReturnValue([]);
     multiMentionPolicy.refuses.mockReturnValue(false);
@@ -135,7 +144,8 @@ describe('TurnRunner', () => {
       return Promise.resolve(Result.ok({ createdAt: new Date(5000), postId: `post-${sends.length}` }));
     });
     const transportRegistry = MockFactory.createMock(TransportRegistry);
-    transportRegistry.get.mockReturnValue({ send: transportSend } as unknown as ChatTransport);
+    maxPostSizeChars = vi.fn().mockResolvedValue(Result.ok(16_383));
+    transportRegistry.get.mockReturnValue({ maxPostSizeChars, send: transportSend } as unknown as ChatTransport);
     typingHandle = { stop: vi.fn() };
     typingIndicatorService = MockFactory.createMock(TypingIndicatorService);
     typingIndicatorService.start.mockReturnValue(typingHandle);
@@ -158,7 +168,9 @@ describe('TurnRunner', () => {
         { provide: InferenceRegistry, useValue: inferenceRegistry },
         MockFactory.createForService(LoggingService),
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
+        { provide: NotificationsService, useValue: notificationsService },
         { provide: StatusPostService, useValue: statusPostService },
+        { provide: TasksService, useValue: tasksService },
         { provide: ToolExecutor, useValue: toolExecutor },
         { provide: ToolRegistry, useValue: toolRegistry },
         { provide: TransportRegistry, useValue: transportRegistry },
@@ -266,7 +278,7 @@ describe('TurnRunner', () => {
       expect.objectContaining({ authorKind: 'agent', message: 'all done' }),
       { kind: 'reply', turnId: 'turn-1' }
     );
-    expect(statusHandle.close).toHaveBeenCalledWith('completed');
+    expect(statusHandle.close).toHaveBeenCalledWith('completed', expect.any(Map));
   });
 
   it('should discard the completion that only saw the first fragment and answer the whole message', async () => {
@@ -409,6 +421,38 @@ describe('TurnRunner', () => {
       'Action 2 of 10 · requested by @casey: "ship it"'
     ]);
     expect(conversationsService.findRequester).toHaveBeenCalledExactlyOnceWith('post-1');
+  });
+
+  describe('a turn a colleague’s mention started (§7.6)', () => {
+    const runForPeer = async () => {
+      conversationsService.findRequester.mockResolvedValue({ kind: 'agent', username: 'sam' });
+      return turnRunner.run({
+        chainLength: 2,
+        channelId: 'channel-1',
+        depth: 1,
+        profile: PROFILE,
+        rootPostId: 'post-0',
+        triggeringPostId: 'post-1'
+      });
+    };
+
+    it('should say so when its reply addresses no one, naming the colleague, without re-routing it', async () => {
+      complete.mockResolvedValueOnce(Result.ok(text('the list is done')));
+      await runForPeer();
+      expect(sends.map((send) => send.text)).toStrictEqual(['the list is done']);
+      expect(notificationsService.notify).toHaveBeenCalledExactlyOnceWith({
+        agentUsername: 'mira',
+        channelId: 'channel-1',
+        kind: 'dropped-handoff',
+        peerUsername: 'sam'
+      });
+    });
+
+    it('should say nothing when a post of the turn mentioned anyone', async () => {
+      complete.mockResolvedValueOnce(Result.ok(text('@sam the list is done')));
+      await runForPeer();
+      expect(notificationsService.notify).not.toHaveBeenCalled();
+    });
   });
 
   it('should say a trigger raised the turn when no human post started it (§3.7)', async () => {
@@ -581,6 +625,18 @@ describe('TurnRunner', () => {
       );
     });
 
+    it('should hand the same counts to the status post on a normal completion (§8.1)', async () => {
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['prospects__create', 'prospects__create', 'web__fetch'])));
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      toolExecutor.execute
+        .mockResolvedValueOnce(effectful)
+        .mockResolvedValueOnce(effectful)
+        .mockResolvedValueOnce({ kind: 'continue', output: 'ok' });
+      const outcome = await run();
+      expect(outcome.status).toBe('completed');
+      expect(statusHandle.close).toHaveBeenCalledWith('completed', new Map([['prospects__create', 2]]));
+    });
+
     it('should post the failure alone when every completed call was retryable', async () => {
       complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch', 'x'])));
       toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', output: 'ok' }).mockResolvedValueOnce(failure);
@@ -690,6 +746,42 @@ describe('TurnRunner', () => {
     expect(complete).toHaveBeenCalledTimes(1);
   });
 
+  describe('a call naming no tool the agent holds (§7.2)', () => {
+    const UNKNOWN: ToolAttempt = {
+      kind: 'unknown-tool',
+      output: 'no tool named "ghost" exists; the tools you can call are: a__b'
+    };
+
+    it('should answer it with the tools the agent can call and continue, spending an attempt', async () => {
+      toolExecutor.execute.mockResolvedValueOnce(UNKNOWN);
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['ghost'])));
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      const outcome = await run();
+      expect(outcome.status).toBe('completed');
+      expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+        content: UNKNOWN.output,
+        role: 'tool',
+        toolCallId: 'call-0'
+      });
+      expect(turnsService.close).toHaveBeenCalledWith(
+        'turn-1',
+        'completed',
+        expect.objectContaining({ actionCount: 1 })
+      );
+    });
+
+    it('should end the turn on the third in a row, as refused output does (§4.5)', async () => {
+      toolExecutor.execute.mockResolvedValue(UNKNOWN);
+      complete.mockResolvedValue(Result.ok(toolUse(['ghost'])));
+      const outcome = await run();
+      expect(outcome.status).toBe('semantic_error');
+      expect(complete).toHaveBeenCalledTimes(3);
+      expect(sends.map((send) => send.text)).toStrictEqual([
+        'I could not produce a reply the framework would accept and stopped. The reason is in the trace.'
+      ]);
+    });
+  });
+
   describe('a tool call whose arguments never parsed (§7.2)', () => {
     const grant = () => {
       toolRegistry.describeCall.mockReturnValue({
@@ -768,11 +860,18 @@ describe('TurnRunner', () => {
       ]);
     });
 
-    it('should end the turn on the first such call for a tool the agent does not hold', async () => {
+    it('should answer such a call for a tool the agent does not hold as the unknown name it is', async () => {
+      toolRegistry.renderUnknownToolResult.mockReturnValue('no tool named "does_not_exist" exists');
       complete.mockResolvedValueOnce(Result.ok(unparsedUse([unparsedCall('does_not_exist', '{oops')])));
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
       const outcome = await run();
-      expect(outcome.status).toBe('semantic_error');
+      expect(outcome.status).toBe('completed');
       expect(toolExecutor.execute).not.toHaveBeenCalled();
+      expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+        content: 'no tool named "does_not_exist" exists',
+        role: 'tool',
+        toolCallId: 'call-0'
+      });
     });
 
     it('should ask for an extension before forgiving a call on an exhausted budget (§5.3)', async () => {
@@ -901,7 +1000,7 @@ describe('TurnRunner', () => {
     const outcome = await run();
     expect(outcome.status).toBe('stopped');
     expect(sends).toHaveLength(0);
-    expect(statusHandle.close).toHaveBeenCalledWith('stopped');
+    expect(statusHandle.close).toHaveBeenCalledWith('stopped', expect.any(Map));
   });
 
   it('should return killed immediately while a completion is still in flight', async () => {
@@ -931,7 +1030,7 @@ describe('TurnRunner', () => {
     turnsService.appendEvent.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
     const outcome = await run();
     expect(outcome.status).toBe('semantic_error');
-    expect(statusHandle.close).toHaveBeenCalledWith('semantic_error');
+    expect(statusHandle.close).toHaveBeenCalledWith('semantic_error', expect.any(Map));
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'semantic_error', expect.anything());
     expect(sends.at(-1)?.text).toContain('framework');
   });
@@ -969,13 +1068,23 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     statusHandle.close.mockRejectedValueOnce(new Error('the status post is gone'));
     turnsService.close.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
-    expect(await run()).toStrictEqual({ status: 'completed', turnId: 'turn-1' });
+    expect(await run()).toStrictEqual({
+      contextAssembledAt: new Date(0),
+      status: 'completed',
+      turnId: 'turn-1',
+      windowPostIds: new Set(['post-0'])
+    });
   });
 
   it('should log, not throw, when disposing the browsing session fails', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     webService.endTurn.mockRejectedValueOnce(new Error('the browser is wedged'));
-    expect(await run()).toStrictEqual({ status: 'completed', turnId: 'turn-1' });
+    expect(await run()).toStrictEqual({
+      contextAssembledAt: new Date(0),
+      status: 'completed',
+      turnId: 'turn-1',
+      windowPostIds: new Set(['post-0'])
+    });
     expect(loggingService.error).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'failed to dispose the browsing session' })
     );
@@ -989,6 +1098,24 @@ describe('TurnRunner', () => {
     const outcome = await run();
     expect(outcome.status).toBe('context_exhausted');
     expect(sends.at(-1)?.text).toContain('ran out of room in my context part-way through this turn');
+  });
+
+  it('should report the unit it was working blocked, to its creator, after its own notice (§3.15)', async () => {
+    tasksService.prepareExhaustionReport.mockResolvedValue({
+      addressee: 'sam',
+      prepared: { to: 'blocked', unitId: 'unit-1' },
+      text: '@sam — unit `unit-1` is blocked: context exhausted'
+    });
+    complete.mockResolvedValueOnce(Result.err({ kind: 'context-overflow' } satisfies InferenceFailure.ContextOverflow));
+    await run();
+    expect(sends.map((send) => send.text)).toStrictEqual([
+      expect.stringContaining('My starting context does not fit'),
+      '@sam — unit `unit-1` is blocked: context exhausted'
+    ]);
+    expect(tasksService.commitTransition).toHaveBeenCalledExactlyOnceWith(
+      { to: 'blocked', unitId: 'unit-1' },
+      'post-2'
+    );
   });
 
   it('should call a starting context the provider refused a configuration problem (§7.1)', async () => {
@@ -1151,7 +1278,7 @@ describe('TurnRunner', () => {
     await new Promise((resolve) => setImmediate(resolve));
     turnControlRegistry.abortChannel('channel-1', 'killed');
     expect((await running).status).toBe('killed');
-    expect(statusHandle.close).toHaveBeenCalledWith('killed');
+    expect(statusHandle.close).toHaveBeenCalledWith('killed', expect.any(Map));
   });
 
   it('should end the turn as a delivery failure when the extension prompt cannot be delivered', async () => {
@@ -1221,7 +1348,7 @@ describe('TurnRunner', () => {
     conversationsService.record.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
     const outcome = await run();
     expect(outcome.status).toBe('provider_outage');
-    expect(statusHandle.close).toHaveBeenCalledWith('provider_outage');
+    expect(statusHandle.close).toHaveBeenCalledWith('provider_outage', expect.any(Map));
   });
 
   it('should accumulate reported usage, tokens and cost alike, across every completion in the turn', async () => {
@@ -1303,6 +1430,38 @@ describe('TurnRunner', () => {
     const outcome = await run();
     expect(outcome.status).toBe('completed');
     expect(sends.map((send) => send.text)).toStrictEqual(['@owen, please take this']);
+  });
+
+  it('should reject a reply longer than a post holds, stating both lengths, and never truncate it (§4.5)', async () => {
+    maxPostSizeChars.mockResolvedValue(Result.ok(10));
+    complete.mockResolvedValueOnce(Result.ok(text('ééééééééééé')));
+    complete.mockResolvedValueOnce(Result.ok(text('short')));
+    const outcome = await run();
+    expect(outcome.status).toBe('completed');
+    expect(sends.map((send) => send.text)).toStrictEqual(['short']);
+    expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+      content: expect.stringContaining('the reply is 11 characters and a post holds at most 10'),
+      role: 'user'
+    });
+  });
+
+  it('should refuse a tool post longer than a post holds as the call’s result, writing nothing (§4.5)', async () => {
+    maxPostSizeChars.mockResolvedValue(Result.ok(10));
+    const onPublished = vi.fn(() => Promise.resolve());
+    toolExecutor.execute.mockResolvedValueOnce({
+      kind: 'continue',
+      mayHaveTakenEffect: true,
+      output: 'unit assigned',
+      post: { onPublished, text: '@owen take this long unit' }
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(onPublished).not.toHaveBeenCalled();
+    expect(complete.mock.calls[1]![0].messages.at(-1)).toMatchObject({
+      content: expect.stringContaining('post refused: it is 25 characters'),
+      role: 'tool'
+    });
   });
 
   it('should count a truncated completion and a tool call written as text against the same limit (§4.5)', async () => {
@@ -1389,6 +1548,7 @@ describe('TurnRunner', () => {
   });
 
   const assembledWith = (content: string) => ({
+    assembledAt: new Date(0),
     request: {
       cacheKey: 'mira:channel-1',
       messages: [{ content, role: 'user' as const }],

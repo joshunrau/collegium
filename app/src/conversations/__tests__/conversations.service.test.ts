@@ -184,6 +184,23 @@ describe('ConversationsService', () => {
     });
   });
 
+  describe('hasPostsObservedSince', () => {
+    const since = { agentUsername: 'mira', channelId: 'channel-1', since: new Date(1) };
+
+    it("should count nothing but others' posts observed at or after the instant (§5.2)", async () => {
+      await conversationsService.record(post({ id: 'post-0' }));
+      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'mira', id: 'post-1' }));
+      await conversationsService.record(post({ authorKind: 'system', authorUsername: 'collegium', id: 'post-2' }));
+      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'owen', id: 'post-3' }), {
+        kind: 'status',
+        turnId: 'turn-1'
+      });
+      expect(await conversationsService.hasPostsObservedSince(since)).toBe(false);
+      await conversationsService.record(post({ id: 'post-4' }));
+      expect(await conversationsService.hasPostsObservedSince(since)).toBe(true);
+    });
+  });
+
   describe('latestPostIdIn', () => {
     it('should return the newest recorded post id for the channel', async () => {
       await conversationsService.record(post({ createdAt: new Date(1000), id: 'post-1' }));

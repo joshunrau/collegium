@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 
+import type { ToolStorageReadMethod } from '../../tools.ts';
 import type { CollectionFilter, CollectionQuery } from './collection-query.types.ts';
 
 /** what the store stamps on every record beside the declared fields; a schema may not declare any of these */
@@ -34,3 +35,11 @@ export type ToolsetCollection<TSchema extends z.ZodObject> = {
 };
 
 export type AnyToolsetCollection = ToolsetCollection<z.ZodObject>;
+
+/** the read half of a collection handle, and all of storage an approval render reaches (§3.4) */
+export type ToolsetCollectionReader<TSchema extends z.ZodObject> = Pick<
+  ToolsetCollection<TSchema>,
+  ToolStorageReadMethod
+>;
+
+export type AnyToolsetCollectionReader = ToolsetCollectionReader<z.ZodObject>;

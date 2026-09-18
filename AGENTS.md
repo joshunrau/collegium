@@ -98,6 +98,7 @@ app/src/
   schedules/      config-declared recurring work: the occurrence arithmetic and the ticker that records a cron trigger (§4.2)
   shell/          the §A2 confinement seam: per-agent OS user derivation, sudo-scoped execution, boot probe
   skills/         the skill library and manifest, and the one place a skill document is read off disk
+  stalls/         the §7.6 sweep: a standing queue and a long turn announced once per episode, never cleared
   tasks/          delegated work as units: the WorkUnit table, the tasks toolset, and the open-work prompt block (§3.15)
   testing/        test-only factories and mocks, excluded from the build
   tools/          the machinery alone: registry, executor, settings resolution, toolset storage — toolsets live in their owning modules

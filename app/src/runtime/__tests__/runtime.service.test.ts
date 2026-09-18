@@ -29,6 +29,7 @@ import { NotificationsService } from '@/notifications/notifications.service.ts';
 import { SchedulesService } from '@/schedules/schedules.service.ts';
 import { ShellService } from '@/shell/shell.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
+import { StallsService } from '@/stalls/stalls.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -107,6 +108,7 @@ describe('RuntimeService', () => {
         { provide: SchedulesService, useValue: schedulesService },
         { provide: ShellService, useValue: shellService },
         { provide: SkillsService, useValue: skillsService },
+        MockFactory.createForService(StallsService),
         { provide: ToolRegistry, useValue: toolRegistry },
         { provide: TransportRegistry, useValue: transportRegistry },
         { provide: TriggersService, useValue: triggersService }

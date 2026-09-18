@@ -17,7 +17,7 @@ import { QueueService } from '@/queue/queue.service.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 import { TurnFoldRegistry } from '@/turns/folding/turn-fold.registry.ts';
 import { TurnRunner } from '@/turns/turns.runner.ts';
-import type { TurnOpenFailure, UnactedTurn } from '@/turns/turns.types.ts';
+import type { TurnOpenFailure, TurnOutcome, UnactedTurn } from '@/turns/turns.types.ts';
 
 import { QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
 import {
@@ -235,6 +235,38 @@ export class ActivationService {
   }
 
   /**
+   * §5.2 — a turn that completed owes no second turn for an entry it read whole: the earliest queued
+   * post is in its window, which runs unbroken from there to the newest post, and nothing that could
+   * be queued reached the store after the assembly began. A failure is logged, not thrown, and the
+   * queue then drains as before.
+   */
+  private async consumeWhatTheTurnRead(profile: AgentProfile, channelId: string, ended: TurnOutcome): Promise<boolean> {
+    try {
+      const entry = await this.queueService.peek(profile.username, channelId);
+      if (entry === undefined || !ended.windowPostIds.has(entry.earliestUnprocessedPostId)) {
+        return false;
+      }
+      const arrivedSince = await this.conversationsService.hasPostsObservedSince({
+        agentUsername: profile.username,
+        channelId,
+        since: ended.contextAssembledAt
+      });
+      if (arrivedSince || !(await this.queueService.consumeIfUnchanged(entry))) {
+        return false;
+      }
+      this.loggingService.log(
+        `consumed the queue for "${profile.username}" in ${channelId}: the turn that completed had read every post in it`
+      );
+      return true;
+    } catch (error) {
+      this.loggingService.error(
+        new Error(`failed to consume the queue for "${profile.username}" in ${channelId}`, { cause: error })
+      );
+      return false;
+    }
+  }
+
+  /**
    * Halt-gated: a drain during a halt would start a turn no human has sanctioned (§7.4). Admission
    * is checked before the row is drained, so a refusal leaves the pointer untouched rather than
    * deleting and re-inserting it around a window where a later fragment could replace it.
@@ -420,7 +452,7 @@ export class ActivationService {
     profile: AgentProfile,
     input: { channelId: string; drainedFromPostId?: string; lock: LockHandle; triggeringPostId: string }
   ): Promise<void> {
-    let status: TurnStatus | undefined;
+    let ended: TurnOutcome | undefined;
     try {
       const source = await this.conversationsService.findActivationSource(input.triggeringPostId);
       const outcome = await this.turnRunner.run({
@@ -437,7 +469,7 @@ export class ActivationService {
         await this.refuseChainTurn(profile, input, outcome.error);
         return;
       }
-      status = outcome.value.status;
+      ended = outcome.value;
     } catch (error) {
       this.loggingService.error(
         new Error(`a turn for "${profile.username}" threw past the runner and is treated as a failed exit`, {
@@ -445,8 +477,9 @@ export class ActivationService {
         })
       );
     }
-    const progressed = status !== undefined && PROGRESS_EXITS.has(status);
+    const progressed = ended !== undefined && PROGRESS_EXITS.has(ended.status);
     let humanWaiting = false;
+    let consumed = false;
     try {
       if (!progressed) {
         humanWaiting = await this.leaveStanding(
@@ -454,11 +487,13 @@ export class ActivationService {
           input.channelId,
           input.drainedFromPostId ?? input.triggeringPostId
         );
+      } else if (ended?.status === 'completed') {
+        consumed = await this.consumeWhatTheTurnRead(profile, input.channelId, ended);
       }
     } finally {
       input.lock.release();
     }
-    if (progressed || humanWaiting) {
+    if ((progressed && !consumed) || humanWaiting) {
       await this.drainQueue(profile, input.channelId);
     }
     if (progressed) {

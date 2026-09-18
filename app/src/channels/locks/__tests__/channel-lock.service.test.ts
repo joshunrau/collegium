@@ -50,6 +50,15 @@ describe('ChannelLockService', () => {
     expect(channelLockService.isBusy('mira', 'channel-unknown')).toBe(false);
   });
 
+  it('should list each held lock with when it was taken, and forget it once released', () => {
+    const handle = channelLockService.acquire('mira', 'channel-1')!;
+    expect(channelLockService.listHeld()).toStrictEqual([
+      { acquiredAt: expect.any(Date), agentUsername: 'mira', channelId: 'channel-1' }
+    ]);
+    handle.release();
+    expect(channelLockService.listHeld()).toStrictEqual([]);
+  });
+
   it('should report a channel idle only when no agent holds its lock', () => {
     const handle = channelLockService.acquire('mira', 'channel-1')!;
     channelLockService.acquire('tess', 'channel-1');

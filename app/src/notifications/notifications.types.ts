@@ -14,6 +14,13 @@ export declare namespace SystemEvent {
     kind: 'halt';
     reason: HaltReason;
   };
+  /** §7.6 — how long the turn has gone since it started or last waited on a person */
+  type LongTurn = {
+    agentUsername: string;
+    channelId: string;
+    heldMs: number;
+    kind: 'long-turn';
+  };
   /** the §4.5 correction — a mechanical string in the offending post's own channel */
   type MultiMentionRefusal = {
     channelId: string;
@@ -31,8 +38,23 @@ export declare namespace SystemEvent {
     kind: 'online';
     requeuedTurns: number;
   };
+  /** §7.6 — a queue entry with no turn of the agent's own running in its channel */
+  type StandingQueue = {
+    agentUsername: string;
+    channelId: string;
+    kind: 'standing-queue';
+  };
+  /** §7.6 — a turn a colleague's mention started replied without addressing anyone, so that colleague was not woken */
+  type DroppedHandoff = {
+    agentUsername: string;
+    channelId: string;
+    kind: 'dropped-handoff';
+    peerUsername: string;
+  };
+  /** the §7.6 notices: the system bot's where it is present, the agent's own account in a DM */
+  type Stall = DroppedHandoff | LongTurn | StandingQueue;
 
-  type Any = ChainLimitRefusal | Halt | MultiMentionRefusal | Offline | Online;
+  type Any = ChainLimitRefusal | Halt | MultiMentionRefusal | Offline | Online | Stall;
 }
 
 export type SystemEvent = SystemEvent.Any;

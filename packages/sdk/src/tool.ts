@@ -1,4 +1,5 @@
 import type { PluginToolDeclaration, PluginToolErr } from '@collegium/core/plugins';
+import type { ToolApprovalContext } from '@collegium/core/tools';
 import type { EmptyDeclaration, ToolsetContext } from '@collegium/core/toolsets';
 import type { z } from 'zod';
 
@@ -15,6 +16,12 @@ export type ToolContextFor<TConfig extends PluginConfig> = ToolsetContext<
 
 /** the context under the registered config: what every tool file's `execute` receives */
 export type ToolContext = ToolContextFor<RegisteredConfig>;
+
+/** what `approval` receives under a config: the settings, and of each collection only the methods that read (§3.4) */
+export type ApprovalContextFor<TConfig extends PluginConfig> = ToolApprovalContext<ToolContextFor<TConfig>>;
+
+/** the approval context under the registered config: what every tool file's `approval` receives */
+export type ApprovalContext = ApprovalContextFor<RegisteredConfig>;
 
 export type PluginTool<TParams extends z.ZodType> = PluginToolDeclaration<ToolContext, TParams>;
 

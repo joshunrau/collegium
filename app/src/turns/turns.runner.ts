@@ -35,7 +35,9 @@ import {
   toReplayableToolCall
 } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { NotificationsService } from '@/notifications/notifications.service.ts';
 import type { PostKind, TurnStatus } from '@/prisma/prisma.types.ts';
+import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import type { ToolAttempt } from '@/tools/tools.types.ts';
@@ -189,12 +191,16 @@ type TurnState = {
   /** §4.5 — the one peer this turn has addressed, whatever number of posts it emits */
   addressedPeer: string | undefined;
   readonly budget: ActionBudget;
-  /** §7.1 — by display name, how many times a call that may have taken effect ran to completion */
+  /** §7.1, §8.1 — by display name, how many times a call that may have taken effect ran to completion */
   readonly callsThatMayHaveTakenEffect: Map<string, number>;
-  /** §4.5 — rejected posts since the last call that ran */
+  /** §4.5 — rejected posts and unknown tool names (§7.2) since the last call that ran */
   consecutiveRejections: number;
+  /** §5.2 — when the context was last assembled, and the posts its window held */
+  contextAssembledAt: Date;
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
+  /** §7.6 — whether a post of this turn named anyone, or its output did before the §7.4 limits stripped it */
+  mentionedAnyone: boolean;
   readonly messages: CompletionMessage[];
   /** §3.8 — the estimated size of the whole outgoing request, kept current by `pushMessage` and the collapses */
   promptTokens: number;
@@ -212,6 +218,7 @@ type TurnState = {
   /** §3.8 — the first message the model has not read yet: a result at or past it is never collapsed or cut short */
   unreadFrom: number;
   usage: CompletionUsage | undefined;
+  windowPostIds: ReadonlySet<string>;
 };
 
 /**
@@ -236,7 +243,9 @@ export class TurnRunner {
     private readonly inferenceRegistry: InferenceRegistry,
     private readonly loggingService: LoggingService,
     private readonly multiMentionPolicy: MultiMentionPolicy,
+    private readonly notificationsService: NotificationsService,
     private readonly statusPostService: StatusPostService,
+    private readonly tasksService: TasksService,
     private readonly toolExecutor: ToolExecutor,
     private readonly toolRegistry: ToolRegistry,
     private readonly transportRegistry: TransportRegistry,
@@ -275,12 +284,14 @@ export class TurnRunner {
       budget: new ActionBudget(profile.actionBudget),
       callsThatMayHaveTakenEffect: new Map(),
       consecutiveRejections: 0,
+      contextAssembledAt: new Date(),
       control: this.turnControlRegistry.register(turn.id, channelId),
       fold: this.turnFoldRegistry.register({
         agentUsername: profile.username,
         authorUsername: input.foldAuthorUsername,
         channelId
       }),
+      mentionedAnyone: false,
       messages: [],
       promptTokens: 0,
       recordedResults: 0,
@@ -291,7 +302,8 @@ export class TurnRunner {
       turn,
       unparsedCalls: 0,
       unreadFrom: 0,
-      usage: undefined
+      usage: undefined,
+      windowPostIds: new Set()
     };
     try {
       return Result.ok(await this.runLoop(input, state));
@@ -385,6 +397,31 @@ export class TurnRunner {
       kind: 'admitted',
       position: { actionBudget: state.budget.limitCount, actionNumber: state.budget.spentCount }
     };
+  }
+
+  /**
+   * §7.2 — a call naming no tool the agent holds is answered with the tools it does, and counts
+   * toward §4.5's rejections in a row, so a model that keeps misnaming ends as refused output does.
+   * The ending call is answered too, so the window can replay the completion that made it.
+   */
+  private async answerUnknownTool(
+    input: RunInput,
+    state: TurnState,
+    identified: IdentifiedCall,
+    output: string
+  ): Promise<TurnOutcome | undefined> {
+    await this.turnsService.appendEvent(state.turn.id, {
+      callId: identified.call.id,
+      kind: 'tool_result',
+      output,
+      toolName: identified.recordedName
+    });
+    if (state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT) {
+      return this.closeWithFailureNotice(input, state, 'semantic_error', renderOutputRefusedNotice());
+    }
+    state.consecutiveRejections += 1;
+    this.pushMessage(state, { content: output, role: 'tool', toolCallId: identified.call.id });
+    return undefined;
   }
 
   /**
@@ -497,7 +534,7 @@ export class TurnRunner {
     );
   }
 
-  /** §7.1 — the notice and what the turn may already have changed go out as one post, then the turn closes */
+  /** §7.1 — the notice and what the turn may already have changed go out as one post, then the turn closes; §3.15 for a unit */
   private async closeWithFailureNotice(
     input: RunInput,
     state: TurnState,
@@ -512,6 +549,9 @@ export class TurnRunner {
         ? notice
         : `${notice}\n${renderMayHaveTakenEffectLine(callsThatMayHaveTakenEffect)}`
     );
+    if (status === 'context_exhausted') {
+      await this.reportExhaustedUnit(input, state);
+    }
     return this.writeClosingStatus(state, status);
   }
 
@@ -519,7 +559,8 @@ export class TurnRunner {
    * The final completion is recorded as an event whether or not it posts: with its reasoning, it is
    * what the window replays, and the post is only the channel's copy. A reply that could not be
    * posted is not a completion — §7.1 defines normal completion as visible as the final post — so
-   * the turn closes as a delivery failure, a non-progress exit.
+   * the turn closes as a delivery failure, a non-progress exit. A colleague's request answered to
+   * no one is said, never re-routed (§7.6).
    */
   private async closeWithFinalOutput(
     input: RunInput,
@@ -537,6 +578,14 @@ export class TurnRunner {
     if (!sent.success) {
       this.loggingService.error(new Error(`failed to post final output: ${sent.error.message}`));
       return this.closeWithFailureNotice(input, state, 'delivery_failure', renderDeliveryFailureNotice());
+    }
+    if (state.requestedBy?.kind === 'agent' && !state.mentionedAnyone) {
+      await this.notificationsService.notify({
+        agentUsername: input.profile.username,
+        channelId: input.channelId,
+        kind: 'dropped-handoff',
+        peerUsername: state.requestedBy.username
+      });
     }
     return this.close(state, 'completed');
   }
@@ -588,7 +637,7 @@ export class TurnRunner {
   ): Promise<TurnOutcome | undefined> {
     const truncated = completion.kind === 'truncated';
     const content = truncated ? completion.content : await this.enforceChainLimits(input, state, completion.content);
-    let rejection = truncated ? TRUNCATED_OUTPUT_REJECTION : this.rejectionOf(input, state, content);
+    let rejection = truncated ? TRUNCATED_OUTPUT_REJECTION : await this.rejectionOf(input, state, content);
     const reasoning = reasoningOf(completion);
     if (rejection === undefined) {
       return this.closeWithFinalOutput(input, state, content, reasoning);
@@ -693,7 +742,6 @@ export class TurnRunner {
       toolCalls: completion.toolCalls.map(toReplayableToolCall),
       ...reasoning
     });
-    state.consecutiveRejections = 0;
     state.unreadFrom = state.messages.length;
     if (completion.content !== '') {
       state.status.setTransient(this.multiMentionPolicy.stripAgentMentions(completion.content));
@@ -763,6 +811,7 @@ export class TurnRunner {
     }
     const stripped = this.multiMentionPolicy.stripAgentMentions(content);
     if (stripped !== content) {
+      state.mentionedAnyone = true;
       await this.postNotice(
         input,
         state,
@@ -778,8 +827,8 @@ export class TurnRunner {
 
   /**
    * §7.2 — a granted tool's arguments that never parsed are answered once, spending an attempt like
-   * any invocation, without the tool ever seeing them; the second in a turn, or one for a tool the
-   * agent does not hold, ends the turn as the semantic error it always was.
+   * any invocation, without the tool ever seeing them; the second in a turn ends the turn as the
+   * semantic error it always was. A call naming no tool the agent holds is answered as its name.
    */
   private async forgiveUnparsedCall(
     input: RunInput,
@@ -788,7 +837,24 @@ export class TurnRunner {
     position: number,
     identified: UnparsedCall
   ): Promise<UnparsedCallDisposition> {
-    if (!identified.isGranted || state.unparsedCalls >= UNPARSED_CALL_LIMIT) {
+    if (!identified.isGranted) {
+      const admission = await this.admit(input, state, identified);
+      if (admission.kind === 'ended') {
+        return { kind: 'dispatched', outcome: admission.outcome };
+      }
+      if (admission.kind === 'voice-only') {
+        await this.answerUnrun(state, calls.slice(position), admission.text);
+        return { kind: 'dispatched', outcome: undefined };
+      }
+      const outcome = await this.answerUnknownTool(
+        input,
+        state,
+        identified,
+        this.toolRegistry.renderUnknownToolResult(input.profile, identified.call.name)
+      );
+      return outcome ? { kind: 'dispatched', outcome } : { kind: 'forgiven' };
+    }
+    if (state.unparsedCalls >= UNPARSED_CALL_LIMIT) {
       const outcome = await this.closeWithFailureNotice(
         input,
         state,
@@ -817,6 +883,7 @@ export class TurnRunner {
       toolName: identified.recordedName
     });
     this.pushMessage(state, { content: UNPARSED_ARGUMENTS_RESULT, role: 'tool', toolCallId: identified.call.id });
+    state.consecutiveRejections = 0;
     return { kind: 'forgiven' };
   }
 
@@ -922,6 +989,26 @@ export class TurnRunner {
   private loadAssembledContext(state: TurnState, assembled: AssembledContext): void {
     state.messages.splice(0, state.messages.length, ...assembled.request.messages);
     state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
+    state.contextAssembledAt = assembled.assembledAt;
+    state.windowPostIds = assembled.windowPostIds;
+  }
+
+  /**
+   * §4.5 — a post over the substrate's limit (§6.2) is refused, never truncated. The limit counts
+   * characters as Mattermost does, by code point. Where it cannot be read, the post is attempted as
+   * it stands and the substrate decides.
+   */
+  private async measureAgainstPostLimit(
+    state: TurnState,
+    text: string
+  ): Promise<undefined | { length: number; limit: number }> {
+    const limit = await state.transport.maxPostSizeChars();
+    if (!limit.success) {
+      this.loggingService.warn(`could not read MaxPostSize to bound a post: ${limit.error.message}`);
+      return undefined;
+    }
+    const length = Array.from(text).length;
+    return length > limit.value ? { length, limit: limit.value } : undefined;
   }
 
   /** §5.2 — checked on every assembly, since a fold rebuilds the window and can lose the reach the first one had */
@@ -958,8 +1045,9 @@ export class TurnRunner {
     if (!sent.success) {
       return sent;
     }
-    state.addressedPeer =
-      this.multiMentionPolicy.addresseesOf(this.asAddressablePost(input, text))[0] ?? state.addressedPeer;
+    const post = this.asAddressablePost(input, text);
+    state.addressedPeer = this.multiMentionPolicy.addresseesOf(post)[0] ?? state.addressedPeer;
+    state.mentionedAnyone ||= post.mentionedUsernames.length > 0;
     await this.conversationsService.record(
       {
         attachments: [],
@@ -982,12 +1070,9 @@ export class TurnRunner {
    */
   private async publishToolPost(input: RunInput, state: TurnState, post: ToolPost): Promise<ToolPostOutcome> {
     const text = this.multiMentionPolicy.stripAgentMentionsExcept(post.text, post.addressee);
-    const addressable = this.asAddressablePost(input, text);
-    if (this.multiMentionPolicy.refuses(addressable)) {
-      return { kind: 'refused', output: 'post refused: it addresses more than one colleague' };
-    }
-    if (this.multiMentionPolicy.refusesSecondAddressee(addressable, state.addressedPeer)) {
-      return { kind: 'refused', output: `post refused: this turn has already addressed @${state.addressedPeer}` };
+    const refusal = await this.refusalOfFrameworkPost(input, state, text);
+    if (refusal !== undefined) {
+      return { kind: 'refused', output: refusal };
     }
     const sent = await this.publish(input, state, text, 'notice');
     if (!sent.success) {
@@ -1016,6 +1101,10 @@ export class TurnRunner {
     if (attempt.kind === 'terminal') {
       return this.closeOnToolFailure(input, state, identified, attempt);
     }
+    if (attempt.kind === 'unknown-tool') {
+      return this.answerUnknownTool(input, state, identified, attempt.output);
+    }
+    state.consecutiveRejections = 0;
     const published = attempt.post === undefined ? undefined : await this.publishToolPost(input, state, attempt.post);
     if (published?.kind === 'undelivered') {
       return published.outcome;
@@ -1052,12 +1141,29 @@ export class TurnRunner {
     return undefined;
   }
 
+  /** why a post the framework publishes for the turn may not post (§4.5), or nothing */
+  private async refusalOfFrameworkPost(input: RunInput, state: TurnState, text: string): Promise<string | undefined> {
+    const addressable = this.asAddressablePost(input, text);
+    if (this.multiMentionPolicy.refuses(addressable)) {
+      return 'post refused: it addresses more than one colleague';
+    }
+    if (this.multiMentionPolicy.refusesSecondAddressee(addressable, state.addressedPeer)) {
+      return `post refused: this turn has already addressed @${state.addressedPeer}`;
+    }
+    const oversize = await this.measureAgainstPostLimit(state, text);
+    if (oversize) {
+      return `post refused: it is ${oversize.length} characters and a post holds at most ${oversize.limit} — shorten what you pass`;
+    }
+    return undefined;
+  }
+
   /**
-   * Why a final output cannot post as-is, or nothing. Neither is a semantic failure: the model
-   * produced valid output that breaks a framework rule it cannot see (§4.5), or wrote a tool call
-   * as text where only a real call runs anything, and one retry is cheap either way.
+   * Why a final output cannot post as-is, or nothing. None is a semantic failure: the model
+   * produced valid output that breaks a framework rule it cannot see (§4.5), wrote a tool call as
+   * text where only a real call runs anything, or wrote more than a post holds, and one retry is
+   * cheap in every case.
    */
-  private rejectionOf(input: RunInput, state: TurnState, content: string): string | undefined {
+  private async rejectionOf(input: RunInput, state: TurnState, content: string): Promise<string | undefined> {
     const post = this.asAddressablePost(input, content);
     if (this.multiMentionPolicy.refuses(post)) {
       return 'post rejected: multiple agent mentions';
@@ -1067,6 +1173,10 @@ export class TurnRunner {
     }
     if (containsToolCallTranscript(content)) {
       return 'post rejected: a tool call written as text runs nothing — invoke the tool instead';
+    }
+    const oversize = await this.measureAgainstPostLimit(state, content);
+    if (oversize) {
+      return `post rejected: the reply is ${oversize.length} characters and a post holds at most ${oversize.limit} — answer more briefly, or post the first part and say what remains`;
     }
     return undefined;
   }
@@ -1085,6 +1195,38 @@ export class TurnRunner {
       return 'relieved';
     }
     return this.cutResultToFit(state, state.messages.length - 1, ceiling) ? 'relieved' : 'exhausted';
+  }
+
+  /**
+   * §3.15 — the unit this turn was working goes to its creator as blocked, through the path a
+   * report takes: refused as any post is, and written only once its post has landed. Best-effort
+   * and never retried, since the turn is already closing (A4).
+   */
+  private async reportExhaustedUnit(input: RunInput, state: TurnState): Promise<void> {
+    try {
+      const report = await this.tasksService.prepareExhaustionReport({
+        agentUsername: input.profile.username,
+        channelId: input.channelId,
+        triggeringPostId: input.triggeringPostId
+      });
+      if (!report) {
+        return;
+      }
+      const text = this.multiMentionPolicy.stripAgentMentionsExcept(report.text, report.addressee);
+      const refusal = await this.refusalOfFrameworkPost(input, state, text);
+      if (refusal !== undefined) {
+        this.loggingService.warn(`did not report the unit of "${input.profile.username}" blocked: ${refusal}`);
+        return;
+      }
+      const sent = await this.publish(input, state, text, 'notice');
+      if (!sent.success) {
+        this.loggingService.error(new Error(`failed to report a unit blocked: ${sent.error.message}`));
+        return;
+      }
+      await this.tasksService.commitTransition(report.prepared, sent.value.postId);
+    } catch (error) {
+      this.loggingService.error(new Error('failed to report the exhausted turn’s unit blocked', { cause: error }));
+    }
   }
 
   /**
@@ -1232,7 +1374,7 @@ export class TurnRunner {
   /** best-effort on both writes: a close that itself fails must never leave the turn 'running' silently */
   private async writeClosingStatus(state: TurnState, status: Exclude<TurnStatus, 'running'>): Promise<TurnOutcome> {
     try {
-      await state.status.close(status);
+      await state.status.close(status, state.callsThatMayHaveTakenEffect);
     } catch (error) {
       this.loggingService.error(new Error('failed to close the status post', { cause: error }));
     }
@@ -1244,6 +1386,11 @@ export class TurnRunner {
     } catch (error) {
       this.loggingService.error(new Error(`failed to close turn ${state.turn.id} as ${status}`, { cause: error }));
     }
-    return { status, turnId: state.turn.id };
+    return {
+      contextAssembledAt: state.contextAssembledAt,
+      status,
+      turnId: state.turn.id,
+      windowPostIds: state.windowPostIds
+    };
   }
 }

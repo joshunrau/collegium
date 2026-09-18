@@ -1,7 +1,7 @@
 import type { Promisable } from 'type-fest';
 import type { z } from 'zod';
 
-import type { ToolApprovalPayload, ToolDisclosure } from '../tools.ts';
+import type { ToolApprovalContext, ToolApprovalPayload, ToolDisclosure } from '../tools.ts';
 
 /** what a plugin tool body may return: the text alone, or the text beside a durable record's disclosure and the line later turns replay (§3.4) */
 export type PluginToolOutput =
@@ -24,9 +24,11 @@ export type PluginToolDeclaration<TContext, TParams extends z.ZodType> = {
    * The payload the approver reads, or `null` for a tool that does not gate. Required, unlike the
    * framework's own optional field: a framework toolset is read as source by whoever maintains it,
    * while a plugin's source may not be in this repository at all, so an omitted field cannot be
-   * told from a forgotten one (§3.14). A function ⇒ the tool always gates (§3.7) and cannot decline.
+   * told from a forgotten one (§3.14). A function ⇒ the tool always gates (§3.7) and cannot decline;
+   * it may read the settings and the stored records the call acts on (§3.4).
    */
-  approval: ((args: z.infer<TParams>) => ToolApprovalPayload) | null;
+  approval:
+    ((args: z.infer<TParams>, context: ToolApprovalContext<TContext>) => Promisable<ToolApprovalPayload>) | null;
   /** may run alongside the other concurrent calls of one completion: a read that touches nothing another call in the batch does */
   readonly concurrent?: boolean;
   readonly description: string;

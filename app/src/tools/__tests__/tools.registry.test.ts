@@ -40,7 +40,12 @@ const MAPS_TOOLSET = defineToolset({
   }
 });
 
-const register = (declaration: AnyToolset): RegisteredToolset => ({ declaration, services: {}, storage: {} });
+const register = (declaration: AnyToolset): RegisteredToolset => ({
+  declaration,
+  services: {},
+  storage: {},
+  storageReaders: {}
+});
 
 const LIBRARY = [SKILLS_TOOLSET, TRIGGERS_TOOLSET, NOTES_TOOLSET, MAPS_TOOLSET].map(register);
 
@@ -140,6 +145,19 @@ describe('ToolRegistry', () => {
     expect(registry.resolveFor(granted, 'does_not_exist').error).toMatchObject({ kind: 'unknown-tool' });
   });
 
+  it('lists the tools of the named toolsets no agent is granted (§3.14)', () => {
+    const registry = new ToolRegistry(LIBRARY, [buildAgentProfile({ tools: ['notes::add'] })]);
+    expect(registry.listUngrantedIn(new Set(['notes']))).toStrictEqual([['notes', 'list']]);
+  });
+
+  it('answers an unknown name with the agent’s own tools by wire name, and nothing it was not granted (§7.2)', () => {
+    const granted = buildAgentProfile({ tools: ['notes::add'] });
+    const message = new ToolRegistry(LIBRARY, [granted]).resolveFor(granted, 'ghost').error?.message;
+    expect(message).toContain('no tool named "ghost"');
+    expect(message).toContain('notes__add');
+    expect(message).not.toContain('notes__list');
+  });
+
   it('resolves the display spelling the framework’s own posts show, granted tools only (§3.4)', () => {
     const granted = buildAgentProfile({ tools: ['notes'] });
     const ungranted = buildAgentProfile({ username: 'owen' });
@@ -215,6 +233,12 @@ describe('ToolRegistry', () => {
     const profile = buildAgentProfile();
     const registry = new ToolRegistry(LIBRARY, [profile]);
     expect(registry.listBudgetExemptFor(profile)).toStrictEqual(['skills__load']);
+  });
+
+  it('lists granted namespaces alphabetically, a single-tool grant by its namespace, core left out (§3.11)', () => {
+    const profile = buildAgentProfile({ tools: ['notes', 'maps::measure'] });
+    const registry = new ToolRegistry(LIBRARY, [profile]);
+    expect(registry.listGrantedNamespacesFor(profile)).toStrictEqual(['maps', 'notes']);
   });
 
   it('lists every tool an agent may call by identity, core first, saying which gates (§8.4)', () => {

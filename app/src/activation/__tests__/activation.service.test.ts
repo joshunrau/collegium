@@ -13,6 +13,7 @@ import type { ObservedPost } from '@/conversations/conversations.types.ts';
 import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
+import type { TurnStatus } from '@/prisma/prisma.types.ts';
 import { QueueService } from '@/queue/queue.service.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -28,6 +29,17 @@ const PROFILE = { username: 'mira' } as AgentProfile;
 
 const post = (overrides: Partial<ObservedPost> = {}): ObservedPost => {
   return createObservedPost({ mentionedUsernames: ['mira'], message: '@mira hello', ...overrides });
+};
+
+const ASSEMBLED_AT = new Date(1_000);
+
+const ended = (status: Exclude<TurnStatus, 'running'>, windowPostIds: readonly string[] = []) => {
+  return Result.ok({
+    contextAssembledAt: ASSEMBLED_AT,
+    status,
+    turnId: 'turn-1',
+    windowPostIds: new Set(windowPostIds)
+  });
 };
 
 describe('ActivationService', () => {
@@ -56,6 +68,7 @@ describe('ActivationService', () => {
     const channelsService = MockFactory.createMock(ChannelsService);
     channelsService.getTriggeringMode.mockReturnValue('mention-required');
     conversationsService = MockFactory.createMock(ConversationsService);
+    conversationsService.hasPostsObservedSince.mockResolvedValue(false);
     conversationsService.record.mockResolvedValue(true);
     debounceService = MockFactory.createMock(DebounceService);
     debounceService.schedule.mockImplementation((_key, onMature) => onMature());
@@ -68,6 +81,7 @@ describe('ActivationService', () => {
     notificationsService = MockFactory.createMock(NotificationsService);
     notificationsService.notify.mockResolvedValue(undefined);
     queueService = MockFactory.createMock(QueueService);
+    queueService.consumeIfUnchanged.mockResolvedValue(true);
     queueService.enqueue.mockResolvedValue(undefined);
     queueService.peek.mockResolvedValue(undefined);
     queueService.drain.mockResolvedValue(undefined);
@@ -89,7 +103,7 @@ describe('ActivationService', () => {
     triggersService.wasAnnouncedBy.mockResolvedValue(false);
     triggersService.listPendingChannelIds.mockResolvedValue([]);
     turnRunner = MockFactory.createMock(TurnRunner);
-    turnRunner.run.mockResolvedValue(Result.ok({ status: 'completed', turnId: 'turn-1' }));
+    turnRunner.run.mockResolvedValue(ended('completed'));
     const moduleRef = await Test.createTestingModule({
       providers: [
         ActivationService,
@@ -283,7 +297,7 @@ describe('ActivationService', () => {
   it('should drain the queue into one new turn when the exit allows progress', async () => {
     // nothing is standing when the post arrives; the entry accumulates while the turn runs
     queueService.drain.mockResolvedValueOnce(undefined);
-    queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
+    queueService.peek.mockResolvedValue({ earliestUnprocessedPostId: 'post-7' } as never);
     queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
     await activationService.onPost(PROFILE, post());
     await settle();
@@ -300,13 +314,59 @@ describe('ActivationService', () => {
   });
 
   it('should drain the queue after a turn ran out of context, which a fresh turn does not inherit (§7.1)', async () => {
-    turnRunner.run.mockResolvedValueOnce(Result.ok({ status: 'context_exhausted', turnId: 'turn-1' }));
+    turnRunner.run.mockResolvedValueOnce(ended('context_exhausted'));
     queueService.drain.mockResolvedValueOnce(undefined);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
     queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
     await activationService.onPost(PROFILE, post());
     await settle();
     expect(turnRunner.run).toHaveBeenCalledTimes(2);
+  });
+
+  describe('a queue entry the completed turn may already have read (§5.2)', () => {
+    const entry = { earliestUnprocessedPostId: 'post-7', lastEnqueuedAt: new Date(1_500) };
+
+    beforeEach(() => {
+      queueService.drain.mockResolvedValueOnce(undefined);
+      queueService.peek.mockResolvedValue(entry as never);
+      queueService.drain.mockResolvedValueOnce(entry as never);
+    });
+
+    it('should start no second turn for posts recorded before the assembly, however late they were queued', async () => {
+      turnRunner.run.mockResolvedValueOnce(ended('completed', ['post-1', 'post-7']));
+      await activationService.onPost(PROFILE, post());
+      await settle();
+      expect(conversationsService.hasPostsObservedSince).toHaveBeenCalledWith({
+        agentUsername: 'mira',
+        channelId: 'channel-1',
+        since: ASSEMBLED_AT
+      });
+      expect(queueService.consumeIfUnchanged).toHaveBeenCalledWith(entry);
+      expect(turnRunner.run).toHaveBeenCalledTimes(1);
+    });
+
+    it('should drain when a post reached the store after the assembly', async () => {
+      turnRunner.run.mockResolvedValueOnce(ended('completed', ['post-1', 'post-7']));
+      conversationsService.hasPostsObservedSince.mockResolvedValueOnce(true);
+      await activationService.onPost(PROFILE, post());
+      await settle();
+      expect(queueService.consumeIfUnchanged).not.toHaveBeenCalled();
+      expect(turnRunner.run).toHaveBeenCalledTimes(2);
+    });
+
+    it('should drain when the earliest queued post was outside the window', async () => {
+      turnRunner.run.mockResolvedValueOnce(ended('completed', ['post-1']));
+      await activationService.onPost(PROFILE, post());
+      await settle();
+      expect(turnRunner.run).toHaveBeenCalledTimes(2);
+    });
+
+    it('should drain after any other exit that allows progress, whatever the window held', async () => {
+      turnRunner.run.mockResolvedValueOnce(ended('stopped', ['post-1', 'post-7']));
+      await activationService.onPost(PROFILE, post());
+      await settle();
+      expect(turnRunner.run).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('should absorb a queue entry left standing into the turn the next post starts', async () => {
@@ -326,7 +386,7 @@ describe('ActivationService', () => {
   });
 
   it('should point the queue back at the post that started a turn whose exit cannot make progress', async () => {
-    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_outage', turnId: 'turn-1' }));
+    turnRunner.run.mockResolvedValue(ended('provider_outage'));
     queueService.drain.mockResolvedValueOnce(undefined);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-1' } as never);
     await activationService.onPost(PROFILE, post());
@@ -338,7 +398,7 @@ describe('ActivationService', () => {
   });
 
   it('should point back at the earliest post the failed turn drained from, not the one that started it', async () => {
-    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_rejected', turnId: 'turn-1' }));
+    turnRunner.run.mockResolvedValue(ended('provider_rejected'));
     queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
     await activationService.onPost(PROFILE, post());
     await settle();
@@ -346,7 +406,7 @@ describe('ActivationService', () => {
   });
 
   it('should move a pointer a later post claimed during the failed turn back to the earlier post', async () => {
-    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_outage', turnId: 'turn-1' }));
+    turnRunner.run.mockResolvedValue(ended('provider_outage'));
     queueService.drain.mockResolvedValueOnce(undefined);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-9' } as never);
     conversationsService.earliestOf.mockResolvedValue('post-1');
@@ -357,7 +417,7 @@ describe('ActivationService', () => {
   });
 
   it('should drain a human post that arrived during a failed turn into a fresh turn at once (§7.1)', async () => {
-    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_outage', turnId: 'turn-1' }));
+    turnRunner.run.mockResolvedValue(ended('provider_outage'));
     queueService.drain.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
       earliestUnprocessedPostId: 'post-1'
     } as never);
@@ -377,7 +437,7 @@ describe('ActivationService', () => {
   });
 
   it("should leave a peer's mention standing after a failed turn until a human posts (§7.1)", async () => {
-    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_outage', turnId: 'turn-1' }));
+    turnRunner.run.mockResolvedValue(ended('provider_outage'));
     queueService.drain.mockResolvedValueOnce(undefined);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-9' } as never);
     conversationsService.earliestOf.mockResolvedValue('post-1');
@@ -390,7 +450,7 @@ describe('ActivationService', () => {
   });
 
   it('should leave a pointer alone when the post it names is already the earlier one', async () => {
-    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_outage', turnId: 'turn-1' }));
+    turnRunner.run.mockResolvedValue(ended('provider_outage'));
     queueService.drain.mockResolvedValueOnce(undefined);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-0' } as never);
     conversationsService.earliestOf.mockResolvedValue('post-0');
@@ -402,12 +462,12 @@ describe('ActivationService', () => {
   it('should leave the queue standing when a halt was raised while the turn ran', async () => {
     turnRunner.run.mockImplementation(() => {
       haltService.isHalted.mockReturnValue(true);
-      return Promise.resolve(Result.ok({ status: 'completed', turnId: 'turn-1' }));
+      return Promise.resolve(ended('completed'));
     });
     await activationService.onPost(PROFILE, post());
     await settle();
     expect(turnRunner.run).toHaveBeenCalledTimes(1);
-    expect(queueService.peek).not.toHaveBeenCalled();
+    expect(queueService.drain).toHaveBeenCalledTimes(1);
   });
 
   describe('the §4.2 idle predicate', () => {

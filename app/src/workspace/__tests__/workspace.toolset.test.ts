@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
-import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
+import { buildToolTurnScope, executeTool, renderApproval } from '@/testing/factories/tool-turn.factory.ts';
 
 import { WORKSPACE_TOOLSET } from '../workspace.toolset.ts';
 
@@ -143,8 +143,8 @@ describe('WORKSPACE_TOOLSET', () => {
   });
 
   describe('approval and trace', () => {
-    it('always gates, showing the human the full content, not the intent (§6.2)', () => {
-      expect(write.approval?.({ content: 'line one\nline two', path: 'notes.md' })).toStrictEqual({
+    it('always gates, showing the human the full content, not the intent (§6.2)', async () => {
+      expect(await renderApproval(write, { content: 'line one\nline two', path: 'notes.md' })).toStrictEqual({
         body: 'Write to `notes.md`:\n\n```\nline one\nline two\n```',
         presentation: 'collapse'
       });

@@ -1,6 +1,6 @@
 import { renderToolDisplayName, renderToolWireName } from '@collegium/core/tools';
 import type { ToolFailure, ToolId } from '@collegium/core/tools';
-import type { AnyTool, AnyToolset, AnyToolsetCollection } from '@collegium/core/toolsets';
+import type { AnyTool, AnyToolset, AnyToolsetCollection, AnyToolsetCollectionReader } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
@@ -24,6 +24,8 @@ export type RegisteredToolset = {
   readonly declaration: AnyToolset;
   readonly services: Readonly<{ [key: string]: unknown }>;
   readonly storage: Readonly<{ [key: string]: AnyToolsetCollection }>;
+  /** the read half of each collection above, and all of storage an approval render is handed (§3.4) */
+  readonly storageReaders: Readonly<{ [key: string]: AnyToolsetCollectionReader }>;
 };
 
 /** §8.4 — what an agent holds, and for each whether acting with it needs a human (§3.4) */
@@ -50,12 +52,17 @@ export class ToolRegistry {
    * name, the `ns::tool` form the framework's own approval posts put in the agent's own window, and
    * the bare tool segment where only one granted tool carries it (§3.4). Every key is rendered from
    * one identity at boot, so resolution stays lookup and nothing parses a name; a name claiming no
-   * granted tool still ends the turn (§7.2).
+   * granted tool is answered with the ones that are (§7.2).
    */
   private readonly agentCallableTools: ReadonlyMap<string, ReadonlyMap<string, ResolvedTool>>;
 
   /** wireName → tool, per agent — the set the model is offered and the one an operator is shown (§1) */
   private readonly agentTools: ReadonlyMap<string, ReadonlyMap<string, ResolvedTool>>;
+
+  private readonly coreNamespaces: ReadonlySet<string> = new Set(CORE_TOOLSETS.map((toolset) => toolset.name));
+
+  /** every tool every registered toolset declares, granted or not */
+  private readonly library: readonly ResolvedTool[];
 
   constructor(toolsets: readonly RegisteredToolset[], profiles: readonly AgentProfile[]) {
     const byNamespace = new Map<string, RegisteredToolset>();
@@ -84,12 +91,12 @@ export class ToolRegistry {
         });
       }
     }
-    const coreNamespaces = new Set<string>(CORE_TOOLSETS.map((toolset) => toolset.name));
+    this.library = Array.from(byRef.values());
     const grantable = new Map(
-      Array.from(byNamespace.entries()).filter(([namespace]) => !coreNamespaces.has(namespace))
+      Array.from(byNamespace.entries()).filter(([namespace]) => !this.coreNamespaces.has(namespace))
     );
     this.agentTools = new Map(
-      profiles.map((profile) => [profile.username, this.expandGrants(profile, byRef, grantable, coreNamespaces)])
+      profiles.map((profile) => [profile.username, this.expandGrants(profile, byRef, grantable)])
     );
     this.agentCallableTools = new Map(
       Array.from(this.agentTools, ([username, tools]) => [username, ToolRegistry.toCallableNames(tools)])
@@ -173,11 +180,33 @@ export class ToolRegistry {
     }));
   }
 
-  /** fails loudly on a name outside the agent's set (§6.1) — never falls back */
+  /** §3.11 — what a peer's roster line names: each namespace the agent holds a tool of, core left out, in a fixed order */
+  listGrantedNamespacesFor(profile: AgentProfile): readonly string[] {
+    const namespaces = new Set(Array.from(this.toolsFor(profile).values(), (tool) => tool.id[0]));
+    return Array.from(namespaces)
+      .filter((namespace) => !this.coreNamespaces.has(namespace))
+      .toSorted();
+  }
+
+  /** §3.14 — the tools of the named toolsets that no agent's expanded grants include, which no turn can ever call */
+  listUngrantedIn(namespaces: ReadonlySet<string>): ToolId[] {
+    const granted = new Set(Array.from(this.agentTools.values()).flatMap((tools) => Array.from(tools.keys())));
+    return this.library
+      .filter((tool) => namespaces.has(tool.id[0]) && !granted.has(tool.wireName))
+      .map((tool) => tool.id);
+  }
+
+  /** §7.2 — what a call naming no granted tool reads: the name it used, and the tools it can call by the names it calls them */
+  renderUnknownToolResult(profile: AgentProfile, name: string): string {
+    const callable = Array.from(this.toolsFor(profile).keys()).join(', ');
+    return `no tool named "${name}" exists in your tool set; the tools you can call are: ${callable}`;
+  }
+
+  /** never falls back to a nearby name (§6.1): a name outside the agent's set resolves to nothing */
   resolveFor(profile: AgentProfile, name: string): Result<ResolvedTool, ToolFailure.UnknownTool> {
     const tool = this.callableToolsFor(profile).get(name);
     if (!tool) {
-      return Result.err({ kind: 'unknown-tool', message: `no tool named "${name}" exists in your tool set` });
+      return Result.err({ kind: 'unknown-tool', message: this.renderUnknownToolResult(profile, name) });
     }
     return Result.ok(tool);
   }
@@ -196,8 +225,7 @@ export class ToolRegistry {
   private expandGrants(
     profile: AgentProfile,
     byRef: ReadonlyMap<string, ResolvedTool>,
-    grantable: ReadonlyMap<string, RegisteredToolset>,
-    coreNamespaces: ReadonlySet<string>
+    grantable: ReadonlyMap<string, RegisteredToolset>
   ): ReadonlyMap<string, ResolvedTool> {
     const tools = new Map<string, ResolvedTool>();
     const isAvailable = (tool: ResolvedTool) => {
@@ -215,7 +243,7 @@ export class ToolRegistry {
       includeNamespace(toolset);
     }
     for (const grant of profile.tools) {
-      if (coreNamespaces.has(grant) || coreNamespaces.has(byRef.get(grant)?.id[0] ?? '')) {
+      if (this.coreNamespaces.has(grant) || this.coreNamespaces.has(byRef.get(grant)?.id[0] ?? '')) {
         throw new Error(
           `agent "${profile.username}" is configured with "${grant}", which is core — always enabled and never granted`
         );

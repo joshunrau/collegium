@@ -1,4 +1,5 @@
 import { defineToolset } from '@collegium/core/toolsets';
+import type { AnyToolsetCollection } from '@collegium/core/toolsets';
 import { createServiceToken, Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -18,10 +19,22 @@ import { registerToolset } from '../tools.utils.ts';
 type Greeter = { greet(name: string): string };
 const GREETER_TOKEN = createServiceToken<Greeter>('GREETER');
 
+const STORED_NOTE = { body: 'call the vendor', createdAt: new Date(0), id: 'note-1', updatedAt: new Date(0) };
+
+const NOTES: AnyToolsetCollection = {
+  create: () => Promise.reject(new Error('unexpected create')),
+  deleteById: () => Promise.reject(new Error('unexpected delete')),
+  findById: (id) => Promise.resolve(id === STORED_NOTE.id ? STORED_NOTE : null),
+  findFirst: () => Promise.resolve(null),
+  findMany: () => Promise.resolve([]),
+  updateById: () => Promise.reject(new Error('unexpected update'))
+};
+
 const FIXTURE_TOOLSET = defineToolset({
   name: 'fixture',
   services: { greeter: GREETER_TOKEN },
   settings: z.object({ suffix: z.string().default('!') }),
+  storage: { notes: z.object({ body: z.string() }) },
   tools: {
     asker: {
       ask: (args) => ({ options: ['yes', 'no'], question: args.value }),
@@ -46,6 +59,15 @@ const FIXTURE_TOOLSET = defineToolset({
       execute: (args, context) => Result.ok({ text: `${context.greeter.greet(args.value)}${context.settings.suffix}` }),
       parameters: z.object({ value: z.string() }),
       retryable: true
+    },
+    forget: {
+      approval: async (args, { storage }) => {
+        const note = await storage.notes.findById(args.id);
+        return { body: `delete ${args.id}: ${note?.body}`, presentation: 'verbatim' };
+      },
+      description: 'Deletes a stored note.',
+      execute: () => Result.ok({ text: 'forgotten' }),
+      parameters: z.object({ id: z.string() })
     },
     gated: {
       approval: (args) => ({ body: `run ${args.value}`, presentation: 'verbatim' }),
@@ -78,6 +100,14 @@ const FIXTURE_TOOLSET = defineToolset({
       execute: () => {
         throw new Error('the vendor exploded');
       },
+      parameters: z.object({})
+    },
+    unrenderable: {
+      approval: () => {
+        throw new Error('the store is unreadable');
+      },
+      description: 'Gates behind a render that throws.',
+      execute: () => Result.ok({ text: 'never runs' }),
       parameters: z.object({})
     },
     unresolved: {
@@ -114,9 +144,7 @@ describe('ToolExecutor', () => {
     const registered = registerToolset(
       FIXTURE_TOOLSET,
       () => ({ greet: (name: string) => `hello ${name}` }),
-      () => {
-        throw new Error('no storage is declared by the fixture');
-      }
+      () => NOTES
     );
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -160,9 +188,9 @@ describe('ToolExecutor', () => {
     expect((attempt as { output: string }).output).toContain('invalid arguments for fixture__echo');
   });
 
-  it('ends the turn on a name outside the set (§6.1)', async () => {
+  it('answers a name outside the set with the tools the agent can call (§7.2)', async () => {
     const attempt = await execute('ghost__tool', {});
-    expect(attempt).toMatchObject({ kind: 'terminal', status: 'semantic_error' });
+    expect(attempt).toMatchObject({ kind: 'unknown-tool', output: expect.stringContaining('fixture__gated') });
   });
 
   it('gates on approval presence, running only once approved (§5)', async () => {
@@ -179,6 +207,34 @@ describe('ToolExecutor', () => {
       })
     );
     expect(attempt).toStrictEqual({ kind: 'continue', mayHaveTakenEffect: true, output: 'ran deploy' });
+  });
+
+  it('renders the payload from the stored record the call acts on (§3.4)', async () => {
+    approvalsService.request.mockResolvedValue(Result.ok({ byUsername: 'casey', kind: 'denied' }));
+    await execute('fixture__forget', { id: 'note-1' });
+    expect(approvalsService.request).toHaveBeenCalledWith(
+      expect.objectContaining({ payloadText: 'delete note-1: call the vendor' })
+    );
+  });
+
+  it('ends the turn when the render throws, asking no one (§7.1)', async () => {
+    const attempt = await execute('fixture__unrenderable', {});
+    expect(attempt).toStrictEqual({
+      detail: 'fixture::unrenderable threw while rendering its approval: the store is unreadable',
+      kind: 'terminal',
+      status: 'semantic_error'
+    });
+    expect(approvalsService.request).not.toHaveBeenCalled();
+  });
+
+  it('hands a render only the read half of each collection (§3.4)', () => {
+    const registered = registerToolset(
+      FIXTURE_TOOLSET,
+      () => undefined,
+      () => NOTES
+    );
+    const read = expect.any(Function);
+    expect(registered.storageReaders).toStrictEqual({ notes: { findById: read, findFirst: read, findMany: read } });
   });
 
   it('ends the turn on a bare denial, naming the denier and the display name (§5.4)', async () => {

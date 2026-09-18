@@ -24,4 +24,12 @@ export class PendingDecisionsService {
     await this.approvalsService.invalidateAll(reason);
     await this.asksService.invalidateAll(reason);
   }
+
+  /** what restarts a long turn's clock (§7.6) */
+  async isWaitingOnPerson(agentUsername: string, channelId: string): Promise<boolean> {
+    return (
+      (await this.approvalsService.hasPendingFor(agentUsername, channelId)) ||
+      (await this.asksService.hasPendingFor(agentUsername, channelId))
+    );
+  }
 }
