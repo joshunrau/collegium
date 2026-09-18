@@ -28,8 +28,9 @@ const respond = (body: Readable | string, init: { headers?: { [name: string]: st
   } satisfies PinnedResponse;
 };
 
-const html = (body: string, status = 200) =>
-  respond(body, { headers: { 'content-type': 'text/html; charset=utf-8' }, status });
+const html = (body: string, status = 200) => {
+  return respond(body, { headers: { 'content-type': 'text/html; charset=utf-8' }, status });
+};
 
 const redirect = (location: string) => respond('', { headers: { location }, status: 302 });
 

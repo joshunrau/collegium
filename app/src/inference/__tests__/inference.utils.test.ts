@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeInferenceFailure } from '../inference.utils.ts';
+import { describeInferenceFailure, estimateRequestTokens } from '../inference.utils.ts';
+
+import type { CompletionRequest } from '../inference.types.ts';
 
 describe('describeInferenceFailure', () => {
   it('should carry the provider’s own words, which are what name a rejected request', () => {
@@ -26,6 +28,24 @@ describe('describeInferenceFailure', () => {
   it('should describe a malformed completion', () => {
     expect(describeInferenceFailure({ kind: 'malformed', message: 'completion returned empty content' })).toBe(
       'the completion was malformed: completion returned empty content'
+    );
+  });
+});
+
+describe('estimateRequestTokens', () => {
+  const request: CompletionRequest = {
+    cacheKey: 'mira:channel-1',
+    messages: [{ content: 'hello', role: 'user' }],
+    model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
+    systemPrompt: { dynamic: '', stable: 'You are Mira.' },
+    tools: []
+  };
+
+  it('should cost the whole request as sent, so tool definitions and the system prompt weigh in (§3.8)', () => {
+    const withTool = { ...request, tools: [{ description: 'Tells the time.', name: 'builtins__now', parameters: {} }] };
+    expect(estimateRequestTokens(withTool)).toBeGreaterThan(estimateRequestTokens(request));
+    expect(estimateRequestTokens({ ...request, systemPrompt: { dynamic: '', stable: '' } })).toBeLessThan(
+      estimateRequestTokens(request)
     );
   });
 });

@@ -1,10 +1,11 @@
+import { estimateTokens } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow, PostKind } from '@/prisma/prisma.types.ts';
 
 import { EpisodesService } from '../episodes/episodes.service.ts';
-import { costOf, createPagedSource, entryText, estimateTokens, instantOf } from './window.utils.ts';
+import { costOf, createPagedSource, entryText, instantOf } from './window.utils.ts';
 
 import type { EpisodeBoundary, WindowEntry } from '../conversations.types.ts';
 

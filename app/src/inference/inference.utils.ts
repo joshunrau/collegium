@@ -1,11 +1,31 @@
+import { estimateTokens } from '@collegium/core/utils';
 import { match } from 'ts-pattern';
 
 import type { ReasoningDetail } from '@/core/core.types.ts';
 
-import type { CompletionReasoning, CompletionUsage, InferenceFailure, SystemPrompt } from './inference.types.ts';
+import { toCompletionBody } from './adapters/openai-compatible.utils.ts';
+
+import type {
+  CompletionMessage,
+  CompletionReasoning,
+  CompletionRequest,
+  CompletionUsage,
+  InferenceFailure,
+  SystemPrompt
+} from './inference.types.ts';
 
 function addReportedAmount(left: number | undefined, right: number | undefined): number | undefined {
   return left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
+}
+
+/** what one message adds to a request, by the same ruler the window is measured with (§3.8) */
+export function estimateMessageTokens(message: CompletionMessage): number {
+  return estimateTokens(JSON.stringify(message));
+}
+
+/** the whole request as the provider receives it — system prompt, tool definitions and messages — by the same ruler (§3.8) */
+export function estimateRequestTokens(request: CompletionRequest): number {
+  return estimateTokens(JSON.stringify(toCompletionBody(request)));
 }
 
 export function renderSystemPrompt(prompt: SystemPrompt): string {
