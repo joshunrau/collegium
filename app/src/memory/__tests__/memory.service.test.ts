@@ -64,11 +64,20 @@ describe('MemoryService', () => {
   });
 
   describe('caps', () => {
-    it('should evict the oldest entry once the entry cap is reached', async () => {
+    it('should evict the oldest-created entry once the entry cap is reached, when nothing was ever read', async () => {
       await write({ description: 'first' });
       await write({ description: 'second' });
       await write({ description: 'third' });
       expect(table.rows.map((row) => row.description)).toStrictEqual(['second', 'third']);
+    });
+
+    it('should evict the least recently used entry, not the oldest written (§3.6)', async () => {
+      await write({ description: 'first' });
+      await write({ description: 'second' });
+      await memoryService.markUsed(buildId(0));
+      const result = await write({ description: 'third' });
+      expect(table.rows.map((row) => row.description)).toStrictEqual(['first', 'third']);
+      expect(result.value?.evictedDescriptions).toStrictEqual(['second']);
     });
 
     it('should refuse a description longer than the cap rather than truncate it', async () => {
@@ -114,6 +123,20 @@ describe('MemoryService', () => {
         kind: 'ambiguous',
         reference: 'memory-0'
       });
+    });
+
+    it('should leave the listing oldest-created first after an entry is marked used', async () => {
+      await write({ description: 'first' });
+      await write({ description: 'second' });
+      await memoryService.markUsed(buildId(0));
+      expect((await memoryService.list('mira')).map(({ description }) => description)).toStrictEqual([
+        'first',
+        'second'
+      ]);
+    });
+
+    it('should treat marking a since-deleted entry used as a no-op rather than a throw', async () => {
+      await expect(memoryService.markUsed(buildId(9))).resolves.toBeUndefined();
     });
 
     it('should keep memory per-agent, never shared between agents', async () => {

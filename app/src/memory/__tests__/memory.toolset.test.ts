@@ -17,11 +17,12 @@ function buildContext() {
 }
 
 describe('MEMORY_TOOLSET', () => {
-  it('reads a memory body back by reference', async () => {
+  it('reads a memory body back by reference and marks the entry used (§3.6)', async () => {
     const { context, memory } = buildContext();
-    memory.read.mockResolvedValue(Result.ok({ body: 'bullet points, always' } as never));
+    memory.read.mockResolvedValue(Result.ok({ body: 'bullet points, always', id: 'mem-1-full-id' } as never));
     const result = await executeTool(read, { reference: 'mem-1' }, context);
     expect(memory.read).toHaveBeenCalledWith('mira', 'mem-1');
+    expect(memory.markUsed).toHaveBeenCalledWith('mem-1-full-id');
     expect(result.unwrap().text).toBe('bullet points, always');
   });
 
@@ -33,6 +34,7 @@ describe('MEMORY_TOOLSET', () => {
       kind: 'invalid-arguments',
       message: 'no memory entry with reference "mem-9" exists'
     });
+    expect(memory.markUsed).not.toHaveBeenCalled();
   });
 
   it('returns an ambiguous reference as a refusal rather than a guess', async () => {

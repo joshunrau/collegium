@@ -41,15 +41,22 @@ describe('MemoryHandler', () => {
     });
   });
 
-  it('should show the body of one memory to the caller alone', async () => {
+  it('should show the body of one memory to the caller alone, and count that as use (§3.6)', async () => {
     memoryService.read.mockResolvedValue(
-      Result.ok({ body: 'Bullets, never prose.', description: 'casey prefers bullets' } as never)
+      Result.ok({ body: 'Bullets, never prose.', description: 'casey prefers bullets', id: 'm1-full-id' } as never)
     );
     expect(await handle('mira show m1')).toStrictEqual({
       audience: 'invoker',
       text: 'Memory m1 — casey prefers bullets:\n\nBullets, never prose.'
     });
     expect(memoryService.read).toHaveBeenCalledWith('mira', 'm1');
+    expect(memoryService.markUsed).toHaveBeenCalledWith('m1-full-id');
+  });
+
+  it('should not count a prune as use', async () => {
+    memoryService.delete.mockResolvedValue(Result.ok({ description: 'a stale fact' } as never));
+    await handle('mira prune m1');
+    expect(memoryService.markUsed).not.toHaveBeenCalled();
   });
 
   it('should say when the reference resolves to no memory', async () => {

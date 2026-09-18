@@ -89,19 +89,19 @@ export class MemoryService {
     });
   }
 
-  /** leaves room for one more entry by dropping the oldest, so a write at the cap never fails */
+  /** §3.6 — leaves room for one more entry by dropping the least recently used, so a write at the cap never fails */
   private async evictBeyond(agentUsername: string, maxEntries: number): Promise<string[]> {
     const surplus = (await this.memories.count({ where: { agentUsername } })) - maxEntries + 1;
     if (surplus <= 0) {
       return [];
     }
-    const oldest = await this.memories.findMany({
-      orderBy: { createdAt: 'asc' },
+    const stalest = await this.memories.findMany({
+      orderBy: { lastUsedAt: 'asc' },
       select: { description: true, id: true },
       take: surplus,
       where: { agentUsername }
     });
-    await this.memories.deleteMany({ where: { id: { in: oldest.map(({ id }) => id) } } });
-    return oldest.map(({ description }) => description);
+    await this.memories.deleteMany({ where: { id: { in: stalest.map(({ id }) => id) } } });
+    return stalest.map(({ description }) => description);
   }
 }

@@ -121,6 +121,8 @@ export const $MemorySettings = z
       .int()
       .positive()
       .default(50)
-      .describe('How many entries one agent may hold. Writing beyond it evicts the oldest entry.')
+      .describe(
+        'How many entries one agent may hold. Writing beyond it evicts the entry whose body was read longest ago, counting an entry never read from when it was written.'
+      )
   })
   .describe("The bounds on one agent's memory (§3.6). Every field has a default, so a bare grant works.");
