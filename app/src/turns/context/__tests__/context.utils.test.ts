@@ -135,7 +135,11 @@ describe('toCompletionMessages', () => {
 
     expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
       { content: '', role: 'assistant', toolCalls: [{ arguments: {}, id: 'c1', name: 'workspace__write' }] },
-      { content: 'the arguments to this call were not valid JSON, so the call did not run', role: 'tool', toolCallId: 'c1' }
+      {
+        content: 'the arguments to this call were not valid JSON, so the call did not run',
+        role: 'tool',
+        toolCallId: 'c1'
+      }
     ]);
   });
 

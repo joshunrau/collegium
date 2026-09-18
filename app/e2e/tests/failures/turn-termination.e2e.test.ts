@@ -49,7 +49,9 @@ describe('Turn termination', () => {
 
     const followUp = inference.requestsFor('mira').at(-1)!;
     const fedBack = followUp.messages.find((message) => message.role === 'tool');
-    expect(fedBack).toMatchObject({ content: 'the arguments to this call were not valid JSON, so the call did not run' });
+    expect(fedBack).toMatchObject({
+      content: 'the arguments to this call were not valid JSON, so the call did not run'
+    });
     expect(JSON.stringify(followUp.messages)).not.toContain('unterminated');
   });
 

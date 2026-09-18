@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { bootProbeRequest, describeInferenceFailure, estimateRequestTokens, isUnparsedToolCall } from '../inference.utils.ts';
+import {
+  bootProbeRequest,
+  describeInferenceFailure,
+  estimateRequestTokens,
+  isUnparsedToolCall
+} from '../inference.utils.ts';
 
 import type { CompletionRequest } from '../inference.types.ts';
 

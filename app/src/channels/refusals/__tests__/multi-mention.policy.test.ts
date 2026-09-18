@@ -78,13 +78,21 @@ describe('MultiMentionPolicy', () => {
         })
       ).toStrictEqual([]);
       expect(
-        multiMentionPolicy.addresseesOf({ authorUsername: 'mira', channelId: 'channel-1', mentionedUsernames: ['owen'] })
+        multiMentionPolicy.addresseesOf({
+          authorUsername: 'mira',
+          channelId: 'channel-1',
+          mentionedUsernames: ['owen']
+        })
       ).toStrictEqual(['owen']);
     });
   });
 
   describe('refusesSecondAddressee (§4.5)', () => {
-    const post = (...mentionedUsernames: string[]) => ({ authorUsername: 'mira', channelId: 'channel-1', mentionedUsernames });
+    const post = (...mentionedUsernames: string[]) => ({
+      authorUsername: 'mira',
+      channelId: 'channel-1',
+      mentionedUsernames
+    });
 
     it('should refuse a different peer once the turn has addressed one', () => {
       expect(multiMentionPolicy.refusesSecondAddressee(post('tess'), 'owen')).toBe(true);
