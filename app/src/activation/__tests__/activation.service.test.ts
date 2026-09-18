@@ -587,15 +587,24 @@ describe('ActivationService', () => {
     expect(triggersService.peekPending).not.toHaveBeenCalled();
   });
 
-  it('should put back a standing row a refused activation had drained, leaving it for the next human post', async () => {
+  it('should put back a person’s standing post a refused activation had drained, and never a peer’s mention', async () => {
+    const human = { authorKind: 'human', authorUsername: 'casey', delegator: undefined } as never;
+    const peer = { authorKind: 'agent', authorUsername: 'owen', delegator: undefined } as never;
+    conversationsService.findActivationSource.mockImplementation((postId) => {
+      return Promise.resolve(postId === 'post-7' ? human : postId === 'post-8' ? peer : undefined);
+    });
     queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
-    turnRunner.run.mockResolvedValueOnce(Result.err({ count: 3, kind: 'chain-full', limit: 3, rootPostId: 'post-0' }));
+    turnRunner.run.mockResolvedValue(Result.err({ count: 3, kind: 'chain-full', limit: 3, rootPostId: 'post-0' }));
     await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
     await settle();
     expect(queueService.enqueue).toHaveBeenCalledWith('mira', 'channel-1', 'post-7');
     expect(queueService.enqueue).not.toHaveBeenCalledWith('mira', 'channel-1', 'post-1');
-    expect(turnRunner.run).toHaveBeenCalledTimes(1);
+    queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-8' } as never);
+    await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen', id: 'post-2' }));
+    await settle();
+    expect(queueService.enqueue).not.toHaveBeenCalledWith('mira', 'channel-1', 'post-8');
+    expect(loggingService.warn).toHaveBeenCalledWith(expect.stringContaining('dropped the queue entry'));
   });
 
   it('should release the lock however the turn ended', async () => {

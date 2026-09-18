@@ -351,7 +351,9 @@ export class ActivationService {
   /**
    * §7.4 — an activation the chain limit refuses is refused, not deferred: the mention post starts
    * nothing and is queued nowhere, and the system bot says so under it. A standing row this
-   * activation had already drained is put back, since the 👀 on it promised a read.
+   * activation had already drained is put back only where a person wrote it, since the 👀 on it
+   * promised a read and a person's post starts a fresh chain; a peer's mention put back would be
+   * refused again at every sweep.
    */
   private async refuseChainTurn(
     profile: AgentProfile,
@@ -361,7 +363,14 @@ export class ActivationService {
     let humanWaiting = false;
     try {
       if (input.drainedFromPostId !== undefined) {
-        humanWaiting = await this.leaveStanding(profile, input.channelId, input.drainedFromPostId);
+        const drained = await this.conversationsService.findActivationSource(input.drainedFromPostId);
+        if (drained?.authorKind === 'human') {
+          humanWaiting = await this.leaveStanding(profile, input.channelId, input.drainedFromPostId);
+        } else {
+          this.loggingService.warn(
+            `dropped the queue entry for "${profile.username}" in ${input.channelId}: the chain limit refused the peer mention it pointed at`
+          );
+        }
       }
     } finally {
       input.lock.release();
