@@ -15,9 +15,10 @@ export type AssembledContext = {
 };
 
 /**
- * The six sections of §3.8, from SQLite alone — never the Mattermost API on the turn path. The
- * first four render into the system prompt; tool definitions ride the request's own `tools` field,
- * which is where a provider reads them; the channel window becomes the messages.
+ * The seven sections of §3.8, from SQLite alone — never the Mattermost API on the turn path. All
+ * but two render into the system prompt; tool definitions ride the request's own `tools` field,
+ * which is where a provider reads them; the channel window becomes the messages. The window is
+ * built first because the prompt's earlier-action lines begin where it reaches back to.
  */
 @Injectable()
 export class ContextAssembler {
@@ -29,14 +30,16 @@ export class ContextAssembler {
 
   async assemble(input: { channelId: string; profile: AgentProfile }): Promise<AssembledContext> {
     const { channelId, profile } = input;
-    const [systemPrompt, entries] = await Promise.all([
-      this.systemPromptRenderer.renderParts({ channelId, profile }),
-      this.windowService.build({
-        agentUsername: profile.username,
-        budgetTokens: profile.contextBudgetTokens,
-        channelId
-      })
-    ]);
+    const { entries, oldestAt } = await this.windowService.build({
+      agentUsername: profile.username,
+      budgetTokens: profile.contextBudgetTokens,
+      channelId
+    });
+    const systemPrompt = await this.systemPromptRenderer.renderParts({
+      channelId,
+      profile,
+      windowReachesBackTo: oldestAt
+    });
     return {
       request: {
         cacheKey: JSON.stringify([profile.username, channelId]),

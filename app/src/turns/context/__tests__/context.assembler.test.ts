@@ -57,15 +57,16 @@ const event = (payload: PrismaJson.TurnEventPayload, at: number): WindowEntry =>
 
 describe('ContextAssembler', () => {
   let contextAssembler: ContextAssembler;
+  let systemPromptRenderer: MockedInstance<SystemPromptRenderer>;
   let windowService: MockedInstance<WindowService>;
 
   beforeEach(async () => {
-    const systemPromptRenderer = MockFactory.createMock(SystemPromptRenderer);
+    systemPromptRenderer = MockFactory.createMock(SystemPromptRenderer);
     systemPromptRenderer.renderParts.mockResolvedValue({ dynamic: '', stable: 'You are Mira.\n\n## How this works' });
     const toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.describeFor.mockReturnValue([{ description: 'Load a skill.', name: 'load_skill', parameters: {} }]);
     windowService = MockFactory.createMock(WindowService);
-    windowService.build.mockResolvedValue([]);
+    windowService.build.mockResolvedValue({ entries: [], oldestAt: undefined });
     const moduleRef = await Test.createTestingModule({
       providers: [
         ContextAssembler,
@@ -89,7 +90,7 @@ describe('ContextAssembler', () => {
 
   it('should keep the cache key stable per agent and channel', async () => {
     const initial = await assemble();
-    windowService.build.mockResolvedValue([post('casey', 'new message', 1000)]);
+    windowService.build.mockResolvedValue({ entries: [post('casey', 'new message', 1000)], oldestAt: new Date(1000) });
     expect((await assemble()).cacheKey).toBe(initial.cacheKey);
     const otherChannel = await contextAssembler.assemble({ channelId: 'channel-2', profile: PROFILE });
     const otherAgent = await contextAssembler.assemble({
@@ -101,12 +102,15 @@ describe('ContextAssembler', () => {
   });
 
   it('should render the window with peer posts as attributed user messages and own posts as assistant', async () => {
-    windowService.build.mockResolvedValue([
-      post('casey', 'hello @mira', 1000),
-      post('mira', 'on it', 2000),
-      event({ content: 'checking', kind: 'assistant_message', toolCalls: [] }, 3000),
-      event({ callId: 'c1', kind: 'tool_result', output: 'the body', toolName: 'read_memory' }, 4000)
-    ]);
+    windowService.build.mockResolvedValue({
+      entries: [
+        post('casey', 'hello @mira', 1000),
+        post('mira', 'on it', 2000),
+        event({ content: 'checking', kind: 'assistant_message', toolCalls: [] }, 3000),
+        event({ callId: 'c1', kind: 'tool_result', output: 'the body', toolName: 'read_memory' }, 4000)
+      ],
+      oldestAt: new Date(1000)
+    });
     const request = await assemble();
     expect(request.messages).toStrictEqual([
       { content: '@casey: hello @mira', role: 'user' },
@@ -116,18 +120,31 @@ describe('ContextAssembler', () => {
   });
 
   it('should drop a call history cannot answer rather than send a native call a provider would reject', async () => {
-    windowService.build.mockResolvedValue([
-      event(
-        {
-          content: '',
-          kind: 'assistant_message',
-          toolCalls: [{ args: { path: 'notes.md' }, callId: 'c9', toolName: 'write_file' }]
-        },
-        1000
-      ),
-      event({ approvalId: 'a1', byUsername: 'casey', decision: 'denied', kind: 'approval_decided' }, 2000)
-    ]);
+    windowService.build.mockResolvedValue({
+      entries: [
+        event(
+          {
+            content: '',
+            kind: 'assistant_message',
+            toolCalls: [{ args: { path: 'notes.md' }, callId: 'c9', toolName: 'write_file' }]
+          },
+          1000
+        ),
+        event({ approvalId: 'a1', byUsername: 'casey', decision: 'denied', kind: 'approval_decided' }, 2000)
+      ],
+      oldestAt: new Date(1000)
+    });
     const request = await assemble();
     expect(request.messages).toStrictEqual([{ content: '[approval denied]', role: 'user' }]);
+  });
+
+  it("should pass the window's oldest instant to the prompt renderer", async () => {
+    windowService.build.mockResolvedValue({ entries: [], oldestAt: new Date(1000) });
+    await assemble();
+    expect(systemPromptRenderer.renderParts).toHaveBeenCalledWith({
+      channelId: 'channel-1',
+      profile: PROFILE,
+      windowReachesBackTo: new Date(1000)
+    });
   });
 });

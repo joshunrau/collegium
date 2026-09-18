@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { PERSONALITY_PROMPTS } from '@/agents/personalities/personalities.constants.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
+import { WindowService } from '@/conversations/window/window.service.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import type { SystemPrompt } from '@/inference/inference.types.ts';
 import { renderSystemPrompt } from '@/inference/inference.utils.ts';
@@ -11,10 +12,13 @@ import { deriveShellHomeDir } from '@/shell/shell.utils.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
+import { RECENT_ACTION_LINES } from './context.constants.ts';
+import { collapseRepeatedLines } from './system-prompt.utils.ts';
+
 /**
- * The first four sections of §3.8 in order — the agent's own prompt, the baseline, its personality, the preamble,
- * skills, memories, peers — from SQLite and the registries alone, never the Mattermost API. The turn path and /inspect
- * both render through here, so the prompt an operator reads is the prompt the model was given.
+ * The prompt sections of §3.8 in order — the agent's own prompt, the baseline, its personality, the preamble,
+ * skills, memories, earlier actions, peers — from SQLite and the registries alone, never the Mattermost API. The turn
+ * path and /inspect both render through here, so the prompt an operator reads is the prompt the model was given.
  */
 @Injectable()
 export class SystemPromptRenderer {
@@ -23,14 +27,26 @@ export class SystemPromptRenderer {
     private readonly rosterService: RosterService,
     private readonly skillsService: SkillsService,
     private readonly textFormatter: TextFormatter,
-    private readonly toolRegistry: ToolRegistry
+    private readonly toolRegistry: ToolRegistry,
+    private readonly windowService: WindowService
   ) {}
 
+  /** §8.4 — /inspect renders outside a turn, so the window's reach is the one the last turn here left behind */
   async render(input: { channelId: string; profile: AgentProfile }): Promise<string> {
-    return renderSystemPrompt(await this.renderParts(input));
+    return renderSystemPrompt(
+      await this.renderParts({
+        ...input,
+        windowReachesBackTo: this.windowService.reachesBackTo(input.profile.username, input.channelId)
+      })
+    );
   }
 
-  async renderParts(input: { channelId: string; profile: AgentProfile }): Promise<SystemPrompt> {
+  async renderParts(input: {
+    channelId: string;
+    profile: AgentProfile;
+    /** the instant the window reaches back to, where the earlier-action lines pick up; absent for an empty window */
+    windowReachesBackTo: Date | undefined;
+  }): Promise<SystemPrompt> {
     const { channelId, profile } = input;
     const stable = [
       profile.systemPrompt,
@@ -41,6 +57,7 @@ export class SystemPromptRenderer {
     ];
     const dynamic = [
       this.renderMemories(await this.memoryService.list(profile.username)),
+      await this.renderRecentActions(channelId, profile, input.windowReachesBackTo),
       this.renderPeers(channelId, profile)
     ];
     return {
@@ -133,6 +150,7 @@ export class SystemPromptRenderer {
         '## How this works',
         "You are one of a group of agents. You work with people in a shared Mattermost workspace. Your context is the recent posts in this channel and the framework's record of your own recent actions here. A post starts with its author name, as `@username:`. Your own past tool calls and their results appear as calls and results, not as posts. A line in square brackets is a note from the framework: an approval it requested, a person's decision on one, or a memory you wrote. There are no threads.",
         "The framework fits your context to about {contextBudgetTokens} tokens of recent posts and records, newest first; older ones fall outside it. Each tool result in a turn stays in that turn's context.",
+        'Lines under Earlier in this channel are your own past actions that your context no longer reaches. They say what you did, not what you learned or what a result said. To read a result again, make the call again.',
         "The framework posts your reply. Text with no tool call is your final message. It goes to the channel and the turn stops. Text with a tool call is shown while the tool runs. Then it is removed. When your turn stops, the framework starts no further turn in this channel by itself. A person's post, a colleague's mention, or a trigger the framework posts starts the next one.",
         'Some tools need approval from a person before they run. The approval prompt shows the full payload to all persons in the channel. There is no timeout. If a person denies with no reason, the turn stops. If a person denies with a reason, the reason comes back as the tool result. The turn then continues with the same budget.',
         'Each turn has a budget of {actionBudget} tool calls. A denied call also uses the budget. Calls to {budgetExemptCalls} do not. When the budget is used, the framework asks a person for more. If the person approves, you get {actionBudget} more calls. If the person denies with no reason, the turn stops. If the person denies with a reason, the reason comes back as the tool result, no further call runs, and only your text is posted.',
@@ -160,6 +178,33 @@ export class SystemPromptRenderer {
         shellHomeDir: deriveShellHomeDir(profile.username),
         workspaceDir: profile.workspaceDir
       }
+    );
+  }
+
+  private async renderRecentActions(
+    channelId: string,
+    profile: AgentProfile,
+    windowReachesBackTo: Date | undefined
+  ): Promise<string | undefined> {
+    if (windowReachesBackTo === undefined) {
+      return undefined;
+    }
+    const lines = await this.windowService.readRecentActions({
+      agentUsername: profile.username,
+      before: windowReachesBackTo,
+      channelId,
+      take: RECENT_ACTION_LINES
+    });
+    if (lines.length === 0) {
+      return undefined;
+    }
+    return this.textFormatter.formatParagraphs(
+      [
+        '## Earlier in this channel',
+        'What you did here before your context reaches back to, newest first:',
+        '{listing}'
+      ],
+      { listing: this.textFormatter.formatBullets(collapseRepeatedLines(lines)) }
     );
   }
 

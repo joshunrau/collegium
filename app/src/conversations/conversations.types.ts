@@ -60,6 +60,12 @@ export type WindowEntry =
   | { readonly event: ModelRow<'TurnEvent'>; readonly kind: 'event' }
   | { readonly kind: 'post'; readonly post: ModelRow<'Post'> };
 
+/** §3.8 — the channel window and the instant it reaches back to, where the agent's earlier actions pick up */
+export type WindowResult = {
+  readonly entries: readonly WindowEntry[];
+  readonly oldestAt: Date | undefined;
+};
+
 /** one file a post carried, as the window names it (§3.8) — the store's shape, so the two cannot drift */
 export type PostAttachment = PrismaJson.PostAttachments['files'][number];
 

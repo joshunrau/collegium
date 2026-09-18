@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
+import { WindowService } from '@/conversations/window/window.service.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
@@ -30,6 +31,7 @@ describe('SystemPromptRenderer', () => {
   let skillsService: MockedInstance<SkillsService>;
   let systemPromptRenderer: SystemPromptRenderer;
   let toolRegistry: MockedInstance<ToolRegistry>;
+  let windowService: MockedInstance<WindowService>;
 
   beforeEach(async () => {
     memoryService = MockFactory.createMock(MemoryService);
@@ -41,6 +43,9 @@ describe('SystemPromptRenderer', () => {
     toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listBudgetExemptFor.mockReturnValue(['builtins__now', 'skills__load']);
     toolRegistry.listFor.mockReturnValue([]);
+    windowService = MockFactory.createMock(WindowService);
+    windowService.reachesBackTo.mockReturnValue(undefined);
+    windowService.readRecentActions.mockResolvedValue([]);
     const moduleRef = await Test.createTestingModule({
       providers: [
         SystemPromptRenderer,
@@ -48,13 +53,18 @@ describe('SystemPromptRenderer', () => {
         { provide: MemoryService, useValue: memoryService },
         { provide: RosterService, useValue: rosterService },
         { provide: SkillsService, useValue: skillsService },
-        { provide: ToolRegistry, useValue: toolRegistry }
+        { provide: ToolRegistry, useValue: toolRegistry },
+        { provide: WindowService, useValue: windowService }
       ]
     }).compile();
     systemPromptRenderer = moduleRef.get(SystemPromptRenderer);
   });
 
   const render = () => systemPromptRenderer.render({ channelId: 'channel-1', profile: PROFILE });
+
+  const renderParts = (windowReachesBackTo: Date | undefined = undefined) => {
+    return systemPromptRenderer.renderParts({ channelId: 'channel-1', profile: PROFILE, windowReachesBackTo });
+  };
 
   it('should include the behavioral baseline without an optional personality', async () => {
     const prompt = await render();
@@ -118,7 +128,7 @@ describe('SystemPromptRenderer', () => {
 
   it('should carry the directories in the stable half and no clock or host state in either (§3.8)', async () => {
     toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['workspace', 'read'] }]);
-    const { dynamic, stable } = await systemPromptRenderer.renderParts({ channelId: 'channel-1', profile: PROFILE });
+    const { dynamic, stable } = await renderParts();
     expect(stable).toContain('share one directory');
     expect(dynamic).not.toContain('share one directory');
     expect(`${stable}\n${dynamic}`).not.toMatch(/\bgit\b|\bbranch\b|\bcommit\b|\d{4}-\d{2}-\d{2}/u);
@@ -161,15 +171,54 @@ Colleagues in this channel:
 
   it('should keep instructions and skills stable when memories and peers change', async () => {
     skillsService.renderManifest.mockReturnValue('- triage: Investigate a problem.');
-    const initial = await systemPromptRenderer.renderParts({ channelId: 'channel-1', profile: PROFILE });
+    const initial = await renderParts();
     memoryService.list.mockResolvedValue([{ description: 'new preference', reference: 'memory-1' }]);
     rosterService.getPeers.mockReturnValue([PEER]);
-    const updated = await systemPromptRenderer.renderParts({ channelId: 'channel-1', profile: PROFILE });
+    const updated = await renderParts();
     expect(updated.stable).toBe(initial.stable);
     expect(updated.stable).toContain('## Skills');
     expect(initial.dynamic).toBe('');
     expect(updated.dynamic).toContain('## Memories');
     expect(updated.dynamic).toContain('## Peers');
     expect(await render()).toBe(`${updated.stable}\n\n${updated.dynamic}`);
+  });
+
+  it('should omit the earlier actions section when the window reaches the start of the channel (§3.8)', async () => {
+    windowService.readRecentActions.mockResolvedValue(['[read notes.md (12 bytes)]']);
+    expect((await renderParts()).dynamic).not.toContain('## Earlier in this channel');
+    expect(windowService.readRecentActions).not.toHaveBeenCalled();
+  });
+
+  it('should omit the earlier actions section when nothing this agent did precedes the window (§3.8)', async () => {
+    expect((await renderParts(new Date(1000))).dynamic).not.toContain('## Earlier in this channel');
+  });
+
+  it('should ask for twenty of its own actions from before the window (§3.8)', async () => {
+    await renderParts(new Date(1000));
+    expect(windowService.readRecentActions).toHaveBeenCalledWith({
+      agentUsername: 'mira',
+      before: new Date(1000),
+      channelId: 'channel-1',
+      take: 20
+    });
+  });
+
+  it('should collapse a run of identical earlier action lines (§3.8)', async () => {
+    windowService.readRecentActions.mockResolvedValue([
+      '[fetched https://x/a]',
+      '[fetched https://x/a]',
+      '[ran ls (0)]'
+    ]);
+    expect((await renderParts(new Date(1000))).dynamic).toContain('- [fetched https://x/a] (x2)\n- [ran ls (0)]');
+  });
+
+  it('should place the earlier actions between memories and peers in the dynamic half (§3.8)', async () => {
+    memoryService.list.mockResolvedValue([{ description: 'casey prefers bullets', reference: 'memory-1' }]);
+    rosterService.getPeers.mockReturnValue([PEER]);
+    windowService.readRecentActions.mockResolvedValue(['[read notes.md (12 bytes)]']);
+    const { dynamic, stable } = await renderParts(new Date(1000));
+    expect(stable).not.toContain('## Earlier in this channel');
+    expect(dynamic.indexOf('## Earlier in this channel')).toBeGreaterThan(dynamic.indexOf('## Memories'));
+    expect(dynamic.indexOf('## Earlier in this channel')).toBeLessThan(dynamic.indexOf('## Peers'));
   });
 });

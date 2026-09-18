@@ -1,5 +1,7 @@
 import { estimateTokens } from '@collegium/core/utils';
 
+import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
+
 import { renderPostWithAttachments } from '../conversations.utils.ts';
 
 import type { WindowEntry } from '../conversations.types.ts';
@@ -18,6 +20,18 @@ export function entryText(entry: WindowEntry): string {
   }
   const { payload } = entry.event;
   return payload.kind === 'tool_result' && payload.replay !== undefined ? payload.replay : JSON.stringify(payload);
+}
+
+/**
+ * §3.8 — how one earlier action reads: the line the tool declared, else its bare name. Not
+ * `entryText`'s rule, which falls back to the whole payload because that is what a result with no
+ * replay line costs the window; an earlier action is one line or it is nothing.
+ */
+export function replayLineOf(payload: PrismaJson.TurnEventPayload): string | undefined {
+  if (payload.kind !== 'tool_result') {
+    return undefined;
+  }
+  return payload.replay ?? `[${renderRecordedToolName(payload.toolName)}]`;
 }
 
 export function costOf(entries: readonly WindowEntry[]): number {

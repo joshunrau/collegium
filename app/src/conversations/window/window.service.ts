@@ -5,14 +5,22 @@ import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow, PostKind } from '@/prisma/prisma.types.ts';
 
 import { EpisodesService } from '../episodes/episodes.service.ts';
-import { costOf, createPagedSource, entryText, instantOf } from './window.utils.ts';
+import { costOf, createPagedSource, entryText, instantOf, replayLineOf } from './window.utils.ts';
 
-import type { EpisodeBoundary, WindowEntry } from '../conversations.types.ts';
+import type { EpisodeBoundary, WindowEntry, WindowResult } from '../conversations.types.ts';
 
 type WindowInput = {
   agentUsername: string;
   budgetTokens: number;
   channelId: string;
+};
+
+type RecentActionsInput = {
+  agentUsername: string;
+  /** strictly older than this instant, so no action the window already carries is said twice */
+  before: Date;
+  channelId: string;
+  take: number;
 };
 
 type PageQuery = {
@@ -51,25 +59,54 @@ export class WindowService {
   ) {}
 
   /** the newest history under the budget, oldest first for the model, its oldest entry held fixed while everything since still fits (§3.8) */
-  async build(input: WindowInput): Promise<WindowEntry[]> {
+  async build(input: WindowInput): Promise<WindowResult> {
     const boundary = await this.episodesService.latestBoundary(input.agentUsername, input.channelId);
-    const key = `${input.agentUsername}\n${input.channelId}`;
+    const key = this.anchorKey(input.agentUsername, input.channelId);
     const anchor = this.anchors.get(key);
     if (anchor !== undefined) {
       const anchored = await this.readSince(input, boundary, anchor);
       if (costOf(anchored) <= input.budgetTokens) {
-        return anchored.toReversed();
+        return { entries: anchored.toReversed(), oldestAt: anchor };
       }
     }
     const share = anchor === undefined ? 1 : LOW_WATER_SHARE;
     const entries = await this.walkNewestFirst(input, boundary, Math.floor(input.budgetTokens * share));
     const oldest = entries.at(-1);
-    if (oldest === undefined) {
+    const oldestAt = oldest === undefined ? undefined : instantOf(oldest);
+    if (oldestAt === undefined) {
       this.anchors.delete(key);
     } else {
-      this.anchors.set(key, instantOf(oldest));
+      this.anchors.set(key, oldestAt);
     }
-    return entries.toReversed();
+    return { entries: entries.toReversed(), oldestAt };
+  }
+
+  /** §8.4 — where the last window built here reached back to, for a reader outside a turn; nothing built yet means nothing to be earlier than */
+  reachesBackTo(agentUsername: string, channelId: string): Date | undefined {
+    return this.anchors.get(this.anchorKey(agentUsername, channelId));
+  }
+
+  /**
+   * §3.8 — what this agent itself did in this channel before the window reaches, newest first, one
+   * declared line each. Its own turns only and never past the episode boundary, for the reasons the
+   * window walks under the same two conditions.
+   */
+  async readRecentActions(input: RecentActionsInput): Promise<string[]> {
+    const boundary = await this.episodesService.latestBoundary(input.agentUsername, input.channelId);
+    const rows = await this.events.findMany({
+      orderBy: [{ createdAt: 'desc' }, { sequence: 'desc' }],
+      take: input.take,
+      where: {
+        createdAt: { ...(boundary && { gt: boundary.eventsAfter }), lt: input.before },
+        kind: 'tool_result',
+        turn: { agentUsername: input.agentUsername, channelId: input.channelId }
+      }
+    });
+    return rows.flatMap((row) => replayLineOf(row.payload) ?? []);
+  }
+
+  private anchorKey(agentUsername: string, channelId: string): string {
+    return `${agentUsername}\n${channelId}`;
   }
 
   /**

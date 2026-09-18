@@ -21,7 +21,14 @@ type PostRow = {
   observedAt: Date;
 };
 type TurnRef = { agentUsername: string; channelId: string };
-type EventRow = { createdAt: Date; id: string; payload: unknown; sequence: number; turn: TurnRef };
+type EventRow = {
+  createdAt: Date;
+  id: string;
+  kind: string;
+  payload: unknown;
+  sequence: number;
+  turn: TurnRef;
+};
 
 const post = (id: string, at: number, overrides: Partial<PostRow> = {}): PostRow => ({
   authoringTurnId: null,
@@ -39,7 +46,14 @@ const post = (id: string, at: number, overrides: Partial<PostRow> = {}): PostRow
 const event = (id: string, at: number, turn: TurnRef, sequence = 0): EventRow => ({
   createdAt: new Date(at),
   id,
-  payload: { kind: 'tool_result' },
+  kind: 'tool_result',
+  payload: {
+    callId: id,
+    kind: 'tool_result',
+    output: 'output',
+    replay: `[did ${id}]`,
+    toolName: ['workspace', 'write']
+  },
   sequence,
   turn
 });
@@ -68,6 +82,14 @@ describe('WindowService', () => {
     const service = moduleRef.get(WindowService);
     return {
       build: (budgetTokens = 1000) => service.build({ agentUsername: 'mira', budgetTokens, channelId: 'channel-1' }),
+      readRecentActions: (before: number, take = 20) => {
+        return service.readRecentActions({
+          agentUsername: 'mira',
+          before: new Date(before),
+          channelId: 'channel-1',
+          take
+        });
+      },
       tables
     };
   };
@@ -76,8 +98,8 @@ describe('WindowService', () => {
     return (await createService(posts, events)).build(budgetTokens);
   };
 
-  const identify = (entries: Awaited<ReturnType<typeof build>>) => {
-    return entries.map((entry) => (entry.kind === 'post' ? entry.post.id : entry.event.id));
+  const identify = (result: Awaited<ReturnType<typeof build>>) => {
+    return result.entries.map((entry) => (entry.kind === 'post' ? entry.post.id : entry.event.id));
   };
 
   beforeEach(() => {
@@ -172,8 +194,51 @@ describe('WindowService', () => {
 
   it('should read the channel a page at a time and still walk past the first page', async () => {
     const posts = Array.from({ length: 450 }, (_, index) => post(`post-${index + 1}`, 1000 * (index + 1)));
-    const entries = await build(posts, [], 100_000);
-    expect(entries).toHaveLength(450);
-    expect(identify(entries).at(0)).toBe('post-1');
+    const result = await build(posts, [], 100_000);
+    expect(result.entries).toHaveLength(450);
+    expect(identify(result).at(0)).toBe('post-1');
+  });
+
+  it('should report the instant its oldest entry was created', async () => {
+    const result = await build([post('post-1', 1000), post('post-2', 2000)], [], 4);
+    expect(result.oldestAt).toStrictEqual(new Date(2000));
+  });
+
+  it('should report the anchor as the oldest instant while the anchored read still fits', async () => {
+    const { build: rebuild, tables } = await createService([post('post-1', 1000)], []);
+    await rebuild(12);
+    tables.posts.rows.push(post('post-2', 2000));
+    expect((await rebuild(12)).oldestAt).toStrictEqual(new Date(1000));
+  });
+
+  it('should report no oldest instant for an empty window', async () => {
+    expect((await build([], [])).oldestAt).toBeUndefined();
+  });
+
+  it('should read only its own actions from before the window, newest first', async () => {
+    const mira = { agentUsername: 'mira', channelId: 'channel-1' };
+    const events = [
+      event('event-1', 1000, mira),
+      event('event-2', 2000, mira),
+      event('elsewhere', 1500, { agentUsername: 'mira', channelId: 'channel-2' }),
+      event('peer', 1500, { agentUsername: 'tess', channelId: 'channel-1' }),
+      event('event-3', 3000, mira)
+    ];
+    const { readRecentActions } = await createService([], events);
+    expect(await readRecentActions(3000)).toStrictEqual(['[did event-2]', '[did event-1]']);
+  });
+
+  it("should read no action older than the channel's episode boundary", async () => {
+    episodesService.latestBoundary.mockResolvedValue({ eventsAfter: new Date(1500), postsAfter: new Date(1500) });
+    const mira = { agentUsername: 'mira', channelId: 'channel-1' };
+    const { readRecentActions } = await createService([], [event('event-1', 1000, mira), event('event-2', 2000, mira)]);
+    expect(await readRecentActions(3000)).toStrictEqual(['[did event-2]']);
+  });
+
+  it('should read at most the requested number of actions', async () => {
+    const mira = { agentUsername: 'mira', channelId: 'channel-1' };
+    const events = Array.from({ length: 5 }, (_, index) => event(`event-${index}`, 1000 * (index + 1), mira));
+    const { readRecentActions } = await createService([], events);
+    expect(await readRecentActions(9000, 2)).toStrictEqual(['[did event-4]', '[did event-3]']);
   });
 });

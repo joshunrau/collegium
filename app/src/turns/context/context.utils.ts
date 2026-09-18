@@ -1,4 +1,3 @@
-import { renderToolWireName } from '@collegium/core/tools';
 import { match } from 'ts-pattern';
 
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
@@ -6,11 +5,7 @@ import { renderPostWithAttachments } from '@/conversations/conversations.utils.t
 import type { CompletionMessage } from '@/inference/inference.types.ts';
 import { reasoningOf } from '@/inference/inference.utils.ts';
 import type { ModelRow } from '@/prisma/prisma.types.ts';
-
-/** replayed history is model-facing, so a structural name renders in wire form — never a second spelling (§1) */
-function toWireName(name: PrismaJson.RecordedToolName): string {
-  return typeof name === 'string' ? name : renderToolWireName(name);
-}
+import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
 
 const FENCED_CODE_BLOCK = /```[\s\S]*?```/gu;
 const TOOL_CALL_TRANSCRIPT = /^\[called [^\s(]+\([\s\S]*\)\]$/mu;
@@ -79,7 +74,11 @@ function renderAssistantEvent(
       role: 'assistant',
       ...reasoningOf(payload),
       ...(answered.length > 0 && {
-        toolCalls: answered.map((call) => ({ arguments: call.args, id: call.callId, name: toWireName(call.toolName) }))
+        toolCalls: answered.map((call) => ({
+          arguments: call.args,
+          id: call.callId,
+          name: renderRecordedToolName(call.toolName)
+        }))
       })
     },
     ...answered.map((call): CompletionMessage => ({
@@ -109,7 +108,7 @@ function renderEvent(event: ModelRow<'TurnEvent'>, results: ReadonlyMap<string, 
       })
       .with({ kind: 'approval_requested' }, (payload): CompletionMessage[] => {
         return payload.callId === undefined
-          ? [{ content: `[approval requested: ${toWireName(payload.toolName)}]`, role: 'user' }]
+          ? [{ content: `[approval requested: ${renderRecordedToolName(payload.toolName)}]`, role: 'user' }]
           : [];
       })
       // §3.7a — an answered ask is recorded as that call's ordinary `tool_result`, so the window
