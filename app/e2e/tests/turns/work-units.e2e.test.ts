@@ -62,8 +62,9 @@ describe('Delegation through a work unit', () => {
 
     await owenFirst.arrived;
     inference.willReply({ agent: 'owen' }, textResponse('reported'));
+    // owen's own closing text may land inside mira's debounce window, so the return turn is matched by order, not by phrase
     inference.willReply(
-      { agent: 'mira', contains: 'ready for review' },
+      { agent: 'mira' },
       toolCallResponse('tasks__close', { reference: reference!, state: 'done', verdict: 'meets the criteria' })
     );
     inference.willReply({ agent: 'mira' }, textResponse(closed));
