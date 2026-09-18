@@ -1,4 +1,4 @@
-import type { ToolTurnScope } from '@collegium/core/tools';
+import type { ToolPost, ToolTurnScope } from '@collegium/core/tools';
 import { CHARS_PER_TOKEN, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
@@ -33,7 +33,7 @@ import {
   toReplayableToolCall
 } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
-import type { TurnStatus } from '@/prisma/prisma.types.ts';
+import type { PostKind, TurnStatus } from '@/prisma/prisma.types.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import type { ToolAttempt } from '@/tools/tools.types.ts';
@@ -165,6 +165,12 @@ type IdentifiedCall = RunnableCall | UnparsedCall;
 
 /** what answering an unparsed call came to: forgiven and answered in place, or the dispatch loop returns with this outcome */
 type UnparsedCallDisposition = { kind: 'dispatched'; outcome: TurnOutcome | undefined } | { kind: 'forgiven' };
+
+/** §3.15 — what publishing a tool's post came to: landed, refused as a post (§4.5), or undeliverable, which ends the turn (§7.1) */
+type ToolPostOutcome =
+  | { kind: 'published'; postId: string }
+  | { kind: 'refused'; output: string }
+  | { kind: 'undelivered'; outcome: TurnOutcome };
 
 type TurnState = {
   /** §4.5 — the one peer this turn has addressed, whatever number of posts it emits */
@@ -478,25 +484,11 @@ export class TurnRunner {
       toolCalls: [],
       ...reasoning
     });
-    const sent = await state.transport.send({ channelId: input.channelId, text: content });
+    const sent = await this.publish(input, state, content, 'reply');
     if (!sent.success) {
       this.loggingService.error(new Error(`failed to post final output: ${sent.error.message}`));
       return this.close(state, 'delivery_failure');
     }
-    state.addressedPeer =
-      this.multiMentionPolicy.addresseesOf(this.asAddressablePost(input, content))[0] ?? state.addressedPeer;
-    await this.conversationsService.record(
-      {
-        attachments: [],
-        authorKind: 'agent',
-        authorUsername: input.profile.username,
-        channelId: input.channelId,
-        createdAt: sent.value.createdAt,
-        id: sent.value.postId,
-        message: content
-      },
-      { kind: 'reply', turnId: state.turn.id }
-    );
     return this.close(state, 'completed');
   }
 
@@ -878,26 +870,66 @@ export class TurnRunner {
   /** §7.1's human-visible notices: deterministic strings posted under the agent's name (§3.2) */
   private async postNotice(input: RunInput, state: TurnState, text: string): Promise<void> {
     try {
-      const sent = await state.transport.send({ channelId: input.channelId, text });
+      const sent = await this.publish(input, state, text, 'notice');
       if (!sent.success) {
         this.loggingService.error(new Error(`failed to post a turn notice: ${sent.error.message}`));
-        return;
       }
-      await this.conversationsService.record(
-        {
-          attachments: [],
-          authorKind: 'agent',
-          authorUsername: input.profile.username,
-          channelId: input.channelId,
-          createdAt: sent.value.createdAt,
-          id: sent.value.postId,
-          message: text
-        },
-        { kind: 'notice', turnId: state.turn.id }
-      );
     } catch (error) {
       this.loggingService.error(new Error('failed to record a turn notice', { cause: error }));
     }
+  }
+
+  /**
+   * The one door onto the channel for a turn's own posts: sent under the agent's account, recorded
+   * with the turn that authored it, and the peer it addresses remembered for the rest of the turn
+   * (§4.5). The record is what makes a later return recognisable (§7.4).
+   */
+  private async publish(
+    input: RunInput,
+    state: TurnState,
+    text: string,
+    kind: Exclude<PostKind, 'message'>
+  ): Promise<Result<{ postId: string }, { message: string }>> {
+    const sent = await state.transport.send({ channelId: input.channelId, text });
+    if (!sent.success) {
+      return sent;
+    }
+    state.addressedPeer =
+      this.multiMentionPolicy.addresseesOf(this.asAddressablePost(input, text))[0] ?? state.addressedPeer;
+    await this.conversationsService.record(
+      {
+        attachments: [],
+        authorKind: 'agent',
+        authorUsername: input.profile.username,
+        channelId: input.channelId,
+        createdAt: sent.value.createdAt,
+        id: sent.value.postId,
+        message: text
+      },
+      { kind, turnId: state.turn.id }
+    );
+    return Result.ok({ postId: sent.value.postId });
+  }
+
+  /**
+   * §3.15 — the post comes first: refused as any post is (§4.5), the refusal becomes the call's
+   * result and the tool writes nothing; undeliverable, the turn ends as it would for its own final
+   * output (§7.1); landed and recorded, the tool is told, and only then writes.
+   */
+  private async publishToolPost(input: RunInput, state: TurnState, post: ToolPost): Promise<ToolPostOutcome> {
+    const addressable = this.asAddressablePost(input, post.text);
+    if (this.multiMentionPolicy.refuses(addressable)) {
+      return { kind: 'refused', output: 'post refused: it addresses more than one colleague' };
+    }
+    if (this.multiMentionPolicy.refusesSecondAddressee(addressable, state.addressedPeer)) {
+      return { kind: 'refused', output: `post refused: this turn has already addressed @${state.addressedPeer}` };
+    }
+    const sent = await this.publish(input, state, post.text, 'notice');
+    if (!sent.success) {
+      this.loggingService.error(new Error(`failed to publish a tool post: ${sent.error.message}`));
+      return { kind: 'undelivered', outcome: await this.close(state, 'delivery_failure') };
+    }
+    return { kind: 'published', postId: sent.value.postId };
   }
 
   /** §3.8 — the one door onto `messages`: every push adds its estimate, so the number cannot drift */
@@ -916,18 +948,26 @@ export class TurnRunner {
     if (attempt.kind === 'terminal') {
       return this.closeOnToolFailure(input, state, identified, attempt);
     }
+    const published = attempt.post === undefined ? undefined : await this.publishToolPost(input, state, attempt.post);
+    if (published?.kind === 'undelivered') {
+      return published.outcome;
+    }
+    const result = published?.kind === 'refused' ? { kind: 'continue' as const, output: published.output } : attempt;
     await this.turnsService.appendEvent(state.turn.id, {
       callId: identified.call.id,
       kind: 'tool_result',
-      output: attempt.output,
+      output: result.output,
       toolName: identified.recordedName,
-      ...(attempt.replay !== undefined && { replay: attempt.replay })
+      ...(result.replay !== undefined && { replay: result.replay })
     });
-    this.pushMessage(state, { content: attempt.output, role: 'tool', toolCallId: identified.call.id });
+    this.pushMessage(state, { content: result.output, role: 'tool', toolCallId: identified.call.id });
     state.recordedResults += 1;
-    this.supersedeStaleResults(input, state, identified, attempt.replay);
-    if (attempt.disclosure) {
-      await this.discloseRecord(state, attempt.disclosure);
+    this.supersedeStaleResults(input, state, identified, result.replay);
+    if (published?.kind === 'published' && attempt.post) {
+      await attempt.post.onPublished(published.postId);
+    }
+    if (result.disclosure) {
+      await this.discloseRecord(state, result.disclosure);
     }
     if (this.relieveContextPressure(input, state, state.messages.length - 1) === 'exhausted') {
       await this.postNotice(input, state, renderContextExhaustedNotice('accumulated'));

@@ -43,8 +43,25 @@ export type ToolDisclosure = {
   readonly supersededDescriptions?: readonly string[];
 };
 
+/**
+ * §3.15 — a post the framework publishes under the agent's account beside the call's result: the
+ * record this call made visible. The tool decides the text; the framework decides whether it may
+ * post (§4.5), publishes it, and only then calls `onPublished`.
+ */
+export type ToolPost = {
+  /**
+   * Called once the post has landed and been recorded, with its id — the one moment the tool writes
+   * anything durable. Never called when the post is refused (§4.5) or fails to deliver (§7.1), so
+   * nothing is written for a change the channel never saw.
+   */
+  readonly onPublished: (postId: string) => Promise<void>;
+  readonly text: string;
+};
+
 export type ToolOutput = {
   readonly disclosure?: ToolDisclosure;
+  /** §3.15 — framework tools only; a plugin's output type carries no post */
+  readonly post?: ToolPost;
   /**
    * What later turns replay in place of `text`. The turn that made the call reads the text in
    * full; a document the agent will load again anyway, or a page it has already acted on, need

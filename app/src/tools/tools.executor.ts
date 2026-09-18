@@ -223,6 +223,7 @@ export class ToolExecutor {
       kind: 'continue',
       output: output.text,
       ...(output.disclosure && { disclosure: output.disclosure }),
+      ...(output.post && { post: output.post }),
       ...(output.replay !== undefined && { replay: output.replay })
     };
   }

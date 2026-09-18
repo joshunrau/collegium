@@ -979,6 +979,56 @@ describe('TurnRunner', () => {
     expect(sends.at(-1)?.text).toContain('chat server refused');
   });
 
+  describe('a post a tool returned (§3.15)', () => {
+    const post = (onPublished: (postId: string) => Promise<void>): ToolAttempt => ({
+      kind: 'continue',
+      output: 'unit abcd1234 assigned to @owen',
+      post: { onPublished, text: '@owen — work unit `abcd1234`' }
+    });
+
+    it('should publish it under the agent, record it with the turn, then tell the tool the post id', async () => {
+      const onPublished = vi.fn<(postId: string) => Promise<void>>().mockImplementation(() => {
+        expect(conversationsService.record).toHaveBeenCalledWith(
+          expect.objectContaining({ authorKind: 'agent', message: '@owen — work unit `abcd1234`' }),
+          { kind: 'notice', turnId: 'turn-1' }
+        );
+        return Promise.resolve();
+      });
+      multiMentionPolicy.addresseesOf.mockReturnValue(['owen']);
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
+      toolExecutor.execute.mockResolvedValueOnce(post(onPublished));
+      complete.mockResolvedValueOnce(Result.ok(text('handed over')));
+      await run();
+      expect(onPublished).toHaveBeenCalledExactlyOnceWith('post-1');
+      expect(sends.map((send) => send.text)).toStrictEqual(['@owen — work unit `abcd1234`', 'handed over']);
+    });
+
+    it('should refuse a post addressing a second peer as the call’s result, writing nothing', async () => {
+      const onPublished = vi.fn<(postId: string) => Promise<void>>();
+      multiMentionPolicy.refusesSecondAddressee.mockReturnValueOnce(true);
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
+      toolExecutor.execute.mockResolvedValueOnce(post(onPublished));
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      await run();
+      expect(onPublished).not.toHaveBeenCalled();
+      expect(sends.map((send) => send.text)).toStrictEqual(['done']);
+      expect(complete.mock.calls[1]![0].messages.at(-1)).toMatchObject({
+        content: expect.stringContaining('post refused: this turn has already addressed'),
+        role: 'tool'
+      });
+    });
+
+    it('should end the turn as a delivery failure when the post cannot be sent, writing nothing', async () => {
+      const onPublished = vi.fn<(postId: string) => Promise<void>>();
+      transportSend.mockResolvedValueOnce(Result.err({ message: 'refused' }));
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
+      toolExecutor.execute.mockResolvedValueOnce(post(onPublished));
+      const outcome = await run();
+      expect(outcome.status).toBe('delivery_failure');
+      expect(onPublished).not.toHaveBeenCalled();
+    });
+  });
+
   it('should write a returned disclosure into the turn events, not the status post (§3.6)', async () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['memory__write'])));
     complete.mockResolvedValueOnce(Result.ok(text('saved')));

@@ -53,6 +53,12 @@ const FIXTURE_TOOLSET = defineToolset({
       execute: (args) => Result.ok({ text: `ran ${args.value}` }),
       parameters: z.object({ value: z.string() })
     },
+    poster: {
+      description: 'Returns a post beside its text.',
+      execute: () =>
+        { return Result.ok({ post: { onPublished: () => Promise.resolve(), text: '@owen take this' }, text: 'handed' }); },
+      parameters: z.object({})
+    },
     sleepy: {
       description: 'Never finishes.',
       execute: () => new Promise(() => undefined),
@@ -216,6 +222,11 @@ describe('ToolExecutor', () => {
       kind: 'terminal',
       status: 'side_effect_ambiguous'
     });
+  });
+
+  it('passes a returned post through for the turn to publish (§3.15)', async () => {
+    const attempt = await execute('fixture__poster', {});
+    expect(attempt).toMatchObject({ kind: 'continue', output: 'handed', post: { text: '@owen take this' } });
   });
 
   it('passes a returned disclosure through for the turn to write (§3)', async () => {

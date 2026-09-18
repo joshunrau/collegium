@@ -1,4 +1,4 @@
-import type { ToolDisclosure } from '@collegium/core/tools';
+import type { ToolDisclosure, ToolPost } from '@collegium/core/tools';
 
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 
@@ -9,6 +9,8 @@ export declare namespace ToolAttempt {
     disclosure?: ToolDisclosure;
     kind: 'continue';
     output: string;
+    /** §3.15 — published under the agent's account by the runner, never by the tool (§3.3) */
+    post?: ToolPost;
     /** what later turns replay in place of the output */
     replay?: string;
   };
