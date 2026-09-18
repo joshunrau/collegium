@@ -108,6 +108,7 @@ describe('RuntimeService', () => {
     mira = {
       actionBudget: 25,
       contextBudgetTokens: 1000,
+      contextWindowTokens: 32_000,
       expertise: 'testing',
       model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
       personality: undefined,

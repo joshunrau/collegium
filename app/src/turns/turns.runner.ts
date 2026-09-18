@@ -1,4 +1,5 @@
 import type { ToolTurnScope } from '@collegium/core/tools';
+import { CHARS_PER_TOKEN } from '@collegium/core/utils';
 import type { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
@@ -22,7 +23,13 @@ import type {
   InferenceFailure,
   ToolCall
 } from '@/inference/inference.types.ts';
-import { addCompletionUsage, describeInferenceFailure, reasoningOf } from '@/inference/inference.utils.ts';
+import {
+  addCompletionUsage,
+  describeInferenceFailure,
+  estimateMessageTokens,
+  estimateRequestTokens,
+  reasoningOf
+} from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
@@ -73,6 +80,19 @@ const TRUNCATED_OUTPUT_REJECTION =
 /** §4.5 — rejections in a row a turn survives; the budget bounds the loop too, but with a number that says nothing about why */
 const CONSECUTIVE_REJECTION_LIMIT = 2;
 
+/**
+ * §3.8 — the share of a model's window one turn's prompt may reach before its stale pages are
+ * retired and, failing that, the turn ends. The remainder is the completion the model has yet to
+ * write and the slack a character-ratio estimate owes a tokeniser it is not.
+ */
+const TURN_PROMPT_CEILING_SHARE = 0.85;
+
+/** §3.8 — what a result cut to fit the window ends with; the trace holds the rest */
+const RESULT_TRUNCATION_MARKER = '\n…result truncated to fit the context window; the full text is in the trace';
+
+/** §3.8 — below this a cut result is not long but the turn has no room, and the honest outcome is exhaustion */
+const RESULT_MIN_TOKENS = 500;
+
 /** the bounds config states for every turn: §7.4 depth and chain length, §4.4 folds; the §5.3 budget is the agent's own */
 type TurnLimits = {
   readonly chainLengthLimit: number;
@@ -116,6 +136,8 @@ type TurnState = {
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
   readonly messages: CompletionMessage[];
+  /** §3.8 — the estimated size of the whole outgoing request, kept current by `pushMessage` and the collapses */
+  promptTokens: number;
   /** §7.1 — results this turn recorded; a turn that recorded none accumulated nothing a fresh one would not rebuild */
   recordedResults: number;
   readonly status: StatusPostHandle;
@@ -186,6 +208,7 @@ export class TurnRunner {
         channelId
       }),
       messages: [],
+      promptTokens: 0,
       recordedResults: 0,
       status: this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id }),
       supersedable: [],
@@ -247,8 +270,12 @@ export class TurnRunner {
         output: text,
         toolName: identified.recordedName
       });
-      state.messages.push({ content: text, role: 'tool', toolCallId: identified.call.id });
+      this.pushMessage(state, { content: text, role: 'tool', toolCallId: identified.call.id });
     }
+  }
+
+  private ceilingFor(profile: AgentProfile): number {
+    return Math.floor(profile.contextWindowTokens * TURN_PROMPT_CEILING_SHARE);
   }
 
   /** best-effort on both writes: a close that itself fails must never leave the turn 'running' silently */
@@ -364,6 +391,15 @@ export class TurnRunner {
     return this.close(state, 'completed');
   }
 
+  /** §3.8 — the oldest verbatim page reads as its replay line for the rest of the turn; the event keeps the text */
+  private collapseOldestSupersedable(state: TurnState): void {
+    const stale = state.supersedable.shift()!;
+    const message = state.messages[stale.messageIndex]!;
+    const collapsed = { ...message, content: stale.replay };
+    state.messages[stale.messageIndex] = collapsed;
+    state.promptTokens += estimateMessageTokens(collapsed) - estimateMessageTokens(message);
+  }
+
   /**
    * §8.1 — the typing indicator is lit for exactly as long as the model is generating. Tool
    * execution and approval waits stay dark: the status post and the approval prompt speak there,
@@ -426,9 +462,9 @@ export class TurnRunner {
       }
     }
     if (content !== '') {
-      state.messages.push({ content, role: 'assistant', ...reasoning });
+      this.pushMessage(state, { content, role: 'assistant', ...reasoning });
     }
-    state.messages.push({ content: rejection, role: 'user' });
+    this.pushMessage(state, { content: rejection, role: 'user' });
     return undefined;
   }
 
@@ -439,6 +475,30 @@ export class TurnRunner {
       triggeringPostId: input.triggeringPostId ?? null,
       turnId: state.turn.id
     };
+  }
+
+  /**
+   * §3.8 — the newest result cut to what fits beneath the ceiling, marker included, or left alone
+   * when what would fit is not worth keeping. Escaping can lengthen a cut, so the cut is remeasured.
+   */
+  private cutResultToFit(state: TurnState, index: number, ceiling: number): boolean {
+    const original = state.messages[index]!;
+    const rest = state.promptTokens - estimateMessageTokens(original);
+    const overhead = estimateMessageTokens({ ...original, content: RESULT_TRUNCATION_MARKER });
+    let kept = (ceiling - rest - overhead) * CHARS_PER_TOKEN;
+    for (;;) {
+      if (kept < RESULT_MIN_TOKENS * CHARS_PER_TOKEN) {
+        return false;
+      }
+      const cut = { ...original, content: `${original.content.slice(0, kept)}${RESULT_TRUNCATION_MARKER}` };
+      const excess = rest + estimateMessageTokens(cut) - ceiling;
+      if (excess <= 0) {
+        state.messages[index] = cut;
+        state.promptTokens = rest + estimateMessageTokens(cut);
+        return true;
+      }
+      kept -= excess * CHARS_PER_TOKEN;
+    }
   }
 
   /** §3 — the tool returned the disclosure; the turn owns writing the event the trace reads back */
@@ -477,7 +537,7 @@ export class TurnRunner {
       })),
       ...reasoning
     });
-    state.messages.push({
+    this.pushMessage(state, {
       content: completion.content,
       role: 'assistant',
       toolCalls: completion.toolCalls,
@@ -546,6 +606,10 @@ export class TurnRunner {
       );
     }
     return stripped;
+  }
+
+  private exceedsCeiling(input: RunInput, state: TurnState): boolean {
+    return state.promptTokens > this.ceilingFor(input.profile);
   }
 
   /**
@@ -633,6 +697,12 @@ export class TurnRunner {
     };
   }
 
+  /** §3.8 — the request as assembled is measured whole; everything pushed afterwards adds its own estimate */
+  private loadAssembledContext(state: TurnState, assembled: AssembledContext): void {
+    state.messages.splice(0, state.messages.length, ...assembled.request.messages);
+    state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
+  }
+
   /** §5.2 — checked on every assembly, since a fold rebuilds the window and can lose the reach the first one had */
   private noteShortfall(input: RunInput, state: TurnState, assembled: AssembledContext): void {
     if (input.drainedFromPostId !== undefined && !assembled.windowPostIds.has(input.drainedFromPostId)) {
@@ -665,6 +735,12 @@ export class TurnRunner {
     }
   }
 
+  /** §3.8 — the one door onto `messages`: every push adds its estimate, so the number cannot drift */
+  private pushMessage(state: TurnState, message: CompletionMessage): void {
+    state.messages.push(message);
+    state.promptTokens += estimateMessageTokens(message);
+  }
+
   /** the result the model reads, the event the trace keeps, and the lines the status post shows */
   private async recordAttempt(
     input: RunInput,
@@ -682,11 +758,15 @@ export class TurnRunner {
       toolName: identified.recordedName,
       ...(attempt.replay !== undefined && { replay: attempt.replay })
     });
-    state.messages.push({ content: attempt.output, role: 'tool', toolCallId: identified.call.id });
+    this.pushMessage(state, { content: attempt.output, role: 'tool', toolCallId: identified.call.id });
     state.recordedResults += 1;
     this.supersedeStaleResults(input, state, identified, attempt.replay);
     if (attempt.disclosure) {
       await this.discloseRecord(state, attempt.disclosure);
+    }
+    if (this.relieveContextPressure(input, state, state.messages.length - 1) === 'exhausted') {
+      await this.postNotice(input, state, renderContextExhaustedNotice('accumulated'));
+      return this.close(state, 'context_exhausted');
     }
     return undefined;
   }
@@ -711,12 +791,42 @@ export class TurnRunner {
     return undefined;
   }
 
+  /**
+   * §3.8 — under pressure the count rule relaxes: stale pages collapse however recent they are, but
+   * never the result at `protectedIndex`, which the model has not read; a newest result that still
+   * does not fit is cut. Only when even that leaves the turn over its ceiling is it out of room.
+   */
+  private relieveContextPressure(
+    input: RunInput,
+    state: TurnState,
+    protectedIndex: number | undefined
+  ): 'exhausted' | 'relieved' {
+    const ceiling = this.ceilingFor(input.profile);
+    while (
+      state.promptTokens > ceiling &&
+      state.supersedable.length > 0 &&
+      state.supersedable[0]!.messageIndex !== protectedIndex
+    ) {
+      this.collapseOldestSupersedable(state);
+    }
+    if (state.promptTokens <= ceiling) {
+      return 'relieved';
+    }
+    return protectedIndex !== undefined && this.cutResultToFit(state, protectedIndex, ceiling)
+      ? 'relieved'
+      : 'exhausted';
+  }
+
   /** everything here may throw; run() owns the boundary so no exit can leave the turn 'running' */
   private async runLoop(input: RunInput, state: TurnState): Promise<TurnOutcome> {
     const { channelId, profile } = input;
     let assembled = await this.contextAssembler.assemble({ channelId, profile });
-    state.messages.push(...assembled.request.messages);
+    this.loadAssembledContext(state, assembled);
     this.noteShortfall(input, state, assembled);
+    if (this.exceedsCeiling(input, state)) {
+      await this.postNotice(input, state, renderContextExhaustedNotice('initial'));
+      return this.close(state, 'context_exhausted');
+    }
     const client = this.inferenceRegistry.getClientForModel(profile.model);
     let folds = 0;
     for (;;) {
@@ -739,8 +849,12 @@ export class TurnRunner {
       if (this.takesFurtherFragments(state, folds)) {
         folds += 1;
         assembled = await this.contextAssembler.assemble({ channelId, profile });
-        state.messages.splice(0, state.messages.length, ...assembled.request.messages);
+        this.loadAssembledContext(state, assembled);
         this.noteShortfall(input, state, assembled);
+        if (this.exceedsCeiling(input, state)) {
+          await this.postNotice(input, state, renderContextExhaustedNotice('initial'));
+          return this.close(state, 'context_exhausted');
+        }
         continue;
       }
       const outcome =
@@ -771,9 +885,7 @@ export class TurnRunner {
       replay: replay ?? `[earlier ${identified.call.name} result superseded by a later one]`
     });
     while (state.supersedable.length > RETAINED_SUPERSEDABLE_RESULTS) {
-      const stale = state.supersedable.shift()!;
-      const message = state.messages[stale.messageIndex]!;
-      state.messages[stale.messageIndex] = { ...message, content: stale.replay };
+      this.collapseOldestSupersedable(state);
     }
   }
 

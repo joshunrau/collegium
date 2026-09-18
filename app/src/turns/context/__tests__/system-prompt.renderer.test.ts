@@ -15,6 +15,7 @@ import { SystemPromptRenderer } from '../system-prompt.renderer.ts';
 const PROFILE = {
   actionBudget: 7,
   contextBudgetTokens: 12_000,
+  contextWindowTokens: 32_000,
   expertise: 'testing',
   systemPrompt: 'You are Mira.',
   username: 'mira'

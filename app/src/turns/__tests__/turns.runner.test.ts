@@ -35,6 +35,7 @@ import type { Turn } from '../turns.types.ts';
 const PROFILE = {
   actionBudget: 10,
   contextBudgetTokens: 1000,
+  contextWindowTokens: 4_000,
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   personality: undefined,
@@ -981,6 +982,69 @@ describe('TurnRunner', () => {
       expect.stringContaining('stop and summarise'),
       expect.stringContaining('stop and summarise')
     ]);
+  });
+
+  const assembledWith = (content: string) => ({
+    request: {
+      cacheKey: 'mira:channel-1',
+      messages: [{ content, role: 'user' as const }],
+      model: { name: 'deepseek-v4-flash' as const, provider: 'deepseek' as const },
+      systemPrompt: { dynamic: '', stable: 'sys' },
+      tools: []
+    },
+    windowPostIds: new Set(['post-0'])
+  });
+
+  it('should retire the oldest page early under context pressure, never the one just recorded (§3.8)', async () => {
+    toolRegistry.isSupersedable.mockImplementation((_profile, name: string) => name === 'web__fetch');
+    for (const page of ['one', 'two']) {
+      toolExecutor.execute.mockResolvedValueOnce({
+        kind: 'continue',
+        output: `page ${page} ${'x'.repeat(8_000)}`,
+        replay: `[page ${page}]`
+      });
+    }
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    const results = complete.mock.calls[2]![0].messages.filter((message) => message.role === 'tool');
+    expect(results.map((message) => message.content.slice(0, 10))).toStrictEqual(['[page one]', 'page two x']);
+    expect(results[1]?.content).not.toContain('truncated');
+  });
+
+  it('should cut a result that alone would not fit, marking the cut, and keep the trace whole (§3.8)', async () => {
+    const output = 'y'.repeat(20_000);
+    toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', output });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    const outcome = await run();
+    expect(outcome.status).toBe('completed');
+    const result = complete.mock.calls[1]![0].messages.at(-1);
+    expect(result?.content).toMatch(/y\n…result truncated to fit the context window; the full text is in the trace$/u);
+    expect(result?.content.length).toBeLessThan(output.length);
+    expect(turnsService.appendEvent).toHaveBeenCalledWith(
+      'turn-1',
+      expect.objectContaining({ kind: 'tool_result', output })
+    );
+  });
+
+  it('should end the turn as context exhausted when nothing can be retired and a cut would keep too little (§3.8)', async () => {
+    contextAssembler.assemble.mockResolvedValue(assembledWith('z'.repeat(12_000)));
+    toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', output: 'w'.repeat(4_000) });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    const outcome = await run();
+    expect(outcome.status).toBe('context_exhausted');
+    expect(sends.at(-1)?.text).toContain('ran out of room in my context part-way through this turn');
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('should call a starting context over the ceiling a configuration problem, calling no provider (§3.8)', async () => {
+    contextAssembler.assemble.mockResolvedValue(assembledWith('z'.repeat(16_000)));
+    const outcome = await run();
+    expect(outcome.status).toBe('context_exhausted');
+    expect(sends.at(-1)?.text).toContain('My starting context does not fit');
+    expect(complete).not.toHaveBeenCalled();
   });
 
   it('should retire an earlier page result to its replay line once two newer ones exist (§3.8)', async () => {

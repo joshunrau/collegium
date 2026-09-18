@@ -4,6 +4,7 @@ export function buildAgentProfile(overrides: Partial<AgentProfile> = {}): AgentP
   return {
     actionBudget: 25,
     contextBudgetTokens: 8000,
+    contextWindowTokens: 32_000,
     expertise: 'end-to-end testing',
     model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
     personality: undefined,

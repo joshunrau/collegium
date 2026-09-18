@@ -15,6 +15,8 @@ export type AgentProfile = {
   /** the §5.3 budget this agent's turns start with: its own where config states one, else the deployment's */
   readonly actionBudget: number;
   readonly contextBudgetTokens: number;
+  /** the whole window, not the §3.8 share of it: what a turn's own accumulation is bounded by */
+  readonly contextWindowTokens: number;
   readonly expertise: string;
   readonly model: $ModelRef;
   /** a shipped stance rendered after the agent's own prompt, or none (§3.8) */
