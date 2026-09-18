@@ -161,6 +161,8 @@ type IdentifiedCall = RunnableCall | UnparsedCall;
 type UnparsedCallDisposition = { kind: 'dispatched'; outcome: TurnOutcome | undefined } | { kind: 'forgiven' };
 
 type TurnState = {
+  /** §4.5 — the one peer this turn has addressed, whatever number of posts it emits */
+  addressedPeer: string | undefined;
   readonly budget: ActionBudget;
   /** §4.5 — rejected posts since the last call that ran */
   consecutiveRejections: number;
@@ -234,6 +236,7 @@ export class TurnRunner {
       triggeringPostId: input.triggeringPostId
     });
     const state: TurnState = {
+      addressedPeer: undefined,
       budget: new ActionBudget(profile.actionBudget),
       consecutiveRejections: 0,
       control: this.turnControlRegistry.register(turn.id, channelId),
@@ -314,6 +317,15 @@ export class TurnRunner {
       });
       this.pushMessage(state, { content: text, role: 'tool', toolCallId: identified.call.id });
     }
+  }
+
+  /** a post as the §4.5 grammar reads it: who wrote it, where, and whom it names */
+  private asAddressablePost(input: RunInput, content: string) {
+    return {
+      authorUsername: input.profile.username,
+      channelId: input.channelId,
+      mentionedUsernames: extractMentionedUsernames(content)
+    };
   }
 
   private ceilingFor(profile: AgentProfile): number {
@@ -418,6 +430,7 @@ export class TurnRunner {
       this.loggingService.error(new Error(`failed to post final output: ${sent.error.message}`));
       return this.close(state, 'delivery_failure');
     }
+    state.addressedPeer = this.multiMentionPolicy.addresseesOf(this.asAddressablePost(input, content))[0] ?? state.addressedPeer;
     await this.conversationsService.record(
       {
         attachments: [],
@@ -480,7 +493,7 @@ export class TurnRunner {
   ): Promise<TurnOutcome | undefined> {
     const truncated = completion.kind === 'truncated';
     const content = truncated ? completion.content : await this.enforceChainLimits(input, state, completion.content);
-    let rejection = truncated ? TRUNCATED_OUTPUT_REJECTION : this.rejectionOf(input, content);
+    let rejection = truncated ? TRUNCATED_OUTPUT_REJECTION : this.rejectionOf(input, state, content);
     const reasoning = reasoningOf(completion);
     if (rejection === undefined) {
       return this.closeWithFinalOutput(input, state, content, reasoning);
@@ -873,14 +886,13 @@ export class TurnRunner {
    * produced valid output that breaks a framework rule it cannot see (§4.5), or wrote a tool call
    * as text where only a real call runs anything, and one retry is cheap either way.
    */
-  private rejectionOf(input: RunInput, content: string): string | undefined {
-    const refused = this.multiMentionPolicy.refuses({
-      authorUsername: input.profile.username,
-      channelId: input.channelId,
-      mentionedUsernames: extractMentionedUsernames(content)
-    });
-    if (refused) {
+  private rejectionOf(input: RunInput, state: TurnState, content: string): string | undefined {
+    const post = this.asAddressablePost(input, content);
+    if (this.multiMentionPolicy.refuses(post)) {
       return 'post rejected: multiple agent mentions';
+    }
+    if (this.multiMentionPolicy.refusesSecondAddressee(post, state.addressedPeer)) {
+      return `post rejected: this turn has already addressed @${state.addressedPeer}`;
     }
     if (containsToolCallTranscript(content)) {
       return 'post rejected: a tool call written as text runs nothing — invoke the tool instead';

@@ -5,6 +5,8 @@ import { stripMentionsOf } from '@/utils/mention.utils.ts';
 
 import { RosterService } from '../roster/roster.service.ts';
 
+type AddressablePost = { authorUsername: string; channelId: string; mentionedUsernames: readonly string[] };
+
 /**
  * §4.5 — a post addressing two or more agents present in the channel is refused, because two
  * concurrent turns on one task is the harm and this rule is what pins delegation width at one.
@@ -17,13 +19,22 @@ export class MultiMentionPolicy {
     private readonly rosterService: RosterService
   ) {}
 
-  /** counts agents present in the channel beyond the author — an author naming itself adds nothing */
-  refuses(post: { authorUsername: string; channelId: string; mentionedUsernames: readonly string[] }): boolean {
-    const addressed = this.rosterService
+  /** the peers a post addresses: agents present in the channel, other than the author — naming itself adds nothing */
+  addresseesOf(post: AddressablePost): string[] {
+    return this.rosterService
       .listAgentsIn(post.channelId)
       .filter((agent) => agent.username !== post.authorUsername)
-      .filter((agent) => post.mentionedUsernames.includes(agent.username));
-    return addressed.length >= 2;
+      .filter((agent) => post.mentionedUsernames.includes(agent.username))
+      .map((agent) => agent.username);
+  }
+
+  refuses(post: AddressablePost): boolean {
+    return this.addresseesOf(post).length >= 2;
+  }
+
+  /** §4.5 — a turn addresses one peer; a later post of the same turn naming a different one is refused */
+  refusesSecondAddressee(post: AddressablePost, alreadyAddressed: string | undefined): boolean {
+    return alreadyAddressed !== undefined && this.addresseesOf(post).some((peer) => peer !== alreadyAddressed);
   }
 
   /** status text never addresses anyone (§4.5) — an agent mention loses its @ before posting */

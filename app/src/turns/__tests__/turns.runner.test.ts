@@ -113,7 +113,9 @@ describe('TurnRunner', () => {
     const inferenceRegistry = MockFactory.createMock(InferenceRegistry);
     inferenceRegistry.getClientForModel.mockReturnValue({ complete });
     multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
+    multiMentionPolicy.addresseesOf.mockReturnValue([]);
     multiMentionPolicy.refuses.mockReturnValue(false);
+    multiMentionPolicy.refusesSecondAddressee.mockReturnValue(false);
     multiMentionPolicy.stripAgentMentions.mockImplementation((content) => content);
     const statusPostService = MockFactory.createMock(StatusPostService);
     statusPostService.open.mockReturnValue(statusHandle);

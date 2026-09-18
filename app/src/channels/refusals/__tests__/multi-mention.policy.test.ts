@@ -68,6 +68,34 @@ describe('MultiMentionPolicy', () => {
     });
   });
 
+  describe('addresseesOf', () => {
+    it('should list only agents present in the channel other than the author', () => {
+      expect(
+        multiMentionPolicy.addresseesOf({
+          authorUsername: 'mira',
+          channelId: 'channel-dm',
+          mentionedUsernames: ['mira', 'owen', 'casey']
+        })
+      ).toStrictEqual([]);
+      expect(
+        multiMentionPolicy.addresseesOf({ authorUsername: 'mira', channelId: 'channel-1', mentionedUsernames: ['owen'] })
+      ).toStrictEqual(['owen']);
+    });
+  });
+
+  describe('refusesSecondAddressee (§4.5)', () => {
+    const post = (...mentionedUsernames: string[]) => ({ authorUsername: 'mira', channelId: 'channel-1', mentionedUsernames });
+
+    it('should refuse a different peer once the turn has addressed one', () => {
+      expect(multiMentionPolicy.refusesSecondAddressee(post('tess'), 'owen')).toBe(true);
+    });
+
+    it('should allow the peer the turn already addressed, and anyone when it has addressed nobody', () => {
+      expect(multiMentionPolicy.refusesSecondAddressee(post('owen'), 'owen')).toBe(false);
+      expect(multiMentionPolicy.refusesSecondAddressee(post('tess'), undefined)).toBe(false);
+    });
+  });
+
   describe('stripAgentMentions', () => {
     it('should strip agent mentions and leave human mentions alone', () => {
       expect(multiMentionPolicy.stripAgentMentions('asking @owen about what @casey said')).toBe(
