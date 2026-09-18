@@ -57,6 +57,8 @@ export class ToolRegistry {
   /** wireName → tool, per agent — the set the model is offered and the one an operator is shown (§1) */
   private readonly agentTools: ReadonlyMap<string, ReadonlyMap<string, ResolvedTool>>;
 
+  private readonly coreNamespaces: ReadonlySet<string> = new Set(CORE_TOOLSETS.map((toolset) => toolset.name));
+
   /** every tool every registered toolset declares, granted or not */
   private readonly library: readonly ResolvedTool[];
 
@@ -88,12 +90,11 @@ export class ToolRegistry {
       }
     }
     this.library = Array.from(byRef.values());
-    const coreNamespaces = new Set<string>(CORE_TOOLSETS.map((toolset) => toolset.name));
     const grantable = new Map(
-      Array.from(byNamespace.entries()).filter(([namespace]) => !coreNamespaces.has(namespace))
+      Array.from(byNamespace.entries()).filter(([namespace]) => !this.coreNamespaces.has(namespace))
     );
     this.agentTools = new Map(
-      profiles.map((profile) => [profile.username, this.expandGrants(profile, byRef, grantable, coreNamespaces)])
+      profiles.map((profile) => [profile.username, this.expandGrants(profile, byRef, grantable)])
     );
     this.agentCallableTools = new Map(
       Array.from(this.agentTools, ([username, tools]) => [username, ToolRegistry.toCallableNames(tools)])
@@ -177,6 +178,14 @@ export class ToolRegistry {
     }));
   }
 
+  /** §3.11 — what a peer's roster line names: each namespace the agent holds a tool of, core left out, in a fixed order */
+  listGrantedNamespacesFor(profile: AgentProfile): readonly string[] {
+    const namespaces = new Set(Array.from(this.toolsFor(profile).values(), (tool) => tool.id[0]));
+    return Array.from(namespaces)
+      .filter((namespace) => !this.coreNamespaces.has(namespace))
+      .toSorted();
+  }
+
   /** §3.14 — the tools of the named toolsets that no agent's expanded grants include, which no turn can ever call */
   listUngrantedIn(namespaces: ReadonlySet<string>): ToolId[] {
     const granted = new Set(Array.from(this.agentTools.values()).flatMap((tools) => Array.from(tools.keys())));
@@ -214,8 +223,7 @@ export class ToolRegistry {
   private expandGrants(
     profile: AgentProfile,
     byRef: ReadonlyMap<string, ResolvedTool>,
-    grantable: ReadonlyMap<string, RegisteredToolset>,
-    coreNamespaces: ReadonlySet<string>
+    grantable: ReadonlyMap<string, RegisteredToolset>
   ): ReadonlyMap<string, ResolvedTool> {
     const tools = new Map<string, ResolvedTool>();
     const isAvailable = (tool: ResolvedTool) => {
@@ -233,7 +241,7 @@ export class ToolRegistry {
       includeNamespace(toolset);
     }
     for (const grant of profile.tools) {
-      if (coreNamespaces.has(grant) || coreNamespaces.has(byRef.get(grant)?.id[0] ?? '')) {
+      if (this.coreNamespaces.has(grant) || this.coreNamespaces.has(byRef.get(grant)?.id[0] ?? '')) {
         throw new Error(
           `agent "${profile.username}" is configured with "${grant}", which is core — always enabled and never granted`
         );

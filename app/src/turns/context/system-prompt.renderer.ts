@@ -159,14 +159,21 @@ export class SystemPromptRenderer {
     );
   }
 
+  private renderPeerLine(peer: AgentProfile): string {
+    const namespaces = this.toolRegistry.listGrantedNamespacesFor(peer);
+    const toolsets = namespaces.length === 0 ? 'none' : namespaces.join(', ');
+    return `@${peer.username} — ${peer.expertise} (toolsets: ${toolsets})`;
+  }
+
   private renderPeers(channelId: string, profile: AgentProfile): string | undefined {
     const peers = this.rosterService.getPeers(channelId, profile.username);
     if (peers.length === 0) {
       return undefined;
     }
-    return this.textFormatter.formatParagraphs(['## Peers', 'Colleagues in this channel:', '{listing}'], {
-      listing: this.textFormatter.formatBullets(peers.map((peer) => `@${peer.username} — ${peer.expertise}`))
-    });
+    return this.textFormatter.formatParagraphs(
+      ['## Peers', 'Colleagues in this channel, with the toolsets each holds:', '{listing}'],
+      { listing: this.textFormatter.formatBullets(peers.map((peer) => this.renderPeerLine(peer))) }
+    );
   }
 
   private renderPersonality(profile: AgentProfile): string | undefined {

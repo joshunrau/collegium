@@ -230,6 +230,12 @@ describe('ToolRegistry', () => {
     expect(registry.listBudgetExemptFor(profile)).toStrictEqual(['skills__load']);
   });
 
+  it('lists granted namespaces alphabetically, a single-tool grant by its namespace, core left out (§3.11)', () => {
+    const profile = buildAgentProfile({ tools: ['notes', 'maps::measure'] });
+    const registry = new ToolRegistry(LIBRARY, [profile]);
+    expect(registry.listGrantedNamespacesFor(profile)).toStrictEqual(['maps', 'notes']);
+  });
+
   it('lists every tool an agent may call by identity, core first, saying which gates (§8.4)', () => {
     const profile = buildAgentProfile({ tools: ['notes'] });
     const registry = new ToolRegistry(LIBRARY, [profile]);
