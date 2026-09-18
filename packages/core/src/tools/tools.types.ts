@@ -26,6 +26,12 @@ export type ToolApprovalPayload = {
   presentation: ApprovalPayloadPresentation;
 };
 
+/** §3.7a — the question a human reads, and the short answers offered as buttons beside free text */
+export type ToolAskPayload = {
+  readonly options?: readonly string[];
+  readonly question: string;
+};
+
 /**
  * A durable record's disclosure (§3.6), returned by the tool that created it; the turn writes the
  * event the trace reads back. `reference` names the record for later reads, e.g. a memory id.
@@ -103,6 +109,12 @@ export type ToolDefinition<TContext, TParams extends z.ZodType> = {
    * an omission is visible, for them it is indistinguishable from a mistake (§3.14).
    */
   approval?(args: z.infer<TParams>): ToolApprovalPayload;
+  /**
+   * Present ⇒ the tool always asks (§3.7a): a question whose answer becomes the call's result,
+   * never a consent decision, so there is no body to run and no denial. A tool declares this or
+   * `approval`; the registry refuses one declaring both.
+   */
+  ask?(args: z.infer<TParams>): ToolAskPayload;
   /** §5.3 — never billed against the action budget; framework toolsets only, rejected at the plugin perimeter (§6) */
   readonly budgetExempt?: boolean;
   /**

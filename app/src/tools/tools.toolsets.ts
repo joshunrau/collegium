@@ -1,6 +1,7 @@
 import type { AnyToolset, FrameworkToolsetName } from '@collegium/core/toolsets';
 import { CORE_TOOLSET_DEFS, GRANTABLE_TOOLSET_DEFS } from '@collegium/core/toolsets';
 
+import { ASK_TOOLSET } from '@/ask/ask.toolset.ts';
 import { BUILTINS_TOOLSET } from '@/builtins/builtins.toolset.ts';
 import { CONVERSATIONS_TOOLSET } from '@/conversations/conversations.toolset.ts';
 import { MAIL_TOOLSET } from '@/mail/mail.toolset.ts';
@@ -13,6 +14,7 @@ import { WORKSPACE_TOOLSET } from '@/workspace/workspace.toolset.ts';
 
 /** every framework def realised exactly once: a def left unimplemented, or an implementation no def names, is a compile error */
 const IMPLEMENTATIONS = {
+  ask: ASK_TOOLSET,
   builtins: BUILTINS_TOOLSET,
   conversations: CONVERSATIONS_TOOLSET,
   mail: MAIL_TOOLSET,

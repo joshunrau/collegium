@@ -98,25 +98,31 @@ function renderAssistantEvent(
  * no call (the budget extension) still reads as a line of transcript.
  */
 function renderEvent(event: ModelRow<'TurnEvent'>, results: ReadonlyMap<string, string>): CompletionMessage[] {
-  return match(event.payload)
-    .with({ kind: 'approval_decided' }, (payload): CompletionMessage[] => {
-      if (payload.callId !== undefined) {
-        return [];
-      }
-      const reason = payload.reason === undefined ? '' : `: ${payload.reason}`;
-      return [{ content: `[approval ${payload.decision}${reason}]`, role: 'user' }];
-    })
-    .with({ kind: 'approval_requested' }, (payload): CompletionMessage[] => {
-      return payload.callId === undefined
-        ? [{ content: `[approval requested: ${toWireName(payload.toolName)}]`, role: 'user' }]
-        : [];
-    })
-    .with({ kind: 'assistant_message' }, (payload) => renderAssistantEvent(payload, results))
-    .with({ kind: 'record_written' }, (payload): CompletionMessage[] => [
-      { content: `[recorded: ${payload.description}]`, role: 'user' }
-    ])
-    .with({ kind: 'tool_result' }, (): CompletionMessage[] => [])
-    .exhaustive();
+  return (
+    match(event.payload)
+      .with({ kind: 'approval_decided' }, (payload): CompletionMessage[] => {
+        if (payload.callId !== undefined) {
+          return [];
+        }
+        const reason = payload.reason === undefined ? '' : `: ${payload.reason}`;
+        return [{ content: `[approval ${payload.decision}${reason}]`, role: 'user' }];
+      })
+      .with({ kind: 'approval_requested' }, (payload): CompletionMessage[] => {
+        return payload.callId === undefined
+          ? [{ content: `[approval requested: ${toWireName(payload.toolName)}]`, role: 'user' }]
+          : [];
+      })
+      // §3.7a — an answered ask is recorded as that call's ordinary `tool_result`, so the window
+      // replays it through the call itself and neither ask event folds into anything here
+      .with({ kind: 'ask_answered' }, (): CompletionMessage[] => [])
+      .with({ kind: 'ask_requested' }, (): CompletionMessage[] => [])
+      .with({ kind: 'assistant_message' }, (payload) => renderAssistantEvent(payload, results))
+      .with({ kind: 'record_written' }, (payload): CompletionMessage[] => [
+        { content: `[recorded: ${payload.description}]`, role: 'user' }
+      ])
+      .with({ kind: 'tool_result' }, (): CompletionMessage[] => [])
+      .exhaustive()
+  );
 }
 
 function renderPost(post: ModelRow<'Post'>, selfUsername: string): CompletionMessage {

@@ -21,6 +21,15 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload): string {
       (event) =>
         `approval requested for \`${toDisplayName(event.toolName)}\`${event.contextText === undefined ? '' : ` (${event.contextText})`}: ${event.payloadText}`
     )
+    .with(
+      { kind: 'ask_answered' },
+      (event) => `ask ${event.askId} answered by ${event.byUsername}: ${event.answerText}`
+    )
+    .with(
+      { kind: 'ask_requested' },
+      (event) =>
+        `question asked by \`${toDisplayName(event.toolName)}\`${event.options === undefined ? '' : ` (offering ${event.options.join(', ')})`}: ${event.question}`
+    )
     .with({ kind: 'assistant_message' }, (event) => {
       return event.toolCalls.length === 0
         ? `assistant: ${event.content}`

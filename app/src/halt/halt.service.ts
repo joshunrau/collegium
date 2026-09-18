@@ -1,7 +1,7 @@
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
-import { ApprovalsService } from '@/approvals/approvals.service.ts';
+import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
@@ -34,10 +34,10 @@ export class HaltService {
   private haltedFor: HaltReason | undefined;
 
   constructor(
-    private readonly approvalsService: ApprovalsService,
     configService: ConfigService,
     private readonly loggingService: LoggingService,
     private readonly notificationsService: NotificationsService,
+    private readonly pendingDecisionsService: PendingDecisionsService,
     private readonly rosterService: RosterService,
     private readonly turnsService: TurnsService,
     @InjectModel('ResumeWatermark') private readonly watermarks: Model<'ResumeWatermark'>
@@ -73,7 +73,7 @@ export class HaltService {
     this.haltedFor = reason;
     this.loggingService.warn(`global halt raised: ${reason.kind}`);
     await this.notificationsService.notify({ kind: 'halt', reason });
-    await this.approvalsService.invalidateAll('halt');
+    await this.pendingDecisionsService.invalidateAll('halt');
   }
 
   isHalted(): boolean {

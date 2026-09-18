@@ -21,6 +21,12 @@ enum ApprovalStatus {
   pending
 }
 
+enum AskStatus {
+  answered
+  invalidated
+  pending
+}
+
 enum AuthorKind {
   agent
   human
@@ -50,6 +56,8 @@ enum TriggerStatus {
 enum TurnEventKind {
   approval_decided
   approval_requested
+  ask_answered
+  ask_requested
   assistant_message
   record_written
   tool_result
@@ -119,6 +127,7 @@ model Turn {
   statusPostId     String?
   triggeringPostId String?
   approvals        Approval[]
+  asks             Ask[]
   authoredPosts    Post[]
   events           TurnEvent[]
 
@@ -176,6 +185,27 @@ model Approval {
   toolNamespace     String?
   turnId            String
   turn              Turn           @relation(fields: [turnId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+// §3.7a — a question put to the channel rather than a consent decision, so no row here records a
+// refusal: an ask ends answered, or invalidated by whatever cancels a pending approval.
+model Ask {
+  id                 String    @id @default(cuid(2))
+  answerText         String?
+  answeredAt         DateTime?
+  answeredByUsername String?
+  createdAt          DateTime  @default(now())
+  /// [AskOptions]
+  options            Json?
+  promptPostId       String?
+  question           String
+  status             AskStatus
+  toolName           String
+  toolNamespace      String
+  turnId             String
+  turn               Turn      @relation(fields: [turnId], references: [id], onDelete: Cascade)
 
   @@index([status])
 }

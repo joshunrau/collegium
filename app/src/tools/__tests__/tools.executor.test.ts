@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
+import { AsksService } from '@/approvals/asks.service.ts';
 import { buildAgentProfile } from '@/testing/factories/agent-profile.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -22,6 +23,14 @@ const FIXTURE_TOOLSET = defineToolset({
   services: { greeter: GREETER_TOKEN },
   settings: z.object({ suffix: z.string().default('!') }),
   tools: {
+    asker: {
+      ask: (args) => ({ options: ['yes', 'no'], question: args.value }),
+      description: 'Always asks.',
+      execute: () => {
+        throw new Error('an ask-declared tool has no body');
+      },
+      parameters: z.object({ value: z.string() })
+    },
     disclose: {
       description: 'Returns a disclosure beside its text.',
       execute: () => {
@@ -79,6 +88,7 @@ const PROFILE = buildAgentProfile({
 
 describe('ToolExecutor', () => {
   let approvalsService: MockedInstance<ApprovalsService>;
+  let asksService: MockedInstance<AsksService>;
   let toolExecutor: ToolExecutor;
 
   const execute = (name: string, args: unknown) => {
@@ -93,6 +103,7 @@ describe('ToolExecutor', () => {
 
   beforeEach(async () => {
     approvalsService = MockFactory.createMock(ApprovalsService);
+    asksService = MockFactory.createMock(AsksService);
     const registered = registerToolset(
       FIXTURE_TOOLSET,
       () => ({ greet: (name: string) => `hello ${name}` }),
@@ -104,6 +115,7 @@ describe('ToolExecutor', () => {
       providers: [
         ToolExecutor,
         { provide: ApprovalsService, useValue: approvalsService },
+        { provide: AsksService, useValue: asksService },
         { provide: ToolRegistry, useValue: new ToolRegistry([registered], [PROFILE]) }
       ]
     }).compile();
@@ -114,6 +126,25 @@ describe('ToolExecutor', () => {
     const attempt = await execute('fixture__echo', { value: 'casey' });
     expect(attempt).toStrictEqual({ kind: 'continue', output: 'hello casey!' });
     expect(approvalsService.request).not.toHaveBeenCalled();
+  });
+
+  it('should hand an answered question back as the call’s own result (§3.7a)', async () => {
+    asksService.request.mockResolvedValue(Result.ok({ answerText: 'yes', byUsername: 'casey', kind: 'answered' }));
+    const attempt = await execute('fixture__asker', { value: 'ship it?' });
+    expect(attempt).toStrictEqual({ kind: 'continue', output: 'yes' });
+    expect(asksService.request).toHaveBeenCalledWith(
+      expect.objectContaining({ options: ['yes', 'no'], question: 'ship it?' })
+    );
+  });
+
+  it('should end the turn when a pending question is cancelled (§7.5)', async () => {
+    asksService.request.mockResolvedValue(Result.ok({ kind: 'cancelled', reason: 'stop' }));
+    const attempt = await execute('fixture__asker', { value: 'ship it?' });
+    expect(attempt).toStrictEqual({
+      detail: 'the pending question was cancelled by stop',
+      kind: 'terminal',
+      status: 'stopped'
+    });
   });
 
   it('feeds malformed arguments back under the name the model spelled (§1)', async () => {

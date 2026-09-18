@@ -8,6 +8,9 @@ import { z } from 'zod';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
 import type { ApprovalDecision, ApprovalFailureRequest } from '@/approvals/approvals.types.ts';
+import { AsksService } from '@/approvals/asks.service.ts';
+import type { AskFailureRequest } from '@/approvals/asks.types.ts';
+import type { PendingCancellationReason } from '@/approvals/decisions/decisions.types.ts';
 import type { ToolCall } from '@/inference/inference.types.ts';
 import type { TurnEventInput } from '@/turns/turns.types.ts';
 
@@ -31,8 +34,30 @@ type ExecuteInput = {
 export class ToolExecutor {
   constructor(
     private readonly approvalsService: ApprovalsService,
+    private readonly asksService: AsksService,
     private readonly toolRegistry: ToolRegistry
   ) {}
+
+  /** an undelivered question can never be answered, which ends the turn */
+  private static toAskFailureAttempt(failure: AskFailureRequest): ToolAttempt {
+    return {
+      detail: `the question could not be delivered: ${failure.message}`,
+      kind: 'terminal',
+      status: 'delivery_failure'
+    };
+  }
+
+  /** a parked human decision that no human answered ends the turn the same way, whichever kind it was (§7.5) */
+  private static toCancelledAttempt(kind: 'approval' | 'question', reason: PendingCancellationReason): ToolAttempt {
+    const status = match(reason)
+      .with('halt', () => 'halted' as const)
+      .with('kill', () => 'killed' as const)
+      // a live turn can only observe halt/kill/stop; restart cancellations exist for rows a dead process left
+      .with('restart', () => 'halted' as const)
+      .with('stop', () => 'stopped' as const)
+      .exhaustive();
+    return { detail: `the pending ${kind} was cancelled by ${reason}`, kind: 'terminal', status };
+  }
 
   async execute(input: ExecuteInput): Promise<ToolAttempt> {
     const resolved = this.toolRegistry.resolveFor(input.profile, input.call.name);
@@ -49,6 +74,9 @@ export class ToolExecutor {
       };
     }
     // the gate is declared by presence (§5), resolved only after a successful parse: malformed args never reach it
+    if (tool.definition.ask) {
+      return this.awaitAnswer(input, tool, tool.definition.ask(args.data));
+    }
     if (!tool.definition.approval) {
       return this.runBody(tool, args.data, input);
     }
@@ -58,16 +86,7 @@ export class ToolExecutor {
     }
     return match(decision.value)
       .with({ kind: 'approved' }, () => this.runBody(tool, args.data, input))
-      .with({ kind: 'cancelled' }, ({ reason }): ToolAttempt => {
-        const status = match(reason)
-          .with('halt', () => 'halted' as const)
-          .with('kill', () => 'killed' as const)
-          // a live turn can only observe halt/kill/stop; restart cancellations exist for rows a dead process left
-          .with('restart', () => 'halted' as const)
-          .with('stop', () => 'stopped' as const)
-          .exhaustive();
-        return { detail: `the pending approval was cancelled by ${reason}`, kind: 'terminal', status };
-      })
+      .with({ kind: 'cancelled' }, ({ reason }): ToolAttempt => ToolExecutor.toCancelledAttempt('approval', reason))
       .with({ kind: 'denied' }, ({ byUsername }): ToolAttempt => ({
         detail: `@${byUsername} denied ${tool.displayName}`,
         kind: 'terminal',
@@ -89,6 +108,33 @@ export class ToolExecutor {
       ...(declaration.storage && { storage }),
       turn: input.turn
     };
+  }
+
+  /** §3.7a — the answer is an ordinary tool result, so the turn continues under the same budget */
+  private async awaitAnswer(
+    input: ExecuteInput,
+    tool: ResolvedTool,
+    payload: { options?: readonly string[]; question: string }
+  ): Promise<ToolAttempt> {
+    const decision = await this.asksService.request({
+      agentUsername: input.turn.agentUsername,
+      appendEvent: input.appendEvent,
+      callId: input.call.id,
+      channelId: input.turn.channelId,
+      contextText: input.contextText,
+      ...(payload.options && { options: payload.options }),
+      question: payload.question,
+      toolName: tool.id[1],
+      toolNamespace: tool.id[0],
+      turnId: input.turn.turnId
+    });
+    if (!decision.success) {
+      return ToolExecutor.toAskFailureAttempt(decision.error);
+    }
+    return match(decision.value)
+      .with({ kind: 'answered' }, ({ answerText }): ToolAttempt => ({ kind: 'continue', output: answerText }))
+      .with({ kind: 'cancelled' }, ({ reason }): ToolAttempt => ToolExecutor.toCancelledAttempt('question', reason))
+      .exhaustive();
   }
 
   private requestApproval(

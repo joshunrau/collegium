@@ -16,7 +16,7 @@ type PluginToolExecute = (args: unknown, context: { readonly [key: string]: unkn
  * One tool of the plugin perimeter (§7): what a `defineTool` factory must have returned. Strict,
  * deliberately: `budgetExempt` and `isAvailableWith` are absent from the plugin-facing type, and the
  * unrecognized-key refusal here is what makes that structural — a plugin does not alter how the
- * framework budgets actions or expands grants (§6).
+ * framework budgets actions or expands grants (§6), and `ask` (§3.7a) is the framework's own.
  */
 export type $PluginTool = z.infer<typeof $PluginTool>;
 export const $PluginTool = z.strictObject({

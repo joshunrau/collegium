@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { chunk } from 'es-toolkit';
 
 import { ActivationService } from '@/activation/activation.service.ts';
-import { ApprovalsService } from '@/approvals/approvals.service.ts';
+import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { BackfillService } from '@/conversations/backfill/backfill.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
@@ -30,10 +30,10 @@ const ABANDONED_CLOSE_CONCURRENCY = 8;
 export class BootService {
   constructor(
     private readonly activationService: ActivationService,
-    private readonly approvalsService: ApprovalsService,
     private readonly backfillService: BackfillService,
     private readonly livenessService: LivenessService,
     private readonly loggingService: LoggingService,
+    private readonly pendingDecisionsService: PendingDecisionsService,
     private readonly rosterService: RosterService,
     private readonly statusPostService: StatusPostService,
     private readonly turnsService: TurnsService
@@ -45,7 +45,7 @@ export class BootService {
     await this.livenessService.startStamping();
     const abandoned = await this.turnsService.abandonRunning();
     await this.closeAbandonedStatusPosts(abandoned.statusPosts);
-    await this.approvalsService.invalidateAll('restart');
+    await this.pendingDecisionsService.invalidateAll('restart');
     await this.backfillService.run();
     const reconciled = await this.rosterService.reconcile();
     if (!reconciled.success) {

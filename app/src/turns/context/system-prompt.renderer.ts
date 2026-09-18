@@ -125,9 +125,9 @@ export class SystemPromptRenderer {
 
   /** §3.8 — every sentence states what the framework does, never what the model ought to do; an instruction does not belong here */
   private renderPreamble(profile: AgentProfile): string {
-    const holdsSearch = this.toolRegistry
-      .listFor(profile)
-      .some(({ id: [namespace, tool] }) => namespace === 'conversations' && tool === 'search');
+    const granted = this.toolRegistry.listFor(profile);
+    const holdsAsk = granted.some(({ id: [namespace, tool] }) => namespace === 'ask' && tool === 'human');
+    const holdsSearch = granted.some(({ id: [namespace, tool] }) => namespace === 'conversations' && tool === 'search');
     return this.textFormatter.formatParagraphs(
       [
         '## How this works',
@@ -138,6 +138,11 @@ export class SystemPromptRenderer {
         'Each turn has a budget of {actionBudget} tool calls. A denied call also uses the budget. Calls to {budgetExemptCalls} do not. When the budget is used, the framework asks a person for more. If the person approves, you get {actionBudget} more calls. If the person denies with no reason, the turn stops. If the person denies with a reason, the reason comes back as the tool result, no further call runs, and only your text is posted.',
         'Your memories go with you between channels, and stay in your context after the posts and results around them have fallen outside it. A memory write and a memory delete need no approval. Each of them is shown in the channel immediately.',
         ...this.renderDirectories(profile),
+        ...(holdsAsk
+          ? [
+              'ask__human puts a question to the people in this channel and waits, with no timeout, for one of them to answer. The answer comes back as that call\u2019s result and the turn continues with the same budget. It is not how you ask for permission: a tool that needs approval asks for it by itself when you call it.'
+            ]
+          : []),
         ...(holdsSearch
           ? [
               'conversations__search finds past posts in the channels you are in. From a public channel it reaches public channels only. From a private channel or a direct message it also reaches private channels and direct messages whose members include everyone here. It finds posts by people, colleagues and you, but not status text or framework notices, and it does not reach past the most recent reset in a channel.'

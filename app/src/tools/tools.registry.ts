@@ -67,6 +67,9 @@ export class ToolRegistry {
     const byRef = new Map<string, ResolvedTool>();
     for (const toolset of toolsets) {
       for (const [name, definition] of Object.entries(toolset.declaration.tools)) {
+        if (definition.approval && definition.ask) {
+          throw new Error(`tool "${toolset.declaration.name}::${name}" declares both approval and ask (§3.7a)`);
+        }
         const id: ToolId = [toolset.declaration.name, name];
         const wireName = renderToolWireName(id);
         const displayName = renderToolDisplayName(id);

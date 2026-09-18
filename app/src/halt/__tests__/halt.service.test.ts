@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApprovalsService } from '@/approvals/approvals.service.ts';
+import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
@@ -18,7 +18,7 @@ import { HaltService } from '../halt.service.ts';
 type WatermarkRow = { key: string; resumedAt: Date };
 
 describe('HaltService', () => {
-  let approvalsService: MockedInstance<ApprovalsService>;
+  let pendingDecisionsService: MockedInstance<PendingDecisionsService>;
   let haltService: HaltService;
   let notificationsService: MockedInstance<NotificationsService>;
   let rosterService: MockedInstance<RosterService>;
@@ -33,7 +33,7 @@ describe('HaltService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         HaltService,
-        { provide: ApprovalsService, useValue: approvalsService },
+        { provide: PendingDecisionsService, useValue: pendingDecisionsService },
         { provide: ConfigService, useValue: configService },
         MockFactory.createForService(LoggingService),
         { provide: NotificationsService, useValue: notificationsService },
@@ -51,8 +51,8 @@ describe('HaltService', () => {
   };
 
   beforeEach(async () => {
-    approvalsService = MockFactory.createMock(ApprovalsService);
-    approvalsService.invalidateAll.mockResolvedValue(0);
+    pendingDecisionsService = MockFactory.createMock(PendingDecisionsService);
+    pendingDecisionsService.invalidateAll.mockResolvedValue(undefined);
     notificationsService = MockFactory.createMock(NotificationsService);
     notificationsService.notify.mockResolvedValue(undefined);
     rosterService = MockFactory.createMock(RosterService);
@@ -85,7 +85,7 @@ describe('HaltService', () => {
       kind: 'halt',
       reason: { ceiling: 3, kind: 'turn-ceiling' }
     });
-    expect(approvalsService.invalidateAll).toHaveBeenCalledWith('halt');
+    expect(pendingDecisionsService.invalidateAll).toHaveBeenCalledWith('halt');
   });
 
   it('should free ceiling slots as turn starts age out of the rolling hour', async () => {
@@ -121,7 +121,7 @@ describe('HaltService', () => {
       kind: 'halt',
       reason: { ceiling: 3, kind: 'turn-ceiling' }
     });
-    expect(approvalsService.invalidateAll).toHaveBeenCalledTimes(1);
+    expect(pendingDecisionsService.invalidateAll).toHaveBeenCalledTimes(1);
   });
 
   it('should refuse resume while the violation that raised the halt still stands', async () => {

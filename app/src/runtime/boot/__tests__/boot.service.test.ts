@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ActivationService } from '@/activation/activation.service.ts';
-import { ApprovalsService } from '@/approvals/approvals.service.ts';
+import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { BackfillService } from '@/conversations/backfill/backfill.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
@@ -33,10 +33,10 @@ describe('BootService', () => {
       calls.push('sweep');
       return Promise.resolve();
     });
-    const approvalsService = MockFactory.createMock(ApprovalsService);
-    approvalsService.invalidateAll.mockImplementation(() => {
+    const pendingDecisionsService = MockFactory.createMock(PendingDecisionsService);
+    pendingDecisionsService.invalidateAll.mockImplementation(() => {
       calls.push('invalidate');
-      return Promise.resolve(2);
+      return Promise.resolve();
     });
     const backfillService = MockFactory.createMock(BackfillService);
     backfillService.run.mockImplementation(() => {
@@ -66,7 +66,7 @@ describe('BootService', () => {
         BootService,
         MockFactory.createForService(LoggingService),
         { provide: ActivationService, useValue: activationService },
-        { provide: ApprovalsService, useValue: approvalsService },
+        { provide: PendingDecisionsService, useValue: pendingDecisionsService },
         { provide: BackfillService, useValue: backfillService },
         { provide: LivenessService, useValue: livenessService },
         { provide: RosterService, useValue: rosterService },

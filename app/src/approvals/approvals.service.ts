@@ -11,18 +11,22 @@ import { createRecordId } from '@/prisma/prisma.utils.ts';
 
 import { renderApprovalActions, renderApprovalPrompt, renderResolvedPrompt } from './approvals.renderer.ts';
 import { renderApprovalActionName } from './approvals.utils.ts';
-import { PendingRegistry } from './decisions/pending.registry.ts';
+import { ApprovalPendingRegistry } from './decisions/approval-pending.registry.ts';
+import { resolveActingHuman } from './decisions/human-presence.utils.ts';
 
 import type { PromptInput } from './approvals.renderer.ts';
 import type {
-  ApprovalCancellationReason,
   ApprovalDecision,
-  ApprovalFailure,
-  ApprovalFailureDecision,
   ApprovalFailureRequest,
+  ApprovalPayloadTooLarge,
   ApprovalRequest,
   DecisionInput
 } from './approvals.types.ts';
+import type {
+  DecisionFailure,
+  PendingCancellationReason,
+  PendingDecisionFailure
+} from './decisions/decisions.types.ts';
 
 type ApprovalRow = ModelRow<'Approval'> & { turn: { agentUsername: string; channelId: string } };
 
@@ -48,7 +52,7 @@ export class ApprovalsService {
     private readonly callbackSigner: CallbackSigner,
     envService: EnvService,
     private readonly loggingService: LoggingService,
-    private readonly pendingRegistry: PendingRegistry,
+    private readonly pendingRegistry: ApprovalPendingRegistry,
     private readonly transportRegistry: TransportRegistry
   ) {
     this.decisionsUrl = `${removeTrailingSlash(envService.get('APP_PUBLIC_URL'))}/decisions`;
@@ -60,7 +64,7 @@ export class ApprovalsService {
   }
 
   /** one button click, checked against channel presence before it may resolve anything (§3.7) */
-  async decide(input: DecisionInput): Promise<Result<void, ApprovalFailureDecision>> {
+  async decide(input: DecisionInput): Promise<Result<void, DecisionFailure>> {
     const loaded = await this.loadForDecision(input.approvalId, input.byUserId);
     if (!loaded.success) {
       return loaded;
@@ -81,7 +85,7 @@ export class ApprovalsService {
     byUserId: string;
     byUsername: string;
     reason: string;
-  }): Promise<Result<void, ApprovalFailureDecision>> {
+  }): Promise<Result<void, DecisionFailure>> {
     const loaded = await this.loadForDecision(input.approvalId, input.byUserId);
     if (!loaded.success) {
       return loaded;
@@ -110,7 +114,7 @@ export class ApprovalsService {
     }
     const approvalId = createRecordId();
     const pendingDecision = new Promise<ApprovalDecision>((resolve) => {
-      this.pendingRegistry.register({ approvalId, channelId: input.channelId, resolve });
+      this.pendingRegistry.register({ channelId: input.channelId, id: approvalId, resolve });
     });
     await this.approvals.create({
       data: {
@@ -156,10 +160,10 @@ export class ApprovalsService {
     return Result.ok(decision);
   }
 
-  async resolve(approvalId: string, decision: ApprovalDecision): Promise<Result<void, ApprovalFailureDecision>> {
+  async resolve(approvalId: string, decision: ApprovalDecision): Promise<Result<void, DecisionFailure>> {
     const row = await this.approvals.findUnique({ include: { turn: true }, where: { id: approvalId } });
     if (!row) {
-      return Result.err({ approvalId, kind: 'not-found' });
+      return Result.err({ kind: 'not-found', pendingId: approvalId });
     }
     return this.resolveRow(row, decision);
   }
@@ -184,7 +188,7 @@ export class ApprovalsService {
 
   private async cancelWhere(
     where: { turn?: { channelId: string } },
-    reason: ApprovalCancellationReason
+    reason: PendingCancellationReason
   ): Promise<number> {
     const pending = await this.findPending(where);
     let cancelled = 0;
@@ -216,22 +220,24 @@ export class ApprovalsService {
   private async loadForDecision(
     approvalId: string,
     byUserId: string
-  ): Promise<Result<{ approverUsername: string; row: ApprovalRow }, ApprovalFailureDecision>> {
+  ): Promise<Result<{ approverUsername: string; row: ApprovalRow }, DecisionFailure>> {
     const row = await this.approvals.findUnique({ include: { turn: true }, where: { id: approvalId } });
     if (!row) {
-      return Result.err({ approvalId, kind: 'not-found' });
+      return Result.err({ kind: 'not-found', pendingId: approvalId });
     }
-    const approver = await this.resolveApprover(row, byUserId);
+    const approver = await resolveActingHuman(
+      this.transportRegistry,
+      row.turn.agentUsername,
+      row.turn.channelId,
+      byUserId
+    );
     if (!approver.success) {
       return approver;
     }
-    return Result.ok({ approverUsername: approver.value, row });
+    return Result.ok({ approverUsername: approver.value.username, row });
   }
 
-  private async openReasonDialog(
-    row: ApprovalRow,
-    input: DecisionInput
-  ): Promise<Result<void, ApprovalFailureDecision>> {
+  private async openReasonDialog(row: ApprovalRow, input: DecisionInput): Promise<Result<void, DecisionFailure>> {
     if (input.triggerId === undefined) {
       return Result.err({ kind: 'dialog-undeliverable', message: 'the click carried no trigger id' });
     }
@@ -258,7 +264,7 @@ export class ApprovalsService {
   private async postPrompt(
     input: ApprovalRequest,
     approvalId: string
-  ): Promise<Result<{ postId: string }, ApprovalFailure.PromptUndeliverable>> {
+  ): Promise<Result<{ postId: string }, PendingDecisionFailure.PromptUndeliverable>> {
     const prompt = renderApprovalPrompt(
       this.toPromptInput(input),
       input.payloadPresentation,
@@ -299,7 +305,7 @@ export class ApprovalsService {
    * — it travels as an attachment instead. If the substrate's limit cannot be read we do not block a
    * legitimate small command; the post itself fails loudly if it is genuinely too large.
    */
-  private async refuseIfOverLimit(input: ApprovalRequest): Promise<ApprovalFailure.PayloadTooLarge | undefined> {
+  private async refuseIfOverLimit(input: ApprovalRequest): Promise<ApprovalPayloadTooLarge | undefined> {
     if (input.payloadPresentation !== 'verbatim') {
       return undefined;
     }
@@ -314,33 +320,9 @@ export class ApprovalsService {
     return { actualChars: text.length, kind: 'payload-too-large', limitChars: limit };
   }
 
-  /**
-   * §3.7 — authority is "any human present in the channel", so both halves are checked against the
-   * user id. The username is read back from that id rather than taken from the request body, which
-   * anything reaching the port could otherwise choose for itself.
-   */
-  private async resolveApprover(row: ApprovalRow, userId: string): Promise<Result<string, ApprovalFailureDecision>> {
-    const transport = this.transportRegistry.get(row.turn.agentUsername);
-    const described = await transport.describeUser(userId);
-    if (!described.success) {
-      return Result.err({ kind: 'approver-not-present', username: userId });
-    }
-    const membership = await transport.isChannelMember(row.turn.channelId, userId);
-    if (!membership.success || !membership.value) {
-      return Result.err({ kind: 'approver-not-present', username: described.value.username });
-    }
-    if (described.value.isBot) {
-      return Result.err({ kind: 'approver-not-human', username: described.value.username });
-    }
-    return Result.ok(described.value.username);
-  }
-
-  private async resolveRow(
-    row: ApprovalRow,
-    decision: ApprovalDecision
-  ): Promise<Result<void, ApprovalFailureDecision>> {
+  private async resolveRow(row: ApprovalRow, decision: ApprovalDecision): Promise<Result<void, DecisionFailure>> {
     if (!(await this.applyResolution(row, decision))) {
-      return Result.err({ approvalId: row.id, kind: 'already-resolved' });
+      return Result.err({ kind: 'already-resolved', pendingId: row.id });
     }
     return Result.ok();
   }

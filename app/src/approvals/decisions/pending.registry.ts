@@ -1,30 +1,25 @@
-import { Injectable } from '@nestjs/common';
-
-import type { ApprovalDecision } from '../approvals.types.ts';
-
-type PendingEntry = {
-  readonly approvalId: string;
+type PendingEntry<TDecision> = {
   readonly channelId: string;
-  readonly resolve: (decision: ApprovalDecision) => void;
+  readonly id: string;
+  readonly resolve: (decision: TDecision) => void;
 };
 
 /**
- * Maps approval id → the promise resolver a blocked turn is waiting on, in memory. The DB row is
- * the durable record; a restart loses resolvers, which is correct — `invalidateAll` runs on boot
- * and edits every stale prompt to a dead state (§7.3).
+ * Maps a pending row's id → the promise resolver a blocked turn is waiting on, in memory. The DB
+ * row is the durable record; a restart loses resolvers, which is correct — `invalidateAll` runs on
+ * boot and edits every stale prompt to a dead state (§7.3).
  */
-@Injectable()
-export class PendingRegistry {
-  private readonly entries = new Map<string, PendingEntry>();
+export class PendingRegistry<TDecision> {
+  private readonly entries = new Map<string, PendingEntry<TDecision>>();
 
-  register(entry: PendingEntry): void {
-    this.entries.set(entry.approvalId, entry);
+  register(entry: PendingEntry<TDecision>): void {
+    this.entries.set(entry.id, entry);
   }
 
   /** removes and returns the resolver — a resolution happens exactly once */
-  take(approvalId: string): PendingEntry | undefined {
-    const entry = this.entries.get(approvalId);
-    this.entries.delete(approvalId);
+  take(id: string): PendingEntry<TDecision> | undefined {
+    const entry = this.entries.get(id);
+    this.entries.delete(id);
     return entry;
   }
 }

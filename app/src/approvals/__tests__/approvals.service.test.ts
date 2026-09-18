@@ -14,7 +14,7 @@ import { createModelTable } from '@/testing/factories/model-table.factory.ts';
 import type { TurnEventInput } from '@/turns/turns.types.ts';
 
 import { ApprovalsService } from '../approvals.service.ts';
-import { PendingRegistry } from '../decisions/pending.registry.ts';
+import { ApprovalPendingRegistry } from '../decisions/approval-pending.registry.ts';
 
 type ApprovalRow = {
   decidedByUsername?: string;
@@ -65,7 +65,7 @@ describe('ApprovalsService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         ApprovalsService,
-        PendingRegistry,
+        ApprovalPendingRegistry,
         CallbackSigner,
         { provide: EnvService, useValue: envService },
         { provide: LoggingService, useValue: loggingService },
@@ -121,7 +121,7 @@ describe('ApprovalsService', () => {
     await approvalsService.resolve(rows[0]!.id, { byUsername: 'casey', kind: 'denied' });
     await pending;
     const second = await approvalsService.resolve(rows[0]!.id, { byUsername: 'ana', kind: 'approved' });
-    expect(second.error).toStrictEqual({ approvalId: rows[0]!.id, kind: 'already-resolved' });
+    expect(second.error).toStrictEqual({ kind: 'already-resolved', pendingId: rows[0]!.id });
     expect(rows[0]?.status).toBe('denied');
   });
 
@@ -291,12 +291,12 @@ describe('ApprovalsService', () => {
       byUsername: 'casey',
       reason: 'wrong file'
     });
-    expect(refused.error).toStrictEqual({ approvalId: 'gone', kind: 'not-found' });
+    expect(refused.error).toStrictEqual({ kind: 'not-found', pendingId: 'gone' });
   });
 
   it('should refuse to resolve an approval id that has no row', async () => {
     const resolved = await approvalsService.resolve('gone', { kind: 'cancelled', reason: 'restart' });
-    expect(resolved.error).toStrictEqual({ approvalId: 'gone', kind: 'not-found' });
+    expect(resolved.error).toStrictEqual({ kind: 'not-found', pendingId: 'gone' });
   });
 
   it('should abandon the approval when its prompt cannot be posted, tracing nothing (§3.7)', async () => {

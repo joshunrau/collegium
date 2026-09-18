@@ -2,19 +2,7 @@ import { z } from 'zod';
 
 import { $$CamelCased } from '@/core/core.schemas.ts';
 
-/**
- * The dialog's state as the click that opened it set it: the decider's username, since a submission
- * carries only a user id, and a signature over this approval and that username, since the state
- * reaches the decider's client and comes back as whatever it says (§6.4).
- */
-const $DialogState = z.string().transform((raw, ctx) => {
-  try {
-    return z.object({ byUsername: z.string().min(1), signature: z.string().min(1) }).parse(JSON.parse(raw));
-  } catch {
-    ctx.addIssue({ code: 'custom', message: 'state must be a JSON envelope of byUsername and signature' });
-    return z.NEVER;
-  }
-});
+import { $DialogState } from './decisions/decisions.schemas.ts';
 
 /** what Mattermost POSTs when a human clicks one of the prompt's buttons */
 export type $MattermostActionBody = z.infer<typeof $MattermostActionBody>;

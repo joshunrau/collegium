@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { ApprovalsService } from '@/approvals/approvals.service.ts';
+import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { TurnControlRegistry } from '@/turns/control/turn-control.registry.ts';
@@ -9,29 +9,29 @@ import { TurnControlRegistry } from '@/turns/control/turn-control.registry.ts';
 import { StopHandler } from '../stop.handler.ts';
 
 describe('StopHandler', () => {
-  let approvalsService: MockedInstance<ApprovalsService>;
+  let pendingDecisionsService: MockedInstance<PendingDecisionsService>;
   let stopHandler: StopHandler;
   let turnControlRegistry: MockedInstance<TurnControlRegistry>;
 
   beforeEach(async () => {
-    approvalsService = MockFactory.createMock(ApprovalsService);
-    approvalsService.cancelPendingIn.mockResolvedValue(1);
+    pendingDecisionsService = MockFactory.createMock(PendingDecisionsService);
+    pendingDecisionsService.cancelPendingIn.mockResolvedValue(undefined);
     turnControlRegistry = MockFactory.createMock(TurnControlRegistry);
     turnControlRegistry.abortChannel.mockReturnValue(2);
     const moduleRef = await Test.createTestingModule({
       providers: [
         StopHandler,
-        { provide: ApprovalsService, useValue: approvalsService },
+        { provide: PendingDecisionsService, useValue: pendingDecisionsService },
         { provide: TurnControlRegistry, useValue: turnControlRegistry }
       ]
     }).compile();
     stopHandler = moduleRef.get(StopHandler);
   });
 
-  it('should flag every running turn and cancel pending approvals in the channel', async () => {
+  it('should flag every running turn and cancel every pending decision in the channel', async () => {
     const response = await stopHandler.handle({ channelId: 'channel-1', text: '', username: 'casey' });
     expect(turnControlRegistry.abortChannel).toHaveBeenCalledWith('channel-1', 'stopped');
-    expect(approvalsService.cancelPendingIn).toHaveBeenCalledWith('channel-1', 'stop');
+    expect(pendingDecisionsService.cancelPendingIn).toHaveBeenCalledWith('channel-1', 'stop');
     expect(response).toStrictEqual({ audience: 'channel', text: '⏹️ Stopped 2 turn(s) before any further tool call.' });
   });
 
@@ -39,6 +39,6 @@ describe('StopHandler', () => {
     turnControlRegistry.abortChannel.mockReturnValue(0);
     const response = await stopHandler.handle({ channelId: 'channel-1', text: '', username: 'casey' });
     expect(response).toStrictEqual({ audience: 'channel', text: '⏹️ Nothing running here to stop.' });
-    expect(approvalsService.cancelPendingIn).toHaveBeenCalledWith('channel-1', 'stop');
+    expect(pendingDecisionsService.cancelPendingIn).toHaveBeenCalledWith('channel-1', 'stop');
   });
 });

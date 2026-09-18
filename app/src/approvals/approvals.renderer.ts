@@ -3,7 +3,8 @@ import { match } from 'ts-pattern';
 
 import type { MessageAttachment, PostFile } from '@/chat/chat.types.ts';
 
-import type { ApprovalDecision, ApprovalFailureDecision } from './approvals.types.ts';
+import type { ApprovalDecision } from './approvals.types.ts';
+import type { DecisionFailure } from './decisions/decisions.types.ts';
 
 /** how much of an attached payload still shows inline, so the post says what it is about */
 const INLINE_PREFIX_CHARS = 600;
@@ -136,7 +137,7 @@ export function renderApprovalActions(input: {
   ];
 }
 
-export function renderDecisionRefusal(failure: ApprovalFailureDecision): string {
+export function renderDecisionRefusal(failure: DecisionFailure): string {
   return match(failure)
     .with({ kind: 'already-resolved' }, () => 'This approval has already been decided.')
     .with({ kind: 'approver-not-human' }, () => 'Only a human can decide this approval.')

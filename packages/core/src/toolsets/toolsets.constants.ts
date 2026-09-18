@@ -3,6 +3,8 @@ import { $MailSettings, $MemorySettings, $WebSettings } from './toolsets.schemas
 
 import type { ToolsetDef } from './toolsets.types.ts';
 
+export const ASK_TOOLSET_DEF = { name: 'ask', tools: ['human'] } as const satisfies ToolsetDef;
+
 export const BUILTINS_TOOLSET_DEF = { name: 'builtins', tools: ['now'] } as const satisfies ToolsetDef;
 
 export const CONVERSATIONS_TOOLSET_DEF = { name: 'conversations', tools: ['search'] } as const satisfies ToolsetDef;
@@ -44,6 +46,7 @@ export const WORKSPACE_TOOLSET_DEF = {
 export const CORE_TOOLSET_DEFS = [BUILTINS_TOOLSET_DEF, SKILLS_TOOLSET_DEF, TRIGGERS_TOOLSET_DEF] as const;
 
 export const GRANTABLE_TOOLSET_DEFS = [
+  ASK_TOOLSET_DEF,
   CONVERSATIONS_TOOLSET_DEF,
   MAIL_TOOLSET_DEF,
   MEMORY_TOOLSET_DEF,

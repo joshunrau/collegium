@@ -30,6 +30,19 @@ type TurnEventPayloadByKind = {
     payloadText: string;
     toolName: PrismaJson.RecordedToolName;
   };
+  ask_answered: {
+    answerText: string;
+    askId: string;
+    byUsername: string;
+    callId: string;
+  };
+  ask_requested: {
+    askId: string;
+    callId: string;
+    options?: PrismaJson.AskOptions;
+    question: string;
+    toolName: PrismaJson.RecordedToolName;
+  };
   assistant_message: {
     content: string;
     reasoningContent?: string;
@@ -56,6 +69,9 @@ type TurnEventPayloadByKind = {
 declare global {
   namespace PrismaJson {
     type ApprovalArgs = unknown;
+
+    /** §3.7a — the short answers a question offered as buttons; null where it offered none */
+    type AskOptions = string[];
 
     /** the files one post carried, as the window names them (§3.8); null on every row written before they were parsed */
     type PostAttachments = {
@@ -101,4 +117,4 @@ export type Model<T extends PrismaModelName> = PrismaClient[PrismaModelKey<T>];
 /** a row as it is read back, derived from the delegate so the generated client stays inside this module */
 export type ModelRow<T extends PrismaModelName> = Awaited<ReturnType<Model<T>['findFirstOrThrow']>>;
 
-export type { ApprovalStatus, AuthorKind, PostKind, TriggerSource, TurnStatus } from './generated/enums.ts';
+export type { ApprovalStatus, AskStatus, AuthorKind, PostKind, TriggerSource, TurnStatus } from './generated/enums.ts';

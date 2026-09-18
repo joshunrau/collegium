@@ -7,7 +7,7 @@ import {
   renderResolvedPrompt
 } from '../approvals.renderer.ts';
 
-import type { ApprovalCancellationReason, ApprovalFailureDecision } from '../approvals.types.ts';
+import type { DecisionFailure, PendingCancellationReason } from '../decisions/decisions.types.ts';
 
 const INPUT = { actionName: 'workspace::write', payloadText: 'write notes.md with 12 words' };
 
@@ -76,7 +76,7 @@ describe('renderResolvedPrompt', () => {
   });
 
   it('should say which cancellation reached the prompt, never calling it a denial (§7.5)', () => {
-    const lines: readonly [ApprovalCancellationReason, string][] = [
+    const lines: readonly [PendingCancellationReason, string][] = [
       ['halt', '⛔ **No longer awaiting a decision** — a global halt interrupted this turn'],
       ['kill', '⛔ **No longer awaiting a decision** — the turn was killed'],
       ['restart', '⛔ **No longer awaiting a decision** — the process restarted and abandoned this turn'],
@@ -111,15 +111,15 @@ describe('renderApprovalActions', () => {
 
 describe('renderDecisionRefusal', () => {
   it('should explain every way a decision can be refused', () => {
-    const refusals: readonly [ApprovalFailureDecision, string][] = [
-      [{ approvalId: 'approval-1', kind: 'already-resolved' }, 'This approval has already been decided.'],
+    const refusals: readonly [DecisionFailure, string][] = [
+      [{ kind: 'already-resolved', pendingId: 'approval-1' }, 'This approval has already been decided.'],
       [{ kind: 'approver-not-human', username: 'mira' }, 'Only a human can decide this approval.'],
       [
         { kind: 'approver-not-present', username: 'outsider' },
         'Only someone present in this channel can decide this approval.'
       ],
       [{ kind: 'dialog-undeliverable', message: 'no trigger id' }, 'The reason dialog could not be opened. Try again.'],
-      [{ approvalId: 'approval-1', kind: 'not-found' }, 'This approval no longer exists.']
+      [{ kind: 'not-found', pendingId: 'approval-1' }, 'This approval no longer exists.']
     ];
     for (const [failure, message] of refusals) {
       expect(renderDecisionRefusal(failure)).toBe(message);

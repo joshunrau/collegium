@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { ApprovalsService } from '@/approvals/approvals.service.ts';
+import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { TurnControlRegistry } from '@/turns/control/turn-control.registry.ts';
 
 import { ChannelInterruptHandler } from './channel-interrupt.handler.ts';
@@ -12,8 +12,8 @@ export class KillHandler extends ChannelInterruptHandler {
   protected readonly cancellationReason = 'kill';
   readonly trigger = 'kill';
 
-  constructor(approvalsService: ApprovalsService, turnControlRegistry: TurnControlRegistry) {
-    super(approvalsService, turnControlRegistry);
+  constructor(pendingDecisionsService: PendingDecisionsService, turnControlRegistry: TurnControlRegistry) {
+    super(pendingDecisionsService, turnControlRegistry);
   }
 
   protected renderInterrupted(flagged: number): string {

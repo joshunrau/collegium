@@ -2,8 +2,7 @@ import type { ApprovalPayloadPresentation } from '@collegium/core/approvals';
 
 import type { TurnEventInput } from '@/turns/turns.types.ts';
 
-/** how a pending approval dies without a human decision: §7.5 commands, the §7.4 halt, a §7.3 restart */
-export type ApprovalCancellationReason = 'halt' | 'kill' | 'restart' | 'stop';
+import type { PendingCancellationReason, PendingDecisionFailure } from './decisions/decisions.types.ts';
 
 /**
  * §5.4 — a bare denial terminates the turn; a denial with reason continues it under the same
@@ -14,56 +13,17 @@ export type ApprovalDecision =
   | { byUsername: string; kind: 'approved' }
   | { byUsername: string; kind: 'denied' }
   | { byUsername: string; kind: 'denied-with-reason'; reason: string }
-  | { kind: 'cancelled'; reason: ApprovalCancellationReason };
+  | { kind: 'cancelled'; reason: PendingCancellationReason };
 
-export declare namespace ApprovalFailure {
-  /** a second decision on a resolved approval — refused, never re-applied (§3.7) */
-  type AlreadyResolved = {
-    approvalId: string;
-    kind: 'already-resolved';
-  };
-  /** §3.7 — presence confers authority: a decision from outside the channel is refused */
-  type ApproverNotPresent = {
-    kind: 'approver-not-present';
-    username: string;
-  };
-  /** §3.7 says any *human* present in the channel; presence alone is not authority */
-  type ApproverNotHuman = {
-    kind: 'approver-not-human';
-    username: string;
-  };
-  /** the deny-with-reason dialog could not be opened for the clicking human */
-  type DialogUndeliverable = {
-    kind: 'dialog-undeliverable';
-    message: string;
-  };
-  type NotFound = {
-    approvalId: string;
-    kind: 'not-found';
-  };
-  /** §6.2 — a verbatim payload (a shell command) too long to present in a post is refused, not truncated */
-  type PayloadTooLarge = {
-    actualChars: number;
-    kind: 'payload-too-large';
-    limitChars: number;
-  };
-  /** the prompt could not be posted, so consent can never arrive */
-  type PromptUndeliverable = {
-    kind: 'prompt-undeliverable';
-    message: string;
-  };
-}
-
-/** raised by a decision arriving at the endpoint — a request-time failure can never appear here */
-export type ApprovalFailureDecision =
-  | ApprovalFailure.AlreadyResolved
-  | ApprovalFailure.ApproverNotHuman
-  | ApprovalFailure.ApproverNotPresent
-  | ApprovalFailure.DialogUndeliverable
-  | ApprovalFailure.NotFound;
+/** §6.2 — a verbatim payload (a shell command) too long to present in a post is refused, not truncated */
+export type ApprovalPayloadTooLarge = {
+  actualChars: number;
+  kind: 'payload-too-large';
+  limitChars: number;
+};
 
 /** raised while asking for consent, before any decision endpoint exists */
-export type ApprovalFailureRequest = ApprovalFailure.PayloadTooLarge | ApprovalFailure.PromptUndeliverable;
+export type ApprovalFailureRequest = ApprovalPayloadTooLarge | PendingDecisionFailure.PromptUndeliverable;
 
 /** one button click on the prompt, bound by the controller and decided one layer in */
 export type DecisionInput = {

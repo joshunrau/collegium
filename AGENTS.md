@@ -71,7 +71,8 @@ Each principle applies where its problem exists; machinery without its justifyin
 app/src/
   activation/     decides WHEN a turn starts: addressing, debounce, lock acquisition, drain, trigger flush
   agents/         identity and policy — a passive profile registry holding grants and effective tool settings, no execution
-  approvals/      approval lifecycle, pending-decision registry, prompt rendering
+  approvals/      the lifecycle of every decision a human is parked on: approval (§3.7) and ask (§3.7a), the pending registries, prompt rendering
+  ask/            the ask::human toolset — the question itself; the approvals module owns its lifecycle
   builtins/       the framework's own small core tools, sharing one namespace rather than owning a module each: the clock
   channels/       triggering mode, the channel lock, the roster (membership, kind and name per channel, and which channels a search may reach), the multi-mention policy
   chat/           the Mattermost seam

@@ -107,6 +107,24 @@ describe('ToolRegistry', () => {
     );
   });
 
+  it('refuses a tool declaring both approval and ask (§3.7a)', () => {
+    const confused = defineToolset({
+      name: 'confused',
+      tools: {
+        both: {
+          approval: () => ({ body: 'do it', presentation: 'verbatim' as const }),
+          ask: () => ({ question: 'should I?' }),
+          description: 'Declares both hooks.',
+          execute: () => Result.ok({ text: 'done' }),
+          parameters: z.object({})
+        }
+      }
+    });
+    expect(() => new ToolRegistry([register(confused)], [])).toThrow(
+      'tool "confused::both" declares both approval and ask'
+    );
+  });
+
   it('refuses two toolsets claiming one namespace (§1)', () => {
     expect(() => new ToolRegistry([...LIBRARY, register(NOTES_TOOLSET)], [])).toThrow(
       'two toolsets claim the namespace "notes"'
