@@ -48,7 +48,7 @@ describe('Turn termination', () => {
     await channels.main.awaitReplyFrom('mira', { text: reply });
 
     const followUp = inference.requestsFor('mira').at(-1)!;
-    const fedBack = followUp.messages.find((message) => message.role === 'tool');
+    const fedBack = followUp.messages.findLast((message) => message.role === 'tool');
     expect(fedBack).toMatchObject({
       content: 'the arguments to this call were not valid JSON, so the call did not run'
     });
