@@ -88,27 +88,36 @@ export class PolicyProxy implements OnApplicationShutdown {
     client.on('close', closeBoth);
   }
 
+  /**
+   * Only plain http travels in absolute form; https goes through CONNECT. The proxy listens on
+   * loopback without authentication, so a request anything local could send must never become an
+   * unhandled rejection, which the crash handler would turn into a process exit.
+   */
   private async forward(request: http.IncomingMessage, response: http.ServerResponse): Promise<void> {
-    const url = this.absoluteUrlOf(request.url);
-    if (url === undefined) {
-      response.writeHead(400).end();
-      return;
-    }
-    const vetted = await this.policy.vet(url);
-    if (vetted === undefined) {
-      request.socket.destroy();
-      return;
-    }
-    const upstream = http.request(
-      url,
-      { headers: endToEndHeaders(request.headers), lookup: pinnedLookup(vetted), method: request.method },
-      (upstreamResponse) => {
-        response.writeHead(upstreamResponse.statusCode ?? 502, endToEndHeaders(upstreamResponse.headers));
-        upstreamResponse.pipe(response);
+    try {
+      const url = this.absoluteUrlOf(request.url);
+      if (url?.protocol !== 'http:') {
+        response.writeHead(400).end();
+        return;
       }
-    );
-    upstream.on('error', () => request.socket.destroy());
-    request.pipe(upstream);
+      const vetted = await this.policy.vet(url);
+      if (vetted === undefined) {
+        request.socket.destroy();
+        return;
+      }
+      const upstream = http.request(
+        url,
+        { headers: endToEndHeaders(request.headers), lookup: pinnedLookup(vetted), method: request.method },
+        (upstreamResponse) => {
+          response.writeHead(upstreamResponse.statusCode ?? 502, endToEndHeaders(upstreamResponse.headers));
+          upstreamResponse.pipe(response);
+        }
+      );
+      upstream.on('error', () => request.socket.destroy());
+      request.pipe(upstream);
+    } catch {
+      request.socket.destroy();
+    }
   }
 
   private listen(): Promise<string> {

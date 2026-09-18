@@ -73,6 +73,11 @@ describe('PolicyProxy', () => {
     expect(hosts.at(-1)).toBe(`pinned.invalid:${serverPort}`);
   });
 
+  it('should answer an absolute-form https request with 400 rather than throwing', async () => {
+    const response = await through('https://pinned.invalid/');
+    expect(response.statusCode).toBe(400);
+  });
+
   it('should close the connection on a plain request the policy refuses', async () => {
     await expect(through(`http://refused.invalid:${serverPort}/hello`)).rejects.toThrow();
     expect(hosts).toHaveLength(1);
