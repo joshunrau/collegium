@@ -84,6 +84,16 @@ describe('CommandsService', () => {
     expect(afterAnnouncing).toHaveBeenCalledAfter(chatGateway.postAsSystemIn);
   });
 
+  it('should hand announced work the post it landed as, and withhold it when nothing landed (§3.15)', async () => {
+    const onAnnounced = vi.fn(() => Promise.resolve());
+    await execute({ audience: 'channel', onAnnounced, text: 'Unit cancelled' });
+    expect(onAnnounced).toHaveBeenCalledExactlyOnceWith('post-1');
+    chatGateway.postAsSystemIn.mockResolvedValueOnce(Result.err({ kind: 'api', message: 'refused' }));
+    rosterService.listAgentsIn.mockReturnValueOnce([]);
+    await execute({ audience: 'channel', onAnnounced, text: 'Unit cancelled' });
+    expect(onAnnounced).toHaveBeenCalledOnce();
+  });
+
   it('should leave invoker output ephemeral, posting nothing', async () => {
     const response = await execute({ audience: 'invoker', text: 'Nothing here.' });
     expect(response).toStrictEqual({ responseType: 'ephemeral', text: 'Nothing here.' });

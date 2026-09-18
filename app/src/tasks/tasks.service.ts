@@ -18,6 +18,7 @@ import {
   OPEN_STATES,
   renderAssignmentPost,
   renderClosePost,
+  renderHumanCancellationPost,
   renderReportPost,
   statesThatMayReach
 } from './tasks.utils.ts';
@@ -150,6 +151,26 @@ export class TasksService {
       outcome: input.outcome
     };
     return Result.ok({ prepared, text: renderAssignmentPost(prepared) });
+  }
+
+  /** §8.4 — a person may cancel a unit its creator will never reach; the post is the system bot's, and names no agent with an @ */
+  async prepareCancelOnHumanAuthority(input: {
+    agentUsername: string;
+    byUsername: string;
+    channelId: string;
+    reference: string;
+  }): Promise<Result<Prepared<PreparedTransition>, TaskFailure.StateRefused | TaskFailure.Unresolved>> {
+    const unit = await this.read(input.agentUsername, input.channelId, input.reference);
+    if (!unit.success) {
+      return unit;
+    }
+    if (!LEGAL_FROM[unit.value.state].includes('cancelled')) {
+      return Result.err({ from: unit.value.state, kind: 'illegal-transition', to: 'cancelled' });
+    }
+    return Result.ok({
+      prepared: { to: 'cancelled', unitId: unit.value.id },
+      text: renderHumanCancellationPost(unit.value, input.byUsername)
+    });
   }
 
   async prepareClose(

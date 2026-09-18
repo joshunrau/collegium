@@ -50,6 +50,11 @@ export function renderClosePost(unit: WorkUnit, to: (typeof CREATOR_TARGETS)[num
   return `Unit \`${renderReference(unit.id)}\` closed as ${to}: ${verdict}`;
 }
 
+/** the agents are named without their @: a mention from the system bot would start the turns this cancellation spares */
+export function renderHumanCancellationPost(unit: WorkUnit, byUsername: string): string {
+  return `⛔ Unit \`${renderReference(unit.id)}\` cancelled by @${byUsername} — \`${unit.creatorUsername}\` had handed it to \`${unit.assigneeUsername}\`: ${unit.outcome}`;
+}
+
 /** the full record, for tasks::read: what the prompt line abbreviates */
 export function renderUnitRecord(unit: WorkUnit): string {
   return [

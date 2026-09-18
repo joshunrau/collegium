@@ -11,6 +11,7 @@ import { MemoryModule } from '@/memory/memory.module.ts';
 import { QueueModule } from '@/queue/queue.module.ts';
 import { SchedulesModule } from '@/schedules/schedules.module.ts';
 import { SkillsModule } from '@/skills/skills.module.ts';
+import { TasksModule } from '@/tasks/tasks.module.ts';
 import { ToolsModule } from '@/tools/tools.module.ts';
 import { TriggersModule } from '@/triggers/triggers.module.ts';
 import { TurnsModule } from '@/turns/turns.module.ts';
@@ -30,6 +31,7 @@ import { SteerHandler } from './handlers/steer.handler.ts';
 import { StopHandler } from './handlers/stop.handler.ts';
 import { TraceHandler } from './handlers/trace.handler.ts';
 import { TriggersHandler } from './handlers/triggers.handler.ts';
+import { UnitsHandler } from './handlers/units.handler.ts';
 import { UsageHandler } from './handlers/usage.handler.ts';
 import { CommandReconcilerService } from './registration/command-reconciler.service.ts';
 
@@ -49,6 +51,7 @@ const COMMAND_HANDLER_CLASSES = [
   StopHandler,
   TraceHandler,
   TriggersHandler,
+  UnitsHandler,
   UsageHandler
 ] as const;
 
@@ -67,6 +70,7 @@ const COMMAND_HANDLER_CLASSES = [
     QueueModule,
     SchedulesModule,
     SkillsModule,
+    TasksModule,
     ToolsModule,
     TriggersModule,
     TurnsModule

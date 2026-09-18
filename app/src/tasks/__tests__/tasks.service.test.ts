@@ -176,6 +176,23 @@ describe('TasksService', () => {
     expect(loggingService.warn).toHaveBeenCalledOnce();
   });
 
+  it('should let a person cancel an open unit, naming the parties without a mention (§8.4)', async () => {
+    const unit = await assign();
+    const prepared = (
+      await tasksService.prepareCancelOnHumanAuthority({
+        agentUsername: 'mira',
+        byUsername: 'casey',
+        channelId: 'channel-1',
+        reference: unit.id.slice(0, 8)
+      })
+    ).unwrap();
+    expect(prepared.text).toBe(
+      `⛔ Unit \`${unit.id.slice(0, 8)}\` cancelled by @casey — \`mira\` had handed it to \`owen\`: a venue shortlist`
+    );
+    await tasksService.commitTransition(prepared.prepared, 'post-2');
+    expect(units.rows[0]).toMatchObject({ state: 'cancelled' });
+  });
+
   it('should list the open units the agent is party to in the channel, oldest first, and read one by reference', async () => {
     const first = await assign('post-1');
     await tasksService.commitAssign(

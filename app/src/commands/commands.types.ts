@@ -15,5 +15,7 @@ export type CommandResponse = {
   afterAnnouncing?: () => Promise<void>;
   /** §3.2 — what the channel sees is the system bot's, never the invoker's; `invoker` stays ephemeral */
   audience: 'channel' | 'invoker';
+  /** work that exists only because the announcement landed, given the post it may point at (§3.15) */
+  onAnnounced?: (postId: string) => Promise<void>;
   text: string;
 };

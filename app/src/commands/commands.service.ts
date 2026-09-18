@@ -50,22 +50,22 @@ export class CommandsService {
    * the post failing over a channel holding exactly one agent, rather than by asking the substrate
    * what kind of channel it is: the answer that matters is whether the notice landed.
    */
-  private async announce(channelId: string, response: CommandResponse): Promise<boolean> {
+  private async announce(channelId: string, response: CommandResponse): Promise<string | undefined> {
     const posted = await this.chatGateway.postAsSystemIn(channelId, response.text);
     if (posted.success) {
-      return true;
+      return posted.value.postId;
     }
     const [agent, ...alsoPresent] = this.rosterService.listAgentsIn(channelId);
     if (!agent || alsoPresent.length > 0) {
       this.loggingService.error(new Error(`failed to announce a command in ${channelId}: ${posted.error.message}`));
-      return false;
+      return undefined;
     }
     const relayed = await this.transportRegistry.get(agent.username).send({ channelId, text: response.text });
     if (!relayed.success) {
       this.loggingService.error(new Error(`failed to announce a command in ${channelId}: ${relayed.error.message}`));
-      return false;
+      return undefined;
     }
-    return true;
+    return relayed.value.postId;
   }
 
   private async run(handler: CommandHandler, input: CommandInput): Promise<InvokerResponse> {
@@ -75,8 +75,11 @@ export class CommandsService {
     }
     const announced = await this.announce(input.channelId, response);
     await response.afterAnnouncing?.();
+    if (announced !== undefined) {
+      await response.onAnnounced?.(announced);
+    }
     // A4 — an interrupt notice is the only record a stopped turn leaves (the engine posts none of
     // its own), so one that reached no channel is told to the invoker rather than lost
-    return announced ? SILENT : { responseType: 'ephemeral', text: response.text };
+    return announced === undefined ? { responseType: 'ephemeral', text: response.text } : SILENT;
   }
 }

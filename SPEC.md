@@ -707,6 +707,8 @@ Every command is a subcommand of one slash command, `/collegium`, so typing `/co
 - **`/collegium queue {agent} clear`** — discard the standing queue entry, so the next drain does not run work a configuration change made stale. Posts. The posts themselves stay; only the pointer goes, which is why this is not a deletion of anything §5.2 holds.
 - **`/collegium triggers {agent}`** — list outstanding triggers. Ephemeral.
 - **`/collegium memory {agent}`** — inspect and prune an agent's memories. Ephemeral.
+- **`/collegium units {agent}`** — list an agent's open work units in this channel, with age and state (§3.15). Ephemeral.
+- **`/collegium units {agent} cancel {reference}`** — close a unit as cancelled on a human's authority, for one whose creator will never reach it. Posts.
 - **`/collegium inspect {agent}`** — show an agent's model, tools (marking which need a human on every call), skills, schedules and system prompt. Ephemeral. Each schedule is shown with its next occurrence in the operator timezone.
 - **`/collegium usage`** — show token usage per agent and model, with cached-prompt and reasoning breakdowns and the cost the provider charged where it reports them, over turns that ended in the last 24 hours in any channel. Ephemeral.
 

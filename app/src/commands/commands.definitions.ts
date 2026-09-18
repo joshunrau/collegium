@@ -24,6 +24,7 @@ export const COMMAND_TRIGGERS = [
   'stop',
   'trace',
   'triggers',
+  'units',
   'usage'
 ] as const;
 
@@ -45,6 +46,10 @@ export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefin
   stop: { hint: '', purpose: 'Abort current turns in this channel at the next boundary' },
   trace: { hint: '{post-id}', purpose: 'Show the full tool trace for a turn' },
   triggers: { hint: '{agent}', purpose: 'List outstanding triggers' },
+  units: {
+    hint: '{agent} [cancel {reference}]',
+    purpose: "List an agent's open work units in this channel, or cancel one on a human's authority"
+  },
   usage: { hint: '', purpose: 'Show token usage per agent and model over the last 24 hours' }
 };
 
