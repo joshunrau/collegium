@@ -99,6 +99,12 @@ describe('renderTrace', () => {
     expect(text).not.toContain('private thoughts');
   });
 
+  it('should render a steer with its author (§7.5)', () => {
+    expect(
+      renderTrace(TURN, [event({ byUsername: 'casey', kind: 'steering_received', text: 'use staging' })])
+    ).toContain('1. steered by casey: use staging');
+  });
+
   it('should render a raw name for a call that resolved to no tool', () => {
     const text = renderTrace(TURN, [
       event({

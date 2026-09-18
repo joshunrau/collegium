@@ -25,6 +25,7 @@ import { MemoryHandler } from './handlers/memory.handler.ts';
 import { QueueHandler } from './handlers/queue.handler.ts';
 import { ResetHandler } from './handlers/reset.handler.ts';
 import { ResumeHandler } from './handlers/resume.handler.ts';
+import { SteerHandler } from './handlers/steer.handler.ts';
 import { StopHandler } from './handlers/stop.handler.ts';
 import { TraceHandler } from './handlers/trace.handler.ts';
 import { TriggersHandler } from './handlers/triggers.handler.ts';
@@ -43,6 +44,7 @@ const COMMAND_HANDLER_CLASSES = [
   QueueHandler,
   ResetHandler,
   ResumeHandler,
+  SteerHandler,
   StopHandler,
   TraceHandler,
   TriggersHandler,

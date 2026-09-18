@@ -177,6 +177,34 @@ describe('/collegium stop', () => {
   });
 });
 
+describe('/collegium steer', () => {
+  const harness = setupHarness(SCENARIO);
+
+  it('discards a completion made before the steer and calls the model again with the correction (§7.5)', async () => {
+    const { channels, inference } = harness();
+    const reply = `steered-${randomUUID()}`;
+    const blocked = inference.willBlock(
+      { agent: 'mira', contains: 'plan something' },
+      toolCallResponse('memory__write', { body: 'a plan made before the correction', description: 'stale plan' })
+    );
+
+    await channels.main.mention('mira', 'plan something');
+    await blocked.arrived;
+    inference.willReply({ agent: 'mira' }, textResponse(reply));
+    await channels.main.runCommand('/collegium steer use the staging URL');
+    blocked.release();
+    await channels.main.awaitReplyFrom('mira', { text: reply });
+
+    const followUp = inference.requestsFor('mira').at(-1)!;
+    expect(followUp.messages.at(-1)).toMatchObject({
+      content: expect.stringMatching(/^@\w+: use the staging URL$/),
+      role: 'user'
+    });
+    expect(followUp.messages.some((message) => message.role === 'tool')).toBe(false);
+    expect((await channels.main.posts()).some((post) => post.text.includes('stale plan'))).toBe(false);
+  });
+});
+
 describe('/collegium kill', () => {
   const harness = setupHarness(SCENARIO);
 
