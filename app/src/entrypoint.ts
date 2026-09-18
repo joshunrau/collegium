@@ -15,6 +15,7 @@ import { $Config, $Env } from '@collegium/config';
 // the root prologue predates DI, so it reaches for the adapter itself; a boot failure must still land as JSON
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports
 import { JSONLogger } from '@/logging/adapters/json.logger.ts';
+import { SHELL_HOME_ROOT } from '@/shell/shell.constants.ts';
 import type { ShellOsIdentity } from '@/shell/shell.types.ts';
 import { deriveShellOsIdentities, holdsShellGrant } from '@/shell/shell.utils.ts';
 
@@ -27,7 +28,6 @@ const ADMIN_ENV_PREFIX = 'MATTERMOST_ADMIN_';
 // and a move that leaves this behind confines a directory the app no longer lives in.
 const APP_ROOT = '/srv';
 const APP_USER = 'app';
-const HOME_DIR = '/home';
 const STAGED_CONFIG = '/run/collegium/config.json';
 const SUDOERS_FILE = '/etc/sudoers.d/collegium';
 
@@ -54,7 +54,7 @@ function belongsToAgentGroup(osUser: string): boolean {
 }
 
 function provisionAgentOsUser({ id, osUser }: ShellOsIdentity): void {
-  const home = path.join(HOME_DIR, osUser);
+  const home = path.join(SHELL_HOME_ROOT, osUser);
   if (succeeds('id', ['--user', osUser])) {
     // agent-group membership marks the account as an earlier start's own provisioning — a container
     // restart, not a collision; an account the image itself holds would never carry it
@@ -149,7 +149,7 @@ try {
   fs.chownSync(APP_ROOT, 0, APP_GID);
   fs.chmodSync(APP_ROOT, 0o750);
 
-  process.env.HOME = path.join(HOME_DIR, APP_USER);
+  process.env.HOME = path.join(SHELL_HOME_ROOT, APP_USER);
   // root's supplementary groups survive setgid and setuid; the app belongs to nothing but its own
   process.setgroups([APP_GID]);
   process.setgid(APP_GID);

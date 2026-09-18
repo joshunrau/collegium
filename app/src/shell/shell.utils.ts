@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import * as path from 'node:path';
 
 import { isToolsetGranted } from '@/tools/tools.settings.ts';
 
@@ -7,6 +8,7 @@ import {
   DEADLINE_EXIT_CODE,
   DEADLINE_KILL_GRACE_SECONDS,
   OUTPUT_CAP_CHARS,
+  SHELL_HOME_ROOT,
   SHELL_OS_USER_ID_BASE,
   SHELL_OS_USER_ID_COUNT,
   SHELL_OS_USER_PREFIX
@@ -59,6 +61,15 @@ function describeExit(captured: CapturedProcess): string {
  */
 export function deriveShellOsUser(agentUsername: string): string {
   return `${SHELL_OS_USER_PREFIX}${agentUsername}`;
+}
+
+/**
+ * The directory `shell::run` starts in, for the one caller that must state it to the model (§3.8):
+ * the agent's own OS user's home, derived by the same rule as the user itself rather than read back
+ * off disk.
+ */
+export function deriveShellHomeDir(agentUsername: string): string {
+  return path.join(SHELL_HOME_ROOT, deriveShellOsUser(agentUsername));
 }
 
 /**

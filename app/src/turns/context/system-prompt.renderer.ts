@@ -7,6 +7,7 @@ import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import type { SystemPrompt } from '@/inference/inference.types.ts';
 import { renderSystemPrompt } from '@/inference/inference.utils.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
+import { deriveShellHomeDir } from '@/shell/shell.utils.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
@@ -70,6 +71,27 @@ export class SystemPromptRenderer {
     );
   }
 
+  /**
+   * §3.8 — the directories the agent's file tools point at, which it cannot otherwise learn without
+   * failing: they are two, they are mutually unreadable (§A2), and an agent told neither writes with
+   * one tool and looks with the other. Per agent and fixed for the life of the process, so they cost
+   * the stable half nothing.
+   */
+  private renderDirectories(profile: AgentProfile) {
+    const granted = this.toolRegistry.listFor(profile);
+    const holdsShell = granted.some(({ id: [namespace, tool] }) => namespace === 'shell' && tool === 'run');
+    const holdsWorkspace = granted.some(({ id: [namespace] }) => namespace === 'workspace');
+    if (holdsWorkspace && holdsShell) {
+      return [
+        'workspace__read and workspace__write share one directory, {workspaceDir}. shell__run starts in {shellHomeDir}, which is a different directory: a file one tool writes is not visible to the other.'
+      ];
+    }
+    if (holdsWorkspace) {
+      return ['workspace__read and workspace__write share one directory, {workspaceDir}.'];
+    }
+    return holdsShell ? ['shell__run starts in {shellHomeDir}.'] : [];
+  }
+
   private renderMemories(memories: readonly { description: string; reference: string }[]): string | undefined {
     if (memories.length === 0) {
       return undefined;
@@ -115,6 +137,7 @@ export class SystemPromptRenderer {
         'Some tools need approval from a person before they run. The approval prompt shows the full payload to all persons in the channel. There is no timeout. If a person denies with no reason, the turn stops. If a person denies with a reason, the reason comes back as the tool result. The turn then continues with the same budget.',
         'Each turn has a budget of {actionBudget} tool calls. A denied call also uses the budget. Calls to {budgetExemptCalls} do not. When the budget is used, the framework asks a person for more. If the person approves, you get {actionBudget} more calls. If the person denies with no reason, the turn stops. If the person denies with a reason, the reason comes back as the tool result, no further call runs, and only your text is posted.',
         'Your memories go with you between channels, and stay in your context after the posts and results around them have fallen outside it. A memory write and a memory delete need no approval. Each of them is shown in the channel immediately.',
+        ...this.renderDirectories(profile),
         ...(holdsSearch
           ? [
               'conversations__search finds past posts in the channels you are in. From a public channel it reaches public channels only. From a private channel or a direct message it also reaches private channels and direct messages whose members include everyone here. It finds posts by people, colleagues and you, but not status text or framework notices, and it does not reach past the most recent reset in a channel.'
@@ -128,7 +151,9 @@ export class SystemPromptRenderer {
       {
         actionBudget: profile.actionBudget,
         budgetExemptCalls: this.textFormatter.formatConjunction(this.toolRegistry.listBudgetExemptFor(profile)),
-        contextBudgetTokens: profile.contextBudgetTokens
+        contextBudgetTokens: profile.contextBudgetTokens,
+        shellHomeDir: deriveShellHomeDir(profile.username),
+        workspaceDir: profile.workspaceDir
       }
     );
   }

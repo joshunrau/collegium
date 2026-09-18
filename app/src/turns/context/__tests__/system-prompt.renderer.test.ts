@@ -18,7 +18,8 @@ const PROFILE = {
   contextWindowTokens: 32_000,
   expertise: 'testing',
   systemPrompt: 'You are Mira.',
-  username: 'mira'
+  username: 'mira',
+  workspaceDir: '/var/lib/collegium/workspaces/mira'
 } as AgentProfile;
 
 const PEER = { expertise: 'scheduling', username: 'tess' } as AgentProfile;
@@ -81,6 +82,46 @@ describe('SystemPromptRenderer', () => {
     expect(prompt).toContain('fits your context to about 12000 tokens');
     expect(prompt).toContain('Each turn has a budget of 7 tool calls.');
     expect(prompt).toContain('Calls to builtins__now and skills__load do not.');
+  });
+
+  it('should name no directory for an agent holding no file tool (§3.8)', async () => {
+    const prompt = await render();
+    expect(prompt).not.toContain('share one directory');
+    expect(prompt).not.toContain('shell__run starts in');
+  });
+
+  it('should name the workspace directory for an agent holding a workspace tool (§3.8)', async () => {
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['workspace', 'read'] }]);
+    const prompt = await render();
+    expect(prompt).toContain(
+      'workspace__read and workspace__write share one directory, /var/lib/collegium/workspaces/mira.'
+    );
+    expect(prompt).not.toContain('shell__run');
+  });
+
+  it('should name the shell home alone for an agent holding shell run without a workspace tool (§3.8)', async () => {
+    toolRegistry.listFor.mockReturnValue([{ gates: true, id: ['shell', 'run'] }]);
+    const prompt = await render();
+    expect(prompt).toContain('shell__run starts in /home/collegium-mira.');
+    expect(prompt).not.toContain('different directory');
+  });
+
+  it('should name both directories and their difference for an agent holding both (§3.8)', async () => {
+    toolRegistry.listFor.mockReturnValue([
+      { gates: true, id: ['shell', 'run'] },
+      { gates: true, id: ['workspace', 'write'] }
+    ]);
+    expect(await render()).toContain(
+      'workspace__read and workspace__write share one directory, /var/lib/collegium/workspaces/mira. shell__run starts in /home/collegium-mira, which is a different directory: a file one tool writes is not visible to the other.'
+    );
+  });
+
+  it('should carry the directories in the stable half and no clock or host state in either (§3.8)', async () => {
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['workspace', 'read'] }]);
+    const { dynamic, stable } = await systemPromptRenderer.renderParts({ channelId: 'channel-1', profile: PROFILE });
+    expect(stable).toContain('share one directory');
+    expect(dynamic).not.toContain('share one directory');
+    expect(`${stable}\n${dynamic}`).not.toMatch(/\bgit\b|\bbranch\b|\bcommit\b|\d{4}-\d{2}-\d{2}/u);
   });
 
   it('should state what conversations__search reaches only for an agent that holds it (§3.8)', async () => {

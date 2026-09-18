@@ -10,6 +10,9 @@ export const DEADLINE_EXIT_CODE = 124;
 /** Longest captured output, per stream, fed back to the model; the rest is dropped with a marker. */
 export const OUTPUT_CAP_CHARS = 8_192;
 
+/** Where each shell-holding agent's OS user has its home; the entrypoint provisions beneath it and the preamble names it. */
+export const SHELL_HOME_ROOT = '/home';
+
 /** Prefix of the dedicated OS user a shell-holding agent runs as (§A2): `collegium-<username>`. */
 export const SHELL_OS_USER_PREFIX = 'collegium-';
 

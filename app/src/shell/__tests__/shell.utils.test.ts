@@ -4,6 +4,7 @@ import { OUTPUT_CAP_CHARS, SHELL_OS_USER_ID_BASE, SHELL_OS_USER_ID_COUNT } from 
 import {
   buildProbeArgv,
   buildRunArgv,
+  deriveShellHomeDir,
   deriveShellOsIdentities,
   deriveShellOsUser,
   toRunOutput
@@ -22,6 +23,12 @@ const captured = (over: Partial<CapturedProcess>): CapturedProcess => ({
 describe('deriveShellOsUser', () => {
   it('should prefix the agent username so the OS user is one-per-agent and cannot collide', () => {
     expect(deriveShellOsUser('mira')).toBe('collegium-mira');
+  });
+});
+
+describe('deriveShellHomeDir', () => {
+  it('should derive the home shell::run starts in from the agent username alone', () => {
+    expect(deriveShellHomeDir('mira')).toBe('/home/collegium-mira');
   });
 });
 
