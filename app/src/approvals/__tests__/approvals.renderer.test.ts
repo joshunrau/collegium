@@ -37,6 +37,22 @@ describe('renderApprovalPrompt', () => {
     });
   });
 
+  it('should place the context line between the header and the payload (§3.7)', () => {
+    const contextText = 'Action 7 of 25 · raised by a trigger';
+    expect(renderApprovalPrompt({ ...INPUT, contextText }, 'collapse', 16_383).text).toBe(
+      `🔐 **Approval required: \`workspace::write\`**\n${contextText}\n\nwrite notes.md with 12 words`
+    );
+  });
+
+  it('should keep the context line on a prompt whose payload had to be attached (§3.7)', () => {
+    const rendered = renderApprovalPrompt(
+      { ...INPUT, contextText: 'Action 7 of 25 · raised by a trigger', payloadText: 'x'.repeat(20_000) },
+      'collapse',
+      16_383
+    );
+    expect(rendered.text).toContain('Action 7 of 25 · raised by a trigger');
+  });
+
   it('should stay inline when the substrate limit cannot be read', () => {
     const payloadText = 'x'.repeat(20_000);
     expect(renderApprovalPrompt({ ...INPUT, payloadText }, 'collapse', undefined).files).toStrictEqual([]);

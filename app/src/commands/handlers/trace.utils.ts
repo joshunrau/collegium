@@ -18,7 +18,8 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload): string {
     )
     .with(
       { kind: 'approval_requested' },
-      (event) => `approval requested for \`${toDisplayName(event.toolName)}\`: ${event.payloadText}`
+      (event) =>
+        `approval requested for \`${toDisplayName(event.toolName)}\`${event.contextText === undefined ? '' : ` (${event.contextText})`}: ${event.payloadText}`
     )
     .with({ kind: 'assistant_message' }, (event) => {
       return event.toolCalls.length === 0

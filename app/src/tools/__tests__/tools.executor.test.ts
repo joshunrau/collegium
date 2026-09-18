@@ -85,6 +85,7 @@ describe('ToolExecutor', () => {
     return toolExecutor.execute({
       appendEvent: () => Promise.resolve(),
       call: { arguments: args, id: 'call-1', name },
+      contextText: 'Action 7 of 25 · requested by @casey: "deploy it"',
       profile: PROFILE,
       turn: buildToolTurnScope()
     });
@@ -132,6 +133,7 @@ describe('ToolExecutor', () => {
     expect(approvalsService.request).toHaveBeenCalledWith(
       expect.objectContaining({
         callId: 'call-1',
+        contextText: 'Action 7 of 25 · requested by @casey: "deploy it"',
         payloadPresentation: 'verbatim',
         payloadText: 'run deploy',
         toolName: 'gated',

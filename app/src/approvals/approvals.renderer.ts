@@ -22,16 +22,27 @@ function capPayload(payloadText: string): string {
   return `${payloadText.slice(0, INLINE_PREFIX_CHARS)}\n…${payloadText.length - INLINE_PREFIX_CHARS} further characters`;
 }
 
+/** the terminal post is the historical record of a decision, and holds no live-turn facts (§3.7) */
+type ResolvedPromptInput = {
+  /** already in display form: `ns::tool`, or a bare framework action like `extend_budget` */
+  readonly actionName: string;
+  readonly payloadText: string;
+};
+
+function renderLead(input: PromptInput): string {
+  const header = renderHeader(input.actionName);
+  return input.contextText === undefined ? header : `${header}\n${input.contextText}`;
+}
+
 /** the prompt as it goes on the wire: the post, and the payload it could not carry inline */
 export type RenderedPrompt = {
   readonly files: readonly PostFile[];
   readonly text: string;
 };
 
-export type PromptInput = {
-  /** already in display form: `ns::tool`, or a bare framework action like `extend_budget` */
-  readonly actionName: string;
-  readonly payloadText: string;
+export type PromptInput = ResolvedPromptInput & {
+  /** §3.7 — the turn's own line above the payload, authored by the turn; absent for a framework action */
+  readonly contextText?: string;
 };
 
 /**
@@ -47,14 +58,14 @@ export function renderApprovalPrompt(
   presentation: ApprovalPayloadPresentation,
   maxPostSizeChars: number | undefined
 ): RenderedPrompt {
-  const inline = `${renderHeader(input.actionName)}\n\n${input.payloadText}`;
+  const inline = `${renderLead(input)}\n\n${input.payloadText}`;
   if (presentation === 'verbatim' || maxPostSizeChars === undefined || inline.length <= maxPostSizeChars) {
     return { files: [], text: inline };
   }
   return {
     files: [{ content: input.payloadText, filename: ATTACHED_PAYLOAD_FILENAME }],
     text: [
-      renderHeader(input.actionName),
+      renderLead(input),
       '',
       capPayload(input.payloadText),
       '',
@@ -64,7 +75,7 @@ export function renderApprovalPrompt(
 }
 
 /** once resolved, the prompt is rewritten into a terminal state and its buttons removed (§3.7) */
-export function renderResolvedPrompt(input: PromptInput, decision: ApprovalDecision): string {
+export function renderResolvedPrompt(input: ResolvedPromptInput, decision: ApprovalDecision): string {
   const line = match(decision)
     .with({ kind: 'approved' }, ({ byUsername }) => `✅ **Approved** by @${byUsername}`)
     .with({ kind: 'cancelled' }, ({ reason }) => {

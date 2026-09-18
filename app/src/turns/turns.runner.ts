@@ -38,6 +38,7 @@ import type { ToolAttempt } from '@/tools/tools.types.ts';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 import { WebService } from '@/web/web.service.ts';
 
+import { renderApprovalContext } from './approval-context/approval-context.renderer.ts';
 import { ActionBudget } from './budget/action.budget.ts';
 import { renderExtensionDenialResult } from './budget/budget.renderer.ts';
 import { ContextAssembler } from './context/context.assembler.ts';
@@ -64,6 +65,7 @@ import { StatusPostService } from './status/status-post.service.ts';
 import { TurnsService } from './turns.service.ts';
 import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
 
+import type { TurnRequester } from './approval-context/approval-context.renderer.ts';
 import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
@@ -118,8 +120,14 @@ type RunInput = {
  */
 type Exhaustion = { kind: 'ended'; outcome: TurnOutcome } | { kind: 'extended' } | { kind: 'voice-only'; text: string };
 
+/**
+ * Where in the budget an admitted call sits, sampled where it was charged rather than where it
+ * runs: a concurrent batch is admitted whole before any of it executes.
+ */
+type BudgetPosition = { readonly actionBudget: number; readonly actionNumber: number };
+
 /** what admitting a call to the budget came to; an extension is spent inside admission and never surfaces */
-type Admission = Exclude<Exhaustion, { kind: 'extended' }> | { kind: 'admitted' };
+type Admission = Exclude<Exhaustion, { kind: 'extended' }> | { kind: 'admitted'; position: BudgetPosition };
 
 /** one call of a completion, resolved once: the structural name for the record, the display name for humans (§1) */
 type IdentifiedCall = {
@@ -140,6 +148,8 @@ type TurnState = {
   promptTokens: number;
   /** §7.1 — results this turn recorded; a turn that recorded none accumulated nothing a fresh one would not rebuild */
   recordedResults: number;
+  /** §3.7 — resolved once, at turn setup, and quoted on every approval prompt the turn raises */
+  readonly requestedBy: TurnRequester | undefined;
   readonly status: StatusPostHandle;
   /** the supersedable results still verbatim in `messages`, oldest first (§3.8) */
   readonly supersedable: { messageIndex: number; replay: string }[];
@@ -210,6 +220,7 @@ export class TurnRunner {
       messages: [],
       promptTokens: 0,
       recordedResults: 0,
+      requestedBy: await this.resolveRequester(input),
       status: this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id }),
       supersedable: [],
       transport: this.transportRegistry.get(profile.username),
@@ -255,7 +266,10 @@ export class TurnRunner {
       state.budget.trySpend(isExempt);
     }
     state.status.appendTrace(renderToolCallLine(identified.displayName, identified.detail));
-    return { kind: 'admitted' };
+    return {
+      kind: 'admitted',
+      position: { actionBudget: state.budget.limitCount, actionNumber: state.budget.spentCount }
+    };
   }
 
   /**
@@ -549,6 +563,7 @@ export class TurnRunner {
     }
     for (let position = 0; position < calls.length;) {
       const batch = this.takeBatch(input, calls, position);
+      const positions: BudgetPosition[] = [];
       for (const identified of batch) {
         const admission = await this.admit(input, state, identified);
         if (admission.kind === 'ended') {
@@ -558,13 +573,15 @@ export class TurnRunner {
           await this.answerUnrun(state, calls.slice(position), admission.text);
           return undefined;
         }
+        positions.push(admission.position);
       }
       const attempts = await Promise.race([
         Promise.all(
-          batch.map((identified) => {
+          batch.map((identified, index) => {
             return this.toolExecutor.execute({
               appendEvent: (event) => this.turnsService.appendEvent(state.turn.id, event),
               call: identified.call,
+              contextText: renderApprovalContext({ ...positions[index]!, requestedBy: state.requestedBy }),
               profile: input.profile,
               turn: this.createTurnScope(input, state)
             });
@@ -815,6 +832,21 @@ export class TurnRunner {
     return protectedIndex !== undefined && this.cutResultToFit(state, protectedIndex, ceiling)
       ? 'relieved'
       : 'exhausted';
+  }
+
+  /**
+   * §3.7 — who asked, read once per turn. Peer mentions lose their @ before the words can be
+   * quoted back, because an approval prompt repeating one would address that peer (§4.5).
+   */
+  private async resolveRequester(input: RunInput): Promise<TurnRequester | undefined> {
+    if (input.triggeringPostId === undefined) {
+      return undefined;
+    }
+    const request = await this.conversationsService.findHumanRequest(input.triggeringPostId);
+    if (!request) {
+      return undefined;
+    }
+    return { message: this.multiMentionPolicy.stripAgentMentions(request.message), username: request.username };
   }
 
   /** everything here may throw; run() owns the boundary so no exit can leave the turn 'running' */

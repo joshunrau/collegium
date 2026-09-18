@@ -320,6 +320,32 @@ describe('TurnRunner', () => {
     );
   });
 
+  it('should tell every approval prompt where in the budget it sits and which human asked (§3.7)', async () => {
+    conversationsService.findHumanRequest.mockResolvedValue({ message: 'ship it', username: 'casey' });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture', 'lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await turnRunner.run({
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 0,
+      profile: PROFILE,
+      triggeringPostId: 'post-1'
+    });
+    expect(toolExecutor.execute.mock.calls.map(([input]: any) => input.contextText)).toStrictEqual([
+      'Action 1 of 10 · requested by @casey: "ship it"',
+      'Action 2 of 10 · requested by @casey: "ship it"'
+    ]);
+    expect(conversationsService.findHumanRequest).toHaveBeenCalledExactlyOnceWith('post-1');
+  });
+
+  it('should say a trigger raised the turn when no human post started it (§3.7)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(toolExecutor.execute.mock.calls[0]?.[0].contextText).toBe('Action 1 of 10 · raised by a trigger');
+    expect(conversationsService.findHumanRequest).not.toHaveBeenCalled();
+  });
+
   it('should execute tools, record the trace, and loop until the model emits text', async () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'], 'checking')));
     complete.mockResolvedValueOnce(Result.ok(text('found it')));

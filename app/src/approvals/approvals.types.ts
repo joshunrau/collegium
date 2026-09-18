@@ -85,6 +85,8 @@ export type ApprovalRequest = {
   /** the tool call being gated, so its decision can be replayed as that call's result; absent for a framework action */
   readonly callId?: string;
   readonly channelId: string;
+  /** §3.7 — the turn's line above the payload, worded by the turn that is blocked here; absent for a framework action */
+  readonly contextText?: string;
   /** §6.2 — how the payload is shown, and whether an over-long one is refused rather than collapsed */
   readonly payloadPresentation: ApprovalPayloadPresentation;
   readonly payloadText: string;

@@ -13,6 +13,7 @@ import { renderApprovalActions, renderApprovalPrompt, renderResolvedPrompt } fro
 import { renderApprovalActionName } from './approvals.utils.ts';
 import { PendingRegistry } from './decisions/pending.registry.ts';
 
+import type { PromptInput } from './approvals.renderer.ts';
 import type {
   ApprovalCancellationReason,
   ApprovalDecision,
@@ -135,6 +136,7 @@ export class ApprovalsService {
     await input.appendEvent({
       approvalId,
       ...callId,
+      ...(input.contextText !== undefined && { contextText: input.contextText }),
       kind: 'approval_requested',
       payloadText: input.payloadText,
       toolName: input.toolNamespace === null ? input.toolName : [input.toolNamespace, input.toolName]
@@ -374,9 +376,15 @@ export class ApprovalsService {
     }
   }
 
-  private toPromptInput(source: { payloadText: string; toolName: string; toolNamespace: null | string }) {
+  private toPromptInput(source: {
+    contextText?: string;
+    payloadText: string;
+    toolName: string;
+    toolNamespace: null | string;
+  }): PromptInput {
     return {
       actionName: renderApprovalActionName(source.toolNamespace, source.toolName),
+      ...(source.contextText !== undefined && { contextText: source.contextText }),
       payloadText: source.payloadText
     };
   }

@@ -25,6 +25,8 @@ type TurnEventPayloadByKind = {
   approval_requested: {
     approvalId: string;
     callId?: string;
+    /** §3.7 — the context line as the approver read it; absent where none was shown */
+    contextText?: string;
     payloadText: string;
     toolName: PrismaJson.RecordedToolName;
   };

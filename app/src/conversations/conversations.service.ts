@@ -54,6 +54,18 @@ export class ConversationsService {
     return post?.authoringTurn ?? undefined;
   }
 
+  /** §3.7 — the words a human asked in, for the framework to quote back; an agent's or the system's are nobody's request */
+  async findHumanRequest(postId: string): Promise<undefined | { message: string; username: string }> {
+    const post = await this.posts.findUnique({
+      select: { authorKind: true, authorUsername: true, message: true },
+      where: { id: postId }
+    });
+    if (post?.authorKind !== 'human') {
+      return undefined;
+    }
+    return { message: post.message, username: post.authorUsername };
+  }
+
   async latestPostIdIn(channelId: string): Promise<string | undefined> {
     const latest = await this.posts.findFirst({
       orderBy: { createdAt: 'desc' },

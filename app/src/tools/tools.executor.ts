@@ -20,6 +20,8 @@ type ExecuteInput = {
   /** the turn's event appender, threaded through so the approval trail lands in the trace (§8.3) */
   readonly appendEvent: (event: TurnEventInput) => Promise<void>;
   readonly call: ToolCall;
+  /** §3.7 — the line the approval prompt shows above the payload, worded by the turn this call belongs to */
+  readonly contextText: string;
   readonly profile: AgentProfile;
   readonly turn: ToolTurnScope;
 };
@@ -101,6 +103,7 @@ export class ToolExecutor {
       args,
       callId: input.call.id,
       channelId: input.turn.channelId,
+      contextText: input.contextText,
       payloadPresentation: payload.presentation,
       payloadText: payload.body,
       toolName: tool.id[1],

@@ -85,6 +85,7 @@ describe('ApprovalsService', () => {
     args: { path: 'notes.md' },
     callId: 'call-1',
     channelId: 'channel-1',
+    contextText: 'Action 7 of 25 · raised by a trigger',
     payloadPresentation: 'collapse' as const,
     payloadText: 'write notes.md with 12 words',
     toolName: 'write',
@@ -112,6 +113,7 @@ describe('ApprovalsService', () => {
     expect(events.map((event) => event.kind)).toStrictEqual(['approval_requested', 'approval_decided']);
     expect(events.map((event) => 'callId' in event && event.callId)).toStrictEqual(['call-1', 'call-1']);
     expect(updates.at(-1)?.text).toContain('**Approved** by @casey');
+    expect(events[0]).toMatchObject({ contextText: 'Action 7 of 25 · raised by a trigger' });
   });
 
   it('should refuse a second decision on a resolved approval', async () => {
@@ -353,6 +355,18 @@ describe('ApprovalsService', () => {
       expect(outcome.error).toMatchObject({ kind: 'payload-too-large' });
       expect(transport.send).not.toHaveBeenCalled();
       expect(rows).toHaveLength(0);
+    });
+
+    // §3.7's line shares the post, so it shortens the longest presentable command by its own length
+    it('should measure the context line against the post limit before refusing a command (§6.2)', async () => {
+      const command = 'x'.repeat(60);
+      transport.maxPostSizeChars.mockResolvedValue(Result.ok(110));
+      const refused = await approvalsService.request(verbatimInput(command));
+      expect(refused.error).toMatchObject({ kind: 'payload-too-large' });
+      const pending = approvalsService.request({ ...verbatimInput(command), contextText: undefined });
+      await vi.waitFor(() => expect(rows).toHaveLength(1));
+      await approvalsService.cancelPendingIn('channel-1', 'stop');
+      await pending;
     });
 
     it('should post a verbatim command that fits and block for a decision as usual', async () => {
