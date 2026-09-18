@@ -1,12 +1,22 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ConfigService } from '@/config/config.service.ts';
 import { Prisma } from '@/prisma/generated/client.ts';
+import { PrismaService } from '@/prisma/prisma.service.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
+import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 
 import { TurnsService } from '../turns.service.ts';
 
-type TurnRow = { endedAt: Date | null; id: string; startedAt: Date; status: string; statusPostId: null | string };
+type TurnRow = {
+  endedAt: Date | null;
+  id: string;
+  rootPostId: string;
+  startedAt: Date;
+  status: string;
+  statusPostId: null | string;
+};
 type EventRow = { kind: string; payload: unknown; sequence: number; turnId: string };
 
 describe('TurnsService', () => {
@@ -20,67 +30,68 @@ describe('TurnsService', () => {
     turns = [];
     events = [];
     sequence = 0;
+    const turnModel = {
+      count: ({ where }: any) => Promise.resolve(turns.filter((turn) => turn.rootPostId === where.rootPostId).length),
+      create: ({ data }: any) => {
+        const row = {
+          actionCount: 0,
+          endedAt: null,
+          id: `turn-${sequence++}`,
+          startedAt: new Date(sequence),
+          statusPostId: null,
+          ...data
+        };
+        turns.push(row);
+        return Promise.resolve(row);
+      },
+      findMany: ({ where }: any) => {
+        return Promise.resolve(turns.filter((turn) => turn.status === where.status).toReversed());
+      },
+      groupBy: () => {
+        return Promise.resolve([
+          {
+            _count: { _all: 3, cachedPromptTokens: 2, costUsd: 3, reasoningTokens: 0 },
+            _sum: {
+              cachedPromptTokens: 40,
+              completionTokens: 12,
+              costUsd: 0.0412,
+              promptTokens: 90,
+              reasoningTokens: null
+            },
+            agentUsername: 'mira',
+            modelName: 'deepseek-v4-flash'
+          },
+          {
+            _count: { _all: 1, cachedPromptTokens: 0, costUsd: 0, reasoningTokens: 1 },
+            _sum: {
+              cachedPromptTokens: null,
+              completionTokens: 8,
+              costUsd: null,
+              promptTokens: 30,
+              reasoningTokens: 5
+            },
+            agentUsername: 'otto',
+            modelName: 'gpt-5'
+          }
+        ]);
+      },
+      update: ({ data, where }: any) => {
+        const row = turns.find((turn) => turn.id === where.id);
+        Object.assign(row!, data);
+        return Promise.resolve(row);
+      },
+      updateMany: ({ data, where }: any) => {
+        const matching = turns.filter((turn) => turn.status === where.status);
+        matching.forEach((turn) => Object.assign(turn, data));
+        return Promise.resolve({ count: matching.length });
+      }
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         TurnsService,
-        {
-          provide: getModelToken('Turn'),
-          useValue: {
-            create: ({ data }: any) => {
-              const row = {
-                actionCount: 0,
-                endedAt: null,
-                id: `turn-${sequence++}`,
-                startedAt: new Date(sequence),
-                statusPostId: null,
-                ...data
-              };
-              turns.push(row);
-              return Promise.resolve(row);
-            },
-            findMany: ({ where }: any) => {
-              return Promise.resolve(turns.filter((turn) => turn.status === where.status).toReversed());
-            },
-            groupBy: () => {
-              return Promise.resolve([
-                {
-                  _count: { _all: 3, cachedPromptTokens: 2, costUsd: 3, reasoningTokens: 0 },
-                  _sum: {
-                    cachedPromptTokens: 40,
-                    completionTokens: 12,
-                    costUsd: 0.0412,
-                    promptTokens: 90,
-                    reasoningTokens: null
-                  },
-                  agentUsername: 'mira',
-                  modelName: 'deepseek-v4-flash'
-                },
-                {
-                  _count: { _all: 1, cachedPromptTokens: 0, costUsd: 0, reasoningTokens: 1 },
-                  _sum: {
-                    cachedPromptTokens: null,
-                    completionTokens: 8,
-                    costUsd: null,
-                    promptTokens: 30,
-                    reasoningTokens: 5
-                  },
-                  agentUsername: 'otto',
-                  modelName: 'gpt-5'
-                }
-              ]);
-            },
-            update: ({ data, where }: any) => {
-              const row = turns.find((turn) => turn.id === where.id);
-              Object.assign(row!, data);
-              return Promise.resolve(row);
-            },
-            updateMany: ({ data, where }: any) => {
-              const matching = turns.filter((turn) => turn.status === where.status);
-              matching.forEach((turn) => Object.assign(turn, data));
-              return Promise.resolve({ count: matching.length });
-            }
-          }
-        },
+        { provide: ConfigService, useValue: createConfigServiceMock({ turns: { chainLengthLimit: 2 } }) },
+        { provide: PrismaService, useValue: { $transaction: (run: any) => run({ turn: turnModel }) } },
+        { provide: getModelToken('Turn'), useValue: turnModel },
         {
           provide: getModelToken('TurnEvent'),
           useValue: {
@@ -112,16 +123,41 @@ describe('TurnsService', () => {
     eventModel = moduleRef.get(getModelToken('TurnEvent'));
   });
 
-  const open = () => {
-    return turnsService.open({
+  const open = async (rootPostId = `post-${sequence}`) => {
+    const opened = await turnsService.open({
       agentUsername: 'mira',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
       modelName: 'deepseek-v4-flash',
-      rootPostId: 'post-root'
+      rootPostId
     });
+    return opened.unwrap();
   };
+
+  it('should persist the root and count only the turns carrying it (§7.4)', async () => {
+    await open('post-a');
+    await open('post-b');
+    await open('post-a');
+    expect(turns.map((turn) => turn.rootPostId)).toStrictEqual(['post-a', 'post-b', 'post-a']);
+    expect(await turnsService.countInChain('post-a')).toBe(2);
+    expect(await turnsService.countInChain('post-b')).toBe(1);
+  });
+
+  it('should refuse to open a turn whose chain already holds the limit, inserting nothing (§7.4)', async () => {
+    await open('post-a');
+    await open('post-a');
+    const refused = await turnsService.open({
+      agentUsername: 'mira',
+      chainLength: 3,
+      channelId: 'channel-1',
+      depth: 0,
+      modelName: 'deepseek-v4-flash',
+      rootPostId: 'post-a'
+    });
+    expect(refused.error).toStrictEqual({ count: 2, kind: 'chain-full', limit: 2, rootPostId: 'post-a' });
+    expect(turns).toHaveLength(2);
+  });
 
   it('should assign a gapless sequence per turn and derive the kind column from the payload', async () => {
     const first = await open();

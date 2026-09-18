@@ -134,7 +134,8 @@ describe('TurnRunner', () => {
     typingIndicatorService.start.mockReturnValue(typingHandle);
     webService = MockFactory.createMock(WebService);
     turnsService = MockFactory.createMock(TurnsService);
-    turnsService.open.mockResolvedValue({ id: 'turn-1' } as Turn);
+    turnsService.countInChain.mockResolvedValue(1);
+    turnsService.open.mockResolvedValue(Result.ok({ id: 'turn-1' } as Turn));
     turnsService.appendEvent.mockResolvedValue(undefined);
     turnsService.close.mockResolvedValue(undefined);
     turnsService.recordStatusPost.mockResolvedValue(undefined);
@@ -165,12 +166,19 @@ describe('TurnRunner', () => {
     turnFoldRegistry = moduleRef.get(TurnFoldRegistry);
   });
 
-  const run = () => {
-    return turnRunner.run({ chainLength: 1, channelId: 'channel-1', depth: 0, profile: PROFILE, rootPostId: 'post-0' });
+  const run = async () => {
+    const outcome = await turnRunner.run({
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 0,
+      profile: PROFILE,
+      rootPostId: 'post-0'
+    });
+    return outcome.unwrap();
   };
 
-  const runFolding = () => {
-    return turnRunner.run({
+  const runFolding = async () => {
+    const outcome = await turnRunner.run({
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
@@ -178,6 +186,7 @@ describe('TurnRunner', () => {
       profile: PROFILE,
       rootPostId: 'post-0'
     });
+    return outcome.unwrap();
   };
 
   const offerFragment = (postId: string): boolean => {
@@ -297,13 +306,15 @@ describe('TurnRunner', () => {
   it('should strip agent mentions and post the delegation-limit notice at depth ten', async () => {
     multiMentionPolicy.stripAgentMentions.mockImplementation((content: string) => content.replace('@owen ', ''));
     complete.mockResolvedValueOnce(Result.ok(text('@owen please continue')));
-    const outcome = await turnRunner.run({
-      chainLength: 1,
-      channelId: 'channel-1',
-      depth: 10,
-      profile: PROFILE,
-      rootPostId: 'post-0'
-    });
+    const outcome = (
+      await turnRunner.run({
+        chainLength: 1,
+        channelId: 'channel-1',
+        depth: 10,
+        profile: PROFILE,
+        rootPostId: 'post-0'
+      })
+    ).unwrap();
     expect(outcome.status).toBe('completed');
     expect(sends.map((send) => send.text)).toStrictEqual([
       "I would have asked a colleague but I've reached the delegation limit — someone needs to pick this up.",
@@ -311,16 +322,19 @@ describe('TurnRunner', () => {
     ]);
   });
 
-  it('should strip agent mentions and post the chain-length notice at the chain limit (§7.4)', async () => {
+  it('should strip agent mentions and post the chain-length notice when the chain count reaches the limit (§7.4)', async () => {
+    turnsService.countInChain.mockResolvedValue(3);
     multiMentionPolicy.stripAgentMentions.mockImplementation((content: string) => content.replace('@owen ', ''));
     complete.mockResolvedValueOnce(Result.ok(text('@owen please continue')));
-    const outcome = await turnRunner.run({
-      chainLength: 3,
-      channelId: 'channel-1',
-      depth: 1,
-      profile: PROFILE,
-      rootPostId: 'post-0'
-    });
+    const outcome = (
+      await turnRunner.run({
+        chainLength: 3,
+        channelId: 'channel-1',
+        depth: 1,
+        profile: PROFILE,
+        rootPostId: 'post-0'
+      })
+    ).unwrap();
     expect(outcome.status).toBe('completed');
     expect(sends.map((send) => send.text)).toStrictEqual([
       'I would have continued with a colleague but this chain has reached its limit — someone needs to say whether to go on.',
@@ -329,21 +343,41 @@ describe('TurnRunner', () => {
   });
 
   it('should name the chain limit rather than the depth limit when both are reached', async () => {
+    turnsService.countInChain.mockResolvedValue(3);
     multiMentionPolicy.stripAgentMentions.mockImplementation((content: string) => content.replace('@owen ', ''));
     complete.mockResolvedValueOnce(Result.ok(text('@owen please continue')));
     await turnRunner.run({ chainLength: 3, channelId: 'channel-1', depth: 10, profile: PROFILE, rootPostId: 'post-0' });
     expect(sends[0]?.text).toContain('this chain has reached its limit');
   });
 
-  it('should run the budget the agent’s own profile states (§5.3)', async () => {
-    complete.mockResolvedValueOnce(Result.ok(toolUse(Array.from({ length: 4 }, () => 'lookup_fixture'))));
+  it('should return the admission refusal without opening a status post or calling the provider (§7.4)', async () => {
+    turnsService.open.mockResolvedValueOnce(
+      Result.err({ count: 3, kind: 'chain-full', limit: 3, rootPostId: 'post-0' })
+    );
     const outcome = await turnRunner.run({
-      chainLength: 1,
+      chainLength: 4,
       channelId: 'channel-1',
       depth: 0,
-      profile: { ...PROFILE, actionBudget: 3 },
+      profile: PROFILE,
       rootPostId: 'post-0'
     });
+    expect(outcome.success).toBe(false);
+    expect(complete).not.toHaveBeenCalled();
+    expect(statusHandle.close).not.toHaveBeenCalled();
+    expect(webService.endTurn).not.toHaveBeenCalled();
+  });
+
+  it('should run the budget the agent’s own profile states (§5.3)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(toolUse(Array.from({ length: 4 }, () => 'lookup_fixture'))));
+    const outcome = (
+      await turnRunner.run({
+        chainLength: 1,
+        channelId: 'channel-1',
+        depth: 0,
+        profile: { ...PROFILE, actionBudget: 3 },
+        rootPostId: 'post-0'
+      })
+    ).unwrap();
     expect(outcome.status).toBe('budget_exhausted');
     expect(toolExecutor.execute).toHaveBeenCalledTimes(3);
     expect(approvalsService.request).toHaveBeenCalledWith(
@@ -697,13 +731,15 @@ describe('TurnRunner', () => {
     it('should ask for an extension before forgiving a call on an exhausted budget (§5.3)', async () => {
       grant();
       complete.mockResolvedValueOnce(Result.ok(unparsedUse([unparsedCall('workspace__write', '{oops')])));
-      const outcome = await turnRunner.run({
-        chainLength: 1,
-        channelId: 'channel-1',
-        depth: 0,
-        profile: { ...PROFILE, actionBudget: 0 },
-        rootPostId: 'post-0'
-      });
+      const outcome = (
+        await turnRunner.run({
+          chainLength: 1,
+          channelId: 'channel-1',
+          depth: 0,
+          profile: { ...PROFILE, actionBudget: 0 },
+          rootPostId: 'post-0'
+        })
+      ).unwrap();
       expect(approvalsService.request).toHaveBeenCalledOnce();
       expect(outcome.status).toBe('budget_exhausted');
     });
@@ -1074,13 +1110,15 @@ describe('TurnRunner', () => {
   it('should still ask for an extension when rejections exhaust a one-attempt budget (§5.3)', async () => {
     multiMentionPolicy.refuses.mockReturnValue(true);
     complete.mockResolvedValue(Result.ok(text('@owen and @tess, split this')));
-    const outcome = await turnRunner.run({
-      chainLength: 1,
-      channelId: 'channel-1',
-      depth: 0,
-      profile: { ...PROFILE, actionBudget: 1 },
-      rootPostId: 'post-0'
-    });
+    const outcome = (
+      await turnRunner.run({
+        chainLength: 1,
+        channelId: 'channel-1',
+        depth: 0,
+        profile: { ...PROFILE, actionBudget: 1 },
+        rootPostId: 'post-0'
+      })
+    ).unwrap();
     expect(approvalsService.request).toHaveBeenCalledOnce();
     expect(outcome.status).toBe('budget_exhausted');
   });
@@ -1258,13 +1296,15 @@ describe('TurnRunner', () => {
 
   it('should post no delegation-limit notice at depth ten when the output names no agent', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('nothing to delegate')));
-    const outcome = await turnRunner.run({
-      chainLength: 1,
-      channelId: 'channel-1',
-      depth: 10,
-      profile: PROFILE,
-      rootPostId: 'post-0'
-    });
+    const outcome = (
+      await turnRunner.run({
+        chainLength: 1,
+        channelId: 'channel-1',
+        depth: 10,
+        profile: PROFILE,
+        rootPostId: 'post-0'
+      })
+    ).unwrap();
     expect(outcome.status).toBe('completed');
     expect(sends.map((send) => send.text)).toStrictEqual(['nothing to delegate']);
   });

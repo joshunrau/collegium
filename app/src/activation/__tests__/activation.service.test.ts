@@ -89,7 +89,7 @@ describe('ActivationService', () => {
     triggersService.wasAnnouncedBy.mockResolvedValue(false);
     triggersService.listPendingChannelIds.mockResolvedValue([]);
     turnRunner = MockFactory.createMock(TurnRunner);
-    turnRunner.run.mockResolvedValue({ status: 'completed', turnId: 'turn-1' });
+    turnRunner.run.mockResolvedValue(Result.ok({ status: 'completed', turnId: 'turn-1' }));
     const moduleRef = await Test.createTestingModule({
       providers: [
         ActivationService,
@@ -356,7 +356,7 @@ describe('ActivationService', () => {
   });
 
   it('should drain the queue after a turn ran out of context, which a fresh turn does not inherit (§7.1)', async () => {
-    turnRunner.run.mockResolvedValueOnce({ status: 'context_exhausted', turnId: 'turn-1' });
+    turnRunner.run.mockResolvedValueOnce(Result.ok({ status: 'context_exhausted', turnId: 'turn-1' }));
     queueService.drain.mockResolvedValueOnce(undefined);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
     queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
@@ -382,7 +382,7 @@ describe('ActivationService', () => {
   });
 
   it('should point the queue back at the post that started a turn whose exit cannot make progress', async () => {
-    turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
+    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_outage', turnId: 'turn-1' }));
     queueService.drain.mockResolvedValueOnce(undefined);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-1' } as never);
     await activationService.onPost(PROFILE, post());
@@ -394,7 +394,7 @@ describe('ActivationService', () => {
   });
 
   it('should point back at the earliest post the failed turn drained from, not the one that started it', async () => {
-    turnRunner.run.mockResolvedValue({ status: 'provider_rejected', turnId: 'turn-1' });
+    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_rejected', turnId: 'turn-1' }));
     queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
     await activationService.onPost(PROFILE, post());
     await settle();
@@ -402,7 +402,7 @@ describe('ActivationService', () => {
   });
 
   it('should move a pointer a later post claimed during the failed turn back to the earlier post', async () => {
-    turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
+    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_outage', turnId: 'turn-1' }));
     queueService.drain.mockResolvedValueOnce(undefined);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-9' } as never);
     conversationsService.earliestOf.mockResolvedValue('post-1');
@@ -413,7 +413,7 @@ describe('ActivationService', () => {
   });
 
   it('should drain a human post that arrived during a failed turn into a fresh turn at once (§7.1)', async () => {
-    turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
+    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_outage', turnId: 'turn-1' }));
     queueService.drain.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
       earliestUnprocessedPostId: 'post-1'
     } as never);
@@ -433,7 +433,7 @@ describe('ActivationService', () => {
   });
 
   it("should leave a peer's mention standing after a failed turn until a human posts (§7.1)", async () => {
-    turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
+    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_outage', turnId: 'turn-1' }));
     queueService.drain.mockResolvedValueOnce(undefined);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-9' } as never);
     conversationsService.earliestOf.mockResolvedValue('post-1');
@@ -446,7 +446,7 @@ describe('ActivationService', () => {
   });
 
   it('should leave a pointer alone when the post it names is already the earlier one', async () => {
-    turnRunner.run.mockResolvedValue({ status: 'provider_outage', turnId: 'turn-1' });
+    turnRunner.run.mockResolvedValue(Result.ok({ status: 'provider_outage', turnId: 'turn-1' }));
     queueService.drain.mockResolvedValueOnce(undefined);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-0' } as never);
     conversationsService.earliestOf.mockResolvedValue('post-0');
@@ -458,7 +458,7 @@ describe('ActivationService', () => {
   it('should leave the queue standing when a halt was raised while the turn ran', async () => {
     turnRunner.run.mockImplementation(() => {
       haltService.isHalted.mockReturnValue(true);
-      return Promise.resolve({ status: 'completed', turnId: 'turn-1' });
+      return Promise.resolve(Result.ok({ status: 'completed', turnId: 'turn-1' }));
     });
     await activationService.onPost(PROFILE, post());
     await settle();
@@ -623,6 +623,35 @@ describe('ActivationService', () => {
       expect(turnRunner.run).not.toHaveBeenCalled();
       expect(released).toBe(true);
     });
+  });
+
+  it('should post the chain-limit correction, release the lock and queue nothing when admission refuses (§7.4)', async () => {
+    let released = false;
+    channelLockService.acquire.mockReturnValue({ release: () => (released = true) });
+    turnRunner.run.mockResolvedValueOnce(Result.err({ count: 3, kind: 'chain-full', limit: 3, rootPostId: 'post-0' }));
+    await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
+    await settle();
+    expect(notificationsService.notify).toHaveBeenCalledWith({
+      agentUsername: 'mira',
+      channelId: 'channel-1',
+      kind: 'chain-limit-refusal',
+      limit: 3
+    });
+    expect(released).toBe(true);
+    expect(queueService.enqueue).not.toHaveBeenCalled();
+    expect(queueService.peek).not.toHaveBeenCalled();
+    expect(triggersService.peekPending).not.toHaveBeenCalled();
+  });
+
+  it('should put back a standing row a refused activation had drained, leaving it for the next human post', async () => {
+    queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
+    queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
+    turnRunner.run.mockResolvedValueOnce(Result.err({ count: 3, kind: 'chain-full', limit: 3, rootPostId: 'post-0' }));
+    await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
+    await settle();
+    expect(queueService.enqueue).toHaveBeenCalledWith('mira', 'channel-1', 'post-7');
+    expect(queueService.enqueue).not.toHaveBeenCalledWith('mira', 'channel-1', 'post-1');
+    expect(turnRunner.run).toHaveBeenCalledTimes(1);
   });
 
   it('should release the lock however the turn ended', async () => {

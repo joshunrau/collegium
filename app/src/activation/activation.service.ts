@@ -17,6 +17,7 @@ import { QueueService } from '@/queue/queue.service.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 import { TurnFoldRegistry } from '@/turns/folding/turn-fold.registry.ts';
 import { TurnRunner } from '@/turns/turns.runner.ts';
+import type { TurnOpenFailure } from '@/turns/turns.types.ts';
 
 import { QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
 import {
@@ -347,6 +348,35 @@ export class ActivationService {
     return true;
   }
 
+  /**
+   * §7.4 — an activation the chain limit refuses is refused, not deferred: the mention post starts
+   * nothing and is queued nowhere, and the system bot says so under it. A standing row this
+   * activation had already drained is put back, since the 👀 on it promised a read.
+   */
+  private async refuseChainTurn(
+    profile: AgentProfile,
+    input: { channelId: string; drainedFromPostId?: string; lock: LockHandle },
+    refusal: TurnOpenFailure.ChainFull
+  ): Promise<void> {
+    let humanWaiting = false;
+    try {
+      if (input.drainedFromPostId !== undefined) {
+        humanWaiting = await this.leaveStanding(profile, input.channelId, input.drainedFromPostId);
+      }
+    } finally {
+      input.lock.release();
+    }
+    await this.notificationsService.notify({
+      agentUsername: profile.username,
+      channelId: input.channelId,
+      kind: 'chain-limit-refusal',
+      limit: refusal.limit
+    });
+    if (humanWaiting) {
+      await this.drainQueue(profile, input.channelId);
+    }
+  }
+
   private async runTurn(
     profile: AgentProfile,
     input: { channelId: string; drainedFromPostId?: string; lock: LockHandle; triggeringPostId: string }
@@ -364,7 +394,11 @@ export class ActivationService {
         rootPostId: toActivationRootPostId(source, input.triggeringPostId),
         triggeringPostId: input.triggeringPostId
       });
-      status = outcome.status;
+      if (!outcome.success) {
+        await this.refuseChainTurn(profile, input, outcome.error);
+        return;
+      }
+      status = outcome.value.status;
     } catch (error) {
       this.loggingService.error(
         new Error(`a turn for "${profile.username}" threw past the runner and is treated as a failed exit`, {

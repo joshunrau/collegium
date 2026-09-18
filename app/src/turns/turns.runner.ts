@@ -1,6 +1,5 @@
 import type { ToolTurnScope } from '@collegium/core/tools';
-import { CHARS_PER_TOKEN } from '@collegium/core/utils';
-import type { Result } from '@collegium/core/utils';
+import { CHARS_PER_TOKEN, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
 
@@ -73,7 +72,7 @@ import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle } from './status/status-post.service.ts';
-import type { Turn, TurnOutcome } from './turns.types.ts';
+import type { Turn, TurnOpenFailure, TurnOutcome } from './turns.types.ts';
 
 /** §3.8 — how many of a turn's supersedable results stay verbatim; the rest read as their replay line */
 const RETAINED_SUPERSEDABLE_RESULTS = 2;
@@ -231,9 +230,10 @@ export class TurnRunner {
     };
   }
 
-  async run(input: RunInput): Promise<TurnOutcome> {
+  /** §7.4 — a turn the chain limit refuses at admission opens nothing: no row, no status post, no session */
+  async run(input: RunInput): Promise<Result<TurnOutcome, TurnOpenFailure>> {
     const { channelId, profile } = input;
-    const turn = await this.turnsService.open({
+    const opened = await this.turnsService.open({
       agentUsername: profile.username,
       chainLength: input.chainLength,
       channelId,
@@ -242,6 +242,10 @@ export class TurnRunner {
       rootPostId: input.rootPostId,
       triggeringPostId: input.triggeringPostId
     });
+    if (!opened.success) {
+      return opened;
+    }
+    const turn = opened.value;
     const state: TurnState = {
       addressedPeer: undefined,
       budget: new ActionBudget(profile.actionBudget),
@@ -264,13 +268,13 @@ export class TurnRunner {
       usage: undefined
     };
     try {
-      return await this.runLoop(input, state);
+      return Result.ok(await this.runLoop(input, state));
     } catch (error) {
       this.loggingService.error(
         new Error(`the turn for "${profile.username}" hit a framework error`, { cause: error })
       );
       await this.postNotice(input, state, renderSemanticErrorNotice('something went wrong inside the framework'));
-      return this.close(state, 'semantic_error');
+      return Result.ok(await this.close(state, 'semantic_error'));
     } finally {
       try {
         await this.webService.endTurn(turn.id);
@@ -665,10 +669,11 @@ export class TurnRunner {
    * §7.4 — at either limit the output still posts, but with its agent mentions stripped so it
    * cannot activate anyone, and a fixed notice tells the humans why the chain stopped here. Chain
    * length is checked first: it is the limit a human lifts by posting, so its notice is the one
-   * that says what to do.
+   * that says what to do. The chain is counted by its root, this turn's own row included, so the
+   * early stop fires at the same number admission would refuse the next turn at.
    */
   private async enforceChainLimits(input: RunInput, state: TurnState, content: string): Promise<string> {
-    const atChainLengthLimit = input.chainLength >= this.limits.chainLengthLimit;
+    const atChainLengthLimit = (await this.turnsService.countInChain(input.rootPostId)) >= this.limits.chainLengthLimit;
     if (!atChainLengthLimit && input.depth < this.limits.delegationDepthLimit) {
       return content;
     }

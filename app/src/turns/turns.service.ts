@@ -1,20 +1,29 @@
+import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
+import { ConfigService } from '@/config/config.service.ts';
 import type { CompletionUsage } from '@/inference/inference.types.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
+import { PrismaService } from '@/prisma/prisma.service.ts';
 import type { Model, ModelRow, TurnStatus } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
 import { sumUsageTotals, toReportedTotal } from './turns.utils.ts';
 
-import type { AbandonedTurns, Turn, TurnEventInput, UsageReport } from './turns.types.ts';
+import type { AbandonedTurns, Turn, TurnEventInput, TurnOpenFailure, UsageReport } from './turns.types.ts';
 
 @Injectable()
 export class TurnsService {
+  private readonly chainLengthLimit: number;
+
   constructor(
+    configService: ConfigService,
     @InjectModel('TurnEvent') private readonly events: Model<'TurnEvent'>,
+    private readonly prismaService: PrismaService,
     @InjectModel('Turn') private readonly turns: Model<'Turn'>
-  ) {}
+  ) {
+    this.chainLengthLimit = configService.get('turns.chainLengthLimit');
+  }
 
   /**
    * §7.3 — nothing resumes; every turn left running by a crash is closed as abandoned. The status
@@ -84,6 +93,11 @@ export class TurnsService {
     });
   }
 
+  /** §7.4 — how many turns one human or trigger post has set in motion, the running one included */
+  countInChain(rootPostId: string): Promise<number> {
+    return this.turns.count({ where: { rootPostId } });
+  }
+
   /**
    * §7.4 — how many turns have started strictly after a given moment, framework-wide. The rolling
    * window is counted here rather than held in memory: a crash-looping instance must not grant
@@ -100,6 +114,12 @@ export class TurnsService {
     return this.events.findMany({ orderBy: { sequence: 'asc' }, where: { turnId } });
   }
 
+  /**
+   * §7.4 — admission is the guarantee: the chain is counted and the row inserted in one transaction,
+   * so two turns of one chain racing to open at the limit open exactly one. The output-time refusal
+   * is the friendly stop that fires first in the common case; this is what makes "at most the
+   * limit" true rather than hoped for.
+   */
   open(input: {
     agentUsername: string;
     chainLength: number;
@@ -108,18 +128,25 @@ export class TurnsService {
     modelName: string;
     rootPostId: string;
     triggeringPostId?: string;
-  }): Promise<Turn> {
-    return this.turns.create({
-      data: {
-        agentUsername: input.agentUsername,
-        chainLength: input.chainLength,
-        channelId: input.channelId,
-        depth: input.depth,
-        modelName: input.modelName,
-        rootPostId: input.rootPostId,
-        status: 'running',
-        triggeringPostId: input.triggeringPostId
+  }): Promise<Result<Turn, TurnOpenFailure.ChainFull>> {
+    return this.prismaService.$transaction(async (transaction) => {
+      const count = await transaction.turn.count({ where: { rootPostId: input.rootPostId } });
+      if (count >= this.chainLengthLimit) {
+        return Result.err({ count, kind: 'chain-full', limit: this.chainLengthLimit, rootPostId: input.rootPostId });
       }
+      const turn = await transaction.turn.create({
+        data: {
+          agentUsername: input.agentUsername,
+          chainLength: input.chainLength,
+          channelId: input.channelId,
+          depth: input.depth,
+          modelName: input.modelName,
+          rootPostId: input.rootPostId,
+          status: 'running',
+          triggeringPostId: input.triggeringPostId
+        }
+      });
+      return Result.ok(turn);
     });
   }
 

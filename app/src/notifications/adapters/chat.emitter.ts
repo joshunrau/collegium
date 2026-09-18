@@ -19,8 +19,9 @@ export class ChatEmitter extends NotificationsEmitter {
 
   async notify(event: SystemEvent): Promise<void> {
     const content = this.renderSystemEvent(event);
+    // a correction belongs under the post it corrects; everything else is framework-wide news for the main channel
     const posted =
-      event.kind === 'multi-mention-refusal'
+      'channelId' in event
         ? await this.chatGateway.postAsSystemIn(event.channelId, content)
         : await this.chatGateway.postAsSystem(content);
     if (!posted.success) {
@@ -29,38 +30,46 @@ export class ChatEmitter extends NotificationsEmitter {
   }
 
   private renderSystemEvent(event: SystemEvent): string {
-    return match(event)
-      .with({ kind: 'halt' }, ({ reason }) => {
-        const cause =
-          reason.kind === 'turn-ceiling'
-            ? `${reason.ceiling} turns started within one hour, the framework-wide ceiling`
-            : `respond-to-all channel ${reason.channelId} now holds ${reason.agentUsernames.length} agents (${reason.agentUsernames.join(', ')})`;
-        return `🛑 **Halted** — ${cause}. No agent will act until a human posts /collegium resume.`;
-      })
-      .with({ kind: 'multi-mention-refusal' }, () => '⚠️ Address one agent per message.')
-      .with({ kind: 'offline' }, (event) => {
-        return event.reason === 'crash'
-          ? '🔴 **Offline** — the orchestrator crashed. Agents are not responding.'
-          : '⚪ **Offline** — the orchestrator shut down. Agents are not responding.';
-      })
-      .with({ kind: 'online' }, (event) => {
-        const roster = event.agentUsernames.map((username) => `\`${username}\``).join(', ');
-        const downtime = match(event.downtime)
-          .with(undefined, () => '')
-          .with(
-            { kind: 'clean' },
-            ({ startedAt, stoppedAt }) =>
-              ` Offline from ${this.dateFormatter.format(stoppedAt)} to ${this.dateFormatter.format(startedAt)}.`
-          )
-          .with(
-            { kind: 'since-last-alive' },
-            ({ lastAliveAt }) => ` Offline since last known alive at ${this.dateFormatter.format(lastAliveAt)}.`
-          )
-          .exhaustive();
-        const abandoned =
-          event.abandonedTurns === 0 ? '' : ` ${event.abandonedTurns} in-flight turn(s) were abandoned.`;
-        return `🟢 **Online** — the orchestrator started with ${event.agentUsernames.length} agent(s): ${roster}.${downtime}${abandoned}`;
-      })
-      .exhaustive();
+    return (
+      match(event)
+        // the agent is named without its @: a mention from the system bot would activate the very turn this refuses
+        .with(
+          { kind: 'chain-limit-refusal' },
+          ({ agentUsername, limit }) =>
+            `⛔ \`${agentUsername}\` was not activated: this chain has reached its limit of ${limit} turns. A fresh post from a person starts a fresh chain.`
+        )
+        .with({ kind: 'halt' }, ({ reason }) => {
+          const cause =
+            reason.kind === 'turn-ceiling'
+              ? `${reason.ceiling} turns started within one hour, the framework-wide ceiling`
+              : `respond-to-all channel ${reason.channelId} now holds ${reason.agentUsernames.length} agents (${reason.agentUsernames.join(', ')})`;
+          return `🛑 **Halted** — ${cause}. No agent will act until a human posts /collegium resume.`;
+        })
+        .with({ kind: 'multi-mention-refusal' }, () => '⚠️ Address one agent per message.')
+        .with({ kind: 'offline' }, (event) => {
+          return event.reason === 'crash'
+            ? '🔴 **Offline** — the orchestrator crashed. Agents are not responding.'
+            : '⚪ **Offline** — the orchestrator shut down. Agents are not responding.';
+        })
+        .with({ kind: 'online' }, (event) => {
+          const roster = event.agentUsernames.map((username) => `\`${username}\``).join(', ');
+          const downtime = match(event.downtime)
+            .with(undefined, () => '')
+            .with(
+              { kind: 'clean' },
+              ({ startedAt, stoppedAt }) =>
+                ` Offline from ${this.dateFormatter.format(stoppedAt)} to ${this.dateFormatter.format(startedAt)}.`
+            )
+            .with(
+              { kind: 'since-last-alive' },
+              ({ lastAliveAt }) => ` Offline since last known alive at ${this.dateFormatter.format(lastAliveAt)}.`
+            )
+            .exhaustive();
+          const abandoned =
+            event.abandonedTurns === 0 ? '' : ` ${event.abandonedTurns} in-flight turn(s) were abandoned.`;
+          return `🟢 **Online** — the orchestrator started with ${event.agentUsernames.length} agent(s): ${roster}.${downtime}${abandoned}`;
+        })
+        .exhaustive()
+    );
   }
 }

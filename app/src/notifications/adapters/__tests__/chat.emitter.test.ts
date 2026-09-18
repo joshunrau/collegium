@@ -86,6 +86,20 @@ describe('ChatEmitter', () => {
     expect(chatGateway.postAsSystem).not.toHaveBeenCalled();
   });
 
+  it('should post the §7.4 chain-limit correction in the channel, naming the agent without a mention', async () => {
+    await chatEmitter.notify({
+      agentUsername: 'mira',
+      channelId: 'channel-1',
+      kind: 'chain-limit-refusal',
+      limit: 200
+    });
+    expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
+      'channel-1',
+      '⛔ `mira` was not activated: this chain has reached its limit of 200 turns. A fresh post from a person starts a fresh chain.'
+    );
+    expect(chatGateway.postAsSystem).not.toHaveBeenCalled();
+  });
+
   it('should post the §7.4 halt notice naming the turn ceiling', async () => {
     await chatEmitter.notify({ kind: 'halt', reason: { ceiling: 40, kind: 'turn-ceiling' } });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(

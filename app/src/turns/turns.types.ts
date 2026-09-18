@@ -46,6 +46,19 @@ export type UsageReport = {
   readonly total: UsageTotals;
 };
 
+export declare namespace TurnOpenFailure {
+  /** §7.4 — the chain this turn would join already holds the limit; nothing was inserted */
+  type ChainFull = {
+    readonly count: number;
+    readonly kind: 'chain-full';
+    readonly limit: number;
+    readonly rootPostId: string;
+  };
+  type Any = ChainFull;
+}
+
+export type TurnOpenFailure = TurnOpenFailure.Any;
+
 /** what activation branches on when a turn ends: drain the queue, or leave it standing (§7.1) */
 export type TurnOutcome = {
   readonly status: Exclude<TurnStatus, 'running'>;
