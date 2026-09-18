@@ -115,7 +115,7 @@ describe('$Config', () => {
       inference: { retry: { backoffMs: 250, maxAttempts: 3 }, timeoutMs: 120_000 },
       logging: { level: 'info' },
       mattermost: { channels: {}, mainChannel: 'town-square', systemBotUsername: 'orchestrator' },
-      notifications: { lifecycle: true },
+      notifications: { lifecycle: true, stalls: { longTurnMs: 1_800_000, standingQueueMs: 600_000 } },
       plugins: [],
       providers: { deepseek: { baseUrl: 'https://api.deepseek.com' } },
       turns: { actionBudget: 25, chainLengthLimit: 200, delegationDepthLimit: 10, hourlyCeiling: 500 }

@@ -77,6 +77,10 @@ export class AsksService {
     return this.cancelWhere({ turn: { channelId } }, reason);
   }
 
+  async hasPendingFor(agentUsername: string, channelId: string): Promise<boolean> {
+    return (await this.asks.count({ where: { status: 'pending', turn: { agentUsername, channelId } } })) > 0;
+  }
+
   /** §7.3 and §7.4 — a stale question must not be clickable into confusion */
   async invalidateAll(reason: 'halt' | 'restart'): Promise<number> {
     return this.cancelWhere({}, reason);

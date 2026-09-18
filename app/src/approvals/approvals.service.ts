@@ -100,6 +100,10 @@ export class ApprovalsService {
     });
   }
 
+  async hasPendingFor(agentUsername: string, channelId: string): Promise<boolean> {
+    return (await this.approvals.count({ where: { status: 'pending', turn: { agentUsername, channelId } } })) > 0;
+  }
+
   /** §7.3 and §7.4 — a stale prompt must not be clickable into confusion or action */
   async invalidateAll(reason: 'halt' | 'restart'): Promise<number> {
     return this.cancelWhere({}, reason);

@@ -405,6 +405,26 @@ export const $LoggingConfig = z.strictObject({
   level: $LogLevel.default(CONFIG_DEFAULTS.logging.level).describe('Minimum severity the app logs')
 });
 
+export type $StallThresholds = z.infer<typeof $StallThresholds>;
+export const $StallThresholds = z.strictObject({
+  longTurnMs: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.notifications.stalls.longTurnMs)
+    .describe(
+      'How long one turn may hold its channel, since it started or last waited on a person, before the system bot says so there and names /collegium kill (§7.6). Time parked on an approval or a question is not counted.'
+    ),
+  standingQueueMs: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.notifications.stalls.standingQueueMs)
+    .describe(
+      'How long an agent may have work queued in a channel with no turn of its own running there before the system bot says so and names what clears it (§7.6)'
+    )
+});
+
 export type $NotificationsConfig = z.infer<typeof $NotificationsConfig>;
 export const $NotificationsConfig = z.strictObject({
   lifecycle: z
@@ -412,6 +432,11 @@ export const $NotificationsConfig = z.strictObject({
     .default(CONFIG_DEFAULTS.notifications.lifecycle)
     .describe(
       'Whether the system bot posts a notice in the main channel when the app comes online, naming the downtime and the turns it abandoned, and again when it shuts down (§3.2, §7.3)'
+    ),
+  stalls: $StallThresholds
+    .prefault({})
+    .describe(
+      'When the system bot announces, once, work that has stopped moving with nothing said about it (§7.6). It announces and never clears: nothing is killed, drained or retried.'
     )
 });
 
@@ -514,7 +539,7 @@ export const $ConfigDeclaration = z.strictObject({
     ),
   notifications: $NotificationsConfig
     .prefault({})
-    .describe('Which of the system bot’s deterministic notices are posted (§3.2)'),
+    .describe('Which of the system bot’s deterministic notices are posted, and when (§3.2, §7.6)'),
   plugins: z
     .array($PluginName)
     .refine((plugins) => isUnique(plugins), { message: 'plugin names must be unique' })

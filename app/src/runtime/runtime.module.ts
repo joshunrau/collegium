@@ -16,6 +16,7 @@ import { PluginsModule } from '@/plugins/plugins.module.ts';
 import { SchedulesModule } from '@/schedules/schedules.module.ts';
 import { ShellModule } from '@/shell/shell.module.ts';
 import { SkillsModule } from '@/skills/skills.module.ts';
+import { StallsModule } from '@/stalls/stalls.module.ts';
 import { ToolsModule } from '@/tools/tools.module.ts';
 import { TriggersModule } from '@/triggers/triggers.module.ts';
 import { TurnsModule } from '@/turns/turns.module.ts';
@@ -43,6 +44,7 @@ import { RuntimeService } from './runtime.service.ts';
     SchedulesModule,
     ShellModule,
     SkillsModule,
+    StallsModule,
     ToolsModule,
     TriggersModule,
     TurnsModule

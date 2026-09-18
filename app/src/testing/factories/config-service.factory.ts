@@ -29,7 +29,7 @@ const baseConfig = (): $Config => ({
     mainChannel: CONFIG_DEFAULTS.mattermost.mainChannel,
     systemBotUsername: CONFIG_DEFAULTS.mattermost.systemBotUsername
   },
-  notifications: { ...CONFIG_DEFAULTS.notifications },
+  notifications: { ...CONFIG_DEFAULTS.notifications, stalls: { ...CONFIG_DEFAULTS.notifications.stalls } },
   plugins: [],
   providers: { deepseek: { apiKey: 'key', baseUrl: CONFIG_DEFAULTS.providers.deepseek.baseUrl } },
   turns: { ...CONFIG_DEFAULTS.turns }

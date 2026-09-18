@@ -24,6 +24,7 @@ import type { SystemEvent } from '@/notifications/notifications.types.ts';
 import { SchedulesService } from '@/schedules/schedules.service.ts';
 import { ShellService } from '@/shell/shell.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
+import { StallsService } from '@/stalls/stalls.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 
@@ -57,6 +58,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     private readonly schedulesService: SchedulesService,
     private readonly shellService: ShellService,
     private readonly skillsService: SkillsService,
+    private readonly stallsService: StallsService,
     private readonly toolRegistry: ToolRegistry,
     private readonly transportRegistry: TransportRegistry,
     private readonly triggersService: TriggersService
@@ -94,6 +96,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     this.mailInboundService.start();
     await this.schedulesService.reconcile();
     this.schedulesService.start();
+    this.stallsService.start();
     this.loggingService.log(`connected ${this.running.size} agent(s), listening for messages`);
     if (this.configService.get('notifications.lifecycle')) {
       await this.notificationsService.notify({
