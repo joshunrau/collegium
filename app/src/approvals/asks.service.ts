@@ -2,6 +2,7 @@ import { renderToolDisplayName } from '@collegium/core/tools';
 import { removeTrailingSlash, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
+import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { EnvService } from '@/config/env/env.service.ts';
@@ -34,6 +35,7 @@ export class AsksService {
     private readonly callbackSigner: CallbackSigner,
     envService: EnvService,
     private readonly loggingService: LoggingService,
+    private readonly multiMentionPolicy: MultiMentionPolicy,
     private readonly pendingRegistry: AskPendingRegistry,
     private readonly transportRegistry: TransportRegistry
   ) {
@@ -117,7 +119,15 @@ export class AsksService {
    * The resolver is registered before the row exists: a cancellation sweep that finds the row must
    * always find a resolver to fire, or the turn it belongs to would park forever.
    */
-  async request(input: AskRequest): Promise<Result<AskDecision, AskFailureRequest>> {
+  async request(request: AskRequest): Promise<Result<AskDecision, AskFailureRequest>> {
+    // §4.5 — the question posts under the agent's account and addresses people; a peer named in it would be activated
+    const input: AskRequest = {
+      ...request,
+      ...(request.options && {
+        options: request.options.map((option) => this.multiMentionPolicy.stripAgentMentions(option))
+      }),
+      question: this.multiMentionPolicy.stripAgentMentions(request.question)
+    };
     const askId = createRecordId();
     const pendingDecision = new Promise<AskDecision>((resolve) => {
       this.pendingRegistry.register({ channelId: input.channelId, id: askId, resolve });

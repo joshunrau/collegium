@@ -1,6 +1,7 @@
 import { removeTrailingSlash, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
+import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { EnvService } from '@/config/env/env.service.ts';
@@ -53,6 +54,7 @@ export class ApprovalsService {
     private readonly callbackSigner: CallbackSigner,
     envService: EnvService,
     private readonly loggingService: LoggingService,
+    private readonly multiMentionPolicy: MultiMentionPolicy,
     private readonly pendingRegistry: ApprovalPendingRegistry,
     private readonly transportRegistry: TransportRegistry
   ) {
@@ -126,7 +128,12 @@ export class ApprovalsService {
    * resolver is registered before the row exists: a cancellation sweep that finds the row must
    * always find a resolver to fire, or the turn it belongs to would park forever.
    */
-  async request(input: ApprovalRequest): Promise<Result<ApprovalDecision, ApprovalFailureRequest>> {
+  async request(request: ApprovalRequest): Promise<Result<ApprovalDecision, ApprovalFailureRequest>> {
+    // §4.5 — the prompt posts under the agent's account and addresses people; a peer named in the payload would be activated
+    const input: ApprovalRequest = {
+      ...request,
+      payloadText: this.multiMentionPolicy.stripAgentMentions(request.payloadText)
+    };
     const refusal = await this.refuseIfOverLimit(input);
     if (refusal) {
       return Result.err(refusal);

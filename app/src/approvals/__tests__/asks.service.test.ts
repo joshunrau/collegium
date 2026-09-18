@@ -2,6 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts';
 import { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
@@ -57,11 +58,14 @@ describe('AsksService', () => {
     envService.get.mockImplementation((key) => (key === 'CALLBACK_TOKEN' ? 'r'.repeat(32) : 'http://localhost:3000'));
     const transportRegistry = MockFactory.createMock(TransportRegistry);
     transportRegistry.get.mockReturnValue(transport);
+    const multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
+    multiMentionPolicy.stripAgentMentions.mockImplementation((text: string) => text.replaceAll('@owen', 'owen'));
     const moduleRef = await Test.createTestingModule({
       providers: [
         AsksService,
         AskPendingRegistry,
         CallbackSigner,
+        { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         { provide: EnvService, useValue: envService },
         { provide: LoggingService, useValue: MockFactory.createMock(LoggingService) },
         { provide: TransportRegistry, useValue: transportRegistry },
@@ -71,7 +75,7 @@ describe('AsksService', () => {
     asksService = moduleRef.get(AsksService);
   });
 
-  const request = async () => {
+  const request = async (overrides: { question?: string } = {}) => {
     const outcome = asksService.request({
       agentUsername: 'mira',
       appendEvent: (event: TurnEventInput) => {
@@ -85,7 +89,8 @@ describe('AsksService', () => {
       question: 'Which airport?',
       toolName: 'human',
       toolNamespace: 'ask',
-      turnId: 'turn-1'
+      turnId: 'turn-1',
+      ...overrides
     });
     await vi.waitFor(() => {
       expect(rows.at(-1)?.promptPostId).toBeTruthy();
@@ -101,6 +106,15 @@ describe('AsksService', () => {
     expect(rows[0]).toMatchObject({ answeredByUsername: 'casey', answerText: 'Gatwick', status: 'answered' });
     expect(events.map((event) => event.kind)).toStrictEqual(['ask_requested', 'ask_answered']);
     expect(updates.at(-1)?.text).toContain('**Answered** by @casey');
+  });
+
+  it('should strip a peer mention from the question before it posts under the agent’s account (§4.5)', async () => {
+    const { outcome } = await request({ question: 'Should @owen take this?' });
+    const [message] = transport.send.mock.calls[0]!;
+    expect(message.text).toContain('Should owen take this?');
+    expect(rows[0]).toMatchObject({ question: 'Should owen take this?' });
+    await asksService.cancelPendingIn('channel-1', 'stop');
+    await outcome;
   });
 
   it('should post the question with a button per offered answer and one for free text (§3.7a)', async () => {

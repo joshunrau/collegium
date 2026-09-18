@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { ChannelsModule } from '@/channels/channels.module.ts';
 import { ChatModule } from '@/chat/chat.module.ts';
 
 import { ApprovalsService } from './approvals.service.ts';
@@ -12,7 +13,7 @@ import { PendingDecisionsService } from './decisions/pending-decisions.service.t
 @Module({
   controllers: [DecisionsController],
   exports: [ApprovalsService, AsksService, PendingDecisionsService],
-  imports: [ChatModule],
+  imports: [ChannelsModule, ChatModule],
   providers: [ApprovalPendingRegistry, ApprovalsService, AskPendingRegistry, AsksService, PendingDecisionsService]
 })
 export class ApprovalsModule {}

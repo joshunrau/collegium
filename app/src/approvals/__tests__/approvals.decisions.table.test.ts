@@ -2,6 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts';
 import { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
@@ -193,11 +194,14 @@ describe('the approval decision state machine', () => {
     envService.get.mockImplementation((key) => (key === 'CALLBACK_TOKEN' ? 'a'.repeat(32) : 'http://localhost:3000'));
     const transportRegistry = MockFactory.createMock(TransportRegistry);
     transportRegistry.get.mockReturnValue(transport);
+    const multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
+    multiMentionPolicy.stripAgentMentions.mockImplementation((text: string) => text.replaceAll('@owen', 'owen'));
     const moduleRef = await Test.createTestingModule({
       providers: [
         ApprovalsService,
         ApprovalPendingRegistry,
         CallbackSigner,
+        { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         { provide: EnvService, useValue: envService },
         { provide: LoggingService, useValue: MockFactory.createMock(LoggingService) },
         { provide: TransportRegistry, useValue: transportRegistry },
