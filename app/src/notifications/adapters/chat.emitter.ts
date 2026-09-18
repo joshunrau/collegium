@@ -42,7 +42,8 @@ export class ChatEmitter extends NotificationsEmitter {
     content: string
   ): Promise<Result<{ postId: string }, ChatFailure>> {
     const posted = await this.chatGateway.postAsSystemIn(event.channelId, content);
-    if (posted.success || (event.kind !== 'long-turn' && event.kind !== 'standing-queue')) {
+    const isStall = event.kind === 'dropped-handoff' || event.kind === 'long-turn' || event.kind === 'standing-queue';
+    if (posted.success || !isStall) {
       return posted;
     }
     return this.transportRegistry.get(event.agentUsername).send({ channelId: event.channelId, text: content });
@@ -56,6 +57,11 @@ export class ChatEmitter extends NotificationsEmitter {
           { kind: 'chain-limit-refusal' },
           ({ agentUsername, limit }) =>
             `⛔ \`${agentUsername}\` was not activated: this chain has reached its limit of ${limit} turns. A fresh post from a person starts a fresh chain.`
+        )
+        .with(
+          { kind: 'dropped-handoff' },
+          ({ agentUsername, peerUsername }) =>
+            `↪️ \`${agentUsername}\` replied here without addressing anyone, so \`${peerUsername}\`, whose mention started that turn, was not woken. A post addressing \`${peerUsername}\` passes the reply on.`
         )
         .with({ kind: 'halt' }, ({ reason }) => {
           const cause =

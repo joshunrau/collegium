@@ -35,6 +35,7 @@ import {
   toReplayableToolCall
 } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { NotificationsService } from '@/notifications/notifications.service.ts';
 import type { PostKind, TurnStatus } from '@/prisma/prisma.types.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -195,6 +196,8 @@ type TurnState = {
   consecutiveRejections: number;
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
+  /** §7.6 — whether a post of this turn named anyone, or its output did before the §7.4 limits stripped it */
+  mentionedAnyone: boolean;
   readonly messages: CompletionMessage[];
   /** §3.8 — the estimated size of the whole outgoing request, kept current by `pushMessage` and the collapses */
   promptTokens: number;
@@ -236,6 +239,7 @@ export class TurnRunner {
     private readonly inferenceRegistry: InferenceRegistry,
     private readonly loggingService: LoggingService,
     private readonly multiMentionPolicy: MultiMentionPolicy,
+    private readonly notificationsService: NotificationsService,
     private readonly statusPostService: StatusPostService,
     private readonly toolExecutor: ToolExecutor,
     private readonly toolRegistry: ToolRegistry,
@@ -281,6 +285,7 @@ export class TurnRunner {
         authorUsername: input.foldAuthorUsername,
         channelId
       }),
+      mentionedAnyone: false,
       messages: [],
       promptTokens: 0,
       recordedResults: 0,
@@ -544,7 +549,8 @@ export class TurnRunner {
    * The final completion is recorded as an event whether or not it posts: with its reasoning, it is
    * what the window replays, and the post is only the channel's copy. A reply that could not be
    * posted is not a completion — §7.1 defines normal completion as visible as the final post — so
-   * the turn closes as a delivery failure, a non-progress exit.
+   * the turn closes as a delivery failure, a non-progress exit. A colleague's request answered to
+   * no one is said, never re-routed (§7.6).
    */
   private async closeWithFinalOutput(
     input: RunInput,
@@ -562,6 +568,14 @@ export class TurnRunner {
     if (!sent.success) {
       this.loggingService.error(new Error(`failed to post final output: ${sent.error.message}`));
       return this.closeWithFailureNotice(input, state, 'delivery_failure', renderDeliveryFailureNotice());
+    }
+    if (state.requestedBy?.kind === 'agent' && !state.mentionedAnyone) {
+      await this.notificationsService.notify({
+        agentUsername: input.profile.username,
+        channelId: input.channelId,
+        kind: 'dropped-handoff',
+        peerUsername: state.requestedBy.username
+      });
     }
     return this.close(state, 'completed');
   }
@@ -787,6 +801,7 @@ export class TurnRunner {
     }
     const stripped = this.multiMentionPolicy.stripAgentMentions(content);
     if (stripped !== content) {
+      state.mentionedAnyone = true;
       await this.postNotice(
         input,
         state,
@@ -1018,8 +1033,9 @@ export class TurnRunner {
     if (!sent.success) {
       return sent;
     }
-    state.addressedPeer =
-      this.multiMentionPolicy.addresseesOf(this.asAddressablePost(input, text))[0] ?? state.addressedPeer;
+    const post = this.asAddressablePost(input, text);
+    state.addressedPeer = this.multiMentionPolicy.addresseesOf(post)[0] ?? state.addressedPeer;
+    state.mentionedAnyone ||= post.mentionedUsernames.length > 0;
     await this.conversationsService.record(
       {
         attachments: [],

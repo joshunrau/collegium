@@ -20,6 +20,7 @@ import type {
   InferenceFailure
 } from '@/inference/inference.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { NotificationsService } from '@/notifications/notifications.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -79,6 +80,7 @@ describe('TurnRunner', () => {
   let contextAssembler: MockedInstance<ContextAssembler>;
   let conversationsService: MockedInstance<ConversationsService>;
   let multiMentionPolicy: MockedInstance<MultiMentionPolicy>;
+  let notificationsService: MockedInstance<NotificationsService>;
   let sends: { channelId: string; text: string }[];
   let statusHandle: { appendTrace: any; close: any; setTransient: any };
   let toolExecutor: MockedInstance<ToolExecutor>;
@@ -119,6 +121,7 @@ describe('TurnRunner', () => {
     });
     const inferenceRegistry = MockFactory.createMock(InferenceRegistry);
     inferenceRegistry.getClientForModel.mockReturnValue({ complete });
+    notificationsService = MockFactory.createMock(NotificationsService);
     multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
     multiMentionPolicy.addresseesOf.mockReturnValue([]);
     multiMentionPolicy.refuses.mockReturnValue(false);
@@ -160,6 +163,7 @@ describe('TurnRunner', () => {
         { provide: InferenceRegistry, useValue: inferenceRegistry },
         MockFactory.createForService(LoggingService),
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
+        { provide: NotificationsService, useValue: notificationsService },
         { provide: StatusPostService, useValue: statusPostService },
         { provide: ToolExecutor, useValue: toolExecutor },
         { provide: ToolRegistry, useValue: toolRegistry },
@@ -411,6 +415,38 @@ describe('TurnRunner', () => {
       'Action 2 of 10 · requested by @casey: "ship it"'
     ]);
     expect(conversationsService.findRequester).toHaveBeenCalledExactlyOnceWith('post-1');
+  });
+
+  describe('a turn a colleague’s mention started (§7.6)', () => {
+    const runForPeer = async () => {
+      conversationsService.findRequester.mockResolvedValue({ kind: 'agent', username: 'sam' });
+      return turnRunner.run({
+        chainLength: 2,
+        channelId: 'channel-1',
+        depth: 1,
+        profile: PROFILE,
+        rootPostId: 'post-0',
+        triggeringPostId: 'post-1'
+      });
+    };
+
+    it('should say so when its reply addresses no one, naming the colleague, without re-routing it', async () => {
+      complete.mockResolvedValueOnce(Result.ok(text('the list is done')));
+      await runForPeer();
+      expect(sends.map((send) => send.text)).toStrictEqual(['the list is done']);
+      expect(notificationsService.notify).toHaveBeenCalledExactlyOnceWith({
+        agentUsername: 'mira',
+        channelId: 'channel-1',
+        kind: 'dropped-handoff',
+        peerUsername: 'sam'
+      });
+    });
+
+    it('should say nothing when a post of the turn mentioned anyone', async () => {
+      complete.mockResolvedValueOnce(Result.ok(text('@sam the list is done')));
+      await runForPeer();
+      expect(notificationsService.notify).not.toHaveBeenCalled();
+    });
   });
 
   it('should say a trigger raised the turn when no human post started it (§3.7)', async () => {
