@@ -15,6 +15,7 @@ import { ConfigService } from '@/config/config.service.ts';
 import { ResyncService } from '@/conversations/resync/resync.service.ts';
 import { CredentialsService } from '@/credentials/credentials.service.ts';
 import { HaltService } from '@/halt/halt.service.ts';
+import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MailBootService } from '@/mail/boot/boot.service.ts';
 import { MailInboundService } from '@/mail/inbound/inbound.service.ts';
@@ -43,6 +44,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     private readonly configService: ConfigService,
     private readonly credentialsService: CredentialsService,
     private readonly haltService: HaltService,
+    private readonly inferenceRegistry: InferenceRegistry,
     private readonly loggingService: LoggingService,
     private readonly mailBootService: MailBootService,
     private readonly mailInboundService: MailInboundService,
@@ -59,6 +61,8 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     // A residual window remains: the HTTP port binds only after bootstrap, so a command clicked
     // during boot is registered but undeliverable until listen() — same as every other endpoint.
     await this.commandReconcilerService.reconcile();
+    // §7.3 — a provider that rejects the key for a model an agent names fails the deploy here, not on that agent's first turn
+    await this.inferenceRegistry.assertCredentialsVerified(Object.values(this.configService.get('agents')));
     // §6.1 — fail loudly here if a shell-holding agent's dedicated OS user is not provisioned, before any turn can run
     await this.shellService.assertProvisioned(this.agentRegistry.list());
     await Promise.all(

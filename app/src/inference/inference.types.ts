@@ -1,6 +1,6 @@
 import type { $ModelRef } from '@collegium/config';
 
-import type { ReasoningDetail, ToolSchema } from '@/core/core.types.ts';
+import type { ProviderName, ReasoningDetail, ToolSchema } from '@/core/core.types.ts';
 
 /** what a provider reports having spent; every field beyond the two totals is absent where the provider does not report it */
 export type CompletionUsage = {
@@ -121,3 +121,17 @@ export declare namespace InferenceFailure {
 }
 
 export type InferenceFailure = InferenceFailure.Any;
+
+/** what one boot credential probe established; `unverified` is never folded into `verified` (§7.3) */
+export type CredentialProbeOutcome =
+  | { readonly kind: 'refused'; readonly status: 401 | 403 }
+  | { readonly kind: 'unverified'; readonly reason: string }
+  | { readonly kind: 'verified' };
+
+/** one (provider, model) pair the provider refused as unauthorized at boot, and the agents it strands */
+export type ProviderCredentialFailure = {
+  readonly agentUsernames: readonly string[];
+  readonly model: string;
+  readonly provider: ProviderName;
+  readonly status: 401 | 403;
+};

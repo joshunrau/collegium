@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeInferenceFailure, estimateRequestTokens } from '../inference.utils.ts';
+import { bootProbeRequest, describeInferenceFailure, estimateRequestTokens } from '../inference.utils.ts';
 
 import type { CompletionRequest } from '../inference.types.ts';
+
+describe('bootProbeRequest', () => {
+  it('should ask the model for the least a provider will price: one user message, no tools', () => {
+    expect(bootProbeRequest({ name: 'deepseek-v4-flash', provider: 'deepseek' })).toEqual({
+      cacheKey: 'boot-verification',
+      messages: [{ content: 'ping', role: 'user' }],
+      model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
+      systemPrompt: { dynamic: '', stable: '' },
+      tools: []
+    });
+  });
+});
 
 describe('describeInferenceFailure', () => {
   it('should carry the provider’s own words, which are what name a rejected request', () => {

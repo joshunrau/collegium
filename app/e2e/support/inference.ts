@@ -10,6 +10,10 @@ import { PENDING, waitFor } from './utils/wait.utils.ts';
 
 import type { Deferred } from './utils/deferred.utils.ts';
 
+const BOOT_PROBE_INPUT = 'ping';
+
+const BOOT_PROBE_REPLY = 'pong';
+
 const INFERENCE_API_KEY = 'e2e-api-key';
 
 const INFERENCE_REQUEST_TIMEOUT_MS = 15_000;
@@ -143,12 +147,36 @@ function respondWithStream(
   response.end('data: [DONE]\n\n');
 }
 
+function respondWithCompletion(
+  response: ServerResponse,
+  request: $CompletionRequest,
+  scripted: InferenceStub.Response
+): void {
+  if (scripted.kind === 'failure') {
+    return respondWithJson(response, scripted.status, { error: 'Scripted Failure' });
+  }
+  if (request.stream === true) {
+    return respondWithStream(response, scripted);
+  }
+  return respondWithJson(response, 200, toCompletionBody(scripted));
+}
+
 function toLatestInput({ messages }: { messages: $CompletionMessage[] }): string {
   return messages.findLast((message) => message.role !== 'system')?.content ?? '';
 }
 
 function toSystemPrompt({ messages }: { messages: $CompletionMessage[] }): string {
   return messages.find((message) => message.role === 'system')?.content ?? '';
+}
+
+/** §7.3 — boot's credential probe: no system prompt, no tools, one trivial user message */
+function isBootProbe({ messages, tools }: $CompletionRequest): boolean {
+  return (
+    tools.length === 0 &&
+    toSystemPrompt({ messages }) === '' &&
+    messages.filter((message) => message.role !== 'system').length === 1 &&
+    toLatestInput({ messages }) === BOOT_PROBE_INPUT
+  );
 }
 
 function toToolNames({ tools }: $CompletionRequest): string[] {
@@ -371,6 +399,12 @@ class InferenceStub {
     }
 
     const completionRequest = parsed.data;
+    // answered here rather than by a script: the probe fires on every app start, a restart included,
+    // and must consume no test's script and appear in no test's recorded requests
+    if (isBootProbe(completionRequest)) {
+      return respondWithCompletion(response, completionRequest, textResponse(BOOT_PROBE_REPLY));
+    }
+
     const agent = this.resolveAgent(completionRequest);
     const script = this.consumeScript(completionRequest, agent);
     this.recorded.push({
@@ -397,13 +431,7 @@ class InferenceStub {
     script.arrival?.resolve();
     await script.hold?.promise;
 
-    if (script.response.kind === 'failure') {
-      return respondWithJson(response, script.response.status, { error: 'Scripted Failure' });
-    }
-    if (completionRequest.stream === true) {
-      return respondWithStream(response, script.response);
-    }
-    return respondWithJson(response, 200, toCompletionBody(script.response));
+    return respondWithCompletion(response, completionRequest, script.response);
   }
 
   private matches(matcher: InferenceStub.Matcher, request: $CompletionRequest, agent: string | undefined): boolean {

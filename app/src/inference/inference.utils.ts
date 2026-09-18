@@ -1,3 +1,4 @@
+import type { $ModelRef } from '@collegium/config';
 import { estimateTokens } from '@collegium/core/utils';
 import { match } from 'ts-pattern';
 
@@ -11,11 +12,23 @@ import type {
   CompletionRequest,
   CompletionUsage,
   InferenceFailure,
+  ProviderCredentialFailure,
   SystemPrompt
 } from './inference.types.ts';
 
 function addReportedAmount(left: number | undefined, right: number | undefined): number | undefined {
   return left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
+}
+
+/** the smallest completion a provider will price: what boot sends to learn whether it accepts the key for this model (§7.3) */
+export function bootProbeRequest(model: $ModelRef): CompletionRequest {
+  return {
+    cacheKey: 'boot-verification',
+    messages: [{ content: 'ping', role: 'user' }],
+    model,
+    systemPrompt: { dynamic: '', stable: '' },
+    tools: []
+  };
 }
 
 /** what one message adds to a request, by the same ruler the window is measured with (§3.8) */
@@ -30,6 +43,16 @@ export function estimateRequestTokens(request: CompletionRequest): number {
 
 export function renderSystemPrompt(prompt: SystemPrompt): string {
   return [prompt.stable, prompt.dynamic].filter((part) => part !== '').join('\n\n');
+}
+
+export function describeCredentialRefusal({
+  agentUsernames,
+  model,
+  provider,
+  status
+}: ProviderCredentialFailure): string {
+  const agents = agentUsernames.map((username) => `"${username}"`).join(', ');
+  return `${provider} refused "${model}" (HTTP ${status}), used by ${agents}`;
 }
 
 /** the reasoning a completion carried, as the keys present and nothing else, so it spreads into an event or a message */

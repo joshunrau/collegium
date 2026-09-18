@@ -21,6 +21,7 @@ import { ConfigService } from '@/config/config.service.ts';
 import { ResyncService } from '@/conversations/resync/resync.service.ts';
 import { CredentialsService } from '@/credentials/credentials.service.ts';
 import { HaltService } from '@/halt/halt.service.ts';
+import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MailBootService } from '@/mail/boot/boot.service.ts';
 import { MailInboundService } from '@/mail/inbound/inbound.service.ts';
@@ -62,6 +63,7 @@ describe('RuntimeService', () => {
   let commandReconcilerService: MockedInstance<CommandReconcilerService>;
   let credentialsService: MockedInstance<CredentialsService>;
   let haltService: MockedInstance<HaltService>;
+  let inferenceRegistry: MockedInstance<InferenceRegistry>;
   let notificationsService: MockedInstance<NotificationsService>;
   let resyncService: MockedInstance<ResyncService>;
   let rosterService: MockedInstance<RosterService>;
@@ -88,6 +90,7 @@ describe('RuntimeService', () => {
           useValue: createConfigServiceMock({ agents: { mira: DEFINITION }, ...overrides })
         },
         { provide: HaltService, useValue: haltService },
+        { provide: InferenceRegistry, useValue: inferenceRegistry },
         MockFactory.createForService(LoggingService),
         MockFactory.createForService(MailBootService),
         MockFactory.createForService(MailInboundService),
@@ -138,6 +141,8 @@ describe('RuntimeService', () => {
     credentialsService = MockFactory.createMock(CredentialsService);
     credentialsService.require.mockImplementation((username: string) => Promise.resolve(`${username}-token`));
     haltService = MockFactory.createMock(HaltService);
+    inferenceRegistry = MockFactory.createMock(InferenceRegistry);
+    inferenceRegistry.assertCredentialsVerified.mockResolvedValue(undefined);
     notificationsService = MockFactory.createMock(NotificationsService);
     resyncService = MockFactory.createMock(ResyncService);
     resyncService.recover.mockResolvedValue([]);
@@ -160,6 +165,25 @@ describe('RuntimeService', () => {
     });
     await runtimeService.onApplicationBootstrap();
     expect(commandReconcilerService.reconcile).toHaveBeenCalledOnce();
+  });
+
+  it('should verify every agent’s provider credentials before any capability is provisioned (§7.3)', async () => {
+    const runtimeService = await compile();
+    inferenceRegistry.assertCredentialsVerified.mockImplementation(() => {
+      expect(shellService.assertProvisioned).not.toHaveBeenCalled();
+      expect(chatGateway.connect).not.toHaveBeenCalled();
+      return Promise.resolve();
+    });
+    await runtimeService.onApplicationBootstrap();
+    expect(inferenceRegistry.assertCredentialsVerified).toHaveBeenCalledExactlyOnceWith([DEFINITION]);
+  });
+
+  it('should refuse to boot, leaving every transport unconnected, when a provider rejects a key (§7.3)', async () => {
+    inferenceRegistry.assertCredentialsVerified.mockRejectedValue(new Error('provider credential verification failed'));
+    const runtimeService = await compile();
+    await expect(runtimeService.onApplicationBootstrap()).rejects.toThrow('provider credential verification failed');
+    expect(chatGateway.connect).not.toHaveBeenCalled();
+    expect(bootService.run).not.toHaveBeenCalled();
   });
 
   it('should create each agent workspace private to the process (§6.1)', async () => {

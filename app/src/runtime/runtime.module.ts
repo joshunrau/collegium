@@ -9,6 +9,7 @@ import { CommandsModule } from '@/commands/commands.module.ts';
 import { ConversationsModule } from '@/conversations/conversations.module.ts';
 import { CredentialsModule } from '@/credentials/credentials.module.ts';
 import { HaltModule } from '@/halt/halt.module.ts';
+import { InferenceModule } from '@/inference/inference.module.ts';
 import { MailModule } from '@/mail/mail.module.ts';
 import { NotificationsModule } from '@/notifications/notifications.module.ts';
 import { ShellModule } from '@/shell/shell.module.ts';
@@ -33,6 +34,7 @@ import { RuntimeService } from './runtime.service.ts';
     ConversationsModule,
     CredentialsModule,
     HaltModule,
+    InferenceModule,
     MailModule,
     NotificationsModule,
     ShellModule,
