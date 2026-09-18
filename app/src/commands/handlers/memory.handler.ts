@@ -31,6 +31,10 @@ export class MemoryHandler extends CommandHandler {
     const agentUsername = named.value;
     if (action === 'show' && reference !== undefined) {
       const read = await this.memoryService.read(agentUsername, reference);
+      if (read.success) {
+        // §3.6 — a supervisor going to the trouble of reading a body is evidence the entry matters
+        await this.memoryService.markUsed(read.value.id);
+      }
       return {
         audience: 'invoker',
         text: read.success

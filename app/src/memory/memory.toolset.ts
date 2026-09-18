@@ -34,6 +34,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
         if (!memory.success) {
           return Result.err({ kind: 'invalid-arguments', message: renderUnresolvedReference(memory.error) });
         }
+        await context.memory.markUsed(memory.value.id);
         return Result.ok({ text: memory.value.body });
       },
       parameters: z.object({

@@ -269,9 +269,13 @@ model Memory {
   body          String
   createdAt     DateTime @default(now())
   description   String
+  /// §3.6 — when this entry's body was last read, by the agent or by a person; its write time until
+  /// then. What eviction orders by, so the entry nobody has needed goes before yesterday's note.
+  lastUsedAt    DateTime @default(now())
   originPostId  String?
 
   @@index([agentUsername, createdAt])
+  @@index([agentUsername, lastUsedAt])
 }
 
 model Episode {

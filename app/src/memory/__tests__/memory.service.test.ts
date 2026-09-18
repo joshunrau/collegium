@@ -19,6 +19,7 @@ const entry = (overrides: Partial<ModelRow<'Memory'>> = {}): ModelRow<'Memory'> 
   createdAt: new Date(),
   description: 'a fact',
   id: buildId(0),
+  lastUsedAt: new Date(),
   originPostId: 'post-1',
   ...overrides
 });
@@ -26,7 +27,11 @@ const entry = (overrides: Partial<ModelRow<'Memory'>> = {}): ModelRow<'Memory'> 
 /** the delegate is faked with real state because the lock is only observable against real state */
 const createMemoryTable = () => {
   return createModelTable<ModelRow<'Memory'>>({
-    defaults: (sequence) => ({ createdAt: new Date(sequence), id: buildId(sequence) })
+    defaults: (sequence) => ({
+      createdAt: new Date(sequence),
+      id: buildId(sequence),
+      lastUsedAt: new Date(sequence)
+    })
   });
 };
 

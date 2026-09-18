@@ -45,6 +45,15 @@ export class MemoryService {
     return entries.map(({ description, id }) => ({ description, reference: renderMemoryReference(id) }));
   }
 
+  /**
+   * §3.6 — records that a body was needed, which is what eviction orders by. Separate from `read`,
+   * so the callers that mean "this mattered" say so. Takes no lock: it cannot change the entry
+   * count, and `updateMany` makes a touch racing an eviction of the same row a no-op.
+   */
+  async markUsed(id: string): Promise<void> {
+    await this.memories.updateMany({ data: { lastUsedAt: new Date() }, where: { id } });
+  }
+
   /** loaded on demand, by reference or full id. Scoped by agent, so another agent's entry is simply absent (§3.6) */
   async read(agentUsername: string, reference: string): Promise<Result<ModelRow<'Memory'>, MemoryFailure.Unresolved>> {
     const matches = await this.memories.findMany({ take: 2, where: { agentUsername, id: { startsWith: reference } } });
