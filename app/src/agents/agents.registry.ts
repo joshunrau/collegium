@@ -9,6 +9,7 @@ import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import type { ObservedPost } from '@/conversations/conversations.types.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
+import { ResourcesService } from '@/resources/resources.service.ts';
 import { resolveEffectiveToolSettings } from '@/tools/tools.settings.ts';
 import { FRAMEWORK_TOOLSETS } from '@/tools/tools.toolsets.ts';
 
@@ -18,7 +19,12 @@ import type { AgentProfile } from './agents.types.ts';
 export class AgentRegistry {
   private readonly profiles: ReadonlyMap<string, AgentProfile>;
 
-  constructor(configService: ConfigService, envService: EnvService, pluginsRegistry: PluginsRegistry) {
+  constructor(
+    configService: ConfigService,
+    envService: EnvService,
+    pluginsRegistry: PluginsRegistry,
+    resourcesService: ResourcesService
+  ) {
     const agents = Object.values(configService.get('agents'));
     /** §8 — the two generic settings rules run here, so a bad grant/settings pairing refuses boot */
     const toolSettings = resolveEffectiveToolSettings({
@@ -33,11 +39,25 @@ export class AgentRegistry {
         definition.username,
         this.toProfile(definition, {
           actionBudget: definition.actionBudget ?? defaultActionBudget,
+          systemPrompt: AgentRegistry.resolveSystemPrompt(resourcesService, definition),
           toolSettings: toolSettings.get(definition.username) ?? new Map(),
           workspaceRoot
         })
       ])
     );
+  }
+
+  /** §3.1 — the prompt is a string from boot on, whether config stated it inline or named a file */
+  private static resolveSystemPrompt(resourcesService: ResourcesService, definition: AgentDefinition): string {
+    if (typeof definition.systemPrompt === 'string') {
+      return definition.systemPrompt;
+    }
+    const { resource } = definition.systemPrompt;
+    const text = resourcesService.readText(resource).trim();
+    if (text === '') {
+      throw new Error(`agent "${definition.username}" system prompt "${resource}" is empty`);
+    }
+    return text;
   }
 
   get(username: string): AgentProfile | undefined {
@@ -82,9 +102,14 @@ export class AgentRegistry {
 
   private toProfile(
     definition: AgentDefinition,
-    resolved: { actionBudget: number; toolSettings: ReadonlyMap<string, unknown>; workspaceRoot: string }
+    resolved: {
+      actionBudget: number;
+      systemPrompt: string;
+      toolSettings: ReadonlyMap<string, unknown>;
+      workspaceRoot: string;
+    }
   ): AgentProfile {
-    const { actionBudget, toolSettings, workspaceRoot } = resolved;
+    const { actionBudget, systemPrompt, toolSettings, workspaceRoot } = resolved;
     return {
       actionBudget,
       contextBudgetTokens: definition.contextBudgetTokens,
@@ -93,7 +118,7 @@ export class AgentRegistry {
       model: definition.model,
       personality: definition.personality,
       skills: definition.skills,
-      systemPrompt: definition.systemPrompt,
+      systemPrompt,
       tools: definition.tools,
       toolSettings,
       username: definition.username,

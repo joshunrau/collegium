@@ -78,6 +78,15 @@ describe('$AgentDeclaration', () => {
     expect(parsed.toolSettings).toStrictEqual({});
   });
 
+  it('should accept a system prompt inline or as a resource path, and reject one that leaves the root (§3.1)', () => {
+    const withPrompt = (systemPrompt: unknown) => $AgentDeclaration.safeParse({ ...declaration([]), systemPrompt });
+    expect(withPrompt({ resource: 'prompts/mira.md' }).success).toBe(true);
+    expect(withPrompt('').success).toBe(false);
+    expect(withPrompt({ resource: '/etc/passwd' }).success).toBe(false);
+    expect(withPrompt({ resource: '../secrets.md' }).success).toBe(false);
+    expect(withPrompt({ extra: 1, resource: 'prompts/mira.md' }).success).toBe(false);
+  });
+
   it('should reject a toolSettings key outside the namespace grammar', () => {
     expect($AgentDeclaration.safeParse({ ...declaration([]), toolSettings: { 'no-good': {} } }).success).toBe(false);
   });

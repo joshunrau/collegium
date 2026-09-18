@@ -1,6 +1,7 @@
 import {
   $ChannelHandle,
   $LogLevel,
+  $ResourcePath,
   DEEPSEEK_MODELS,
   DEEPSEEK_REASONING_EFFORTS,
   OPENROUTER_MODELS,
@@ -167,6 +168,14 @@ export const $Personality = z
     'An optional stance added after the shared behavioral baseline. "candid": states disagreement first, accepts unwelcome conclusions, and writes plainly without praise or rhetorical questions. Omit for no personality; the shared baseline still applies.'
   );
 
+/** the prompt text, or a markdown file beneath RESOURCES_ROOT holding it; read once at boot (§3.1) */
+export type $SystemPromptSource = z.infer<typeof $SystemPromptSource>;
+export const $SystemPromptSource = z
+  .union([z.string().min(1), z.strictObject({ resource: $ResourcePath })])
+  .describe(
+    'The agent’s system prompt: the text itself, or { "resource": "<path>" } naming a file beneath RESOURCES_ROOT that holds it. A prompt of more than a paragraph belongs in a file, where it is reviewable in a diff.'
+  );
+
 export type $AgentDefaults = z.infer<typeof $AgentDefaults>;
 export const $AgentDefaults = z.strictObject({
   contextBudgetTokens: $ContextBudgetTokens
@@ -211,7 +220,7 @@ export const $AgentDeclaration = z.strictObject({
     .describe(
       'Skills assigned to this agent: framework skills by bare name, toolset-shipped skills as "namespace::skill". Core skills are always assigned.'
     ),
-  systemPrompt: z.string().min(1).describe("The agent's system prompt"),
+  systemPrompt: $SystemPromptSource,
   tools: z
     .array($ToolGrant)
     .default([])

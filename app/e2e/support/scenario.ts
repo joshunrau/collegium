@@ -1,10 +1,12 @@
 import type { $AgentDeclaration, $DebouncePolicy, $PluginName, $TriggeringMode } from '@collegium/config';
 
-type AgentSpec = Pick<$AgentDeclaration, 'expertise' | 'systemPrompt'> & {
+type AgentSpec = Pick<$AgentDeclaration, 'expertise'> & {
   /** the agent's own §5.3 budget; the fixture's shared one applies when omitted */
   actionBudget?: $AgentDeclaration['actionBudget'];
   contextBudgetTokens?: $AgentDeclaration['contextBudgetTokens'];
   skills?: $AgentDeclaration['skills'];
+  /** the inference stub routes requests by prompt text, so a scenario states its prompt inline (§3.1) */
+  systemPrompt: Extract<$AgentDeclaration['systemPrompt'], string>;
   tools?: $AgentDeclaration['tools'];
   toolSettings?: $AgentDeclaration['toolSettings'];
   username: string;

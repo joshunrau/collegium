@@ -6,8 +6,10 @@ import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import { MEMORY_TOOLSET } from '@/memory/memory.toolset.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
+import { ResourcesService } from '@/resources/resources.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { createEnvServiceMock } from '@/testing/factories/env-service.factory.ts';
+import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { createObservedPost } from '@/testing/factories/observed-post.factory.ts';
 
 import { AgentRegistry } from '../agents.registry.ts';
@@ -39,21 +41,28 @@ const TESS: AgentDefinition = {
 
 const post = createObservedPost;
 
+const buildRegistry = async (
+  agents: { [key: string]: AgentDefinition },
+  resourcesService = MockFactory.createMock(ResourcesService)
+): Promise<AgentRegistry> => {
+  const moduleRef = await Test.createTestingModule({
+    providers: [
+      AgentRegistry,
+      { provide: ConfigService, useValue: createConfigServiceMock({ agents }) },
+      { provide: EnvService, useValue: createEnvServiceMock() },
+      { provide: PluginsRegistry, useValue: new PluginsRegistry([]) },
+      { provide: ResourcesService, useValue: resourcesService }
+    ]
+  }).compile();
+  return moduleRef.get(AgentRegistry);
+};
+
 describe('AgentRegistry', () => {
   let agentRegistry: AgentRegistry;
   let mira: AgentProfile;
 
   beforeEach(async () => {
-    const configService = createConfigServiceMock({ agents: { mira: MIRA, tess: TESS } });
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        AgentRegistry,
-        { provide: ConfigService, useValue: configService },
-        { provide: EnvService, useValue: createEnvServiceMock() },
-        { provide: PluginsRegistry, useValue: new PluginsRegistry([]) }
-      ]
-    }).compile();
-    agentRegistry = moduleRef.get(AgentRegistry);
+    agentRegistry = await buildRegistry({ mira: MIRA, tess: TESS });
     mira = agentRegistry.get('mira')!;
   });
 
@@ -82,6 +91,31 @@ describe('AgentRegistry', () => {
   it('should report an unknown username as absent', () => {
     expect(agentRegistry.has('dana')).toBe(false);
     expect(agentRegistry.get('dana')).toBeUndefined();
+  });
+
+  describe('systemPrompt', () => {
+    it('should keep an inline prompt as written (§3.1)', () => {
+      expect(mira.systemPrompt).toBe('You are Mira');
+    });
+
+    it('should read a prompt named as a resource, trimmed (§3.1)', async () => {
+      const resourcesService = MockFactory.createMock(ResourcesService);
+      resourcesService.readText.mockReturnValue('You are Mira, at length.\n\n');
+      const registry = await buildRegistry(
+        { mira: { ...MIRA, systemPrompt: { resource: 'prompts/mira.md' } } },
+        resourcesService
+      );
+      expect(registry.get('mira')?.systemPrompt).toBe('You are Mira, at length.');
+      expect(resourcesService.readText).toHaveBeenCalledWith('prompts/mira.md');
+    });
+
+    it('should refuse boot when the named resource is empty', async () => {
+      const resourcesService = MockFactory.createMock(ResourcesService);
+      resourcesService.readText.mockReturnValue('  \n');
+      await expect(
+        buildRegistry({ mira: { ...MIRA, systemPrompt: { resource: 'prompts/mira.md' } } }, resourcesService)
+      ).rejects.toThrow('agent "mira" system prompt "prompts/mira.md" is empty');
+    });
   });
 
   describe('isAddressedBy', () => {

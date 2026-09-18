@@ -6,8 +6,10 @@ import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
+import { ResourcesService } from '@/resources/resources.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { createEnvServiceMock } from '@/testing/factories/env-service.factory.ts';
+import { MockFactory } from '@/testing/factories/mock.factory.ts';
 
 import { requireAgentName, requireAgentProfile, requirePostId } from '../argument.utils.ts';
 
@@ -31,7 +33,8 @@ describe('requireAgentName', () => {
         AgentRegistry,
         { provide: ConfigService, useValue: createConfigServiceMock({ agents: { mira: MIRA } }) },
         { provide: EnvService, useValue: createEnvServiceMock() },
-        { provide: PluginsRegistry, useValue: new PluginsRegistry([]) }
+        { provide: PluginsRegistry, useValue: new PluginsRegistry([]) },
+        { provide: ResourcesService, useValue: MockFactory.createMock(ResourcesService) }
       ]
     }).compile();
     agentRegistry = moduleRef.get(AgentRegistry);
