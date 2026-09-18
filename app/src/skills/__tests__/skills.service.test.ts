@@ -202,9 +202,9 @@ describe('SkillsService', () => {
     it('should accept a ref the agent holds and a namespace one of its tools is in', async () => {
       writeSkillRequiring('[mail::send, memory]');
       const skillsService = await buildService([GRANTED]);
-      expect(() =>
-        { return skillsService.assertGrantedToolsCoverSkills(held(['mail', 'send'], ['memory', 'write'])); }
-      ).not.toThrow();
+      expect(() => {
+        return skillsService.assertGrantedToolsCoverSkills(held(['mail', 'send'], ['memory', 'write']));
+      }).not.toThrow();
     });
 
     it('should refuse a namespace the agent holds no tool in', async () => {
