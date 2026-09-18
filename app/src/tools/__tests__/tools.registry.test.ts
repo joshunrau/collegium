@@ -140,6 +140,11 @@ describe('ToolRegistry', () => {
     expect(registry.resolveFor(granted, 'does_not_exist').error).toMatchObject({ kind: 'unknown-tool' });
   });
 
+  it('lists the tools of the named toolsets no agent is granted (§3.14)', () => {
+    const registry = new ToolRegistry(LIBRARY, [buildAgentProfile({ tools: ['notes::add'] })]);
+    expect(registry.listUngrantedIn(new Set(['notes']))).toStrictEqual([['notes', 'list']]);
+  });
+
   it('answers an unknown name with the agent’s own tools by wire name, and nothing it was not granted (§7.2)', () => {
     const granted = buildAgentProfile({ tools: ['notes::add'] });
     const message = new ToolRegistry(LIBRARY, [granted]).resolveFor(granted, 'ghost').error?.message;

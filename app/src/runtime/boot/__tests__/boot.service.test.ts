@@ -7,8 +7,10 @@ import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { BackfillService } from '@/conversations/backfill/backfill.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
+import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { StatusPostService } from '@/turns/status/status-post.service.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
 import type { AbandonedStatusPost, UnactedTurn } from '@/turns/turns.types.ts';
@@ -25,8 +27,10 @@ describe('BootService', () => {
   let bootService: BootService;
   let calls: string[];
   let livenessService: MockedInstance<LivenessService>;
+  let loggingService: MockedInstance<LoggingService>;
   let rosterService: MockedInstance<RosterService>;
   let statusPostService: MockedInstance<StatusPostService>;
+  let toolRegistry: MockedInstance<ToolRegistry>;
   let turnsService: MockedInstance<TurnsService>;
 
   beforeEach(async () => {
@@ -63,6 +67,8 @@ describe('BootService', () => {
       calls.push('close');
       return Promise.resolve();
     });
+    toolRegistry = MockFactory.createMock(ToolRegistry);
+    toolRegistry.listUngrantedIn.mockReturnValue([]);
     turnsService = MockFactory.createMock(TurnsService);
     turnsService.abandonRunning.mockImplementation(() => {
       calls.push('abandon');
@@ -77,11 +83,29 @@ describe('BootService', () => {
         { provide: BackfillService, useValue: backfillService },
         { provide: LivenessService, useValue: livenessService },
         { provide: RosterService, useValue: rosterService },
+        { provide: PluginsRegistry, useValue: { toolsets: [{ name: 'bookmark', tools: {} }] } },
         { provide: StatusPostService, useValue: statusPostService },
+        { provide: ToolRegistry, useValue: toolRegistry },
         { provide: TurnsService, useValue: turnsService }
       ]
     }).compile();
     bootService = moduleRef.get(BootService);
+    loggingService = moduleRef.get(LoggingService);
+  });
+
+  it('should warn, and still boot, naming each plugin tool no agent is granted (§3.14)', async () => {
+    toolRegistry.listUngrantedIn.mockReturnValue([
+      ['bookmark', 'save'],
+      ['bookmark', 'list']
+    ]);
+    await bootService.run();
+    expect(toolRegistry.listUngrantedIn).toHaveBeenCalledWith(new Set(['bookmark']));
+    expect(loggingService.warn).toHaveBeenCalledWith(expect.stringContaining('bookmark::save, bookmark::list'));
+  });
+
+  it('should warn of nothing when every plugin tool is granted', async () => {
+    await bootService.run();
+    expect(loggingService.warn).not.toHaveBeenCalled();
   });
 
   it('should abandon turns, close their status posts, queue the unacted again, invalidate prompts, backfill, and reconcile — in that order', async () => {

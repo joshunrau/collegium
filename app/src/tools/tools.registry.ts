@@ -57,6 +57,9 @@ export class ToolRegistry {
   /** wireName → tool, per agent — the set the model is offered and the one an operator is shown (§1) */
   private readonly agentTools: ReadonlyMap<string, ReadonlyMap<string, ResolvedTool>>;
 
+  /** every tool every registered toolset declares, granted or not */
+  private readonly library: readonly ResolvedTool[];
+
   constructor(toolsets: readonly RegisteredToolset[], profiles: readonly AgentProfile[]) {
     const byNamespace = new Map<string, RegisteredToolset>();
     for (const toolset of toolsets) {
@@ -84,6 +87,7 @@ export class ToolRegistry {
         });
       }
     }
+    this.library = Array.from(byRef.values());
     const coreNamespaces = new Set<string>(CORE_TOOLSETS.map((toolset) => toolset.name));
     const grantable = new Map(
       Array.from(byNamespace.entries()).filter(([namespace]) => !coreNamespaces.has(namespace))
@@ -171,6 +175,14 @@ export class ToolRegistry {
       gates: tool.definition.approval !== undefined,
       id: tool.id
     }));
+  }
+
+  /** §3.14 — the tools of the named toolsets that no agent's expanded grants include, which no turn can ever call */
+  listUngrantedIn(namespaces: ReadonlySet<string>): ToolId[] {
+    const granted = new Set(Array.from(this.agentTools.values()).flatMap((tools) => Array.from(tools.keys())));
+    return this.library
+      .filter((tool) => namespaces.has(tool.id[0]) && !granted.has(tool.wireName))
+      .map((tool) => tool.id);
   }
 
   /** §7.2 — what a call naming no granted tool reads: the name it used, and the tools it can call by the names it calls them */
