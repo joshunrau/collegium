@@ -28,11 +28,22 @@ export class TurnsService {
   /**
    * §7.3 — nothing resumes; every turn left running by a crash is closed as abandoned. The status
    * posts are read before the update, since afterwards nothing names which turns this boot closed.
+   *
+   * A turn had not acted when it recorded no `assistant_message`: that event is written before any
+   * call in its completion is admitted, and before a final reply is posted. Neither the status post,
+   * which is best-effort, nor a `tool_result`, which a call parked on approval has not written yet,
+   * proves that nothing ran.
    */
   async abandonRunning(): Promise<AbandonedTurns> {
     const running = await this.turns.findMany({
       orderBy: { startedAt: 'desc' },
-      select: { agentUsername: true, channelId: true, statusPostId: true },
+      select: {
+        _count: { select: { events: { where: { kind: 'assistant_message' } } } },
+        agentUsername: true,
+        channelId: true,
+        statusPostId: true,
+        triggeringPostId: true
+      },
       where: { status: 'running' }
     });
     await this.turns.updateMany({ data: { endedAt: new Date(), status: 'abandoned' }, where: { status: 'running' } });
@@ -42,7 +53,15 @@ export class TurnsService {
       }
       return [{ agentUsername: turn.agentUsername, channelId: turn.channelId, postId: turn.statusPostId }];
     });
-    return { count: running.length, statusPosts };
+    const unacted = running.flatMap((turn) => {
+      if (turn._count.events > 0 || turn.triggeringPostId === null) {
+        return [];
+      }
+      return [
+        { agentUsername: turn.agentUsername, channelId: turn.channelId, triggeringPostId: turn.triggeringPostId }
+      ];
+    });
+    return { count: running.length, statusPosts, unacted };
   }
 
   /**

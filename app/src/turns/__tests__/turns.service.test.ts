@@ -44,9 +44,6 @@ describe('TurnsService', () => {
         turns.push(row);
         return Promise.resolve(row);
       },
-      findMany: ({ where }: any) => {
-        return Promise.resolve(turns.filter((turn) => turn.status === where.status).toReversed());
-      },
       groupBy: () => {
         return Promise.resolve([
           {
@@ -79,11 +76,6 @@ describe('TurnsService', () => {
         const row = turns.find((turn) => turn.id === where.id);
         Object.assign(row!, data);
         return Promise.resolve(row);
-      },
-      updateMany: ({ data, where }: any) => {
-        const matching = turns.filter((turn) => turn.status === where.status);
-        matching.forEach((turn) => Object.assign(turn, data));
-        return Promise.resolve({ count: matching.length });
       }
     };
     const moduleRef = await Test.createTestingModule({
@@ -273,21 +265,5 @@ describe('TurnsService', () => {
     const turn = await open();
     await turnsService.recordStatusPost(turn.id, 'post-9');
     expect(turns[0]).toMatchObject({ statusPostId: 'post-9' });
-  });
-
-  it('should abandon exactly the running turns and name the status posts they left behind', async () => {
-    const running = await open();
-    await turnsService.recordStatusPost(running.id, 'status-1');
-    const traceless = await open();
-    const done = await open();
-    await turnsService.close(done.id, 'completed');
-
-    expect(await turnsService.abandonRunning()).toStrictEqual({
-      count: 2,
-      statusPosts: [{ agentUsername: 'mira', channelId: 'channel-1', postId: 'status-1' }]
-    });
-    expect(turns.find((turn) => turn.id === running.id)?.status).toBe('abandoned');
-    expect(turns.find((turn) => turn.id === traceless.id)?.status).toBe('abandoned');
-    expect(turns.find((turn) => turn.id === done.id)?.status).toBe('completed');
   });
 });

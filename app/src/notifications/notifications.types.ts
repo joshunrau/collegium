@@ -23,12 +23,13 @@ export declare namespace SystemEvent {
     kind: 'offline';
     reason: 'crash' | 'shutdown';
   };
-  /** the one §7.3 boot notice: the downtime window, and that in-flight work was abandoned */
+  /** the one §7.3 boot notice: the downtime window, that in-flight work was abandoned, and how much was queued again */
   type Online = {
     abandonedTurns: number;
     agentUsernames: string[];
     downtime: Downtime | undefined;
     kind: 'online';
+    requeuedTurns: number;
   };
 
   type Any = ChainLimitRefusal | Halt | MultiMentionRefusal | Offline | Online;

@@ -67,7 +67,9 @@ export class ChatEmitter extends NotificationsEmitter {
             .exhaustive();
           const abandoned =
             event.abandonedTurns === 0 ? '' : ` ${event.abandonedTurns} in-flight turn(s) were abandoned.`;
-          return `🟢 **Online** — the orchestrator started with ${event.agentUsernames.length} agent(s): ${roster}.${downtime}${abandoned}`;
+          const requeued =
+            event.requeuedTurns === 0 ? '' : ` ${event.requeuedTurns} that had not yet acted went back into the queue.`;
+          return `🟢 **Online** — the orchestrator started with ${event.agentUsernames.length} agent(s): ${roster}.${downtime}${abandoned}${requeued}`;
         })
         .exhaustive()
     );

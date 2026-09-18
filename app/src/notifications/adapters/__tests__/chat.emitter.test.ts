@@ -43,7 +43,8 @@ describe('ChatEmitter', () => {
         startedAt: new Date('2026-07-26T12:05:00Z'),
         stoppedAt: new Date('2026-07-26T12:00:00Z')
       },
-      kind: 'online'
+      kind: 'online',
+      requeuedTurns: 0
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
       expect.stringContaining(
@@ -61,7 +62,8 @@ describe('ChatEmitter', () => {
         lastAliveAt: new Date('2026-07-26T12:00:00Z'),
         startedAt: new Date('2026-07-26T12:05:00Z')
       },
-      kind: 'online'
+      kind: 'online',
+      requeuedTurns: 0
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
       expect.stringContaining('Offline since last known alive at July 26, 2026 at 12:00:00 PM UTC.')
@@ -73,11 +75,22 @@ describe('ChatEmitter', () => {
       abandonedTurns: 0,
       agentUsernames: ['mira', 'robin'],
       downtime: undefined,
-      kind: 'online'
+      kind: 'online',
+      requeuedTurns: 0
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
       '🟢 **Online** — the orchestrator started with 2 agent(s): `mira`, `robin`.'
     );
+  });
+
+  it('should state how many abandoned turns went back into the queue, and only when any did (§7.3)', async () => {
+    const online = { agentUsernames: ['mira'], downtime: undefined, kind: 'online' as const };
+    await chatEmitter.notify({ ...online, abandonedTurns: 2, requeuedTurns: 1 });
+    await chatEmitter.notify({ ...online, abandonedTurns: 2, requeuedTurns: 0 });
+    expect(chatGateway.postAsSystem.mock.calls.map(([content]) => content)).toStrictEqual([
+      '🟢 **Online** — the orchestrator started with 1 agent(s): `mira`. 2 in-flight turn(s) were abandoned. 1 that had not yet acted went back into the queue.',
+      '🟢 **Online** — the orchestrator started with 1 agent(s): `mira`. 2 in-flight turn(s) were abandoned.'
+    ]);
   });
 
   it('should post the §4.5 correction as a fixed template in the offending channel', async () => {

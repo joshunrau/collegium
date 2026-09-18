@@ -100,7 +100,8 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
         abandonedTurns: boot.abandonedTurns,
         agentUsernames: Array.from(this.running.keys()),
         downtime: boot.downtime,
-        kind: 'online'
+        kind: 'online',
+        requeuedTurns: boot.requeuedTurns
       } satisfies SystemEvent.Online);
     }
   }

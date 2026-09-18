@@ -17,4 +17,6 @@ export type Downtime =
 export type BootReport = {
   readonly abandonedTurns: number;
   readonly downtime: Downtime | undefined;
+  /** abandoned turns that had not acted, their posts queued again (§7.3) */
+  readonly requeuedTurns: number;
 };

@@ -17,7 +17,7 @@ import { QueueService } from '@/queue/queue.service.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 import { TurnFoldRegistry } from '@/turns/folding/turn-fold.registry.ts';
 import { TurnRunner } from '@/turns/turns.runner.ts';
-import type { TurnOpenFailure } from '@/turns/turns.types.ts';
+import type { TurnOpenFailure, UnactedTurn } from '@/turns/turns.types.ts';
 
 import { QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
 import {
@@ -168,6 +168,24 @@ export class ActivationService {
     }
   }
 
+  /**
+   * §7.3 — puts back in the queue the post each unacted abandoned turn started from, for the boot
+   * sweep to drain, and returns how many went back. A system bot post stays out (§5.2), and so does
+   * one the store does not hold, whose author is unknown.
+   */
+  async requeueUnacted(turns: readonly UnactedTurn[]): Promise<number> {
+    let requeued = 0;
+    for (const turn of turns) {
+      const source = await this.conversationsService.findActivationSource(turn.triggeringPostId);
+      if (source === undefined || source.authorKind === 'system') {
+        continue;
+      }
+      await this.putBackInQueue(turn.agentUsername, turn.channelId, turn.triggeringPostId);
+      requeued += 1;
+    }
+    return requeued;
+  }
+
   /** the boot and /resume sweep: standing queues drain and held triggers flush (§7.3, §7.4) */
   async sweep(): Promise<void> {
     const entries = await this.queueService.listAll();
@@ -282,9 +300,8 @@ export class ActivationService {
   /**
    * §7.1 — a failed exit leaves the queue standing, and the row was consumed when this turn
    * started, so the post it started from is pointed at again. Still under the lock, because a post
-   * arriving during the turn went through enqueueBusy and may hold the row already; a duplicate
-   * insert is ignored by design, so the pointer is then moved back to whichever post is earlier.
-   * A failure here is logged, not thrown: the lock must be released whatever happens.
+   * arriving during the turn went through enqueueBusy and may hold the row already. A failure here
+   * is logged, not thrown: the lock must be released whatever happens.
    *
    * Returns whether the post that claimed the row is a human's. Such a post is the "next human
    * post" a standing queue drains at, already arrived and already 👀-acknowledged (§5.2), so the
@@ -293,15 +310,9 @@ export class ActivationService {
    */
   private async leaveStanding(profile: AgentProfile, channelId: string, postId: string): Promise<boolean> {
     try {
-      await this.queueService.enqueue(profile.username, channelId, postId);
-      const standing = await this.queueService.peek(profile.username, channelId);
-      if (!standing || standing.earliestUnprocessedPostId === postId) {
+      const claimed = await this.putBackInQueue(profile.username, channelId, postId);
+      if (claimed === undefined) {
         return false;
-      }
-      const claimed = standing.earliestUnprocessedPostId;
-      const earliest = await this.conversationsService.earliestOf([claimed, postId]);
-      if (earliest === postId) {
-        await this.queueService.pointAt(profile.username, channelId, postId);
       }
       const source = await this.conversationsService.findActivationSource(claimed);
       return source?.authorKind === 'human';
@@ -330,6 +341,25 @@ export class ActivationService {
       channelId: post.channelId,
       postId: post.id
     });
+  }
+
+  /**
+   * Points the queue at a post again. Another post may already hold the row, and a duplicate insert
+   * is ignored by design, so the pointer is then moved back to whichever of the two is earlier.
+   * Returns the post that had claimed the row, where one had.
+   */
+  private async putBackInQueue(agentUsername: string, channelId: string, postId: string): Promise<string | undefined> {
+    await this.queueService.enqueue(agentUsername, channelId, postId);
+    const standing = await this.queueService.peek(agentUsername, channelId);
+    if (!standing || standing.earliestUnprocessedPostId === postId) {
+      return undefined;
+    }
+    const claimed = standing.earliestUnprocessedPostId;
+    const earliest = await this.conversationsService.earliestOf([claimed, postId]);
+    if (earliest === postId) {
+      await this.queueService.pointAt(agentUsername, channelId, postId);
+    }
+    return claimed;
   }
 
   /** whether this post is work for the agent, and if so, the queue entry that says so (§5.2) */

@@ -11,14 +11,17 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { StatusPostService } from '@/turns/status/status-post.service.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
-import type { AbandonedStatusPost } from '@/turns/turns.types.ts';
+import type { AbandonedStatusPost, UnactedTurn } from '@/turns/turns.types.ts';
 
 import { LivenessService } from '../../liveness/liveness.service.ts';
 import { BootService } from '../boot.service.ts';
 
 const STATUS_POST: AbandonedStatusPost = { agentUsername: 'mira', channelId: 'channel-1', postId: 'status-1' };
 
+const UNACTED: UnactedTurn = { agentUsername: 'owen', channelId: 'channel-2', triggeringPostId: 'post-1' };
+
 describe('BootService', () => {
+  let activationService: MockedInstance<ActivationService>;
   let bootService: BootService;
   let calls: string[];
   let livenessService: MockedInstance<LivenessService>;
@@ -28,7 +31,11 @@ describe('BootService', () => {
 
   beforeEach(async () => {
     calls = [];
-    const activationService = MockFactory.createMock(ActivationService);
+    activationService = MockFactory.createMock(ActivationService);
+    activationService.requeueUnacted.mockImplementation(() => {
+      calls.push('requeue');
+      return Promise.resolve(1);
+    });
     activationService.sweep.mockImplementation(() => {
       calls.push('sweep');
       return Promise.resolve();
@@ -59,7 +66,7 @@ describe('BootService', () => {
     turnsService = MockFactory.createMock(TurnsService);
     turnsService.abandonRunning.mockImplementation(() => {
       calls.push('abandon');
-      return Promise.resolve({ count: 3, statusPosts: [STATUS_POST] });
+      return Promise.resolve({ count: 3, statusPosts: [STATUS_POST], unacted: [UNACTED] });
     });
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -77,10 +84,15 @@ describe('BootService', () => {
     bootService = moduleRef.get(BootService);
   });
 
-  it('should abandon turns, close their status posts, invalidate prompts, backfill, and reconcile — in that order', async () => {
+  it('should abandon turns, close their status posts, queue the unacted again, invalidate prompts, backfill, and reconcile — in that order', async () => {
     const report = await bootService.run();
-    expect(calls).toStrictEqual(['abandon', 'close', 'invalidate', 'backfill', 'reconcile', 'sweep']);
-    expect(report).toStrictEqual({ abandonedTurns: 3, downtime: undefined });
+    expect(calls).toStrictEqual(['abandon', 'close', 'requeue', 'invalidate', 'backfill', 'reconcile', 'sweep']);
+    expect(report).toStrictEqual({ abandonedTurns: 3, downtime: undefined, requeuedTurns: 1 });
+  });
+
+  it('should hand activation the abandoned turns that had not acted (§7.3)', async () => {
+    await bootService.run();
+    expect(activationService.requeueUnacted).toHaveBeenCalledExactlyOnceWith([UNACTED]);
   });
 
   it('should report the downtime the process recorded (§7.3)', async () => {
@@ -105,7 +117,7 @@ describe('BootService', () => {
 
   it('should close at most the fifty most recently started abandoned status posts', async () => {
     const statusPosts = Array.from({ length: 60 }, (_, index) => ({ ...STATUS_POST, postId: `status-${index}` }));
-    turnsService.abandonRunning.mockResolvedValue({ count: 60, statusPosts });
+    turnsService.abandonRunning.mockResolvedValue({ count: 60, statusPosts, unacted: [] });
     await bootService.run();
     expect(statusPostService.closeAbandoned).toHaveBeenCalledTimes(50);
     expect(statusPostService.closeAbandoned).toHaveBeenLastCalledWith(statusPosts[49]);

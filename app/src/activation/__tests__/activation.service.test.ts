@@ -569,6 +569,22 @@ describe('ActivationService', () => {
     });
   });
 
+  describe('turns a restart abandoned before they acted (§7.3)', () => {
+    const unacted = { agentUsername: 'owen', channelId: 'channel-2', triggeringPostId: 'post-3' };
+
+    it('should put the post that started the turn back in the queue', async () => {
+      conversationsService.findActivationSource.mockResolvedValue({ authorKind: 'agent' } as never);
+      expect(await activationService.requeueUnacted([unacted])).toBe(1);
+      expect(queueService.enqueue).toHaveBeenCalledExactlyOnceWith('owen', 'channel-2', 'post-3');
+    });
+
+    it('should leave out a turn the system bot started (§5.2)', async () => {
+      conversationsService.findActivationSource.mockResolvedValue({ authorKind: 'system' } as never);
+      expect(await activationService.requeueUnacted([unacted])).toBe(0);
+      expect(queueService.enqueue).not.toHaveBeenCalled();
+    });
+  });
+
   it('should post the chain-limit correction, release the lock and queue nothing when admission refuses (§7.4)', async () => {
     let released = false;
     channelLockService.acquire.mockReturnValue({ release: () => (released = true) });
