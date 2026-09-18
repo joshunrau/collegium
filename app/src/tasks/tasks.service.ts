@@ -47,6 +47,9 @@ type TransitionInput = {
 /** what a verb rendered but has not written: the post text the framework publishes, the one peer it addresses, and what to commit once it has landed */
 type Prepared<TPrepared> = { readonly addressee?: string; readonly prepared: TPrepared; readonly text: string };
 
+/** §3.15 — fixed text, never the model's: a report written now would come from the context that just ran out */
+const CONTEXT_EXHAUSTED_REASON = 'context exhausted';
+
 /**
  * §3.15 — the record of delegated work. Every verb is two methods: `prepare*` validates against
  * what it reads and renders the post, writing nothing; `commit*` writes, and is reached only
@@ -195,6 +198,32 @@ export class TasksService {
       prepared: { to: input.to, unitId: unit.value.id },
       text: renderClosePost(unit.value, input.to, input.verdict)
     });
+  }
+
+  /**
+   * §3.15 — the report the framework makes for a turn that ran out of context, or nothing: of the
+   * units the agent holds assigned here, the one whose assignment post started the turn, else the
+   * only one. With several and none that started the turn, it does not guess which it was working.
+   */
+  async prepareExhaustionReport(input: {
+    agentUsername: string;
+    channelId: string;
+    triggeringPostId: string | undefined;
+  }): Promise<Prepared<PreparedTransition> | undefined> {
+    const assigned = await this.units.findMany({
+      where: { assigneeUsername: input.agentUsername, channelId: input.channelId, state: 'assigned' }
+    });
+    const unit =
+      assigned.find((candidate) => candidate.originPostId === input.triggeringPostId) ??
+      (assigned.length === 1 ? assigned[0] : undefined);
+    if (!unit) {
+      return undefined;
+    }
+    return {
+      addressee: unit.creatorUsername,
+      prepared: { to: 'blocked', unitId: unit.id },
+      text: renderReportPost(unit, 'blocked', CONTEXT_EXHAUSTED_REASON)
+    };
   }
 
   async prepareReport(

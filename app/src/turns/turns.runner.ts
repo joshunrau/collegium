@@ -37,6 +37,7 @@ import {
 import { LoggingService } from '@/logging/logging.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
 import type { PostKind, TurnStatus } from '@/prisma/prisma.types.ts';
+import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import type { ToolAttempt } from '@/tools/tools.types.ts';
@@ -241,6 +242,7 @@ export class TurnRunner {
     private readonly multiMentionPolicy: MultiMentionPolicy,
     private readonly notificationsService: NotificationsService,
     private readonly statusPostService: StatusPostService,
+    private readonly tasksService: TasksService,
     private readonly toolExecutor: ToolExecutor,
     private readonly toolRegistry: ToolRegistry,
     private readonly transportRegistry: TransportRegistry,
@@ -527,7 +529,7 @@ export class TurnRunner {
     );
   }
 
-  /** §7.1 — the notice and what the turn may already have changed go out as one post, then the turn closes */
+  /** §7.1 — the notice and what the turn may already have changed go out as one post, then the turn closes; §3.15 for a unit */
   private async closeWithFailureNotice(
     input: RunInput,
     state: TurnState,
@@ -542,6 +544,9 @@ export class TurnRunner {
         ? notice
         : `${notice}\n${renderMayHaveTakenEffectLine(callsThatMayHaveTakenEffect)}`
     );
+    if (status === 'context_exhausted') {
+      await this.reportExhaustedUnit(input, state);
+    }
     return this.writeClosingStatus(state, status);
   }
 
@@ -1058,19 +1063,9 @@ export class TurnRunner {
    */
   private async publishToolPost(input: RunInput, state: TurnState, post: ToolPost): Promise<ToolPostOutcome> {
     const text = this.multiMentionPolicy.stripAgentMentionsExcept(post.text, post.addressee);
-    const addressable = this.asAddressablePost(input, text);
-    if (this.multiMentionPolicy.refuses(addressable)) {
-      return { kind: 'refused', output: 'post refused: it addresses more than one colleague' };
-    }
-    if (this.multiMentionPolicy.refusesSecondAddressee(addressable, state.addressedPeer)) {
-      return { kind: 'refused', output: `post refused: this turn has already addressed @${state.addressedPeer}` };
-    }
-    const oversize = await this.measureAgainstPostLimit(state, text);
-    if (oversize) {
-      return {
-        kind: 'refused',
-        output: `post refused: it is ${oversize.length} characters and a post holds at most ${oversize.limit} — shorten what you pass`
-      };
+    const refusal = await this.refusalOfFrameworkPost(input, state, text);
+    if (refusal !== undefined) {
+      return { kind: 'refused', output: refusal };
     }
     const sent = await this.publish(input, state, text, 'notice');
     if (!sent.success) {
@@ -1139,6 +1134,22 @@ export class TurnRunner {
     return undefined;
   }
 
+  /** why a post the framework publishes for the turn may not post (§4.5), or nothing */
+  private async refusalOfFrameworkPost(input: RunInput, state: TurnState, text: string): Promise<string | undefined> {
+    const addressable = this.asAddressablePost(input, text);
+    if (this.multiMentionPolicy.refuses(addressable)) {
+      return 'post refused: it addresses more than one colleague';
+    }
+    if (this.multiMentionPolicy.refusesSecondAddressee(addressable, state.addressedPeer)) {
+      return `post refused: this turn has already addressed @${state.addressedPeer}`;
+    }
+    const oversize = await this.measureAgainstPostLimit(state, text);
+    if (oversize) {
+      return `post refused: it is ${oversize.length} characters and a post holds at most ${oversize.limit} — shorten what you pass`;
+    }
+    return undefined;
+  }
+
   /**
    * Why a final output cannot post as-is, or nothing. None is a semantic failure: the model
    * produced valid output that breaks a framework rule it cannot see (§4.5), wrote a tool call as
@@ -1177,6 +1188,38 @@ export class TurnRunner {
       return 'relieved';
     }
     return this.cutResultToFit(state, state.messages.length - 1, ceiling) ? 'relieved' : 'exhausted';
+  }
+
+  /**
+   * §3.15 — the unit this turn was working goes to its creator as blocked, through the path a
+   * report takes: refused as any post is, and written only once its post has landed. Best-effort
+   * and never retried, since the turn is already closing (A4).
+   */
+  private async reportExhaustedUnit(input: RunInput, state: TurnState): Promise<void> {
+    try {
+      const report = await this.tasksService.prepareExhaustionReport({
+        agentUsername: input.profile.username,
+        channelId: input.channelId,
+        triggeringPostId: input.triggeringPostId
+      });
+      if (!report) {
+        return;
+      }
+      const text = this.multiMentionPolicy.stripAgentMentionsExcept(report.text, report.addressee);
+      const refusal = await this.refusalOfFrameworkPost(input, state, text);
+      if (refusal !== undefined) {
+        this.loggingService.warn(`did not report the unit of "${input.profile.username}" blocked: ${refusal}`);
+        return;
+      }
+      const sent = await this.publish(input, state, text, 'notice');
+      if (!sent.success) {
+        this.loggingService.error(new Error(`failed to report a unit blocked: ${sent.error.message}`));
+        return;
+      }
+      await this.tasksService.commitTransition(report.prepared, sent.value.postId);
+    } catch (error) {
+      this.loggingService.error(new Error('failed to report the exhausted turn’s unit blocked', { cause: error }));
+    }
   }
 
   /**

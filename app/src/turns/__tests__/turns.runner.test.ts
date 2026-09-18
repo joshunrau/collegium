@@ -21,6 +21,7 @@ import type {
 } from '@/inference/inference.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
+import { TasksService } from '@/tasks/tasks.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -83,6 +84,7 @@ describe('TurnRunner', () => {
   let notificationsService: MockedInstance<NotificationsService>;
   let sends: { channelId: string; text: string }[];
   let statusHandle: { appendTrace: any; close: any; setTransient: any };
+  let tasksService: MockedInstance<TasksService>;
   let toolExecutor: MockedInstance<ToolExecutor>;
   let toolRegistry: MockedInstance<ToolRegistry>;
   let transportSend: Mock<(message: { channelId: string; text: string }) => Promise<unknown>>;
@@ -122,6 +124,8 @@ describe('TurnRunner', () => {
     const inferenceRegistry = MockFactory.createMock(InferenceRegistry);
     inferenceRegistry.getClientForModel.mockReturnValue({ complete });
     notificationsService = MockFactory.createMock(NotificationsService);
+    tasksService = MockFactory.createMock(TasksService);
+    tasksService.prepareExhaustionReport.mockResolvedValue(undefined);
     multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
     multiMentionPolicy.addresseesOf.mockReturnValue([]);
     multiMentionPolicy.refuses.mockReturnValue(false);
@@ -165,6 +169,7 @@ describe('TurnRunner', () => {
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         { provide: NotificationsService, useValue: notificationsService },
         { provide: StatusPostService, useValue: statusPostService },
+        { provide: TasksService, useValue: tasksService },
         { provide: ToolExecutor, useValue: toolExecutor },
         { provide: ToolRegistry, useValue: toolRegistry },
         { provide: TransportRegistry, useValue: transportRegistry },
@@ -1082,6 +1087,24 @@ describe('TurnRunner', () => {
     const outcome = await run();
     expect(outcome.status).toBe('context_exhausted');
     expect(sends.at(-1)?.text).toContain('ran out of room in my context part-way through this turn');
+  });
+
+  it('should report the unit it was working blocked, to its creator, after its own notice (§3.15)', async () => {
+    tasksService.prepareExhaustionReport.mockResolvedValue({
+      addressee: 'sam',
+      prepared: { to: 'blocked', unitId: 'unit-1' },
+      text: '@sam — unit `unit-1` is blocked: context exhausted'
+    });
+    complete.mockResolvedValueOnce(Result.err({ kind: 'context-overflow' } satisfies InferenceFailure.ContextOverflow));
+    await run();
+    expect(sends.map((send) => send.text)).toStrictEqual([
+      expect.stringContaining('My starting context does not fit'),
+      '@sam — unit `unit-1` is blocked: context exhausted'
+    ]);
+    expect(tasksService.commitTransition).toHaveBeenCalledExactlyOnceWith(
+      { to: 'blocked', unitId: 'unit-1' },
+      'post-2'
+    );
   });
 
   it('should call a starting context the provider refused a configuration problem (§7.1)', async () => {

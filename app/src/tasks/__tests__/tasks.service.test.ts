@@ -124,6 +124,28 @@ describe('TasksService', () => {
     expect((await prepare({ turnId: 'turn-1' })).error).toStrictEqual({ kind: 'chain-limit' });
   });
 
+  describe('the report the framework makes when an assignee runs out of context (§3.15)', () => {
+    const exhausted = (triggeringPostId: string) => {
+      return tasksService.prepareExhaustionReport({ agentUsername: 'owen', channelId: 'channel-1', triggeringPostId });
+    };
+
+    it('should report the assignee’s only assigned unit blocked, to its creator, in fixed words', async () => {
+      const unit = await assign('post-1');
+      expect(await exhausted('post-9')).toStrictEqual({
+        addressee: 'mira',
+        prepared: { to: 'blocked', unitId: unit.id },
+        text: `@mira — unit \`${unit.id.slice(0, 8)}\` is blocked: context exhausted`
+      });
+    });
+
+    it('should pick the unit whose assignment started the turn, and guess none among several', async () => {
+      await assign('post-1');
+      const second = await assign('post-2');
+      expect((await exhausted('post-2'))?.prepared.unitId).toBe(second.id);
+      expect(await exhausted('post-9')).toBeUndefined();
+    });
+  });
+
   it('should let only the assignee report and only the creator close, along the legal transitions', async () => {
     const unit = await assign();
     const reference = unit.id.slice(0, 8);
