@@ -19,6 +19,20 @@ export type MemoryWriteReceipt<TEntry> = {
   readonly reference: string;
 };
 
+/** the entry a revision replaces, and the provenance the entry replacing it carries (§3.6) */
+export type MemoryRevision = {
+  readonly agentUsername: string;
+  readonly originPostId: null | string;
+  readonly reference: string;
+};
+
+/** what a revision reports back: the entry it wrote, and the reference of the one it deleted (§3.6) */
+export type MemoryRevisionReceipt<TEntry> = {
+  readonly entry: TEntry;
+  readonly reference: string;
+  readonly revisionOf: string;
+};
+
 export declare namespace MemoryFailure {
   /** no entry with that reference belongs to this agent */
   type NotFound = {
@@ -38,7 +52,16 @@ export declare namespace MemoryFailure {
     length: number;
     limit: number;
   };
-  type Any = TooLong | Unresolved;
+  /** the passage a replace names does not occur exactly once in the body, so substituting it would be a guess (§3.6) */
+  type PassageUnmatched = {
+    kind: 'passage-unmatched';
+    occurrences: 'none' | 'several';
+  };
+  /** a revision that would leave nothing, which a write could never have stored; that is a delete */
+  type EmptyBody = {
+    kind: 'empty-body';
+  };
+  type Any = EmptyBody | PassageUnmatched | TooLong | Unresolved;
 }
 
 export type MemoryFailure = MemoryFailure.Any;

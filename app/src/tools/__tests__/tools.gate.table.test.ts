@@ -207,6 +207,14 @@ const ROWS: readonly GateRow[] = [
     note: 'anything externally visible carries approval; the payload is the review (§3.4, §6.3)'
   },
   {
+    args: { reference: 'a1b2c3d4', text: 'and prefers mornings' },
+    call: 'memory__append',
+    expected: 'ungated',
+    grants: ['memory'],
+    id: 'memory-append-ungated',
+    note: 'a revision inherits the write’s exemption from A5 (§3.6)'
+  },
+  {
     args: { reference: 'a1b2c3d4' },
     call: 'memory__delete',
     expected: 'ungated',
@@ -221,6 +229,14 @@ const ROWS: readonly GateRow[] = [
     grants: ['memory'],
     id: 'memory-read-ungated',
     note: 'reads are ungated (§3.4)'
+  },
+  {
+    args: { passage: 'a phone call', reference: 'a1b2c3d4', replacement: 'email' },
+    call: 'memory__replace',
+    expected: 'ungated',
+    grants: ['memory'],
+    id: 'memory-replace-ungated',
+    note: 'a revision inherits the write’s exemption from A5 (§3.6)'
   },
   {
     args: { body: 'casey prefers a phone call', description: 'how casey likes to be reached' },

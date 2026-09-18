@@ -190,7 +190,7 @@ export class SystemPromptRenderer {
         "The framework posts your reply. Text with no tool call is your final message. It goes to the channel and the turn stops. Text with a tool call is shown while the tool runs. Then it is removed. When your turn stops, the framework starts no further turn in this channel by itself. A person's post, a colleague's mention, or a trigger the framework posts starts the next one.",
         'Some tools need approval from a person before they run. The approval prompt shows the full payload to all persons in the channel. There is no timeout. If a person denies with no reason, the turn stops. If a person denies with a reason, the reason comes back as the tool result. The turn then continues with the same budget.',
         'Each turn has a budget of {actionBudget} tool calls. A denied call also uses the budget. Calls to {budgetExemptCalls} do not. When the budget is used, the framework asks a person for more. If the person approves, you get {actionBudget} more calls. If the person denies with no reason, the turn stops. If the person denies with a reason, the reason comes back as the tool result, no further call runs, and only your text is posted.',
-        'Your memories go with you between channels, and stay in your context after the posts and results around them have fallen outside it. A memory write and a memory delete need no approval. Each of them is shown in the channel immediately.',
+        'Your memories go with you between channels, and stay in your context after the posts and results around them have fallen outside it. Writing, revising and deleting a memory need no approval. Each is shown in the channel immediately.',
         ...this.renderDirectories(profile),
         ...(holdsAsk
           ? [

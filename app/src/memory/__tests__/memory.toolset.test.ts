@@ -8,7 +8,7 @@ import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.f
 import { MemoryService } from '../memory.service.ts';
 import { MEMORY_TOOLSET } from '../memory.toolset.ts';
 
-const { delete: deleteTool, read, write } = MEMORY_TOOLSET.tools;
+const { append, delete: deleteTool, read, replace, write } = MEMORY_TOOLSET.tools;
 
 function buildContext() {
   const memory = MockFactory.createMock(MemoryService);
@@ -96,6 +96,29 @@ describe('MEMORY_TOOLSET', () => {
     });
   });
 
+  it('revises an entry and discloses the new one beside the reference it replaced (§3.6)', async () => {
+    const { context, memory } = buildContext();
+    memory.revise.mockResolvedValue(
+      Result.ok({ entry: { body: 'a\nb', description: 'd' } as never, reference: 'mem-2', revisionOf: 'mem-1' })
+    );
+    const result = await executeTool(append, { reference: 'mem-1', text: 'b' }, context);
+    expect(result.unwrap()).toStrictEqual({
+      disclosure: { body: 'a\nb', description: 'd', reference: 'mem-2', revisionOf: 'mem-1' },
+      text: 'memory mem-1 revised as mem-2'
+    });
+  });
+
+  it('refuses a passage found more than once without echoing the body', async () => {
+    const { context, memory } = buildContext();
+    memory.revise.mockResolvedValue(Result.err({ kind: 'passage-unmatched', occurrences: 'several' }));
+    const result = await executeTool(replace, { passage: 'x', reference: 'mem-1', replacement: 'y' }, context);
+    expect(result.error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message:
+        'the passage occurs more than once in that memory; include enough of the surrounding text to match it exactly once'
+    });
+  });
+
   it('exempts only the read from the action budget (§5.3)', () => {
     expect(read.budgetExempt).toBe(true);
     expect(read.retryable).toBe(true);
@@ -103,5 +126,12 @@ describe('MEMORY_TOOLSET', () => {
     expect(write.retryable).toBeUndefined();
     expect(deleteTool.budgetExempt).toBeUndefined();
     expect(deleteTool.retryable).toBe(true);
+    for (const revision of [append, replace]) {
+      expect([revision.budgetExempt, revision.concurrent, revision.retryable]).toStrictEqual([
+        undefined,
+        undefined,
+        undefined
+      ]);
+    }
   });
 });

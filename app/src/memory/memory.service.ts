@@ -3,18 +3,27 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
+import { PrismaService } from '@/prisma/prisma.service.ts';
 import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
 
 import { MemoryLockService } from './locks/memory-lock.service.ts';
 import { renderMemoryReference } from './memory.utils.ts';
 
-import type { MemoryFailure, MemoryListing, MemoryWrite, MemoryWriteReceipt } from './memory.types.ts';
+import type {
+  MemoryFailure,
+  MemoryListing,
+  MemoryRevision,
+  MemoryRevisionReceipt,
+  MemoryWrite,
+  MemoryWriteReceipt
+} from './memory.types.ts';
 
 @Injectable()
 export class MemoryService {
   constructor(
     private readonly locks: MemoryLockService,
-    @InjectModel('Memory') private readonly memories: Model<'Memory'>
+    @InjectModel('Memory') private readonly memories: Model<'Memory'>,
+    private readonly prismaService: PrismaService
   ) {}
 
   /**
@@ -64,6 +73,56 @@ export class MemoryService {
       return Result.err({ kind: 'ambiguous', reference });
     }
     return Result.ok(matches[0]!);
+  }
+
+  /**
+   * §3.6 — one step: the stored body is read and revised under the per-agent lock, and the revision
+   * written as a new entry in the same transaction that deletes the old one. The entry count does
+   * not change, so nothing is evicted.
+   */
+  async revise<TRefusal>(
+    revision: MemoryRevision,
+    reviseBody: (body: string) => Result<string, TRefusal>,
+    caps: $MemorySettings
+  ): Promise<
+    Result<
+      MemoryRevisionReceipt<ModelRow<'Memory'>>,
+      MemoryFailure.EmptyBody | MemoryFailure.TooLong | MemoryFailure.Unresolved | TRefusal
+    >
+  > {
+    return this.locks.run(revision.agentUsername, async () => {
+      const current = await this.read(revision.agentUsername, revision.reference);
+      if (!current.success) {
+        return Result.err(current.error);
+      }
+      const body = reviseBody(current.value.body);
+      if (!body.success) {
+        return Result.err(body.error);
+      }
+      if (body.value.trim() === '') {
+        return Result.err({ kind: 'empty-body' });
+      }
+      if (body.value.length > caps.maxBodyChars) {
+        return Result.err({ field: 'body', kind: 'too-long', length: body.value.length, limit: caps.maxBodyChars });
+      }
+      const entry = await this.prismaService.$transaction(async (transaction) => {
+        const revised = await transaction.memory.create({
+          data: {
+            agentUsername: revision.agentUsername,
+            body: body.value,
+            description: current.value.description,
+            originPostId: revision.originPostId
+          }
+        });
+        await transaction.memory.deleteMany({ where: { id: current.value.id } });
+        return revised;
+      });
+      return Result.ok({
+        entry,
+        reference: renderMemoryReference(entry.id),
+        revisionOf: renderMemoryReference(current.value.id)
+      });
+    });
   }
 
   /** ungated, the single exception to A5 (§3.6). Takes the per-agent lock, since the cap is a read-modify-write */

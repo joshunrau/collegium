@@ -616,6 +616,7 @@ export class TurnRunner {
       description: disclosure.description,
       kind: 'record_written',
       reference: disclosure.reference,
+      ...(disclosure.revisionOf !== undefined && { revisionOf: disclosure.revisionOf }),
       supersededDescriptions: [...(disclosure.supersededDescriptions ?? [])]
     });
   }

@@ -1,12 +1,15 @@
+import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { PrismaService } from '@/prisma/prisma.service.ts';
 import type { ModelRow } from '@/prisma/prisma.types.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
 import { createModelTable } from '@/testing/factories/model-table.factory.ts';
 
 import { MemoryLockService } from '../locks/memory-lock.service.ts';
 import { MemoryService } from '../memory.service.ts';
+import { appendToBody, replaceSinglePassage } from '../memory.utils.ts';
 
 const CAPS = { maxBodyChars: 20, maxDescriptionChars: 10, maxEntries: 2 };
 
@@ -42,7 +45,12 @@ describe('MemoryService', () => {
   beforeEach(async () => {
     table = createMemoryTable();
     const moduleRef = await Test.createTestingModule({
-      providers: [MemoryLockService, MemoryService, { provide: getModelToken('Memory'), useValue: table }]
+      providers: [
+        MemoryLockService,
+        MemoryService,
+        { provide: getModelToken('Memory'), useValue: table },
+        { provide: PrismaService, useValue: { $transaction: (run: any) => run({ memory: table }) } }
+      ]
     }).compile();
     memoryService = moduleRef.get(MemoryService);
   });
@@ -146,6 +154,53 @@ describe('MemoryService', () => {
         reference: 'memory-0'
       });
       expect(await memoryService.list('tess')).toStrictEqual([]);
+    });
+  });
+
+  describe('revise', () => {
+    const revision = { agentUsername: 'mira', originPostId: 'post-2', reference: 'memory-0' };
+
+    it('should write the revised body under a new reference and delete the old entry (§3.6)', async () => {
+      await write({ body: 'first', description: 'ledger' });
+      const revised = await memoryService.revise(revision, (body) => Result.ok(appendToBody(body, 'second')), CAPS);
+      expect(revised.value).toMatchObject({ reference: 'memory-1', revisionOf: 'memory-0' });
+      expect(table.rows).toStrictEqual([
+        expect.objectContaining({ body: 'first\nsecond', description: 'ledger', originPostId: 'post-2' })
+      ]);
+    });
+
+    it('should substitute a passage that occurs exactly once', async () => {
+      await write({ body: 'call by phone' });
+      await memoryService.revise(revision, (body) => replaceSinglePassage(body, 'phone', 'email'), CAPS);
+      expect(table.rows.map((row) => row.body)).toStrictEqual(['call by email']);
+    });
+
+    it.each([
+      { label: 'nowhere', occurrences: 'none', passage: 'fax' },
+      { label: 'twice', occurrences: 'several', passage: 'phone' }
+    ])('should refuse a passage that occurs $label, writing nothing (§3.6)', async ({ occurrences, passage }) => {
+      await write({ body: 'phone, then phone' });
+      const revised = await memoryService.revise(revision, (body) => replaceSinglePassage(body, passage, ''), CAPS);
+      expect(revised.error).toStrictEqual({ kind: 'passage-unmatched', occurrences });
+      expect(table.rows.map((row) => row.body)).toStrictEqual(['phone, then phone']);
+    });
+
+    it('should refuse a revision that leaves the body empty, writing nothing', async () => {
+      await write({ body: 'phone' });
+      const revised = await memoryService.revise(revision, (body) => replaceSinglePassage(body, 'phone', ''), CAPS);
+      expect(revised.error).toStrictEqual({ kind: 'empty-body' });
+      expect(table.rows.map((row) => row.body)).toStrictEqual(['phone']);
+    });
+
+    it('should refuse a revised body over the cap without writing', async () => {
+      await write({ body: 'x'.repeat(15) });
+      const revised = await memoryService.revise(
+        revision,
+        (body) => Result.ok(appendToBody(body, 'y'.repeat(9))),
+        CAPS
+      );
+      expect(revised.error).toStrictEqual({ field: 'body', kind: 'too-long', length: 25, limit: 20 });
+      expect(table.rows.map((row) => row.id)).toStrictEqual([buildId(0)]);
     });
   });
 

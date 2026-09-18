@@ -53,6 +53,7 @@ type TurnEventPayloadByKind = {
     body: string;
     description: string;
     reference: string;
+    revisionOf?: string;
     supersededDescriptions: string[];
   };
   /** §7.5 — a human corrected this turn mid-flight; replayed to a later turn as the human speaking */

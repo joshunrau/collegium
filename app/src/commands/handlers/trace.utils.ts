@@ -39,7 +39,8 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload): string {
     })
     .with(
       { kind: 'record_written' },
-      (event) => `record ${event.reference} written: ${event.description} — ${event.body}`
+      (event) =>
+        `record ${event.reference} written${event.revisionOf === undefined ? '' : `, revising ${event.revisionOf}`}: ${event.description} — ${event.body}`
     )
     .with({ kind: 'steering_received' }, (event) => `steered by ${event.byUsername}: ${event.text}`)
     .with({ kind: 'tool_result' }, (event) => {

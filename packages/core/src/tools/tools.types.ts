@@ -40,6 +40,8 @@ export type ToolDisclosure = {
   readonly body: string;
   readonly description: string;
   readonly reference: string;
+  /** the reference of the record this one replaced in the same step, which no longer resolves (§3.6) */
+  readonly revisionOf?: string;
   readonly supersededDescriptions?: readonly string[];
 };
 

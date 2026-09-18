@@ -91,6 +91,20 @@ describe('renderTrace', () => {
     expect(text).toContain('1. record m1 written: release cadence — ships on Fridays');
   });
 
+  it('should name the entry a revision replaced (§3.6)', () => {
+    const text = renderTrace(TURN, [
+      event({
+        body: 'ships on Fridays',
+        description: 'release cadence',
+        kind: 'record_written',
+        reference: 'm2',
+        revisionOf: 'm1',
+        supersededDescriptions: []
+      })
+    ]);
+    expect(text).toContain('1. record m2 written, revising m1: release cadence — ships on Fridays');
+  });
+
   it('should leave the reasoning behind a completion out of the trace (§3.12)', () => {
     const text = renderTrace(TURN, [
       event({ content: 'done', kind: 'assistant_message', reasoningContent: 'private thoughts', toolCalls: [] })

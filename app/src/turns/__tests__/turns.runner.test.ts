@@ -1060,6 +1060,7 @@ describe('TurnRunner', () => {
         body: 'casey prefers pnpm',
         description: 'tooling preference',
         reference: 'memory-1',
+        revisionOf: 'memory-0',
         supersededDescriptions: ['an ancient note']
       },
       kind: 'continue',
@@ -1068,7 +1069,7 @@ describe('TurnRunner', () => {
     await run();
     expect(turnsService.appendEvent).toHaveBeenCalledWith(
       'turn-1',
-      expect.objectContaining({ kind: 'record_written', reference: 'memory-1' })
+      expect.objectContaining({ kind: 'record_written', reference: 'memory-1', revisionOf: 'memory-0' })
     );
     expect(statusHandle.appendTrace).not.toHaveBeenCalledWith(expect.stringContaining('tooling preference'));
   });

@@ -18,7 +18,7 @@ export const MAIL_TOOLSET_DEF = {
 export const MEMORY_TOOLSET_DEF = {
   name: 'memory',
   settings: $MemorySettings,
-  tools: ['delete', 'read', 'write']
+  tools: ['append', 'delete', 'read', 'replace', 'write']
 } as const satisfies ToolsetDef;
 
 export const SHELL_TOOLSET_DEF = { name: 'shell', tools: ['run'] } as const satisfies ToolsetDef;
