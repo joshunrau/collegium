@@ -1,5 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as vm from 'node:vm';
+
+import { z } from 'zod';
 
 import {
   BINARY_PROBE_BYTES,
@@ -11,8 +14,52 @@ import {
 
 type WalkedEntry = ResolvedPath & {
   readonly isDirectory: boolean;
+  readonly isSymbolicLink: boolean;
   readonly name: string;
 };
+
+/** §3.4 — a model-supplied pattern runs on the main thread, so a catastrophic one is stopped here rather than stalling every agent */
+const GREP_TIME_BUDGET_MS = 2_000;
+
+const $MatchedLines = z.array(z.number().int().nonnegative());
+
+type BudgetedMatcher = (lines: readonly string[]) => readonly number[];
+
+/**
+ * The pattern runs inside a vm context whose timeout V8 honours mid-match, which is what makes a
+ * budget enforceable for synchronous regex code; the budget is shared across the files of one grep.
+ */
+function createBudgetedMatcher(pattern: RegExp, budgetMs: number): BudgetedMatcher {
+  const sandbox: { flags: string; lines: readonly string[]; source: string } = {
+    flags: pattern.flags,
+    lines: [],
+    source: pattern.source
+  };
+  vm.createContext(sandbox);
+  vm.runInContext('var pattern = new RegExp(source, flags);', sandbox);
+  let remainingMs = budgetMs;
+  return (lines) => {
+    sandbox.lines = lines;
+    const started = Date.now();
+    try {
+      // parsed at the realm boundary: what comes back from the context is untyped
+      return $MatchedLines.parse(
+        vm.runInContext('lines.flatMap((line, index) => (pattern.test(line) ? [index] : []))', sandbox, {
+          timeout: Math.max(1, remainingMs)
+        })
+      );
+    } finally {
+      remainingMs -= Date.now() - started;
+    }
+  };
+}
+
+/** by shape, not `instanceof`: the vm raises it from another realm, and a test runner's realm differs again */
+function isExecutionTimeout(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && 'code' in error && error.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT'
+  );
+}
 
 /** §7.2 — the filesystem outcomes that are a result the model reads; anything undeclared still throws */
 const FILESYSTEM_FAILURES: { readonly [code: string]: string } = {
@@ -79,7 +126,12 @@ async function collectEntries(root: ResolvedPath, maxDepth: number, sink: Walked
         return false;
       }
       const entry = descend(current.directory, dirent.name);
-      sink.push({ ...entry, isDirectory: dirent.isDirectory(), name: dirent.name });
+      sink.push({
+        ...entry,
+        isDirectory: dirent.isDirectory(),
+        isSymbolicLink: dirent.isSymbolicLink(),
+        name: dirent.name
+      });
       if (dirent.isDirectory() && current.depth + 1 < maxDepth) {
         queue.push({ depth: current.depth + 1, directory: entry });
       }
@@ -184,26 +236,33 @@ export async function grepFiles(
   let files: readonly ResolvedPath[];
   try {
     const stats = await fs.promises.lstat(target.absolute);
+    if (stats.isSymbolicLink()) {
+      return `${target.relative}: is a symbolic link, which the workspace does not follow`;
+    }
     complete = stats.isDirectory() ? await collectEntries(target, WALK_MAX_DEPTH, collected) : true;
-    files = stats.isDirectory() ? collected.filter((entry) => !entry.isDirectory) : [target];
+    files = stats.isDirectory() ? collected.filter((entry) => !entry.isDirectory && !entry.isSymbolicLink) : [target];
   } catch (error) {
     return describeFilesystemFailure(error, target.relative);
   }
+  const matchLines = createBudgetedMatcher(options.pattern, GREP_TIME_BUDGET_MS);
   const lines: string[] = [];
   for (const file of files) {
     const content = await fs.promises.readFile(file.absolute);
     if (content.subarray(0, BINARY_PROBE_BYTES).includes(0)) {
       continue;
     }
-    let matches = 0;
-    for (const [index, line] of content.toString('utf8').split('\n').entries()) {
-      if (matches >= options.maxMatches) {
-        break;
+    const fileLines = content.toString('utf8').split('\n');
+    let matched: readonly number[];
+    try {
+      matched = matchLines(fileLines);
+    } catch (error) {
+      if (isExecutionTimeout(error)) {
+        return `${target.relative}: the pattern took longer than ${GREP_TIME_BUDGET_MS}ms to run and was stopped`;
       }
-      if (options.pattern.test(line)) {
-        lines.push(`${file.relative}:${index + 1}:${line}`);
-        matches += 1;
-      }
+      throw error;
+    }
+    for (const index of matched.slice(0, options.maxMatches)) {
+      lines.push(`${file.relative}:${index + 1}:${fileLines[index]}`);
     }
   }
   if (lines.length === 0) {

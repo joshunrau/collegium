@@ -98,6 +98,22 @@ describe('workspace reads', () => {
       expect(await grepFiles(at('.'), { maxMatches: 1, pattern: /ERROR/u })).toBe('logs/app.log:2:ERROR one');
     });
 
+    it('should skip a symbolic link rather than read through it', async () => {
+      write('real/target.log', 'ERROR here');
+      fs.symlinkSync(path.join(root, 'real/target.log'), path.join(root, 'link.log'));
+      expect(await grepFiles(at('.'), { maxMatches: 20, pattern: /ERROR/u })).toBe('real/target.log:1:ERROR here');
+      expect(await grepFiles(at('link.log'), { maxMatches: 20, pattern: /ERROR/u })).toBe(
+        'link.log: is a symbolic link, which the workspace does not follow'
+      );
+    });
+
+    it('should stop a pattern that runs past its budget rather than stall the process', async () => {
+      write('notes.md', `${'a'.repeat(40)}!`);
+      expect(await grepFiles(at('.'), { maxMatches: 20, pattern: /^(a+)+$/u })).toBe(
+        '.: the pattern took longer than 2000ms to run and was stopped'
+      );
+    }, 10_000);
+
     it('should skip a binary file', async () => {
       write('image.bin', Buffer.from([0x45, 0x00, 0x52]));
       expect(await grepFiles(at('.'), { maxMatches: 20, pattern: /E/u })).toBe('.: nothing matches the pattern');
