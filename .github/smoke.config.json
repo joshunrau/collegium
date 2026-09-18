@@ -10,5 +10,5 @@
     }
   },
   "plugins": ["bookmark"],
-  "providers": { "deepseek": { "apiKey": "smoke-test-key" } }
+  "providers": { "deepseek": { "apiKey": "smoke-test-key", "baseUrl": "http://127.0.0.1:9" } }
 }

@@ -173,7 +173,8 @@ jobs:
           tags: ghcr.io/joshunrau/collegium-mattermost:latest
           cache-from: type=gha,scope=mattermost-linux-amd64
           cache-to: type=gha,mode=max,scope=mattermost-linux-amd64
-      # no credentials: agents boot idle and call no model, so any well-formed key satisfies the schema
+      # no credentials: the provider points at a closed port, so the boot credential probe (§7.3) finds
+      # it unreachable and warns rather than stopping boot on the placeholder key's 401
       - name: Declare a Deployment That Loads a Plugin
         run: |
           cp .env.template .env
