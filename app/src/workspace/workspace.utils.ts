@@ -30,6 +30,9 @@ function isWithin(root: string, candidate: string): boolean {
  * disproportionate number of tests relative to its size on purpose. Resist every request to
  * widen it; a second gated write tool with its own path handling would be two boundaries that
  * must agree.
+ *
+ * The toolset's reads resolve through it too, which is what leaves them ungated (§3.4): one
+ * boundary over one directory, whichever tool reaches it.
  */
 export function resolveWorkspacePath(
   workspaceDir: string,

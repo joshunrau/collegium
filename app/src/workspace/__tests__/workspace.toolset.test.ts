@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import type { AnyTool } from '@collegium/core/toolsets';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
@@ -11,7 +12,7 @@ import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.f
 
 import { WORKSPACE_TOOLSET } from '../workspace.toolset.ts';
 
-const { write } = WORKSPACE_TOOLSET.tools;
+const { grep, list, read, stat, write } = WORKSPACE_TOOLSET.tools;
 
 describe('WORKSPACE_TOOLSET', () => {
   let outside: string;
@@ -29,11 +30,13 @@ describe('WORKSPACE_TOOLSET', () => {
     fs.rmSync(path.dirname(workspace), { force: true, recursive: true });
   });
 
-  const execute = (args: { content: string; path: string }, root?: string) => {
+  const run = (tool: AnyTool, args: unknown, root?: string) => {
     const agents = MockFactory.createMock(AgentRegistry);
     agents.get.mockReturnValue({ workspaceDir: root ?? workspace } as never);
-    return executeTool(write, args, { agents, turn: buildToolTurnScope() });
+    return executeTool(tool, args, { agents, turn: buildToolTurnScope() });
   };
+
+  const execute = (args: { content: string; path: string }, root?: string) => run(write, args, root);
 
   describe('confinement (§6.1)', () => {
     it('rejects an absolute path', async () => {
@@ -96,6 +99,46 @@ describe('WORKSPACE_TOOLSET', () => {
         { agents, turn: buildToolTurnScope() }
       );
       expect(result.error).toStrictEqual({ kind: 'exception', message: 'no agent is registered as "mira"' });
+    });
+  });
+
+  describe('reads', () => {
+    it('gates nothing but the write (§3.4)', () => {
+      const gated = Object.entries(WORKSPACE_TOOLSET.tools)
+        .filter(([, tool]) => tool.approval !== undefined)
+        .map(([name]) => name);
+      expect(gated).toStrictEqual(['write']);
+    });
+
+    it('resolves every read through the same confinement as the write', async () => {
+      const absolute = await run(read, { path: '/etc/passwd' });
+      expect(absolute.error).toMatchObject({ kind: 'invalid-arguments' });
+      const escaping = await run(list, { all: false, path: '../outside' });
+      expect(escaping.error).toMatchObject({ kind: 'invalid-arguments' });
+    });
+
+    it('reads back a file the write tool wrote, with a replay line in place of the text (§3.8)', async () => {
+      await execute({ content: 'one\ntwo', path: 'a/notes.md' });
+      const result = await run(read, { path: 'a/notes.md' });
+      expect(result.value).toStrictEqual({ replay: '[read a/notes.md (7 bytes)]', text: 'one\ntwo' });
+    });
+
+    it('lists and stats what the write tool left behind', async () => {
+      await execute({ content: 'hello', path: 'notes.md' });
+      expect((await run(list, { all: false, path: '.' })).value?.text).toBe('notes.md (5 bytes)');
+      expect((await run(stat, { path: 'notes.md' })).value?.text).toContain('notes.md: file, 5 bytes');
+    });
+
+    it('refuses a grep pattern that does not compile, naming nothing about syntax (§7.2)', async () => {
+      const result = await run(grep, { maxMatches: 20, path: '.', pattern: '(' });
+      expect(result.error).toStrictEqual({ kind: 'invalid-arguments', message: '"(" is not a usable pattern' });
+    });
+
+    it('traces the path a read names', () => {
+      expect(list.traceDetail?.({ all: false, path: 'logs' })).toBe('logs');
+      expect(grep.traceDetail?.({ maxMatches: 20, path: 'logs/app.log', pattern: 'ERROR' })).toBe(
+        '"ERROR" in logs/app.log'
+      );
     });
   });
 

@@ -31,7 +31,10 @@ export const WEB_TOOLSET_DEF = {
   tools: ['click', 'fetch', 'fill', 'hover', 'navigate', 'search']
 } as const satisfies ToolsetDef;
 
-export const WORKSPACE_TOOLSET_DEF = { name: 'workspace', tools: ['write'] } as const satisfies ToolsetDef;
+export const WORKSPACE_TOOLSET_DEF = {
+  name: 'workspace',
+  tools: ['find', 'grep', 'list', 'read', 'stat', 'write']
+} as const satisfies ToolsetDef;
 
 /**
  * §8 — core: in every agent's tool set, never grantable, and naming one in config is a boot
