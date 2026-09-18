@@ -197,7 +197,7 @@ describe('/collegium steer', () => {
 
     const followUp = inference.requestsFor('mira').at(-1)!;
     expect(followUp.messages.at(-1)).toMatchObject({
-      content: expect.stringMatching(/^@\w+: use the staging URL$/),
+      content: expect.stringMatching(/^@[\w.-]+: use the staging URL$/),
       role: 'user'
     });
     expect(followUp.messages.some((message) => message.role === 'tool')).toBe(false);
