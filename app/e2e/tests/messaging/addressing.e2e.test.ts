@@ -114,7 +114,9 @@ describe('Multi-agent mentions', () => {
     inference.forgetRequests();
 
     await channels.main.say(`@${agents.mira.username} @${agents.owen.username} split this between you`);
-    await channels.main.awaitPostFrom('system', { text: '⚠️ Address one agent per message.' });
+    await channels.main.awaitPostFrom('system', {
+      text: '⚠️ Address one agent per message. To name an agent without addressing it, put its handle in backticks: `@username`.'
+    });
 
     expect(inference.requests()).toHaveLength(0);
   });
@@ -126,7 +128,9 @@ describe('Multi-agent mentions', () => {
     inference.willReply({ agent: 'mira', contains: 'sentinel' }, textResponse(reply));
 
     await channels.main.say(`@${agents.mira.username} @${agents.owen.username} nobody take this`);
-    await channels.main.awaitPostFrom('system', { text: '⚠️ Address one agent per message.' });
+    await channels.main.awaitPostFrom('system', {
+      text: '⚠️ Address one agent per message. To name an agent without addressing it, put its handle in backticks: `@username`.'
+    });
     await channels.main.mention('mira', 'sentinel');
     await channels.main.awaitReplyFrom('mira', { text: reply });
 

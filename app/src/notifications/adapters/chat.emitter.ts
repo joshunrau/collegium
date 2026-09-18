@@ -45,7 +45,10 @@ export class ChatEmitter extends NotificationsEmitter {
               : `respond-to-all channel ${reason.channelId} now holds ${reason.agentUsernames.length} agents (${reason.agentUsernames.join(', ')})`;
           return `🛑 **Halted** — ${cause}. No agent will act until a human posts /collegium resume.`;
         })
-        .with({ kind: 'multi-mention-refusal' }, () => '⚠️ Address one agent per message.')
+        // §4.5 — the refusal carries its remedy: a handle inside code is no mention in Mattermost's grammar
+        .with({ kind: 'multi-mention-refusal' }, () => {
+          return '⚠️ Address one agent per message. To name an agent without addressing it, put its handle in backticks: `@username`.';
+        })
         .with({ kind: 'offline' }, (event) => {
           return event.reason === 'crash'
             ? '🔴 **Offline** — the orchestrator crashed. Agents are not responding.'

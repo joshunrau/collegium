@@ -95,7 +95,10 @@ describe('ChatEmitter', () => {
 
   it('should post the §4.5 correction as a fixed template in the offending channel', async () => {
     await chatEmitter.notify({ channelId: 'channel-1', kind: 'multi-mention-refusal' });
-    expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith('channel-1', '⚠️ Address one agent per message.');
+    expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
+      'channel-1',
+      '⚠️ Address one agent per message. To name an agent without addressing it, put its handle in backticks: `@username`.'
+    );
     expect(chatGateway.postAsSystem).not.toHaveBeenCalled();
   });
 
