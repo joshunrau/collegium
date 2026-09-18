@@ -59,7 +59,7 @@ type Script = {
   readonly hold?: Deferred<void>;
   readonly matcher: InferenceStub.Matcher;
   remaining: number;
-  readonly response: InferenceStub.Response;
+  response: InferenceStub.Response;
 };
 
 function describeMatcher(matcher: InferenceStub.Matcher): string {
@@ -198,7 +198,8 @@ declare namespace InferenceStub {
   type BlockedCompletion = {
     /** resolves once the app has asked for this completion, so the channel is provably busy */
     readonly arrived: Promise<void>;
-    readonly release: () => void;
+    /** lets the held completion through, answering with `response` where the reply depends on what arrived meanwhile */
+    readonly release: (response?: Response) => void;
   };
   type FailureOptions = ScriptOptions & {
     status?: number;
@@ -345,10 +346,14 @@ class InferenceStub {
     // invisible there — the hold is tracked separately or a failing test strands it for 60s
     const active = { description: describeMatcher(matcher), hold };
     this.activeHolds.add(active);
-    this.scripts.push({ arrival, hold, matcher, remaining: 1, response });
+    const script: Script = { arrival, hold, matcher, remaining: 1, response };
+    this.scripts.push(script);
     return {
       arrived: arrival.promise,
-      release: () => {
+      release: (late) => {
+        if (late !== undefined) {
+          script.response = late;
+        }
         this.activeHolds.delete(active);
         hold.resolve();
       }
