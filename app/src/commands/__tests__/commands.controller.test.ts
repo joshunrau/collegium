@@ -67,10 +67,30 @@ describe('CommandsController', () => {
     expect(execute).toHaveBeenCalledExactlyOnceWith({
       channelId: 'channel-1',
       text: 'memory mira prune ref-1',
+      triggerId: undefined,
       userId: 'casey-id',
       username: 'casey'
     });
     expect(response).toStrictEqual({ response_type: 'ephemeral', text: 'stopping' });
+  });
+
+  it('should carry the trigger id the plugin forwards, and none when it forwards an empty one (§8.5)', async () => {
+    await commandsController.handle({
+      channel_id: 'channel-1',
+      text: 'clear',
+      trigger_id: 'trigger-1',
+      user_id: 'casey-id',
+      user_name: 'casey'
+    });
+    expect(execute).toHaveBeenLastCalledWith(expect.objectContaining({ triggerId: 'trigger-1' }));
+    await commandsController.handle({
+      channel_id: 'channel-1',
+      text: 'clear',
+      trigger_id: '',
+      user_id: 'casey-id',
+      user_name: 'casey'
+    });
+    expect(execute).toHaveBeenLastCalledWith(expect.objectContaining({ triggerId: undefined }));
   });
 
   it('should stand behind the callback token guard, so no body is read without it (§6.4)', () => {

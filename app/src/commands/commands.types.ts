@@ -1,6 +1,8 @@
 export type CommandInput = {
   channelId: string;
   text: string;
+  /** the substrate's short-lived handle for opening a dialog from this execution (§8.5) */
+  triggerId?: string;
   /** who ran it, by the substrate's own id; the name is for display and the id is for authority (§3.7) */
   userId: string;
   username: string;

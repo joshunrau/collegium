@@ -13,6 +13,7 @@ export const COMMAND_TRIGGER = 'collegium';
 /** the §8.4 command surface — the one list every other representation derives from */
 export const COMMAND_TRIGGERS = [
   'approvals',
+  'clear',
   'forget',
   'inspect',
   'kill',
@@ -32,6 +33,10 @@ export type CommandTrigger = (typeof COMMAND_TRIGGERS)[number];
 
 export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefinition } = {
   approvals: { hint: '[agent]', purpose: 'List approvals waiting on a human' },
+  clear: {
+    hint: '[--memories]',
+    purpose: "Delete every post here and every agent's record of them, after confirmation"
+  },
   forget: { hint: '{post-id}', purpose: 'Remove a post from agent context' },
   inspect: { hint: '{agent}', purpose: "Show an agent's model, tools, skills and system prompt" },
   kill: { hint: '', purpose: 'Abandon current turns in this channel immediately' },

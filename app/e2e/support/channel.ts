@@ -82,6 +82,11 @@ class Channel<AgentName extends string> {
     this.teamId = teamId;
   }
 
+  /** every post the channel still holds, oldest and newest alike — what a clear (§8.5) leaves behind */
+  async allPosts(): Promise<Channel.Post[]> {
+    return toChannelPosts(await this.client.getPosts(this.id, 0, 200));
+  }
+
   async awaitDialog(options: { timeoutMs?: number; title?: string } = {}): Promise<WorkspaceSocket.Dialog> {
     const { title } = options;
     return waitFor({

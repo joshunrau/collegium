@@ -735,6 +735,7 @@ Every command is a subcommand of one slash command, `/collegium`, so typing `/co
 
 - **`/collegium trace {post-id}`** — full tool trace for a turn. Ephemeral.
 - **`/collegium forget {post-id}`** — remove a post from agent context. Posts.
+- **`/collegium clear [--memories]`** — delete every post in this channel and every agent's record of them, after a confirmation; `--memories` also deletes the memories their turns here wrote (§8.5). Posts.
 - **`/collegium reset {agent}`** — mark an episode boundary. Posts.
 - **`/collegium stop`** — abort current turns in this channel at the next boundary. Posts.
 - **`/collegium kill`** — abandon current turns in this channel immediately. Posts.
