@@ -95,6 +95,15 @@ describe('FetchClient', () => {
     expect(pinnedGetMock).toHaveBeenCalledTimes(1);
   });
 
+  it('should answer a redirect to an address that does not parse as a failed page, not an exception', async () => {
+    pinnedGetMock.mockResolvedValueOnce(redirect('http://['));
+    const result = await client.get('https://northmoor.example/');
+    expect(result.error).toStrictEqual({
+      kind: 'navigation',
+      message: 'https://northmoor.example/ redirected to "http://[", which is not an address'
+    });
+  });
+
   it('should give up on a chain longer than the redirect ceiling', async () => {
     pinnedGetMock.mockImplementation(() => Promise.resolve(redirect('https://northmoor.example/again')));
     const result = await client.get('https://northmoor.example/');

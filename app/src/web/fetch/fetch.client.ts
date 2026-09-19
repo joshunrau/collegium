@@ -72,7 +72,14 @@ export class FetchClient {
         return Result.ok({ response, url: current });
       }
       response.body.destroy();
-      current = new URL(location, current).href;
+      const next = URL.parse(location, current);
+      if (next === null) {
+        return Result.err({
+          kind: 'navigation',
+          message: `${current} redirected to "${location}", which is not an address`
+        });
+      }
+      current = next.href;
     }
     return Result.err({ kind: 'navigation', message: `more than ${MAX_REDIRECTS} redirects from ${url}` });
   }
