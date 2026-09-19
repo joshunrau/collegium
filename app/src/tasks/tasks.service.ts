@@ -5,9 +5,10 @@ import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
+import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
-import type { Model } from '@/prisma/prisma.types.ts';
+import type { Model, TransactionClient } from '@/prisma/prisma.types.ts';
 import { createRecordId } from '@/prisma/prisma.utils.ts';
 import { renderReference } from '@/utils/reference.utils.ts';
 
@@ -100,6 +101,11 @@ export class TasksService {
   }
 
   /** open units where the agent is creator or assignee, in this channel, oldest first (§3.15) */
+  /** §8.5 — units are control state pointing at posts (§3.15), and the posts they point at are going */
+  async eraseBefore(channelId: string, boundary: EpisodeBoundary, transaction: TransactionClient): Promise<void> {
+    await transaction.workUnit.deleteMany({ where: { channelId, createdAt: { lt: boundary.eventsAfter } } });
+  }
+
   async listOpenFor(input: { agentUsername: string; channelId: string }): Promise<OpenUnitSummary[]> {
     const rows = await this.units.findMany({
       orderBy: { createdAt: 'asc' },

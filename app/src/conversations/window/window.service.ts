@@ -81,6 +81,15 @@ export class WindowService {
     return { entries: entries.toReversed(), oldestAt };
   }
 
+  /** §8.5 — a cleared channel's anchors name entries that no longer exist, so its next window starts afresh */
+  forgetAnchorsIn(channelId: string): void {
+    for (const key of this.anchors.keys()) {
+      if (key.endsWith(`\n${channelId}`)) {
+        this.anchors.delete(key);
+      }
+    }
+  }
+
   /** §8.4 — where the last window built here reached back to, for a reader outside a turn; nothing built yet means nothing to be earlier than */
   reachesBackTo(agentUsername: string, channelId: string): Date | undefined {
     return this.anchors.get(this.anchorKey(agentUsername, channelId));

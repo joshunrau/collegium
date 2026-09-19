@@ -2,7 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
-import type { Model } from '@/prisma/prisma.types.ts';
+import type { Model, TransactionClient } from '@/prisma/prisma.types.ts';
 
 import type { ConversationFailure, EpisodeBoundary } from '../conversations.types.ts';
 
@@ -12,6 +12,11 @@ export class EpisodesService {
     @InjectModel('Episode') private readonly episodes: Model<'Episode'>,
     @InjectModel('Post') private readonly posts: Model<'Post'>
   ) {}
+
+  /** §8.5 — every boundary set before the clear; each names a post the clear removes, so it bounds nothing */
+  async eraseBefore(channelId: string, boundary: EpisodeBoundary, transaction: TransactionClient): Promise<void> {
+    await transaction.episode.deleteMany({ where: { channelId, createdAt: { lt: boundary.eventsAfter } } });
+  }
 
   /** removes one post from every agent's context (§8.4) — the row stays, as `/trace` provenance */
   async forget(postId: string): Promise<Result<void, ConversationFailure>> {

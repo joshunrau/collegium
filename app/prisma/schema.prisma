@@ -320,6 +320,7 @@ model Memory {
 
   @@index([agentUsername, createdAt])
   @@index([agentUsername, lastUsedAt])
+  @@index([originPostId])
 }
 
 model Episode {

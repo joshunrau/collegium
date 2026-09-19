@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import { PrismaService } from '@/prisma/prisma.service.ts';
-import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
+import type { Model, ModelRow, TransactionClient } from '@/prisma/prisma.types.ts';
 
 import { MemoryLockService } from './locks/memory-lock.service.ts';
 import { renderMemoryReference } from './memory.utils.ts';
@@ -17,6 +17,9 @@ import type {
   MemoryWrite,
   MemoryWriteReceipt
 } from './memory.types.ts';
+
+/** how many origin post ids one `in` carries — well inside SQLite's bound on variables in a statement */
+const ORIGIN_CHUNK_SIZE = 500;
 
 @Injectable()
 export class MemoryService {
@@ -44,6 +47,14 @@ export class MemoryService {
     });
   }
 
+  /** §8.5 — the named entries, under the per-agent lock as any delete is; returns how many were still there */
+  deleteMany(agentUsername: string, ids: readonly string[]): Promise<number> {
+    return this.locks.run(agentUsername, async () => {
+      const { count } = await this.memories.deleteMany({ where: { agentUsername, id: { in: [...ids] } } });
+      return count;
+    });
+  }
+
   /** oldest first; loaded into the system prompt on every turn, which is why bodies are not selected (§3.6) */
   async list(agentUsername: string): Promise<MemoryListing[]> {
     const entries = await this.memories.findMany({
@@ -52,6 +63,24 @@ export class MemoryService {
       where: { agentUsername }
     });
     return entries.map(({ description, id }) => ({ description, reference: renderMemoryReference(id) }));
+  }
+
+  /** §8.5 — every entry whose provenance (§3.6) is one of the named posts, whichever agent holds it */
+  async listOriginatingFrom(
+    originPostIds: readonly string[],
+    transaction: TransactionClient
+  ): Promise<{ agentUsername: string; id: string }[]> {
+    const found: { agentUsername: string; id: string }[] = [];
+    for (let start = 0; start < originPostIds.length; start += ORIGIN_CHUNK_SIZE) {
+      const chunk = originPostIds.slice(start, start + ORIGIN_CHUNK_SIZE);
+      found.push(
+        ...(await transaction.memory.findMany({
+          select: { agentUsername: true, id: true },
+          where: { originPostId: { in: chunk } }
+        }))
+      );
+    }
+    return found;
   }
 
   /**

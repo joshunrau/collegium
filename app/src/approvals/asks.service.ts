@@ -6,9 +6,10 @@ import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts'
 import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { EnvService } from '@/config/env/env.service.ts';
+import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
-import type { AskStatus, Model, ModelRow } from '@/prisma/prisma.types.ts';
+import type { AskStatus, Model, ModelRow, TransactionClient } from '@/prisma/prisma.types.ts';
 import { createRecordId } from '@/prisma/prisma.utils.ts';
 
 import { renderAskActions, renderAskPrompt, renderResolvedAskPrompt } from './asks.renderer.ts';
@@ -75,6 +76,11 @@ export class AsksService {
   /** §7.5 — the sweep both channel-scoped commands run, so a parked turn is reachable at all */
   async cancelPendingIn(channelId: string, reason: 'kill' | 'stop'): Promise<number> {
     return this.cancelWhere({ turn: { channelId } }, reason);
+  }
+
+  /** §8.5 — the questions of turns a clear cuts; none is pending, since every turn there has ended */
+  async eraseBefore(channelId: string, boundary: EpisodeBoundary, transaction: TransactionClient): Promise<void> {
+    await transaction.ask.deleteMany({ where: { turn: { channelId, startedAt: { lt: boundary.eventsAfter } } } });
   }
 
   async hasPendingFor(agentUsername: string, channelId: string): Promise<boolean> {

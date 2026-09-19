@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
+import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
-import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
+import type { Model, ModelRow, TransactionClient } from '@/prisma/prisma.types.ts';
 
 export type QueueEntry = ModelRow<'QueueEntry'>;
 
@@ -56,6 +57,24 @@ export class QueueService {
   }
 
   /** every standing entry — what the boot and /resume sweep walks (§7.3, §7.4) */
+  /**
+   * §8.5 — an entry nothing reached during the clear goes with the posts it pointed at. One enqueued
+   * meanwhile stays, pointed at the notice: `enqueue` keeps the earliest post, which is now gone, and
+   * a drain from the notice reads everything that arrived after it.
+   */
+  async eraseBefore(
+    channelId: string,
+    boundary: EpisodeBoundary,
+    replacementPostId: string,
+    transaction: TransactionClient
+  ): Promise<void> {
+    await transaction.queueEntry.deleteMany({ where: { channelId, lastEnqueuedAt: { lt: boundary.eventsAfter } } });
+    await transaction.queueEntry.updateMany({
+      data: { earliestUnprocessedPostId: replacementPostId },
+      where: { channelId }
+    });
+  }
+
   listAll(): Promise<QueueEntry[]> {
     return this.entries.findMany({});
   }

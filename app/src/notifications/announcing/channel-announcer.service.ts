@@ -28,6 +28,7 @@ export class ChannelAnnouncer {
     if (posted.success) {
       const { authorUsername, createdAt, postId } = posted.value;
       return {
+        authorKind: 'system',
         authorUsername,
         createdAt,
         edit: (revised) => this.chatGateway.updateSystemPost(postId, { text: revised }),
@@ -47,6 +48,7 @@ export class ChannelAnnouncer {
     }
     const { createdAt, postId } = relayed.value;
     return {
+      authorKind: 'agent',
       authorUsername: agent.username,
       createdAt,
       edit: (revised) => transport.updatePost(postId, { text: revised }),

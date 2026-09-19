@@ -27,6 +27,7 @@ describe('CommandsService', () => {
   beforeEach(async () => {
     channelAnnouncer = MockFactory.createMock(ChannelAnnouncer);
     channelAnnouncer.announce.mockResolvedValue({
+      authorKind: 'system',
       authorUsername: 'collegium',
       createdAt: new Date(0),
       edit: () => Promise.resolve(Result.ok()),

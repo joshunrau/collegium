@@ -120,6 +120,9 @@ export type PrismaModelKey<T extends PrismaModelName = PrismaModelName> = Uncapi
 
 export type Model<T extends PrismaModelName> = PrismaClient[PrismaModelKey<T>];
 
+/** the client inside an interactive `$transaction`, handed to each module that cuts its own tables in it (§8.5) */
+export type TransactionClient = Prisma.TransactionClient;
+
 /** a row as it is read back, derived from the delegate so the generated client stays inside this module */
 export type ModelRow<T extends PrismaModelName> = Awaited<ReturnType<Model<T>['findFirstOrThrow']>>;
 

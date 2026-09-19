@@ -12,7 +12,7 @@ export declare namespace ConversationFailure {
 
 export type ConversationFailure = ConversationFailure.Any;
 
-/** the most recent `/collegium reset` in a channel, as the instants context may not reach behind (§3.8) */
+/** a `/collegium reset`, or the notice a `/collegium clear` cut against (§8.5): the instants context may not reach behind (§3.8) */
 export type EpisodeBoundary = {
   readonly eventsAfter: Date;
   readonly postsAfter: Date;

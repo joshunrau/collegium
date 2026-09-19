@@ -2,10 +2,11 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { ConfigService } from '@/config/config.service.ts';
+import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import type { CompletionUsage } from '@/inference/inference.types.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import { PrismaService } from '@/prisma/prisma.service.ts';
-import type { Model, ModelRow, TurnStatus } from '@/prisma/prisma.types.ts';
+import type { Model, ModelRow, TransactionClient, TurnStatus } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
 import { sumUsageTotals, toReportedTotal } from './turns.utils.ts';
@@ -128,9 +129,33 @@ export class TurnsService {
     return this.turns.count({ where: { startedAt: { gt: moment } } });
   }
 
+  /** §8.5 — the turn record stays as accounting; its content and every pointer to a post go */
+  async eraseContentBefore(
+    channelId: string,
+    boundary: EpisodeBoundary,
+    transaction: TransactionClient
+  ): Promise<void> {
+    const turn = { channelId, startedAt: { lt: boundary.eventsAfter } };
+    await transaction.turnEvent.deleteMany({ where: { turn } });
+    await transaction.turn.updateMany({
+      data: { rootPostId: null, statusPostId: null, triggeringPostId: null },
+      where: turn
+    });
+  }
+
   /** the full §8.3 trace, in the order it happened */
   listEvents(turnId: string): Promise<ModelRow<'TurnEvent'>[]> {
     return this.events.findMany({ orderBy: { sequence: 'asc' }, where: { turnId } });
+  }
+
+  /** §8.5 — the provenance a memory written from this channel carries (§3.6), read before a clear nulls it */
+  async listTriggeringPostIdsIn(channelId: string, transaction: TransactionClient): Promise<string[]> {
+    const turns = await transaction.turn.findMany({
+      distinct: ['triggeringPostId'],
+      select: { triggeringPostId: true },
+      where: { channelId, triggeringPostId: { not: null } }
+    });
+    return turns.flatMap(({ triggeringPostId }) => triggeringPostId ?? []);
   }
 
   /**

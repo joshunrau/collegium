@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
 
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
-import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
+import type { Model, ModelRow, TransactionClient } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
 import type {
   ActivationSource,
   DelegatingTurn,
+  EpisodeBoundary,
   PostAuthorship,
   RecordablePost,
   TurnRequest
@@ -25,6 +26,11 @@ export class ConversationsService {
       where: { id: { in: [...postIds] } }
     });
     return earliest?.id;
+  }
+
+  /** §8.5 — every post older than the boundary, on Mattermost's clock; the boundary post itself stays */
+  async eraseBefore(channelId: string, boundary: EpisodeBoundary, transaction: TransactionClient): Promise<void> {
+    await transaction.post.deleteMany({ where: { channelId, createdAt: { lt: boundary.postsAfter } } });
   }
 
   /**
@@ -117,9 +123,10 @@ export class ConversationsService {
    * effects (§4.5), and the row itself is the claim. A losing call still stamps `authoringTurnId`,
    * since a peer's socket can observe a post before the turn that authored it records it.
    */
-  async record(post: RecordablePost, authorship?: PostAuthorship): Promise<boolean> {
+  async record(post: RecordablePost, authorship?: PostAuthorship, transaction?: TransactionClient): Promise<boolean> {
+    const posts = transaction?.post ?? this.posts;
     try {
-      await this.posts.create({
+      await posts.create({
         data: {
           // undefined leaves the column null, which is what a post carrying nothing should read as
           attachments: post.attachments.length === 0 ? undefined : { files: post.attachments },
@@ -139,7 +146,7 @@ export class ConversationsService {
         throw error;
       }
       if (authorship !== undefined) {
-        await this.posts.updateMany({
+        await posts.updateMany({
           data: { authoringTurnId: authorship.turnId, kind: authorship.kind },
           where: { authoringTurnId: null, id: post.id }
         });

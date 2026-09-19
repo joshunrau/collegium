@@ -6,9 +6,10 @@ import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ChatGateway } from '@/chat/chat.gateway.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
-import type { Model, TriggerSource } from '@/prisma/prisma.types.ts';
+import type { Model, TransactionClient, TriggerSource } from '@/prisma/prisma.types.ts';
 
 import { renderTriggerPost } from './triggers.renderer.ts';
 
@@ -33,6 +34,21 @@ export class TriggersService {
     private readonly transportRegistry: TransportRegistry,
     @InjectModel('Trigger') private readonly triggers: Model<'Trigger'>
   ) {}
+
+  /** §8.5 — a delivered trigger's reference is content; one still pending is future work and stays */
+  async eraseDeliveredBefore(
+    channelId: string,
+    boundary: EpisodeBoundary,
+    transaction: TransactionClient
+  ): Promise<void> {
+    await transaction.trigger.deleteMany({
+      where: {
+        postedAt: { lt: boundary.eventsAfter },
+        status: { in: ['posted', 'resolved'] },
+        targetChannelId: channelId
+      }
+    });
+  }
 
   listOutstanding(agentUsername: string): Promise<Trigger[]> {
     return this.triggers.findMany({
