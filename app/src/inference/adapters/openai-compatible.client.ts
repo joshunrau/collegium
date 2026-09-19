@@ -5,7 +5,7 @@ import { InferenceClient } from '../inference.client.ts';
 import { $CompletionChunk } from '../inference.schemas.ts';
 import { reasoningOf } from '../inference.utils.ts';
 import { createIdleAbort } from '../resilience/idle-abort.utils.ts';
-import { isContextOverflowBody, toCompletionBody } from './openai-compatible.utils.ts';
+import { isContextOverflowBody, parseRetryAfterMs, toCompletionBody } from './openai-compatible.utils.ts';
 import { readServerSentEvents } from './sse.utils.ts';
 import { StreamAssembler } from './stream.assembler.ts';
 import { classifyTransportError } from './transport-reason.utils.ts';
@@ -73,10 +73,12 @@ export class OpenAICompatibleClient extends InferenceClient {
 
   private async classifyFailure(response: Response): Promise<Result<never, InferenceFailure>> {
     if (isRetryableStatus(response.status)) {
+      const retryAfterMs = parseRetryAfterMs(response.headers, Date.now());
       return Result.err({
         kind: 'transport',
         reason: 'http_status',
-        status: response.status
+        status: response.status,
+        ...(retryAfterMs !== undefined && { retryAfterMs })
       } satisfies InferenceFailure.Transport);
     }
     const body = await response.text().catch(() => undefined);

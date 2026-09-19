@@ -112,7 +112,7 @@ describe('$Config', () => {
       activation: { debounce: { ceilingMs: 15_000, windowMs: 750 }, foldLimit: 3 },
       agentDefaults: { toolSettings: {} },
       display: { timezone: 'UTC' },
-      inference: { retry: { backoffMs: 250, maxAttempts: 3 }, timeoutMs: 120_000 },
+      inference: { retry: { backoffMs: 1_000, maxAttempts: 5, maxDelayMs: 30_000 }, timeoutMs: 120_000 },
       logging: { level: 'info' },
       mattermost: { channels: {}, mainChannel: 'town-square', systemBotUsername: 'orchestrator' },
       notifications: { lifecycle: true, stalls: { longTurnMs: 1_800_000, standingQueueMs: 600_000 } },

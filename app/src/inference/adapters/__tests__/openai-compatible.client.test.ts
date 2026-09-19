@@ -470,10 +470,10 @@ describe('OpenAICompatibleClient', () => {
     await expectFailure({ kind: 'transport', reason: 'http_status', status: 503 });
   });
 
-  it('classifies a rate limit as a transport failure', async () => {
-    fetchMock.mockResolvedValueOnce(new Response('slow down', { status: 429 }));
+  it('classifies a rate limit as a transport failure, carrying the wait it asked for', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('slow down', { headers: { 'retry-after': '7' }, status: 429 }));
 
-    await expectFailure({ kind: 'transport', reason: 'http_status', status: 429 });
+    await expectFailure({ kind: 'transport', reason: 'http_status', retryAfterMs: 7000, status: 429 });
   });
 
   it('classifies a rejection naming context length as a context overflow, never a provider failure (§7.1)', async () => {

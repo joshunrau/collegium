@@ -376,13 +376,23 @@ export const $InferenceRetryPolicy = z.strictObject({
     .int()
     .positive()
     .default(CONFIG_DEFAULTS.inference.retry.backoffMs)
-    .describe('Delay before the first retry of a transport failure, doubling with each further attempt'),
+    .describe(
+      'Delay before the first retry of a transport failure, doubling with each further attempt and shortened by up to a quarter at random, so agents sharing a provider key do not retry in step'
+    ),
   maxAttempts: z
     .number()
     .int()
     .positive()
     .default(CONFIG_DEFAULTS.inference.retry.maxAttempts)
-    .describe('Total attempts allowed for one completion, the first attempt included')
+    .describe('Total attempts allowed for one completion, the first attempt included'),
+  maxDelayMs: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.inference.retry.maxDelayMs)
+    .describe(
+      'The longest single wait between attempts: the cap on the doubling delay, and on a wait the provider asks for with Retry-After. A provider asking for longer ends the turn at once, naming the rate limit, rather than stalling it (§7.2).'
+    )
 });
 
 export type $InferenceConfig = z.infer<typeof $InferenceConfig>;

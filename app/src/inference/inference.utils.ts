@@ -82,7 +82,11 @@ export function describeTransportReason(failure: InferenceFailure.Transport): st
   return match(failure)
     .with({ reason: 'connect_timeout' }, () => 'connecting timed out')
     .with({ reason: 'dns' }, () => 'the provider’s address could not be resolved')
-    .with({ reason: 'http_status' }, ({ status }) => `the provider answered HTTP ${status ?? 'error'}`)
+    .with({ reason: 'http_status' }, ({ retryAfterMs, status }) => {
+      const answer =
+        status === 429 ? 'the provider rate-limited the request' : `the provider answered HTTP ${status ?? 'error'}`;
+      return retryAfterMs === undefined ? answer : `${answer} and asked to wait ${Math.ceil(retryAfterMs / 1000)}s`;
+    })
     .with({ reason: 'interrupted' }, () => 'the provider interrupted the completion before it finished')
     .with({ reason: 'refused' }, () => 'the connection was refused')
     .with({ reason: 'reset' }, () => 'the connection was closed before a response arrived')

@@ -27,7 +27,7 @@ describe('TransportRetrier', () => {
       return complete(request, options);
     }
   };
-  const retrier = new TransportRetrier(inner, { backoffMs: 100, maxAttempts: 3 });
+  const retrier = new TransportRetrier(inner, { backoffMs: 100, maxAttempts: 3, maxDelayMs: 10_000 }, () => 0);
 
   const completeWithTimers = async (): Promise<Result<CompletionResult, InferenceFailure>> => {
     const result = retrier.complete(completionRequest);
@@ -67,6 +67,23 @@ describe('TransportRetrier', () => {
     await completeWithTimers();
 
     expect(attemptTimes.at(1)).toBe(5000);
+  });
+
+  it('ends at once when the provider asks for a wait past the longest one allowed (§7.2)', async () => {
+    const tooLong = failure({ kind: 'transport', reason: 'http_status', retryAfterMs: 60_000, status: 429 });
+    complete.mockResolvedValueOnce(tooLong);
+
+    await expect(completeWithTimers()).resolves.toStrictEqual(tooLong);
+    expect(attemptTimes).toStrictEqual([0]);
+  });
+
+  it('shortens each backoff by up to a quarter at random, capped at the longest wait', async () => {
+    const jittered = new TransportRetrier(inner, { backoffMs: 100, maxAttempts: 4, maxDelayMs: 300 }, () => 1);
+    const result = jittered.complete(completionRequest);
+    await vi.runAllTimersAsync();
+    await result;
+
+    expect(attemptTimes).toStrictEqual([0, 75, 225, 450]);
   });
 
   it('does not retry a provider failure', async () => {

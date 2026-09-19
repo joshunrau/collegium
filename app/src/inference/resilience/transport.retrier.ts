@@ -6,10 +6,14 @@ import { InferenceClient } from '../inference.client.ts';
 
 import type { CompletionOptions, CompletionRequest, CompletionResult, InferenceFailure } from '../inference.types.ts';
 
+/** the most a backoff is shortened at random, as a fraction of it */
+const JITTER_RATIO = 0.25;
+
 export class TransportRetrier extends InferenceClient {
   constructor(
     private readonly inner: InferenceClient,
-    private readonly policy: $InferenceRetryPolicy
+    private readonly policy: $InferenceRetryPolicy,
+    private readonly random: () => number = Math.random
   ) {
     super();
   }
@@ -29,13 +33,26 @@ export class TransportRetrier extends InferenceClient {
       if (result.success || !TransportRetrier.isRetried(result.error) || options.signal?.aborted) {
         return result;
       }
-      const retryAfterMs = result.error.kind === 'transport' ? result.error.retryAfterMs : undefined;
-      await delay(retryAfterMs ?? this.policy.backoffMs * 2 ** (attempt - 1));
+      const waitMs = this.measureWaitBefore(attempt, result.error);
+      if (waitMs === undefined) {
+        return result;
+      }
+      await delay(waitMs);
       if (options.signal?.aborted) {
         return result;
       }
       result = await this.inner.complete(request, options);
     }
     return result;
+  }
+
+  /** §7.2 — a wait the provider asked for is honoured as asked up to the cap, and one past it is no retry at all */
+  private measureWaitBefore(attempt: number, failure: InferenceFailure): number | undefined {
+    const retryAfterMs = failure.kind === 'transport' ? failure.retryAfterMs : undefined;
+    if (retryAfterMs !== undefined) {
+      return retryAfterMs <= this.policy.maxDelayMs ? retryAfterMs : undefined;
+    }
+    const backoffMs = Math.min(this.policy.maxDelayMs, this.policy.backoffMs * 2 ** (attempt - 1));
+    return backoffMs * (1 - JITTER_RATIO * this.random());
   }
 }

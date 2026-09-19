@@ -12,7 +12,7 @@ export const CONFIG_DEFAULTS = {
     timezone: 'UTC'
   },
   inference: {
-    retry: { backoffMs: 250, maxAttempts: 3 },
+    retry: { backoffMs: 1_000, maxAttempts: 5, maxDelayMs: 30_000 },
     timeoutMs: 120_000
   },
   logging: {

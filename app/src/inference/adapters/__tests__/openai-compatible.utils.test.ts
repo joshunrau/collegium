@@ -1,7 +1,7 @@
 import type { $ModelRef } from '@collegium/config';
 import { describe, expect, it } from 'vitest';
 
-import { isContextOverflowBody, toCompletionBody } from '../openai-compatible.utils.ts';
+import { isContextOverflowBody, parseRetryAfterMs, toCompletionBody } from '../openai-compatible.utils.ts';
 
 import type { CompletionRequest } from '../../inference.types.ts';
 
@@ -210,5 +210,21 @@ describe('isContextOverflowBody', () => {
 
   it('should leave an unrelated rejection alone', () => {
     expect(isContextOverflowBody('invalid api key')).toBe(false);
+  });
+});
+
+describe('parseRetryAfterMs', () => {
+  const now = Date.parse('2026-09-18T12:00:00Z');
+  const parse = (headers: { [name: string]: string }) => parseRetryAfterMs(new Headers(headers), now);
+
+  it('should read seconds, an HTTP date, and OpenAI’s milliseconds header, preferring the last', () => {
+    expect(parse({ 'retry-after': '20' })).toBe(20_000);
+    expect(parse({ 'retry-after': 'Fri, 18 Sep 2026 12:00:30 GMT' })).toBe(30_000);
+    expect(parse({ 'retry-after': '20', 'retry-after-ms': '1500' })).toBe(1500);
+  });
+
+  it('should read no wait from a header that states none', () => {
+    expect(parse({})).toBeUndefined();
+    expect(parse({ 'retry-after': 'soon' })).toBeUndefined();
   });
 });
