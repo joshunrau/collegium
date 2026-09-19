@@ -1,6 +1,7 @@
 import { Result } from '@collegium/core/utils';
 import { describe, expect, it } from 'vitest';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { buildToolTurnScope, executeTool, renderApproval } from '@/testing/factories/tool-turn.factory.ts';
 
@@ -9,9 +10,13 @@ import { SHELL_TOOLSET } from '../shell.toolset.ts';
 
 const { run } = SHELL_TOOLSET.tools;
 
+const mira = { tools: ['shell'], username: 'mira' } as never;
+
 function buildContext() {
+  const agents = MockFactory.createMock(AgentRegistry);
+  agents.get.mockReturnValue(mira);
   const shell = MockFactory.createMock(ShellService);
-  const context = { shell, turn: buildToolTurnScope() };
+  const context = { agents, shell, turn: buildToolTurnScope() };
   return { context, shell };
 }
 
@@ -20,7 +25,7 @@ describe('SHELL_TOOLSET', () => {
     const { context, shell } = buildContext();
     shell.run.mockResolvedValue(Result.ok({ text: 'exit 0\nhello' }));
     const result = await executeTool(run, { command: 'echo hello' }, context);
-    expect(shell.run).toHaveBeenCalledWith({ agentUsername: 'mira', command: 'echo hello' });
+    expect(shell.run).toHaveBeenCalledWith({ command: 'echo hello', profile: mira });
     expect(result.unwrap().text).toBe('exit 0\nhello');
   });
 

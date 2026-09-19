@@ -1,4 +1,5 @@
 import { renderToolDisplayName } from '@collegium/core/tools';
+import type { ToolId } from '@collegium/core/tools';
 import type { AnyToolset } from '@collegium/core/toolsets';
 import { isPlainObject } from 'es-toolkit';
 import { z } from 'zod';
@@ -28,6 +29,11 @@ export type ResolveToolSettingsInput = {
 
 /** agentUsername → namespace → parsed settings, holding an entry for every granted toolset that declares a schema */
 export type EffectiveToolSettings = ReadonlyMap<string, ReadonlyMap<string, unknown>>;
+
+/** §8 — whether a grant list reaches one tool: its namespace, or the tool by ref */
+export function isToolGranted(id: ToolId, grants: ReadonlySet<string>): boolean {
+  return grants.has(id[0]) || grants.has(renderToolDisplayName(id));
+}
 
 /** §8 — whether a grant list reaches this toolset at all: its namespace, or any one of its tools by ref */
 export function isToolsetGranted(

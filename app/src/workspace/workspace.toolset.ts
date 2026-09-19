@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -14,7 +13,7 @@ import { fenceCodeBlock, renderCodeSpan } from '@/utils/markdown.utils.ts';
 
 import { findEntries, grepFiles, listDirectory, readLines, statEntry } from './reads/reads.utils.ts';
 import { GREP_DEFAULT_MATCHES, GREP_MAX_MATCHES, WALK_DEFAULT_DEPTH, WALK_MAX_DEPTH } from './workspace.constants.ts';
-import { resolveWorkspacePath } from './workspace.utils.ts';
+import { resolveWorkspacePath, writeFileWhole } from './workspace.utils.ts';
 
 import type { ResolvedPath } from './reads/reads.utils.ts';
 
@@ -198,12 +197,7 @@ export const WORKSPACE_TOOLSET = implementToolset(WORKSPACE_TOOLSET_DEF, {
         if (!target.success) {
           return target;
         }
-        const resolved = target.value.absolute;
-        await fs.promises.mkdir(path.dirname(resolved), { recursive: true });
-        // temp file beside the target, then rename — a crash mid-write cannot leave a half file
-        const staging = path.join(path.dirname(resolved), `.${path.basename(resolved)}.${randomUUID()}.tmp`);
-        await fs.promises.writeFile(staging, args.content, 'utf8');
-        await fs.promises.rename(staging, resolved);
+        await writeFileWhole(target.value.absolute, args.content);
         return Result.ok({ text: `wrote ${args.path} (${Buffer.byteLength(args.content, 'utf8')} bytes)` });
       },
       parameters: z.object({

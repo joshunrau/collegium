@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -54,4 +55,32 @@ export function resolveWorkspacePath(
     return Result.err({ kind: 'invalid-arguments', message: `"${requested}" is a symbolic link` });
   }
   return Result.ok(candidate);
+}
+
+/** a temp file beside the target, then a rename: a crash mid-write cannot leave half a file */
+export async function writeFileWhole(absolutePath: string, content: string): Promise<void> {
+  await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
+  const staging = path.join(path.dirname(absolutePath), `.${path.basename(absolutePath)}.${randomUUID()}.tmp`);
+  await fs.promises.writeFile(staging, content, 'utf8');
+  await fs.promises.rename(staging, absolutePath);
+}
+
+/**
+ * Writes a file the app named into a directory beneath the workspace, keeping only the newest
+ * `retain` files there, newest by name. The name is never the model's, so it is not held to
+ * `resolveWorkspacePath`; a path a model supplies always is. Returns the path relative to the
+ * workspace, which is how the model names it.
+ */
+export async function writeRetainedWorkspaceFile(
+  workspaceDir: string,
+  file: { readonly content: string; readonly directory: string; readonly name: string; readonly retain: number }
+): Promise<string> {
+  await fs.promises.mkdir(workspaceDir, { mode: 0o700, recursive: true });
+  const directory = path.join(workspaceDir, file.directory);
+  await writeFileWhole(path.join(directory, file.name), file.content);
+  const names = (await fs.promises.readdir(directory)).filter((name) => !name.startsWith('.')).sort();
+  await Promise.all(
+    names.slice(0, -file.retain).map((name) => fs.promises.rm(path.join(directory, name), { force: true }))
+  );
+  return path.join(file.directory, file.name);
 }

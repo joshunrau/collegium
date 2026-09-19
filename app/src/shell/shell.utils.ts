@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import * as path from 'node:path';
 
-import { isToolsetGranted } from '@/tools/tools.settings.ts';
+import { isToolGranted, isToolsetGranted } from '@/tools/tools.settings.ts';
 
 import {
   COMMAND_DEADLINE_SECONDS,
@@ -35,6 +35,10 @@ const RUN_FROM_HOME = 'cd -- "$HOME" || exit 1; exec bash -c "$1" "$0"';
 function deriveShellOsUserId(agentUsername: string): number {
   const digest = createHash('sha256').update(agentUsername).digest();
   return SHELL_OS_USER_ID_BASE + (digest.readUInt32BE(0) % SHELL_OS_USER_ID_COUNT);
+}
+
+function exceedsResultCap(text: string): boolean {
+  return text.trim().length > OUTPUT_CAP_CHARS;
 }
 
 function capStream(text: string, droppedChars: number): string {
@@ -144,18 +148,50 @@ export function buildProbeArgv(osUser: string): readonly string[] {
 /**
  * Turn a finished child into the single text block the model reads. Any exit — zero or not — is a
  * result the model reasons about; only a failure to launch is an error, handled by the caller.
+ * Where the whole capture was saved to the workspace, the result names it (§3.4).
  */
-export function toRunOutput(captured: CapturedProcess): string {
+export function toRunOutput(captured: CapturedProcess, savedPath?: string): string {
   const stdout = capStream(captured.stdout, captured.droppedChars.stdout);
   const stderr = capStream(captured.stderr, captured.droppedChars.stderr);
-  const body = [stdout === '' ? undefined : `stdout:\n${stdout}`, stderr === '' ? undefined : `stderr:\n${stderr}`]
-    .filter((section) => section !== undefined)
-    .join('\n\n');
-  const header = describeExit(captured);
-  return body === '' ? header : `${header}\n\n${body}`;
+  const sections = [
+    describeExit(captured),
+    stdout === '' ? undefined : `stdout:\n${stdout}`,
+    stderr === '' ? undefined : `stderr:\n${stderr}`,
+    savedPath === undefined
+      ? undefined
+      : `The whole output is saved in your workspace as ${savedPath}. Read it by line range with workspace__read.`
+  ];
+  return sections.filter((section) => section !== undefined).join('\n\n');
+}
+
+/** whether a stream ran past what the result carries, which is when saving the whole capture is worth anything */
+export function isOverResultCap(captured: CapturedProcess): boolean {
+  return exceedsResultCap(captured.stdout) || exceedsResultCap(captured.stderr);
+}
+
+/** the saved capture: the command, how it ended, and each stream as captured, with what the capture itself dropped */
+export function renderSavedOutput(command: string, captured: CapturedProcess): string {
+  const streams = (['stdout', 'stderr'] as const)
+    .filter((stream) => captured[stream] !== '')
+    .map((stream) => {
+      const dropped = captured.droppedChars[stream];
+      const marker = dropped === 0 ? '' : `\n…${dropped} further characters were printed and not kept`;
+      return `${stream}:\n${captured[stream]}${marker}`;
+    });
+  return [`$ ${command}`, describeExit(captured), ...streams].join('\n\n');
+}
+
+/** a name that sorts by when it was written, which is what retention keeps the newest of */
+export function nameSavedOutput(now: Date, suffix: string): string {
+  return `${now.toISOString().replaceAll(/[:.]/gu, '-')}-${suffix}.txt`;
 }
 
 /** whether a grant list holds shell at all — what decides an agent gets a dedicated OS user (§A2) */
 export function holdsShellGrant(grants: readonly string[]): boolean {
   return isToolsetGranted(SHELL_TOOLSET, new Set(grants));
+}
+
+/** §3.4 — only an agent that can open the saved file is given one */
+export function holdsWorkspaceRead(grants: readonly string[]): boolean {
+  return isToolGranted(['workspace', 'read'], new Set(grants));
 }

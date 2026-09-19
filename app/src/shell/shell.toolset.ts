@@ -3,12 +3,13 @@ import { implementToolset, SHELL_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
+import { AGENT_REGISTRY_TOKEN } from '@/agents/agents.tokens.ts';
 import { fenceCodeBlock } from '@/utils/markdown.utils.ts';
 
 import { SHELL_SERVICE_TOKEN } from './shell.tokens.ts';
 
 export const SHELL_TOOLSET = implementToolset(SHELL_TOOLSET_DEF, {
-  services: { shell: SHELL_SERVICE_TOKEN },
+  services: { agents: AGENT_REGISTRY_TOKEN, shell: SHELL_SERVICE_TOKEN },
   tools: {
     run: {
       /** §6.2 — a shell command is never hidden or truncated; one too long to present is refused at the gate */
@@ -18,10 +19,14 @@ export const SHELL_TOOLSET = implementToolset(SHELL_TOOLSET_DEF, {
       }),
       description: 'Run a shell command on the host as your own dedicated OS user.',
       execute: async (args, context) => {
-        const result = await context.shell.run({
-          agentUsername: context.turn.agentUsername,
-          command: args.command
-        });
+        const profile = context.agents.get(context.turn.agentUsername);
+        if (!profile) {
+          return Result.err({
+            kind: 'exception',
+            message: `no agent is registered as "${context.turn.agentUsername}"`
+          });
+        }
+        const result = await context.shell.run({ command: args.command, profile });
         if (!result.success) {
           return Result.err({ kind: 'exception', message: result.error.message });
         }
