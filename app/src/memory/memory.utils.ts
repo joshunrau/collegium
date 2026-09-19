@@ -1,6 +1,7 @@
 import { Result } from '@collegium/core/utils';
 import { match } from 'ts-pattern';
 
+import { renderElapsed } from '@/formatting/durations/duration.utils.ts';
 import { renderReference } from '@/utils/reference.utils.ts';
 
 import type { MemoryFailure } from './memory.types.ts';
@@ -8,6 +9,11 @@ import type { MemoryFailure } from './memory.types.ts';
 /** what the model, the trace, and /memory show for an entry: a prefix of its id, which the store resolves back (§3.6) */
 export function renderMemoryReference(id: string): string {
   return renderReference(id);
+}
+
+/** §3.6 — the body the model reads, with its age above it */
+export function renderMemoryBody(memory: { readonly body: string; readonly createdAt: Date }, now: Date): string {
+  return `written ${renderElapsed(now.getTime() - memory.createdAt.getTime())} ago\n\n${memory.body}`;
 }
 
 export function renderUnresolvedReference(failure: MemoryFailure.Unresolved): string {

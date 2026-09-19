@@ -17,13 +17,16 @@ function buildContext() {
 }
 
 describe('MEMORY_TOOLSET', () => {
-  it('reads a memory body back by reference and marks the entry used (§3.6)', async () => {
+  it('reads a memory body back by reference, with its age, and marks the entry used (§3.6)', async () => {
     const { context, memory } = buildContext();
-    memory.read.mockResolvedValue(Result.ok({ body: 'bullet points, always', id: 'mem-1-full-id' } as never));
+    const createdAt = new Date(Date.now() - (3 * 24 + 2) * 3_600_000 - 60_000);
+    memory.read.mockResolvedValue(
+      Result.ok({ body: 'bullet points, always', createdAt, id: 'mem-1-full-id' } as never)
+    );
     const result = await executeTool(read, { reference: 'mem-1' }, context);
     expect(memory.read).toHaveBeenCalledWith('mira', 'mem-1');
     expect(memory.markUsed).toHaveBeenCalledWith('mem-1-full-id');
-    expect(result.unwrap().text).toBe('bullet points, always');
+    expect(result.unwrap().text).toBe('written 3d 2h ago\n\nbullet points, always');
   });
 
   it('returns an unknown reference to the model as its own recoverable mistake', async () => {

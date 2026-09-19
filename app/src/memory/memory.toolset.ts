@@ -6,7 +6,13 @@ import { z } from 'zod';
 import type { ModelRow } from '@/prisma/prisma.types.ts';
 
 import { MEMORY_SERVICE_TOKEN } from './memory.tokens.ts';
-import { appendToBody, renderMemoryFailure, renderUnresolvedReference, replaceSinglePassage } from './memory.utils.ts';
+import {
+  appendToBody,
+  renderMemoryBody,
+  renderMemoryFailure,
+  renderUnresolvedReference,
+  replaceSinglePassage
+} from './memory.utils.ts';
 
 import type { MemoryFailure, MemoryRevisionReceipt } from './memory.types.ts';
 
@@ -75,7 +81,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
           return Result.err({ kind: 'invalid-arguments', message: renderUnresolvedReference(memory.error) });
         }
         await context.memory.markUsed(memory.value.id);
-        return Result.ok({ text: memory.value.body });
+        return Result.ok({ text: renderMemoryBody(memory.value, new Date()) });
       },
       parameters: z.object({ reference: $Reference }),
       retryable: true,
