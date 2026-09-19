@@ -1,10 +1,11 @@
 import * as fs from 'node:fs';
 
-import { $Config } from '@collegium/config';
+import type { $Config } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 import { get } from 'es-toolkit/compat';
 import type { Get, Paths } from 'type-fest';
 
+import { parseConfigText } from './config.utils.ts';
 import { EnvService } from './env/env.service.ts';
 
 @Injectable()
@@ -26,10 +27,6 @@ export class ConfigService {
     } catch (error) {
       throw new Error(`failed to read config at "${filepath}"`, { cause: error });
     }
-    try {
-      return $Config.parse(JSON.parse(raw));
-    } catch (error) {
-      throw new Error(`invalid config at "${filepath}"`, { cause: error });
-    }
+    return parseConfigText(raw, filepath);
   }
 }

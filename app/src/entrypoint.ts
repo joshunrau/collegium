@@ -10,8 +10,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { $Config, $Env } from '@collegium/config';
+import { $Env } from '@collegium/config';
 
+import { parseConfigText } from '@/config/config.utils.ts';
 // the root prologue predates DI, so it reaches for the adapter itself; a boot failure must still land as JSON
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports
 import { JSONLogger } from '@/logging/adapters/json.logger.ts';
@@ -96,7 +97,7 @@ try {
   if (!fs.statSync(env.CONFIG_PATH, { throwIfNoEntry: false })?.isFile()) {
     throw new Error(`"${env.CONFIG_PATH}" is not a file; does the mounted config.json exist on the host?`);
   }
-  const config = $Config.parse(JSON.parse(fs.readFileSync(env.CONFIG_PATH, 'utf-8')));
+  const config = parseConfigText(fs.readFileSync(env.CONFIG_PATH, 'utf-8'), env.CONFIG_PATH);
 
   if (!succeeds('id', ['--user', APP_USER])) {
     run('groupadd', ['--gid', String(APP_GID), APP_USER]);

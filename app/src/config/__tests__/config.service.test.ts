@@ -81,4 +81,10 @@ describe('ConfigService', () => {
 
     await expect(compileConfigService(envService)).rejects.toThrow(`invalid config at "${filepath}"`);
   });
+
+  it('should word each schema issue with the path it failed at', async () => {
+    envService.get.mockReturnValue(path.join(tmpDir, 'invalid.json'));
+
+    await expect(compileConfigService(envService)).rejects.toThrow(/✖ .*\n\s+→ at agents/u);
+  });
 });
