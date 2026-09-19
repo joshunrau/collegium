@@ -1,15 +1,18 @@
 import { Module } from '@nestjs/common';
 
+import { ChannelsModule } from '@/channels/channels.module.ts';
 import { ChatModule } from '@/chat/chat.module.ts';
 
 import { ChatEmitter } from './adapters/chat.emitter.ts';
+import { ChannelAnnouncer } from './announcing/channel-announcer.service.ts';
 import { NotificationsEmitter } from './notifications.emitter.ts';
 import { NotificationsService } from './notifications.service.ts';
 
 @Module({
-  exports: [NotificationsService],
-  imports: [ChatModule],
+  exports: [ChannelAnnouncer, NotificationsService],
+  imports: [ChannelsModule, ChatModule],
   providers: [
+    ChannelAnnouncer,
     NotificationsService,
     {
       provide: NotificationsEmitter,

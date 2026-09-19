@@ -8,6 +8,7 @@ import { ChatModule } from '@/chat/chat.module.ts';
 import { ConversationsModule } from '@/conversations/conversations.module.ts';
 import { HaltModule } from '@/halt/halt.module.ts';
 import { MemoryModule } from '@/memory/memory.module.ts';
+import { NotificationsModule } from '@/notifications/notifications.module.ts';
 import { QueueModule } from '@/queue/queue.module.ts';
 import { SchedulesModule } from '@/schedules/schedules.module.ts';
 import { SkillsModule } from '@/skills/skills.module.ts';
@@ -67,6 +68,7 @@ const COMMAND_HANDLER_CLASSES = [
     ConversationsModule,
     HaltModule,
     MemoryModule,
+    NotificationsModule,
     QueueModule,
     SchedulesModule,
     SkillsModule,
