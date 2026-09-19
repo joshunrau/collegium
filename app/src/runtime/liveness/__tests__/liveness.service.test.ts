@@ -45,13 +45,13 @@ describe('LivenessService', () => {
 
   it('should record a stop time on a clean shutdown', async () => {
     await livenessService.startStamping();
-    await livenessService.onApplicationShutdown();
+    await livenessService.beforeApplicationShutdown();
     expect(runtime.rows[0]?.stoppedAt).toStrictEqual(new Date());
   });
 
   it('should report a clean window from the recorded stop (§7.3)', async () => {
     await livenessService.startStamping();
-    await livenessService.onApplicationShutdown();
+    await livenessService.beforeApplicationShutdown();
     const stoppedAt = new Date();
     vi.advanceTimersByTime(180_000);
     expect(await livenessService.readDowntime()).toStrictEqual({ kind: 'clean', startedAt: new Date(), stoppedAt });
@@ -72,7 +72,7 @@ describe('LivenessService', () => {
 
   it('should clear a previous stop time when stamping starts again', async () => {
     await livenessService.startStamping();
-    await livenessService.onApplicationShutdown();
+    await livenessService.beforeApplicationShutdown();
     await livenessService.startStamping();
     expect(runtime.rows[0]?.stoppedAt).toBeNull();
   });

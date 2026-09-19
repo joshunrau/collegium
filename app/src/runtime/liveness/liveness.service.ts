@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { OnApplicationShutdown } from '@nestjs/common';
+import type { BeforeApplicationShutdown } from '@nestjs/common';
 
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
@@ -20,7 +20,7 @@ const RUNTIME_ROW_ID = 'process';
  * because the first stamp overwrites it.
  */
 @Injectable()
-export class LivenessService implements OnApplicationShutdown {
+export class LivenessService implements BeforeApplicationShutdown {
   private stamping: NodeJS.Timeout | undefined;
 
   constructor(
@@ -28,8 +28,12 @@ export class LivenessService implements OnApplicationShutdown {
     @InjectModel('Runtime') private readonly runtime: Model<'Runtime'>
   ) {}
 
-  /** the crash path never reaches this, which is what leaves `stoppedAt` null and names the window imprecise */
-  async onApplicationShutdown(): Promise<void> {
+  /**
+   * The crash path never reaches this, which is what leaves `stoppedAt` null and names the window
+   * imprecise. It runs before any provider tears down (§7.3), so a teardown that hangs until the
+   * container is killed cannot cost the stamp.
+   */
+  async beforeApplicationShutdown(): Promise<void> {
     clearInterval(this.stamping);
     this.stamping = undefined;
     await this.stamp(new Date());
