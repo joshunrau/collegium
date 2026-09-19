@@ -32,27 +32,45 @@ describe('refuseUnbrowsableUrl', () => {
     'http://192.168.1.1/',
     'http://172.16.0.1/',
     'http://100.64.0.1/',
-    'http://[::1]:3000/'
+    'http://[::1]:3000/',
+    'http://[::ffff:127.0.0.1]/',
+    'http://[64:ff9b::7f00:1]/',
+    'http://[ff02::1]/'
   ])('should refuse %s as an address off the public web', (url) => {
     expect(refuseUnbrowsableUrl(url)).toStrictEqual({ kind: 'url-refused', reason: 'not-public-host', url });
   });
 
-  it('should admit a public address that merely resembles a private one', () => {
-    expect(refuseUnbrowsableUrl('http://172.32.0.1/')).toBeUndefined();
-  });
+  it.each(['http://172.32.0.1/', 'https://0.gravatar.com/avatar/', 'https://10.example.com/'])(
+    'should admit %s, which merely resembles a private address',
+    (url) => {
+      expect(refuseUnbrowsableUrl(url)).toBeUndefined();
+    }
+  );
 });
 
 describe('isBlockedAddress', () => {
-  it.each(['100.64.0.1', '100.127.255.255', '224.0.0.1', '240.0.0.1', '255.255.255.255', 'fd12::1', '[::1]'])(
-    'should block %s',
+  it.each([
+    '100.64.0.1',
+    '100.127.255.255',
+    '224.0.0.1',
+    '240.0.0.1',
+    '255.255.255.255',
+    'fd12::1',
+    '[::1]',
+    '::ffff:127.0.0.1',
+    '64:ff9b::a00:5',
+    '64:ff9b:1::808:808',
+    'ff02::1'
+  ])('should block %s', (address) => {
+    expect(isBlockedAddress(address)).toBe(true);
+  });
+
+  it.each(['100.63.255.255', '100.128.0.0', '203.0.113.7', '2606:4700::1', '::ffff:8.8.8.8', '64:ff9b::808:808'])(
+    'should admit %s',
     (address) => {
-      expect(isBlockedAddress(address)).toBe(true);
+      expect(isBlockedAddress(address)).toBe(false);
     }
   );
-
-  it.each(['100.63.255.255', '100.128.0.0', '203.0.113.7', '2606:4700::1'])('should admit %s', (address) => {
-    expect(isBlockedAddress(address)).toBe(false);
-  });
 });
 
 describe('resolveAndVetHost', () => {

@@ -1,4 +1,5 @@
 import { lookup } from 'node:dns/promises';
+import { BlockList, isIP } from 'node:net';
 
 import { Result } from '@collegium/core/utils';
 
@@ -6,28 +7,50 @@ import { describeFetchError } from './fetch/fetch.utils.ts';
 
 import type { AddressPolicy, VettedAddress, WebFailure } from './web.types.ts';
 
-/** loopback, the unspecified address, the link-local block cloud metadata answers on, and RFC 1918 */
-const PRIVATE_IPV4_PATTERN = /^(?:0|10|127)\.|^169\.254\.|^192\.168\.|^172\.(?:1[6-9]|2\d|3[01])\./;
+type Subnet = readonly [network: string, prefixLength: number];
 
-/** `::`, `::1`, unique-local `fc00::/7`, and link-local `fe80::/10`, as `URL` writes them */
-const PRIVATE_IPV6_PATTERN = /^(?:::1?|f[cd][\da-f]*:|fe[89ab][\da-f]*:)/;
+const NON_PUBLIC_IPV4_SUBNETS = {
+  linkLocal: ['169.254.0.0', 16],
+  loopback: ['127.0.0.0', 8],
+  multicast: ['224.0.0.0', 4],
+  privateUse10: ['10.0.0.0', 8],
+  privateUse172: ['172.16.0.0', 12],
+  privateUse192: ['192.168.0.0', 16],
+  reserved: ['240.0.0.0', 4],
+  /** carrier-grade NAT, and the block Tailscale hands out */
+  sharedAddressSpace: ['100.64.0.0', 10],
+  thisNetwork: ['0.0.0.0', 8]
+} as const satisfies { [key: string]: Subnet };
 
-/** RFC 6598 shared address space, `100.64.0.0/10`: carrier-grade NAT, and the block Tailscale hands out */
-const CGNAT_PATTERN = /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+const NON_PUBLIC_IPV6_SUBNETS = {
+  deprecatedIpv4Compatible: ['::', 96],
+  deprecatedSixToFour: ['2002::', 16],
+  linkLocal: ['fe80::', 10],
+  /** RFC 8215: the operator picks where the IPv4 address sits (RFC 6052 §2.2), so what it carries cannot be read */
+  localUseNat64: ['64:ff9b:1::', 48],
+  loopback: ['::1', 128],
+  multicast: ['ff00::', 8],
+  uniqueLocal: ['fc00::', 7],
+  unspecified: ['::', 128]
+} as const satisfies { [key: string]: Subnet };
 
-/** `224.0.0.0/4` */
-const MULTICAST_PATTERN = /^(?:22[4-9]|23\d)\./;
+/** a DNS64 resolver answers every IPv4-only name inside it, so it is judged by the IPv4 address it carries */
+const NAT64_WELL_KNOWN_PREFIX: Subnet = ['64:ff9b::', 96];
 
-/** `240.0.0.0/4`, the broadcast address included */
-const RESERVED_PATTERN = /^(?:24\d|25[0-5])\./;
+function buildNonPublicAddressList(): BlockList {
+  const list = new BlockList();
+  const [nat64Network, nat64PrefixLength] = NAT64_WELL_KNOWN_PREFIX;
+  for (const [network, prefixLength] of Object.values(NON_PUBLIC_IPV4_SUBNETS)) {
+    list.addSubnet(network, prefixLength, 'ipv4');
+    list.addSubnet(`${nat64Network}${network}`, nat64PrefixLength + prefixLength, 'ipv6');
+  }
+  for (const [network, prefixLength] of Object.values(NON_PUBLIC_IPV6_SUBNETS)) {
+    list.addSubnet(network, prefixLength, 'ipv6');
+  }
+  return list;
+}
 
-const BLOCKED_ADDRESS_PATTERNS = [
-  PRIVATE_IPV4_PATTERN,
-  PRIVATE_IPV6_PATTERN,
-  CGNAT_PATTERN,
-  MULTICAST_PATTERN,
-  RESERVED_PATTERN
-];
+const NON_PUBLIC_ADDRESSES = buildNonPublicAddressList();
 
 const WEB_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:']);
 
@@ -37,13 +60,16 @@ function stripBrackets(host: string): string {
 
 function isPrivateHostname(hostname: string): boolean {
   const host = stripBrackets(hostname);
-  return host === 'localhost' || host.endsWith('.localhost') || isBlockedAddress(host);
+  if (isIP(host) !== 0) {
+    return isBlockedAddress(host);
+  }
+  return host === 'localhost' || host.endsWith('.localhost');
 }
 
 /** judged as a bare address: a literal written in a URL, or one answer from a lookup */
 export function isBlockedAddress(address: string): boolean {
   const host = stripBrackets(address);
-  return BLOCKED_ADDRESS_PATTERNS.some((pattern) => pattern.test(host));
+  return NON_PUBLIC_ADDRESSES.check(host, isIP(host) === 6 ? 'ipv6' : 'ipv4');
 }
 
 /**
@@ -53,8 +79,9 @@ export function isBlockedAddress(address: string): boolean {
  * host naming this machine or the network it sits on, are refused before any page is opened — a
  * typed refusal the model hears, like the non-HTML one.
  *
- * Hosts are judged as written: this bounds what may be *asked for*, cheaply and without a lookup.
- * What a name resolves to is `resolveAndVetHost`'s verdict, taken again for every request made.
+ * Hosts are judged as written, an address literal as an address and a name only by its name: this
+ * bounds what may be *asked for*, cheaply and without a lookup. What a name resolves to is
+ * `resolveAndVetHost`'s verdict, taken again for every request made.
  */
 export function refuseUnbrowsableUrl(url: string): undefined | WebFailure.UrlRefused {
   let parsed: URL;
