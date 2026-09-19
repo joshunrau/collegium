@@ -1,7 +1,7 @@
 import type { $Config } from '@collegium/config';
 import type { Result } from '@collegium/core/utils';
 import { removeTrailingSlash } from '@collegium/core/utils';
-import type { CommandSurfaceDeclaration } from '@collegium/mattermost';
+import type { CommandSurfaceDeclaration, PostErasureReport } from '@collegium/mattermost';
 
 import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
@@ -13,7 +13,14 @@ import { MattermostTransport } from './mattermost.transport.ts';
 import { createAuthorClassifier, toChatResult } from './mattermost.utils.ts';
 
 import type { ChatTransport } from '../chat.transport.ts';
-import type { AgentConnection, ChatFailure, PostFile, SystemPostReceipt } from '../chat.types.ts';
+import type {
+  AgentConnection,
+  ChatFailure,
+  DialogRequest,
+  PostFile,
+  PostUpdate,
+  SystemPostReceipt
+} from '../chat.types.ts';
 
 export class MattermostGateway extends ChatGateway {
   private readonly agentUsernames: ReadonlySet<string>;
@@ -69,8 +76,22 @@ export class MattermostGateway extends ChatGateway {
     return owned.length;
   }
 
+  erasePostsBefore(channelId: string, postId: string): Promise<Result<PostErasureReport, ChatFailure>> {
+    return toChatResult(async () => {
+      return this.systemClient.erasePostsBefore({
+        beforePostId: postId,
+        channelId,
+        teamId: await this.resolveTeamId()
+      });
+    });
+  }
+
   maxPostSizeChars(): Promise<Result<number, ChatFailure>> {
     return toChatResult(() => this.systemClient.getMaxPostSize());
+  }
+
+  openDialogAsSystem(request: DialogRequest): Promise<Result<void, ChatFailure>> {
+    return toChatResult(() => this.systemClient.openDialog(request));
   }
 
   async postAsSystem(content: string): Promise<Result<SystemPostReceipt, ChatFailure>> {
@@ -123,6 +144,12 @@ export class MattermostGateway extends ChatGateway {
       this.channelIds.set(handle, channelId);
     }
     return channelId;
+  }
+
+  updateSystemPost(postId: string, update: PostUpdate): Promise<Result<void, ChatFailure>> {
+    return toChatResult(() => {
+      return this.systemClient.updatePost({ attachments: update.attachments, message: update.text, postId });
+    });
   }
 
   private async assertConfigured(

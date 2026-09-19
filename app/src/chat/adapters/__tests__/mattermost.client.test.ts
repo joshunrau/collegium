@@ -123,6 +123,43 @@ describe('MattermostClient', () => {
     });
   });
 
+  describe('erasePostsBefore (§8.5)', () => {
+    const erasure = { beforePostId: 'notice-1', channelId: 'channel-1', teamId: 'team-1' };
+
+    it("should DELETE the channel's posts before the boundary through the plugin's route as the bot", async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"deleted":3,"failed":1}', { status: 200 }));
+      expect(await client.erasePostsBefore(erasure)).toStrictEqual({ deleted: 3, failed: 1 });
+      expect(fetch).toHaveBeenCalledWith(
+        'https://mattermost.test/plugins/sh.collegium/api/v1/teams/team-1/channels/channel-1/posts?before=notice-1',
+        { headers: { authorization: 'Bearer bot-token' }, method: 'DELETE' }
+      );
+    });
+
+    it('should name the status when the plugin refuses', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('forbidden', { status: 403 }));
+      await expect(client.erasePostsBefore(erasure)).rejects.toThrow('403');
+    });
+  });
+
+  it('should carry the introduction text of a dialog that has no elements', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+    await client.openDialog({
+      callbackId: 'channel-1',
+      elements: [],
+      introductionText: 'Every post here will be deleted.',
+      title: 'Clear this channel',
+      triggerId: 'trigger-1',
+      url: 'https://app.test/clearing/confirm'
+    });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { dialog: object };
+    expect(body.dialog).toStrictEqual({
+      callback_id: 'channel-1',
+      elements: [],
+      introduction_text: 'Every post here will be deleted.',
+      title: 'Clear this channel'
+    });
+  });
+
   it('should delete a slash command by id', async () => {
     await client.deleteSlashCommand('command-1');
     expect(sdk.deleteCommand).toHaveBeenCalledWith('command-1');

@@ -38,6 +38,7 @@ func NewPlugin() *Plugin {
 		surfaces:  map[string]Surface{},
 	}
 	p.routes.HandleFunc(declareSurfacePattern, p.handleDeclareSurface)
+	p.routes.HandleFunc(erasePostsPattern, p.handleErasePosts)
 	return p
 }
 
@@ -103,7 +104,13 @@ func (p *Plugin) handleDeclareSurface(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if appErr := p.API.KVSet(surfaceKey(teamID), body); appErr != nil {
+	surface.DeclaredBy = userID
+	persisted, err := json.Marshal(surface)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if appErr := p.API.KVSet(surfaceKey(teamID), persisted); appErr != nil {
 		http.Error(w, appErr.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -131,13 +138,96 @@ func (p *Plugin) surfaceFor(teamID string) (Surface, bool) {
 	return surface, ok
 }
 
-// forwardedCommand is what the app parses: the text after the trigger, and who ran it where.
+// forwardedCommand is what the app parses: the text after the trigger, who ran it where, and the
+// trigger id a subcommand needs to open a dialog.
 type forwardedCommand struct {
 	ChannelID string `json:"channel_id"`
 	TeamID    string `json:"team_id"`
 	Text      string `json:"text"`
+	TriggerID string `json:"trigger_id"`
 	UserID    string `json:"user_id"`
 	UserName  string `json:"user_name"`
+}
+
+// erasureReport is the app's receipt: how many posts went, and how many refused to.
+type erasureReport struct {
+	Deleted int `json:"deleted"`
+	Failed  int `json:"failed"`
+}
+
+// handleErasePosts deletes every post in a channel older than the boundary post, in this process,
+// where no per-user permission stands between the plugin and the store — which is why the caller
+// must be the account that declared the team's surface and nothing else (§8.5). A DM has no team,
+// so the channel is accepted when it is on the team or is a direct or group message.
+func (p *Plugin) handleErasePosts(w http.ResponseWriter, r *http.Request) {
+	userID := r.Header.Get("Mattermost-User-Id")
+	if userID == "" {
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
+	teamID, channelID := r.PathValue("teamId"), r.PathValue("channelId")
+	before := r.URL.Query().Get("before")
+	if before == "" {
+		http.Error(w, "before must name the boundary post", http.StatusBadRequest)
+		return
+	}
+	surface, ok := p.surfaceFor(teamID)
+	if !ok {
+		http.Error(w, "no command surface is declared for this team", http.StatusNotFound)
+		return
+	}
+	if surface.DeclaredBy == "" || surface.DeclaredBy != userID {
+		p.API.LogWarn("refused a post erasure", "user_id", userID, "team_id", teamID, "channel_id", channelID)
+		http.Error(w, "only the account that declared this team's command surface may erase posts", http.StatusForbidden)
+		return
+	}
+	channel, appErr := p.API.GetChannel(channelID)
+	if appErr != nil {
+		http.Error(w, appErr.Error(), http.StatusNotFound)
+		return
+	}
+	if channel.TeamId != teamID && channel.Type != model.ChannelTypeDirect && channel.Type != model.ChannelTypeGroup {
+		http.Error(w, "channel is not on this team", http.StatusForbidden)
+		return
+	}
+	boundary, appErr := p.API.GetPost(before)
+	if appErr != nil || boundary.ChannelId != channelID {
+		http.Error(w, "before must name a post in this channel", http.StatusBadRequest)
+		return
+	}
+	ids, appErr := p.collectPostsBefore(channelID, before)
+	if appErr != nil {
+		http.Error(w, appErr.Error(), http.StatusInternalServerError)
+		return
+	}
+	report := erasureReport{}
+	for _, id := range ids {
+		// deleting a thread root deletes its replies, so a reply met later answers not-found: gone is gone
+		if appErr := p.API.DeletePost(id); appErr != nil && appErr.StatusCode != http.StatusNotFound {
+			p.API.LogWarn("a post refused deletion", "post_id", id, "error", appErr.Error())
+			report.Failed++
+			continue
+		}
+		report.Deleted++
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(report)
+}
+
+// collectPostsBefore reads every id before deleting any: deleting while paging shifts the pages,
+// and a post that refused deletion would otherwise be returned by page 0 forever.
+func (p *Plugin) collectPostsBefore(channelID, before string) ([]string, *model.AppError) {
+	ids := []string{}
+	for page := 0; ; page++ {
+		list, appErr := p.API.GetPostsBefore(channelID, before, page, erasePageSize)
+		if appErr != nil {
+			return nil, appErr
+		}
+		ids = append(ids, list.Order...)
+		if len(list.Order) < erasePageSize {
+			return ids, nil
+		}
+	}
 }
 
 type forwardedResponse struct {
@@ -173,6 +263,7 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 		ChannelID: args.ChannelId,
 		TeamID:    args.TeamId,
 		Text:      strings.TrimSpace(text),
+		TriggerID: args.TriggerId,
 		UserID:    args.UserId,
 		UserName:  user.Username,
 	})

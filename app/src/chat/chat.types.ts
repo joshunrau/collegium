@@ -74,6 +74,8 @@ export type DialogElement = {
 export type DialogRequest = {
   readonly callbackId: string;
   readonly elements: readonly DialogElement[];
+  /** markdown shown above the elements — the whole of a confirmation dialog that has none (§8.5) */
+  readonly introductionText?: string;
   /** echoed back verbatim on submission — how request-time facts survive the round trip */
   readonly state?: string;
   readonly submitLabel?: string;

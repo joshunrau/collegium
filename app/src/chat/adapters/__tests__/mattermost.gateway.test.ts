@@ -1,6 +1,6 @@
 import type { AgentDefinition } from '@collegium/config';
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigService } from '@/config/config.service.ts';
 import { EnvService } from '@/config/env/env.service.ts';
@@ -30,6 +30,8 @@ const vendor = vi.hoisted(() => {
   class Client4 {
     createPost = vi.fn();
     deleteCommand = vi.fn();
+    url = '';
+    getBaseRoute = vi.fn(() => `${this.url}/api/v4`);
     getChannel = vi.fn();
     // the fixture's channel ids are their handles, so what a caller asked for stays legible downstream
     getChannelByName = vi.fn((teamId: string, handle: string) => {
@@ -48,8 +50,8 @@ const vendor = vi.hoisted(() => {
     getProfilesByIds = vi.fn();
     getTeamByName = vi.fn(() => Promise.resolve({ id: 'team-1' }));
     getToken = vi.fn(() => this.token);
-    url = '';
     getUrl = vi.fn(() => this.url);
+    patchPost = vi.fn();
     uploadFile = vi.fn();
     constructor() {
       clients.push(this);
@@ -252,6 +254,58 @@ describe('MattermostGateway', () => {
       await mattermostGateway.declareCommandSurface(declaration);
       await mattermostGateway.deleteOwnedSlashCommands();
       expect(systemClient().getTeamByName).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('channel erasure (§8.5)', () => {
+    const fetchMock = vi.fn();
+
+    beforeEach(() => {
+      vi.stubGlobal('fetch', fetchMock);
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('should ask the plugin to erase the posts before the boundary on the configured team', async () => {
+      fetchMock.mockResolvedValue(new Response('{"deleted":2,"failed":0}', { status: 200 }));
+      const report = await mattermostGateway.erasePostsBefore('channel-1', 'notice-1');
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://localhost:8065/plugins/sh.collegium/api/v1/teams/team-1/channels/channel-1/posts?before=notice-1',
+        expect.objectContaining({ method: 'DELETE' })
+      );
+      expect(report).toMatchObject({ success: true, value: { deleted: 2, failed: 0 } });
+    });
+
+    it('should answer a failure rather than throw when the plugin refuses', async () => {
+      fetchMock.mockResolvedValue(new Response('forbidden', { status: 403 }));
+      await expect(mattermostGateway.erasePostsBefore('channel-1', 'notice-1')).resolves.toMatchObject({
+        success: false
+      });
+    });
+
+    it('should open a dialog as the system bot', async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200 });
+      const opened = await mattermostGateway.openDialogAsSystem({
+        callbackId: 'channel-1',
+        elements: [],
+        title: 'Clear this channel',
+        triggerId: 'trigger-1',
+        url: 'http://app.test/clearing/confirm'
+      });
+      expect(opened.success).toBe(true);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://localhost:8065/api/v4/actions/dialogs/open',
+        expect.objectContaining({ headers: expect.objectContaining({ authorization: 'Bearer system-token' }) })
+      );
+    });
+
+    it('should edit a post the system bot made', async () => {
+      systemClient().patchPost.mockResolvedValue({});
+      const edited = await mattermostGateway.updateSystemPost('post-1', { text: 'cleared' });
+      expect(edited.success).toBe(true);
+      expect(systemClient().patchPost).toHaveBeenCalledWith({ id: 'post-1', message: 'cleared' });
     });
   });
 

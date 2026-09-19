@@ -27,6 +27,17 @@ export function commandSurfaceRoute(teamId: string): string {
   return `/plugins/${MATTERMOST_PLUGIN_ID}/api/v1/teams/${teamId}/commands`;
 }
 
+/** the app's receipt from the erase route: how many posts went, and how many refused to */
+export type PostErasureReport = {
+  readonly deleted: number;
+  readonly failed: number;
+};
+
+/** the path beneath the server URL that erases a channel's posts before a boundary post (§8.5) */
+export function channelPostsRoute(teamId: string, channelId: string): string {
+  return `/plugins/${MATTERMOST_PLUGIN_ID}/api/v1/teams/${teamId}/channels/${channelId}/posts`;
+}
+
 export type MattermostPluginBundle = {
   /** the tar.gz Mattermost installs, holding the manifest and one server binary per platform */
   readonly bundlePath: string;

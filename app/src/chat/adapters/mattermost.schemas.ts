@@ -1,3 +1,4 @@
+import type { PostErasureReport } from '@collegium/mattermost';
 import { z } from 'zod';
 
 import { $$CamelCased, $$JSONEncoded } from '@/core/core.schemas.ts';
@@ -135,6 +136,13 @@ export const $MattermostCreatedPost = $$CamelCased(
     id: z.string().min(1)
   })
 );
+
+/** the plugin's answer to an erasure (§8.5) — a network perimeter, so parsed rather than trusted */
+export type $PostErasureReport = z.infer<typeof $PostErasureReport>;
+export const $PostErasureReport = z.object({
+  deleted: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative()
+}) satisfies z.ZodType<PostErasureReport>;
 
 export type $MattermostFileUpload = z.infer<typeof $MattermostFileUpload>;
 export const $MattermostFileUpload = $$CamelCased(

@@ -14,8 +14,14 @@ const Trigger = "collegium"
 
 const surfaceKeyPrefix = "surface:"
 
-// declareSurfacePattern is the one route the app calls, beneath /plugins/{id}
+// declareSurfacePattern is the first route the app calls, beneath /plugins/{id}
 const declareSurfacePattern = "PUT /api/v1/teams/{teamId}/commands"
+
+// erasePostsPattern is the second: every post in a channel older than the boundary post named by
+// ?before, answered only for the account that declared the team's surface (§8.5)
+const erasePostsPattern = "DELETE /api/v1/teams/{teamId}/channels/{channelId}/posts"
+
+const erasePageSize = 200
 
 var subcommandPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
@@ -28,10 +34,13 @@ type Command struct {
 
 // Surface is what one deployment declares for its team: where to forward executions, and the
 // subcommands to autocomplete. It is persisted per team so activation can re-register it.
+// DeclaredBy is never sent by the app: the plugin stamps it from the authenticated declarer, and
+// it is the one account the erase route answers.
 type Surface struct {
 	CallbackToken string    `json:"callbackToken"`
 	CallbackURL   string    `json:"callbackUrl"`
 	Commands      []Command `json:"commands"`
+	DeclaredBy    string    `json:"declaredBy,omitempty"`
 }
 
 func (s Surface) Validate() error {

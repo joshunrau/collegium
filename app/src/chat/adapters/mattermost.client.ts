@@ -1,5 +1,5 @@
-import { commandSurfaceRoute, MATTERMOST_PLUGIN_ID } from '@collegium/mattermost';
-import type { CommandSurfaceDeclaration } from '@collegium/mattermost';
+import { channelPostsRoute, commandSurfaceRoute, MATTERMOST_PLUGIN_ID } from '@collegium/mattermost';
+import type { CommandSurfaceDeclaration, PostErasureReport } from '@collegium/mattermost';
 import { Client4, ClientError } from '@mattermost/client';
 
 import {
@@ -10,7 +10,8 @@ import {
   $MattermostPostList,
   $MattermostSlashCommand,
   $MattermostTeam,
-  $MattermostUserProfile
+  $MattermostUserProfile,
+  $PostErasureReport
 } from './mattermost.schemas.ts';
 
 import type { DialogRequest, MessageAttachment } from '../chat.types.ts';
@@ -82,6 +83,25 @@ export class MattermostClient {
 
   async deleteSlashCommand(commandId: string): Promise<void> {
     await this.sdk.deleteCommand(commandId);
+  }
+
+  /** §8.5 — the plugin's erase route: one call, and the server's own process deletes every post before the boundary */
+  async erasePostsBefore(params: {
+    beforePostId: string;
+    channelId: string;
+    teamId: string;
+  }): Promise<PostErasureReport> {
+    const route = channelPostsRoute(params.teamId, params.channelId);
+    const response = await fetch(`${this.sdk.getUrl()}${route}?before=${encodeURIComponent(params.beforePostId)}`, {
+      headers: { authorization: `Bearer ${this.sdk.getToken()}` },
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      throw new Error(
+        `the Collegium plugin refused the erasure with status ${response.status}: ${await response.text()}`
+      );
+    }
+    return $PostErasureReport.parse(await response.json());
   }
 
   async getChannel(channelId: string): Promise<{ displayName: string; type: MattermostChannelType }> {
@@ -190,6 +210,7 @@ export class MattermostClient {
             optional: element.optional ?? false,
             type: element.type
           })),
+          ...(request.introductionText && { introduction_text: request.introductionText }),
           ...(request.state && { state: request.state }),
           ...(request.submitLabel && { submit_label: request.submitLabel }),
           title: request.title
