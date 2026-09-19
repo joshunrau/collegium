@@ -114,13 +114,7 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       }),
       supersedable: true,
       timeoutMs: WEB_TIMEOUT_MS,
-      /**
-       * §3.4 — the line never shows what was typed. This tool may sign in, and the status post is a
-       * channel post while the trace is readable by everyone who can approve, so fill text is the
-       * one argument a supervisor must not be shown: masking it costs nothing a reviewer needs.
-       */
-      traceDetail: (args) =>
-        `⟨${args.ref}⟩ with ${args.text.length} character(s)${args.pressEnter === true ? ' then press "Enter"' : ''}`
+      traceDetail: (args) => `⟨${args.ref}⟩ with "${args.text}"${args.pressEnter === true ? ' then press "Enter"' : ''}`
     },
     hover: {
       description:

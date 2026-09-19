@@ -88,12 +88,12 @@ export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
     const isHiddenRef = hiddenRefs.has(ref);
     if (element instanceof HTMLInputElement) {
       return {
-        isFilled: element.value !== '',
         isHidden: isHiddenRef,
         kind: 'input',
         label: controlLabel(element),
         ref,
-        type: element.type
+        type: element.type,
+        value: element.value
       };
     }
     if (element instanceof HTMLButtonElement) {
@@ -103,13 +103,7 @@ export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
       return { isHidden: isHiddenRef, kind: 'select', label: controlLabel(element), ref, value: element.value };
     }
     if (element instanceof HTMLTextAreaElement) {
-      return {
-        isFilled: element.value !== '',
-        isHidden: isHiddenRef,
-        kind: 'textarea',
-        label: controlLabel(element),
-        ref
-      };
+      return { isHidden: isHiddenRef, kind: 'textarea', label: controlLabel(element), ref, value: element.value };
     }
     return null;
   };

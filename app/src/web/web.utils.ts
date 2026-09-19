@@ -90,18 +90,10 @@ function linkTranslators(base: undefined | URL): TranslatorConfigObject {
   };
 }
 
-/** §3.4 — a filled input says that it is filled, never with what; a select names its own option */
 function renderFormElement(element: FormElement): string {
   const kind = element.kind === 'input' ? `input[type=${element.type}]` : element.kind;
   const label = element.label ? ` "${element.label}"` : '';
-  const state =
-    element.kind === 'input' || element.kind === 'textarea'
-      ? element.isFilled
-        ? ' (filled)'
-        : ''
-      : element.value
-        ? ` = "${element.value}"`
-        : '';
+  const state = element.value ? ` = "${element.value}"` : '';
   const hidden = element.isHidden ? ' (hidden — reveal it before acting)' : '';
   return `- ⟨${element.ref}⟩ ${kind}${label}${state}${hidden}`;
 }

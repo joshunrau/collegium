@@ -15,7 +15,7 @@ const { click, fetch, fill, hover, navigate, search } = WEB_TOOLSET.tools;
 const BRAVE = { apiKey: 'test-key', kind: 'brave' } as const;
 
 const SNAPSHOT: WebSnapshot = {
-  formElements: [{ isFilled: false, isHidden: false, kind: 'input', label: 'Search', ref: 'e1', type: 'text' }],
+  formElements: [{ isHidden: false, kind: 'input', label: 'Search', ref: 'e1', type: 'text', value: '' }],
   markdown: '# Example Domain',
   openedUrls: [],
   status: 200,
@@ -71,10 +71,9 @@ describe('WEB_TOOLSET', () => {
     expect(result.error).toStrictEqual({ kind: 'exception', message: 'browser is down' });
   });
 
-  it('masks fill text in the trace line and never gates (§3.4)', () => {
-    const detail = fill.traceDetail?.({ pressEnter: true, ref: 'e1', text: 'hunter2' });
-    expect(detail).toBe('⟨e1⟩ with 7 character(s) then press "Enter"');
-    expect(detail).not.toContain('hunter2');
+  it('shows fill text in the trace line and never gates', () => {
+    const detail = fill.traceDetail?.({ pressEnter: true, ref: 'e1', text: 'duval' });
+    expect(detail).toBe('⟨e1⟩ with "duval" then press "Enter"');
     for (const tool of [click, fill, hover, navigate]) {
       expect('approval' in tool).toBe(false);
       expect(tool.retryable).toBeUndefined();

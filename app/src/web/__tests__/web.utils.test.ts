@@ -116,7 +116,7 @@ describe('renderWebFailure', () => {
 describe('renderWebSnapshot', () => {
   it('should mark a hidden form control so its ref is not read as actionable', () => {
     const snapshot: WebSnapshot = {
-      formElements: [{ isFilled: false, isHidden: true, kind: 'input', label: 'Search', ref: 'e1', type: 'text' }],
+      formElements: [{ isHidden: true, kind: 'input', label: 'Search', ref: 'e1', type: 'text', value: '' }],
       markdown: '# Faculty',
       openedUrls: [],
       status: 200,
@@ -124,6 +124,18 @@ describe('renderWebSnapshot', () => {
       url: 'https://northmoor.example/'
     };
     expect(renderWebSnapshot(snapshot)).toContain('⟨e1⟩ input[type=text] "Search" (hidden — reveal it before acting)');
+  });
+
+  it('should show what a filled input holds', () => {
+    const snapshot: WebSnapshot = {
+      formElements: [{ isHidden: false, kind: 'input', label: 'Search', ref: 'e1', type: 'text', value: 'duval' }],
+      markdown: '# Faculty',
+      openedUrls: [],
+      status: 200,
+      title: 'Faculty',
+      url: 'https://northmoor.example/'
+    };
+    expect(renderWebSnapshot(snapshot)).toContain('⟨e1⟩ input[type=text] "Search" = "duval"');
   });
 
   it('should name a tab the page opened, and say when it had no address yet', () => {
