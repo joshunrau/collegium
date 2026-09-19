@@ -132,19 +132,6 @@ describe('ChatEmitter', () => {
     );
   });
 
-  it('should post the §7.6 dropped hand-off notice naming both agents without a mention', async () => {
-    await chatEmitter.notify({
-      agentUsername: 'naomi',
-      channelId: 'channel-1',
-      kind: 'dropped-handoff',
-      peerUsername: 'sam'
-    });
-    expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
-      'channel-1',
-      '↪️ `naomi` replied here without addressing anyone, so `sam`, whose mention started that turn, was not woken. A post addressing `sam` passes the reply on.'
-    );
-  });
-
   it('should post a §7.6 notice the system bot is refused under the agent’s own account, as in a DM', async () => {
     chatGateway.postAsSystemIn.mockResolvedValue(Result.err({ kind: 'api', message: 'not a member' }));
     await chatEmitter.notify({ agentUsername: 'mira', channelId: 'dm-1', kind: 'standing-queue' });

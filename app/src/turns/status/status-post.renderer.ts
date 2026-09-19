@@ -35,13 +35,6 @@ function formatDuration(elapsedMs: number): string {
   return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
 }
 
-/** keyed by the framework's display names and never model text (§3.2), each with how many times it completed */
-function renderCallCounts(callCounts: ReadonlyMap<string, number>): string {
-  return Array.from(callCounts, ([displayName, count]) => {
-    return count === 1 ? `\`${displayName}\`` : `\`${displayName}\` ×${count}`;
-  }).join(', ');
-}
-
 /** §8.1 — the closing line also states how long the turn ran; every phrase ends in the closing underscore */
 function renderOutcomeLine(outcome: Exclude<TurnStatus, 'running'>, elapsedMs: number | undefined): string {
   const phrase = OUTCOME_PHRASES[outcome];
@@ -49,8 +42,6 @@ function renderOutcomeLine(outcome: Exclude<TurnStatus, 'running'>, elapsedMs: n
 }
 
 export type StatusPostState = {
-  /** §8.1 — by display name, the calls the closing edit names as having possibly changed something */
-  changedCalls?: ReadonlyMap<string, number>;
   /** wall-clock time the turn ran, approval waits included; absent where its end was never observed */
   elapsedMs?: number;
   outcome?: Exclude<TurnStatus, 'running'>;
@@ -65,9 +56,6 @@ export function renderStatusPost(state: StatusPostState): string {
   ];
   if (state.outcome === undefined && state.transientText !== undefined && state.transientText !== '') {
     lines.push(`_${state.transientText}_`);
-  }
-  if (state.outcome !== undefined && state.changedCalls !== undefined && state.changedCalls.size > 0) {
-    lines.push(`_May have changed something: ${renderCallCounts(state.changedCalls)}_`);
   }
   return lines.join('\n');
 }
@@ -89,11 +77,6 @@ export function renderToolCallLine(toolName: string, detail?: string): string {
 /** §7.5 — the channel learns of a steer from the turn's own status post, since the command's response is ephemeral */
 export function renderSteeringLine(byUsername: string): string {
   return `↩ _steered by @${byUsername}_`;
-}
-
-/** §5.2 — the 👀 must never silently promise a read that did not happen */
-export function renderContextShortfallLine(): string {
-  return '⚠️ _context could not reach back to the earliest queued message_';
 }
 
 export function renderBudgetExhaustedNotice(limit: number): string {
@@ -165,15 +148,6 @@ export function renderProviderRejectionNotice(status: number | undefined): strin
     .otherwise(() => '');
   const code = status === undefined ? '' : ` (HTTP ${status})`;
   return `⚠️ **Error**: The model provider rejected the request${reason}${code}`;
-}
-
-/** §7.1 — appended to a failure notice, keyed by the framework's display names and never model text (§3.2) */
-export function renderMayHaveTakenEffectLine(callCounts: ReadonlyMap<string, number>): string {
-  const calls = renderCallCounts(callCounts);
-  const total = Array.from(callCounts.values()).reduce((sum, count) => sum + count, 0);
-  return total === 1
-    ? `Before stopping, this call completed and may have changed something: ${calls}. Check its effect before running this again.`
-    : `Before stopping, these calls completed and may have changed something: ${calls}. Check their effects before running this again.`;
 }
 
 export function renderSemanticErrorNotice(detail: string): string {

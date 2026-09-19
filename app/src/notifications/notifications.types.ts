@@ -44,15 +44,8 @@ export declare namespace SystemEvent {
     channelId: string;
     kind: 'standing-queue';
   };
-  /** §7.6 — a turn a colleague's mention started replied without addressing anyone, so that colleague was not woken */
-  type DroppedHandoff = {
-    agentUsername: string;
-    channelId: string;
-    kind: 'dropped-handoff';
-    peerUsername: string;
-  };
   /** the §7.6 notices: the system bot's where it is present, the agent's own account in a DM */
-  type Stall = DroppedHandoff | LongTurn | StandingQueue;
+  type Stall = LongTurn | StandingQueue;
 
   type Any = ChainLimitRefusal | Halt | MultiMentionRefusal | Offline | Online | Stall;
 }

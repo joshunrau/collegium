@@ -35,7 +35,6 @@ import {
   toReplayableToolCall
 } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
-import { NotificationsService } from '@/notifications/notifications.service.ts';
 import type { PostKind, TurnStatus } from '@/prisma/prisma.types.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
@@ -55,12 +54,10 @@ import {
   renderBudgetExhaustedNotice,
   renderChainLengthLimitNotice,
   renderContextExhaustedNotice,
-  renderContextShortfallLine,
   renderDelegationLimitNotice,
   renderDeliveryFailureNotice,
   renderDenialNotice,
   renderExtensionPrompt,
-  renderMayHaveTakenEffectLine,
   renderOutputRefusedNotice,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
@@ -191,16 +188,12 @@ type TurnState = {
   /** §4.5 — the one peer this turn has addressed, whatever number of posts it emits */
   addressedPeer: string | undefined;
   readonly budget: ActionBudget;
-  /** §7.1, §8.1 — by display name, how many times a call that may have taken effect ran to completion */
-  readonly callsThatMayHaveTakenEffect: Map<string, number>;
   /** §4.5 — rejected posts and unknown tool names (§7.2) since the last call that ran */
   consecutiveRejections: number;
   /** §5.2 — when the context was last assembled, and the posts its window held */
   contextAssembledAt: Date;
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
-  /** §7.6 — whether a post of this turn named anyone, or its output did before the §7.4 limits stripped it */
-  mentionedAnyone: boolean;
   readonly messages: CompletionMessage[];
   /** §3.8 — the estimated size of the whole outgoing request, kept current by `pushMessage` and the collapses */
   promptTokens: number;
@@ -243,7 +236,6 @@ export class TurnRunner {
     private readonly inferenceRegistry: InferenceRegistry,
     private readonly loggingService: LoggingService,
     private readonly multiMentionPolicy: MultiMentionPolicy,
-    private readonly notificationsService: NotificationsService,
     private readonly statusPostService: StatusPostService,
     private readonly tasksService: TasksService,
     private readonly toolExecutor: ToolExecutor,
@@ -282,7 +274,6 @@ export class TurnRunner {
     const state: TurnState = {
       addressedPeer: undefined,
       budget: new ActionBudget(profile.actionBudget),
-      callsThatMayHaveTakenEffect: new Map(),
       consecutiveRejections: 0,
       contextAssembledAt: new Date(),
       control: this.turnControlRegistry.register(turn.id, channelId),
@@ -291,7 +282,6 @@ export class TurnRunner {
         authorUsername: input.foldAuthorUsername,
         channelId
       }),
-      mentionedAnyone: false,
       messages: [],
       promptTokens: 0,
       recordedResults: 0,
@@ -534,21 +524,14 @@ export class TurnRunner {
     );
   }
 
-  /** §7.1 — the notice and what the turn may already have changed go out as one post, then the turn closes; §3.15 for a unit */
+  /** §7.1 — the notice goes out as one post, then the turn closes; §3.15 for a unit */
   private async closeWithFailureNotice(
     input: RunInput,
     state: TurnState,
     status: FailureStatus,
     notice: string
   ): Promise<TurnOutcome> {
-    const { callsThatMayHaveTakenEffect } = state;
-    await this.postNotice(
-      input,
-      state,
-      callsThatMayHaveTakenEffect.size === 0
-        ? notice
-        : `${notice}\n${renderMayHaveTakenEffectLine(callsThatMayHaveTakenEffect)}`
-    );
+    await this.postNotice(input, state, notice);
     if (status === 'context_exhausted') {
       await this.reportExhaustedUnit(input, state);
     }
@@ -578,14 +561,6 @@ export class TurnRunner {
     if (!sent.success) {
       this.loggingService.error(new Error(`failed to post final output: ${sent.error.message}`));
       return this.closeWithFailureNotice(input, state, 'delivery_failure', renderDeliveryFailureNotice());
-    }
-    if (state.requestedBy?.kind === 'agent' && !state.mentionedAnyone) {
-      await this.notificationsService.notify({
-        agentUsername: input.profile.username,
-        channelId: input.channelId,
-        kind: 'dropped-handoff',
-        peerUsername: state.requestedBy.username
-      });
     }
     return this.close(state, 'completed');
   }
@@ -811,7 +786,6 @@ export class TurnRunner {
     }
     const stripped = this.multiMentionPolicy.stripAgentMentions(content);
     if (stripped !== content) {
-      state.mentionedAnyone = true;
       await this.postNotice(
         input,
         state,
@@ -1011,13 +985,6 @@ export class TurnRunner {
     return length > limit.value ? { length, limit: limit.value } : undefined;
   }
 
-  /** §5.2 — checked on every assembly, since a fold rebuilds the window and can lose the reach the first one had */
-  private noteShortfall(input: RunInput, state: TurnState, assembled: AssembledContext): void {
-    if (input.drainedFromPostId !== undefined && !assembled.windowPostIds.has(input.drainedFromPostId)) {
-      state.status.appendTrace(renderContextShortfallLine());
-    }
-  }
-
   /** §7.1's human-visible notices: deterministic strings posted under the agent's name (§3.2) */
   private async postNotice(input: RunInput, state: TurnState, text: string): Promise<void> {
     try {
@@ -1047,7 +1014,6 @@ export class TurnRunner {
     }
     const post = this.asAddressablePost(input, text);
     state.addressedPeer = this.multiMentionPolicy.addresseesOf(post)[0] ?? state.addressedPeer;
-    state.mentionedAnyone ||= post.mentionedUsernames.length > 0;
     await this.conversationsService.record(
       {
         attachments: [],
@@ -1110,10 +1076,6 @@ export class TurnRunner {
       return published.outcome;
     }
     const result = published?.kind === 'refused' ? { kind: 'continue' as const, output: published.output } : attempt;
-    if (result.mayHaveTakenEffect) {
-      const { callsThatMayHaveTakenEffect: counts } = state;
-      counts.set(identified.displayName, (counts.get(identified.displayName) ?? 0) + 1);
-    }
     await this.turnsService.appendEvent(state.turn.id, {
       callId: identified.call.id,
       kind: 'tool_result',
@@ -1249,7 +1211,6 @@ export class TurnRunner {
     const { channelId, profile } = input;
     let assembled = await this.contextAssembler.assemble({ channelId, profile });
     this.loadAssembledContext(state, assembled);
-    this.noteShortfall(input, state, assembled);
     if (this.exceedsCeiling(input, state)) {
       return this.closeWithFailureNotice(input, state, 'context_exhausted', renderContextExhaustedNotice('initial'));
     }
@@ -1280,7 +1241,6 @@ export class TurnRunner {
         folds += 1;
         assembled = await this.contextAssembler.assemble({ channelId, profile });
         this.loadAssembledContext(state, assembled);
-        this.noteShortfall(input, state, assembled);
         if (this.exceedsCeiling(input, state)) {
           return this.closeWithFailureNotice(
             input,
@@ -1374,7 +1334,7 @@ export class TurnRunner {
   /** best-effort on both writes: a close that itself fails must never leave the turn 'running' silently */
   private async writeClosingStatus(state: TurnState, status: Exclude<TurnStatus, 'running'>): Promise<TurnOutcome> {
     try {
-      await state.status.close(status, state.callsThatMayHaveTakenEffect);
+      await state.status.close(status);
     } catch (error) {
       this.loggingService.error(new Error('failed to close the status post', { cause: error }));
     }
