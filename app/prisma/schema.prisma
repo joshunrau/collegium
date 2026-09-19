@@ -129,7 +129,8 @@ model Turn {
   reasoningTokens  Int?
   /// §7.4 — the human or trigger post this chain descends from; every turn in one chain carries the
   /// same one, so the limit is a count over the chain rather than a hop count along one path. Null
-  /// for turns recorded before the column existed, which are their own root.
+  /// for turns recorded before the column existed, which are their own root, and null again after a
+  /// /collegium clear (§8.5), which keeps the row and removes every post it named.
   rootPostId       String?
   startedAt        DateTime    @default(now())
   status           TurnStatus
