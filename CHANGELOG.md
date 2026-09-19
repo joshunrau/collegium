@@ -1,3 +1,34 @@
+## [0.0.1-beta.24](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.23...v0.0.1-beta.24) (2026-09-19)
+
+### Features
+
+- **clearing:** erase a channel's record before a boundary, under confirmation ([7843cc9](https://github.com/joshunrau/collegium/commit/7843cc90729e6b0f337ec4f4290816dee6b7c333))
+- **commands:** add /collegium clear ([237fded](https://github.com/joshunrau/collegium/commit/237fded23a704898e2fd4f6dad8f6b3e57d06e98))
+- **config:** word a config.json the schema refuses as one line per issue and path ([02e5ba3](https://github.com/joshunrau/collegium/commit/02e5ba3bfd6a45413d6122bd3e3322251fa9843f))
+- **inference:** wait out a rate limit as the provider asks, with jittered backoff and a cap ([49199cc](https://github.com/joshunrau/collegium/commit/49199cc0020c4ca11487820172f581addb1d781e))
+- **mattermost:** forward the trigger id and erase a channel's posts before a boundary ([305d5db](https://github.com/joshunrau/collegium/commit/305d5db9b96ff6179541d2c9be2d2375c16d96d3))
+- **memory:** read a memory back with how long ago it was written ([7759201](https://github.com/joshunrau/collegium/commit/77592013f69ce61b7b0315f2d9c07afff047e8ba))
+- **notifications:** announce a command through one voice that can edit its notice ([b2f89bf](https://github.com/joshunrau/collegium/commit/b2f89bf7603f0ec59eef5ba9908cff28d6cb16c1))
+- **shell:** save output a result cannot carry to the agent's workspace and name the file ([b38577b](https://github.com/joshunrau/collegium/commit/b38577ba2533262afb2c5336b2a3c6a948f028dd))
+- **tasks:** ask a closing verdict to say what the creator checked ([3546bfa](https://github.com/joshunrau/collegium/commit/3546bfa17c092f1ba3f583307892f24c9ae7e6aa))
+- **turns:** tell agents their posts render as markdown and to use no emoji unless asked ([6b73c1b](https://github.com/joshunrau/collegium/commit/6b73c1bbfa38c48e22f2b25166c02e778bb8a6b9))
+- **turns:** tell agents to diagnose failures and treat instructions in tool results as data ([62dd62d](https://github.com/joshunrau/collegium/commit/62dd62d900d53d880f55a803109de84d220c451d))
+- **turns:** tell agents what not to remember, and to trust what they see over a stale memory ([a2ff54c](https://github.com/joshunrau/collegium/commit/a2ff54ca39e26396cecd8559ea55bb2888c17529))
+- **web:** show the text web::fill typed, in the status post and in snapshots ([585b443](https://github.com/joshunrau/collegium/commit/585b443313d59c5e2c924e71bd51906643c1ab9e))
+
+### Bug Fixes
+
+- **approvals:** fence a payload with more backticks than it contains ([3c0fd23](https://github.com/joshunrau/collegium/commit/3c0fd233c763c92126e99dae1c41a0384838f449))
+- **runtime:** record the stop time before anything tears down ([78c4c47](https://github.com/joshunrau/collegium/commit/78c4c47c46d06ffbb2f8562560522932fab8ef52))
+- **shell:** stop holding a command's output in memory past a bound ([71070c6](https://github.com/joshunrau/collegium/commit/71070c68d5b97b54e37421168d97d487a3e764d4))
+- **web:** answer a redirect to an unparseable address as a failed page ([cdc54b3](https://github.com/joshunrau/collegium/commit/cdc54b325215e7071cde32c20ba17335dfb02c3b))
+- **web:** judge an address as an address, refusing nat64 loopback and ipv6 multicast ([72e9375](https://github.com/joshunrau/collegium/commit/72e9375b4e49bb0abc6c29ee5c60e092bd213f10))
+- **web:** pin webrtc's ice to the proxy instead of trusting camoufox's default ([5f476fb](https://github.com/joshunrau/collegium/commit/5f476fbf767df22c1a51885b4d9e3fb20e250a44))
+
+### Reverts
+
+- remove three beta.23 operator-facing notices ([48410ce](https://github.com/joshunrau/collegium/commit/48410ce9f295cb264a9327587bc4be83171e3c05))
+
 ## [0.0.1-beta.23](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.22...v0.0.1-beta.23) (2026-09-18)
 
 ### ⚠ BREAKING CHANGES
