@@ -1,8 +1,27 @@
 import { describe, expect, it } from 'vitest';
 
-import { listProseRanges } from '../markdown.utils.ts';
+import { fenceCodeBlock, listProseRanges, renderCodeSpan } from '../markdown.utils.ts';
 
 const prose = (text: string): string[] => listProseRanges(text).map((range) => text.slice(range.start, range.end));
+
+describe('fenceCodeBlock', () => {
+  it('should fence a body without backticks in three', () => {
+    expect(fenceCodeBlock('ls -la', 'sh')).toBe('```sh\nls -la\n```');
+  });
+
+  it('should fence a body one backtick longer than its longest run, so it renders whole', () => {
+    expect(fenceCodeBlock('```\n[ls](https://evil)')).toBe('````\n```\n[ls](https://evil)\n````');
+    expect(fenceCodeBlock('a ```` b')).toBe('`````\na ```` b\n`````');
+  });
+});
+
+describe('renderCodeSpan', () => {
+  it('should delimit a span with more backticks than it holds, padding one that begins with a backtick', () => {
+    expect(renderCodeSpan('notes.md')).toBe('`notes.md`');
+    expect(renderCodeSpan('a`b')).toBe('``a`b``');
+    expect(renderCodeSpan('`x')).toBe('`` `x ``');
+  });
+});
 
 describe('listProseRanges', () => {
   it('should return the whole text when it holds no code', () => {

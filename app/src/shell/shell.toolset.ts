@@ -3,6 +3,8 @@ import { implementToolset, SHELL_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
+import { fenceCodeBlock } from '@/utils/markdown.utils.ts';
+
 import { SHELL_SERVICE_TOKEN } from './shell.tokens.ts';
 
 export const SHELL_TOOLSET = implementToolset(SHELL_TOOLSET_DEF, {
@@ -11,7 +13,7 @@ export const SHELL_TOOLSET = implementToolset(SHELL_TOOLSET_DEF, {
     run: {
       /** §6.2 — a shell command is never hidden or truncated; one too long to present is refused at the gate */
       approval: (args) => ({
-        body: `Run this shell command as this agent's dedicated OS user:\n\n\`\`\`sh\n${args.command}\n\`\`\``,
+        body: `Run this shell command as this agent's dedicated OS user:\n\n${fenceCodeBlock(args.command, 'sh')}`,
         presentation: 'verbatim'
       }),
       description: 'Run a shell command on the host as your own dedicated OS user.',

@@ -3,6 +3,7 @@ import { parseQualifiedSkillName } from '@collegium/core/skills';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import type { SkillListing } from '@/skills/skills.service.ts';
 import type { GrantedTool } from '@/tools/tools.registry.ts';
+import { fenceCodeBlock } from '@/utils/markdown.utils.ts';
 
 /** Mattermost rejects a post over 16383 characters; the summary, the fence and the notice ride inside this */
 const MAX_RESPONSE_CHARS = 16_000;
@@ -96,10 +97,12 @@ export type InspectReport = {
 /** the summary sections are always whole; only the prompt, the one open-ended section, is cut to fit the post cap */
 export function renderInspectResponse(report: InspectReport): string {
   const summary = renderSummary(report);
-  const fence = (body: string) => `${summary}\n\`\`\`text\n${body}\n\`\`\``;
-  const budget = MAX_RESPONSE_CHARS - fence('').length - TRUNCATION_NOTICE_RESERVE;
+  const respond = (prompt: string) => `${summary}\n${fenceCodeBlock(prompt, 'text')}`;
+  const whole = respond(report.prompt);
+  // overhead measured around the whole prompt, not '': a slice's fence is never longer, but an empty body's may be shorter
+  const budget = MAX_RESPONSE_CHARS - (whole.length - report.prompt.length) - TRUNCATION_NOTICE_RESERVE;
   if (report.prompt.length <= budget) {
-    return fence(report.prompt);
+    return whole;
   }
-  return `${fence(report.prompt.slice(0, budget))}\n… [truncated, ${report.prompt.length - budget} characters omitted]`;
+  return `${respond(report.prompt.slice(0, budget))}\n… [truncated, ${report.prompt.length - budget} characters omitted]`;
 }

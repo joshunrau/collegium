@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import type { AgentRegistry } from '@/agents/agents.registry.ts';
 import { AGENT_REGISTRY_TOKEN } from '@/agents/agents.tokens.ts';
+import { fenceCodeBlock, renderCodeSpan } from '@/utils/markdown.utils.ts';
 
 import { findEntries, grepFiles, listDirectory, readLines, statEntry } from './reads/reads.utils.ts';
 import { GREP_DEFAULT_MATCHES, GREP_MAX_MATCHES, WALK_DEFAULT_DEPTH, WALK_MAX_DEPTH } from './workspace.constants.ts';
@@ -188,7 +189,7 @@ export const WORKSPACE_TOOLSET = implementToolset(WORKSPACE_TOOLSET_DEF, {
     },
     write: {
       approval: (args) => ({
-        body: `Write to \`${args.path}\`:\n\n\`\`\`\n${args.content}\n\`\`\``,
+        body: `Write to ${renderCodeSpan(args.path)}:\n\n${fenceCodeBlock(args.content)}`,
         presentation: 'collapse'
       }),
       description: 'Write a text file inside your workspace directory. Parent directories are created as needed.',

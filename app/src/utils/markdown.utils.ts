@@ -61,6 +61,23 @@ function splitAroundCodeSpans(text: string, paragraph: TextRange): TextRange[] {
   return ranges.filter((range) => range.end > range.start);
 }
 
+function measureLongestBacktickRun(content: string): number {
+  return Array.from(content.matchAll(BACKTICK_RUN)).reduce((longest, match) => Math.max(longest, match[0].length), 0);
+}
+
+/** a fence one backtick longer than any run in `content`: CommonMark closes a fence only on a run at least as long */
+export function fenceCodeBlock(content: string, language = ''): string {
+  const fence = '`'.repeat(Math.max(3, measureLongestBacktickRun(content) + 1));
+  return `${fence}${language}\n${content}\n${fence}`;
+}
+
+/** the inline counterpart; the padding keeps a leading or trailing backtick from joining the delimiter, and CommonMark strips it */
+export function renderCodeSpan(content: string): string {
+  const delimiter = '`'.repeat(measureLongestBacktickRun(content) + 1);
+  const padding = content.startsWith('`') || content.endsWith('`') ? ' ' : '';
+  return `${delimiter}${padding}${content}${padding}${delimiter}`;
+}
+
 /**
  * The spans of a Markdown message that render as text: outside fenced and indented code blocks and
  * inline code spans, split at blank lines so a code span never pairs across paragraphs.
