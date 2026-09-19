@@ -1,0 +1,5 @@
+interface:
+  display_name: 'Deep Interview'
+  short_description: 'Sharpen a plan through a deep interview'
+policy:
+  allow_implicit_invocation: false

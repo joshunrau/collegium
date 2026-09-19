@@ -13,6 +13,12 @@
       "skillPath": "skills/engineering/codebase-design/SKILL.md",
       "computedHash": "e6394592ecf4b5aa5bc93f95a20d0a56314788bde2e1221f87296d3becb734a2"
     },
+    "deep-interview": {
+      "source": "joshunrau/skills",
+      "sourceType": "github",
+      "skillPath": "skills/deep-interview/SKILL.md",
+      "computedHash": "dcd9fc6b6a43ec123c5fa79474bad443a6653d3234544e4a676072ec49929f1c"
+    },
     "diagnosing-bugs": {
       "source": "mattpocock/skills",
       "sourceType": "github",
