@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 
 import { ProcessRunner } from './runners/process.runner.ts';
-import { SPAWN_WORKING_DIRECTORY } from './shell.constants.ts';
+import { CAPTURE_LIMIT_CHARS, SPAWN_WORKING_DIRECTORY } from './shell.constants.ts';
 import { buildProbeArgv, buildRunArgv, deriveShellOsUser, holdsShellGrant, toRunOutput } from './shell.utils.ts';
 
 import type { ShellRunFailure, ShellRunOutput } from './shell.types.ts';
@@ -30,6 +30,7 @@ export class ShellService {
       }
       const osUser = deriveShellOsUser(profile.username);
       const probe = await this.processRunner.spawnCaptured('sudo', buildProbeArgv(osUser), {
+        captureLimitChars: CAPTURE_LIMIT_CHARS,
         cwd: SPAWN_WORKING_DIRECTORY
       });
       if (!probe.success) {
@@ -54,6 +55,7 @@ export class ShellService {
   async run(params: { agentUsername: string; command: string }): Promise<Result<ShellRunOutput, ShellRunFailure>> {
     const osUser = deriveShellOsUser(params.agentUsername);
     const captured = await this.processRunner.spawnCaptured('sudo', buildRunArgv(osUser, params.command), {
+      captureLimitChars: CAPTURE_LIMIT_CHARS,
       cwd: SPAWN_WORKING_DIRECTORY
     });
     if (!captured.success) {

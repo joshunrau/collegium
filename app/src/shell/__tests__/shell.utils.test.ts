@@ -14,6 +14,7 @@ import type { CapturedProcess } from '../shell.types.ts';
 
 const captured = (over: Partial<CapturedProcess>): CapturedProcess => ({
   code: 0,
+  droppedChars: { stderr: 0, stdout: 0 },
   signal: null,
   stderr: '',
   stdout: '',
@@ -131,7 +132,14 @@ describe('toRunOutput', () => {
 
   it('should cap an oversized stream and mark the truncation', () => {
     const output = toRunOutput(captured({ code: 0, stdout: 'x'.repeat(OUTPUT_CAP_CHARS + 100) }));
-    expect(output).toContain(`…output truncated at ${OUTPUT_CAP_CHARS} characters`);
+    expect(output).toContain(`…output truncated at ${OUTPUT_CAP_CHARS} of ${OUTPUT_CAP_CHARS + 100} characters`);
     expect(output.length).toBeLessThan(OUTPUT_CAP_CHARS + 100);
+  });
+
+  it('should count what the capture dropped in the size it names', () => {
+    const output = toRunOutput(
+      captured({ droppedChars: { stderr: 0, stdout: 5_000 }, stdout: 'x'.repeat(OUTPUT_CAP_CHARS + 100) })
+    );
+    expect(output).toContain(`of ${OUTPUT_CAP_CHARS + 5_100} characters`);
   });
 });

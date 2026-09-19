@@ -37,12 +37,12 @@ function deriveShellOsUserId(agentUsername: string): number {
   return SHELL_OS_USER_ID_BASE + (digest.readUInt32BE(0) % SHELL_OS_USER_ID_COUNT);
 }
 
-function capStream(text: string): string {
+function capStream(text: string, droppedChars: number): string {
   const trimmed = text.trim();
   if (trimmed.length <= OUTPUT_CAP_CHARS) {
     return trimmed;
   }
-  return `${trimmed.slice(0, OUTPUT_CAP_CHARS)}\n…output truncated at ${OUTPUT_CAP_CHARS} characters`;
+  return `${trimmed.slice(0, OUTPUT_CAP_CHARS)}\n…output truncated at ${OUTPUT_CAP_CHARS} of ${text.length + droppedChars} characters`;
 }
 
 function describeExit(captured: CapturedProcess): string {
@@ -146,8 +146,8 @@ export function buildProbeArgv(osUser: string): readonly string[] {
  * result the model reasons about; only a failure to launch is an error, handled by the caller.
  */
 export function toRunOutput(captured: CapturedProcess): string {
-  const stdout = capStream(captured.stdout);
-  const stderr = capStream(captured.stderr);
+  const stdout = capStream(captured.stdout, captured.droppedChars.stdout);
+  const stderr = capStream(captured.stderr, captured.droppedChars.stderr);
   const body = [stdout === '' ? undefined : `stdout:\n${stdout}`, stderr === '' ? undefined : `stderr:\n${stderr}`]
     .filter((section) => section !== undefined)
     .join('\n\n');

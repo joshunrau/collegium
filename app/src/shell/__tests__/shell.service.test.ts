@@ -25,7 +25,9 @@ describe('ShellService', () => {
 
   describe('run', () => {
     it('should run the command as the agent’s derived OS user and return the formatted output', async () => {
-      processRunner.spawnCaptured.mockResolvedValue(Result.ok({ code: 0, signal: null, stderr: '', stdout: 'mira' }));
+      processRunner.spawnCaptured.mockResolvedValue(
+        Result.ok({ code: 0, droppedChars: { stderr: 0, stdout: 0 }, signal: null, stderr: '', stdout: 'mira' })
+      );
       const result = await shellService.run({ agentUsername: 'mira', command: 'id -un' });
       const [file, args] = processRunner.spawnCaptured.mock.calls[0]!;
       expect(file).toBe('sudo');
@@ -48,7 +50,9 @@ describe('ShellService', () => {
     });
 
     it('should pass when a shell-holding agent’s OS user is assumable', async () => {
-      processRunner.spawnCaptured.mockResolvedValue(Result.ok({ code: 0, signal: null, stderr: '', stdout: '' }));
+      processRunner.spawnCaptured.mockResolvedValue(
+        Result.ok({ code: 0, droppedChars: { stderr: 0, stdout: 0 }, signal: null, stderr: '', stdout: '' })
+      );
       await expect(shellService.assertProvisioned([profile('mira', ['shell'])])).resolves.toBeUndefined();
     });
 
@@ -59,7 +63,13 @@ describe('ShellService', () => {
 
     it('should stop boot loudly when the OS user cannot be assumed', async () => {
       processRunner.spawnCaptured.mockResolvedValue(
-        Result.ok({ code: 1, signal: null, stderr: 'sudo: a password is required', stdout: '' })
+        Result.ok({
+          code: 1,
+          droppedChars: { stderr: 0, stdout: 0 },
+          signal: null,
+          stderr: 'sudo: a password is required',
+          stdout: ''
+        })
       );
       await expect(shellService.assertProvisioned([profile('mira', ['shell'])])).rejects.toThrow(
         /collegium-mira.*cannot be assumed/s

@@ -1,6 +1,8 @@
 /** what the process runner captures from a finished child, before any domain interpretation */
 export type CapturedProcess = {
   readonly code: null | number;
+  /** what each stream printed past the capture limit, counted rather than kept */
+  readonly droppedChars: { readonly stderr: number; readonly stdout: number };
   readonly signal: NodeJS.Signals | null;
   readonly stderr: string;
   readonly stdout: string;

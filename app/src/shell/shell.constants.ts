@@ -10,6 +10,9 @@ export const DEADLINE_EXIT_CODE = 124;
 /** Longest captured output, per stream, fed back to the model; the rest is dropped with a marker. */
 export const OUTPUT_CAP_CHARS = 8_192;
 
+/** Most output held in memory per stream while a command runs; past it the output is counted and dropped. */
+export const CAPTURE_LIMIT_CHARS = 1_000_000;
+
 /** Where each shell-holding agent's OS user has its home; the entrypoint provisions beneath it and the preamble names it. */
 export const SHELL_HOME_ROOT = '/home';
 
