@@ -89,7 +89,10 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         state: z
           .enum(CREATOR_TARGETS)
           .describe('done when the result meets your criteria; cancelled when it never will'),
-        verdict: z.string().min(1).describe('Your judgement of the result, in one or two sentences')
+        verdict: z
+          .string()
+          .min(1)
+          .describe('Your judgement of the result and what you checked to reach it, in one or two sentences')
       }),
       traceDetail: (args) => `${args.reference} → ${args.state}`
     },
