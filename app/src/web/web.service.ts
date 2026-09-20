@@ -1,15 +1,15 @@
 import { Result } from '@collegium/core/utils';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { BrowserClient } from './browser/browser.client.ts';
 import { FetchClient } from './fetch/fetch.client.ts';
 import { extractTitle, needsClientRendering } from './fetch/fetch.utils.ts';
 import { MAX_LIVE_SESSIONS } from './web.constants.ts';
-import { refuseUnbrowsableUrl, resolveAndVetHost } from './web.policy.ts';
+import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
 import { capMarkdown, toMarkdown } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
-import type { RenderedCapture, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
+import type { AddressPolicy, RenderedCapture, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
 
 /**
  * The web seam: turn-scoped browsing sessions, one page each, driven by refs the model read in
@@ -29,6 +29,7 @@ export class WebService {
   private readonly sessions = new Map<string, Promise<Result<BrowserSession, WebFailure.Unreachable>>>();
 
   constructor(
+    @Inject(ADDRESS_POLICY_TOKEN) private readonly addressPolicy: AddressPolicy,
     private readonly browserClient: BrowserClient,
     private readonly fetchClient: FetchClient
   ) {}
@@ -112,7 +113,7 @@ export class WebService {
   ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.NoSession | WebFailure.StaleRef>>> {
     // before the session, not inside it: a refused address must cost neither a browser launch nor
     // one of the live-session slots §3.4's cap hands out
-    const refused = refuseUnbrowsableUrl(url);
+    const refused = this.addressPolicy.refuse(url);
     if (refused) {
       return Result.err(refused);
     }
@@ -123,7 +124,7 @@ export class WebService {
     // after the slot is claimed, never before: a turn ending during the lookup must find a session
     // to dispose, not claim one afterwards. The proxy would refuse the address too, but as a page
     // that failed to load, where this is the typed refusal it is
-    const vetted = await resolveAndVetHost(new URL(url));
+    const vetted = await this.addressPolicy.resolve(new URL(url));
     if (!vetted.success) {
       return vetted;
     }

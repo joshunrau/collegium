@@ -514,6 +514,16 @@ export const $ProvidersConfig = z.strictObject({
     .describe('OpenRouter, fronting many providers under one key')
 });
 
+export type $WebConfig = z.infer<typeof $WebConfig>;
+export const $WebConfig = z.strictObject({
+  allowPrivateAddresses: z
+    .boolean()
+    .default(CONFIG_DEFAULTS.web.allowPrivateAddresses)
+    .describe(
+      'Lifts the refusal of loopback, private-network and link-local addresses for every agent and every request the web toolset makes (§3.4). Only http(s) is still enforced. Meant for a deployment that serves its own test pages; it is logged at boot whenever it is on.'
+    )
+});
+
 /** config.json as written, before its cross-references are resolved */
 export type $ConfigDeclaration = z.infer<typeof $ConfigDeclaration>;
 export const $ConfigDeclaration = z.strictObject({
@@ -565,5 +575,6 @@ export const $ConfigDeclaration = z.strictObject({
     .describe(
       'Credentials for each model provider an agent may name. A provider a model names must be configured here.'
     ),
-  turns: $TurnsConfig.prefault({}).describe('The bounds on a turn and on chains of turns (§5.3, §7.4)')
+  turns: $TurnsConfig.prefault({}).describe('The bounds on a turn and on chains of turns (§5.3, §7.4)'),
+  web: $WebConfig.prefault({}).describe('What the web toolset may reach beyond the public internet (§3.4)')
 });

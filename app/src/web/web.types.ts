@@ -1,3 +1,5 @@
+import type { Result } from '@collegium/core/utils';
+
 import type { FormElement } from './snapshot/snapshot.types.ts';
 
 /** what one browser action hands back before conversion — the session's raw view of the page */
@@ -19,11 +21,13 @@ export type VettedAddress = {
 };
 
 /**
- * The one judgement the browser's proxy makes per request: the address to connect to, or nothing.
- * Injectable for one reason: the real-browser suite serves its fixtures from a loopback address
- * the production policy refuses, and a test that cannot admit its own server cannot run.
+ * The §3.4 address policy, one per process: what may be asked for, what a name may resolve to, and
+ * the two together as the browser's proxy applies them per request. Injectable so the deployment's
+ * own declaration shapes it, and so the real-browser suite can admit its loopback server.
  */
 export type AddressPolicy = {
+  readonly refuse: (url: string) => undefined | WebFailure.UrlRefused;
+  readonly resolve: (url: URL) => Promise<Result<VettedAddress, WebFailure.Navigation | WebFailure.UrlRefused>>;
   readonly vet: (url: URL) => Promise<undefined | VettedAddress>;
 };
 

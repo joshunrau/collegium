@@ -1,14 +1,14 @@
 import type { Readable } from 'node:stream';
 
 import { Result } from '@collegium/core/utils';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { FETCH_BODY_CAP_BYTES, FETCH_TIMEOUT_MS, MAX_REDIRECTS } from '../web.constants.ts';
-import { refuseUnbrowsableUrl, resolveAndVetHost } from '../web.policy.ts';
+import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
 import { charsetOf, classifyContentType, describeFetchError, toDecoder } from './fetch.utils.ts';
 import { pinnedGet } from './pinned-request.utils.ts';
 
-import type { WebFailure } from '../web.types.ts';
+import type { AddressPolicy, WebFailure } from '../web.types.ts';
 import type { FetchedResource, PinnedResponse } from './fetch.types.ts';
 
 const ACCEPT = 'text/html, application/xhtml+xml, text/*;q=0.9, application/json;q=0.8, */*;q=0.1';
@@ -24,6 +24,8 @@ const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]
  */
 @Injectable()
 export class FetchClient {
+  constructor(@Inject(ADDRESS_POLICY_TOKEN) private readonly addressPolicy: AddressPolicy) {}
+
   async get(
     url: string
   ): Promise<Result<FetchedResource, WebFailure.Navigation | WebFailure.UnsupportedContent | WebFailure.UrlRefused>> {
@@ -50,11 +52,11 @@ export class FetchClient {
   ): Promise<Result<{ response: PinnedResponse; url: string }, WebFailure.Navigation | WebFailure.UrlRefused>> {
     let current = url;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      const refused = refuseUnbrowsableUrl(current);
+      const refused = this.addressPolicy.refuse(current);
       if (refused) {
         return Result.err(refused);
       }
-      const vetted = await resolveAndVetHost(new URL(current));
+      const vetted = await this.addressPolicy.resolve(new URL(current));
       if (!vetted.success) {
         return vetted;
       }

@@ -35,6 +35,9 @@ export const CONFIG_DEFAULTS = {
     chainLengthLimit: 200,
     delegationDepthLimit: 10,
     hourlyCeiling: 500
+  },
+  web: {
+    allowPrivateAddresses: false
   }
 } as const;
 

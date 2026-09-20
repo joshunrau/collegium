@@ -38,7 +38,7 @@ export class PolicyProxy implements OnApplicationShutdown {
   private server: http.Server | undefined;
   private readonly tunnels = new Set<Duplex>();
 
-  constructor(@Inject(ADDRESS_POLICY_TOKEN) private readonly policy: AddressPolicy) {}
+  constructor(@Inject(ADDRESS_POLICY_TOKEN) private readonly policy: Pick<AddressPolicy, 'vet'>) {}
 
   /** the address a browser context is given; the server starts on first use and lives until shutdown */
   address(): Promise<string> {

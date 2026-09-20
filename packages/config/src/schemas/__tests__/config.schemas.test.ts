@@ -118,7 +118,8 @@ describe('$Config', () => {
       notifications: { lifecycle: true, stalls: { longTurnMs: 1_800_000, standingQueueMs: 600_000 } },
       plugins: [],
       providers: { deepseek: { baseUrl: 'https://api.deepseek.com' } },
-      turns: { actionBudget: 25, chainLengthLimit: 200, delegationDepthLimit: 10, hourlyCeiling: 500 }
+      turns: { actionBudget: 25, chainLengthLimit: 200, delegationDepthLimit: 10, hourlyCeiling: 500 },
+      web: { allowPrivateAddresses: false }
     });
   });
 

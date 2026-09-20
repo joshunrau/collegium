@@ -2,7 +2,7 @@ import type { LookupAddress } from 'node:dns';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { isBlockedAddress, refuseUnbrowsableUrl, resolveAndVetHost } from '../web.policy.ts';
+import { createAddressPolicy, isBlockedAddress, refuseUnbrowsableUrl, resolveAndVetHost } from '../web.policy.ts';
 
 const lookupMock = vi.hoisted(() => vi.fn<(hostname: string, options: { all: true }) => Promise<LookupAddress[]>>());
 
@@ -102,5 +102,23 @@ describe('resolveAndVetHost', () => {
       kind: 'navigation',
       message: 'getaddrinfo ENOTFOUND northmoor.example'
     });
+  });
+});
+
+describe('createAddressPolicy', () => {
+  it('should refuse a loopback literal and a privately resolving name unless the deployment declared its network browsable (§3.4)', async () => {
+    const strict = createAddressPolicy({ allowPrivateAddresses: false });
+    const open = createAddressPolicy({ allowPrivateAddresses: true });
+    expect(strict.refuse('http://127.0.0.1:8080/')?.reason).toBe('not-public-host');
+    expect(open.refuse('http://127.0.0.1:8080/')).toBeUndefined();
+    lookupMock.mockResolvedValue([{ address: '172.18.0.4', family: 4 }]);
+    expect((await strict.resolve(new URL('http://fixtures/'))).error).toMatchObject({ reason: 'not-public-host' });
+    expect((await open.resolve(new URL('http://fixtures/'))).value).toStrictEqual({ address: '172.18.0.4', family: 4 });
+    expect(await open.vet(new URL('http://fixtures/'))).toStrictEqual({ address: '172.18.0.4', family: 4 });
+  });
+
+  it('should keep the scheme rule with the network declared browsable', () => {
+    const open = createAddressPolicy({ allowPrivateAddresses: true });
+    expect(open.refuse('file:///etc/passwd')?.reason).toBe('not-web-scheme');
   });
 });

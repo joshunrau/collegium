@@ -1,3 +1,4 @@
+import type { LookupAddress } from 'node:dns';
 import { lookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
 
@@ -66,6 +67,47 @@ function isPrivateHostname(hostname: string): boolean {
   return host === 'localhost' || host.endsWith('.localhost');
 }
 
+/** the scheme half alone — what stands when a deployment has declared its own network browsable (§3.4) */
+function refuseNonWebUrl(url: string): undefined | WebFailure.UrlRefused {
+  const parsed = parseWebUrl(url);
+  return parsed instanceof URL ? undefined : parsed;
+}
+
+function parseWebUrl(url: string): URL | WebFailure.UrlRefused {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { kind: 'url-refused', reason: 'not-web-scheme', url };
+  }
+  return WEB_PROTOCOLS.has(parsed.protocol) ? parsed : { kind: 'url-refused', reason: 'not-web-scheme', url };
+}
+
+async function lookupAll(url: URL): Promise<Result<LookupAddress[], WebFailure.Navigation>> {
+  try {
+    return Result.ok(await lookup(url.hostname, { all: true }));
+  } catch (error) {
+    return Result.err({ kind: 'navigation', message: describeFetchError(error) });
+  }
+}
+
+function pickAddress(answers: readonly LookupAddress[]): undefined | VettedAddress {
+  const chosen = answers.find((answer) => answer.family === 4) ?? answers[0];
+  return chosen === undefined ? undefined : { address: chosen.address, family: chosen.family === 6 ? 6 : 4 };
+}
+
+/** the resolved half with the blocklist lifted: a name that resolves at all is connected to (§3.4) */
+async function resolveHost(url: URL): Promise<Result<VettedAddress, WebFailure.Navigation | WebFailure.UrlRefused>> {
+  const answers = await lookupAll(url);
+  if (!answers.success) {
+    return answers;
+  }
+  const chosen = pickAddress(answers.value);
+  return chosen === undefined
+    ? Result.err({ kind: 'url-refused', reason: 'not-public-host', url: url.href })
+    : Result.ok(chosen);
+}
+
 /** judged as a bare address: a literal written in a URL, or one answer from a lookup */
 export function isBlockedAddress(address: string): boolean {
   const host = stripBrackets(address);
@@ -84,14 +126,9 @@ export function isBlockedAddress(address: string): boolean {
  * `resolveAndVetHost`'s verdict, taken again for every request made.
  */
 export function refuseUnbrowsableUrl(url: string): undefined | WebFailure.UrlRefused {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return { kind: 'url-refused', reason: 'not-web-scheme', url };
-  }
-  if (!WEB_PROTOCOLS.has(parsed.protocol)) {
-    return { kind: 'url-refused', reason: 'not-web-scheme', url };
+  const parsed = parseWebUrl(url);
+  if (!(parsed instanceof URL)) {
+    return parsed;
   }
   if (isPrivateHostname(parsed.hostname)) {
     return { kind: 'url-refused', reason: 'not-public-host', url };
@@ -109,26 +146,34 @@ export function refuseUnbrowsableUrl(url: string): undefined | WebFailure.UrlRef
 export async function resolveAndVetHost(
   url: URL
 ): Promise<Result<VettedAddress, WebFailure.Navigation | WebFailure.UrlRefused>> {
-  let answers: { address: string; family: number }[];
-  try {
-    answers = await lookup(url.hostname, { all: true });
-  } catch (error) {
-    return Result.err({ kind: 'navigation', message: describeFetchError(error) });
+  const answers = await lookupAll(url);
+  if (!answers.success) {
+    return answers;
   }
-  const chosen = answers.find((answer) => answer.family === 4) ?? answers[0];
-  if (chosen === undefined || answers.some((answer) => isBlockedAddress(answer.address))) {
+  const chosen = pickAddress(answers.value);
+  if (chosen === undefined || answers.value.some((answer) => isBlockedAddress(answer.address))) {
     return Result.err({ kind: 'url-refused', reason: 'not-public-host', url: url.href });
   }
-  return Result.ok({ address: chosen.address, family: chosen.family === 6 ? 6 : 4 });
+  return Result.ok(chosen);
 }
 
-/** both halves of the policy, as the browser's proxy applies them to every request it carries (§3.4) */
-export const PRODUCTION_ADDRESS_POLICY: AddressPolicy = {
-  vet: async (url) => {
-    if (refuseUnbrowsableUrl(url.href) !== undefined) {
-      return undefined;
+/**
+ * Both halves of §3.4's policy, as the deployment declared them: strict by default, or with the
+ * private-address refusal lifted where the deployment has said its own network is browsable. The
+ * scheme rule is never lifted.
+ */
+export function createAddressPolicy(options: { allowPrivateAddresses: boolean }): AddressPolicy {
+  const refuse = options.allowPrivateAddresses ? refuseNonWebUrl : refuseUnbrowsableUrl;
+  const resolve = options.allowPrivateAddresses ? resolveHost : resolveAndVetHost;
+  return {
+    refuse,
+    resolve,
+    vet: async (url) => {
+      if (refuse(url.href) !== undefined) {
+        return undefined;
+      }
+      const resolved = await resolve(url);
+      return resolved.success ? resolved.value : undefined;
     }
-    const vetted = await resolveAndVetHost(url);
-    return vetted.success ? vetted.value : undefined;
-  }
-};
+  };
+}

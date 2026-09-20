@@ -4,20 +4,21 @@ import { Result } from '@collegium/core/utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FETCH_BODY_CAP_BYTES, MAX_REDIRECTS } from '../../web.constants.ts';
-import { resolveAndVetHost } from '../../web.policy.ts';
+import { refuseUnbrowsableUrl } from '../../web.policy.ts';
 import { FetchClient } from '../fetch.client.ts';
 import { pinnedGet } from '../pinned-request.utils.ts';
 
+import type { AddressPolicy } from '../../web.types.ts';
 import type { PinnedResponse } from '../fetch.types.ts';
-
-vi.mock('../../web.policy.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../web.policy.ts')>()),
-  resolveAndVetHost: vi.fn()
-}));
 
 vi.mock('../pinned-request.utils.ts', () => ({ pinnedGet: vi.fn() }));
 
-const resolveMock = vi.mocked(resolveAndVetHost);
+/** the strict scheme rule, with the resolved half scripted per test */
+const policy = {
+  refuse: vi.fn(refuseUnbrowsableUrl),
+  resolve: vi.fn<AddressPolicy['resolve']>(),
+  vet: vi.fn<AddressPolicy['vet']>()
+};
 const pinnedGetMock = vi.mocked(pinnedGet);
 
 const respond = (body: Readable | string, init: { headers?: { [name: string]: string }; status?: number } = {}) => {
@@ -38,10 +39,10 @@ describe('FetchClient', () => {
   let client: FetchClient;
 
   beforeEach(() => {
-    resolveMock.mockReset();
-    resolveMock.mockResolvedValue(Result.ok({ address: '203.0.113.7', family: 4 }));
+    policy.resolve.mockReset();
+    policy.resolve.mockResolvedValue(Result.ok({ address: '203.0.113.7', family: 4 }));
     pinnedGetMock.mockReset();
-    client = new FetchClient();
+    client = new FetchClient(policy);
   });
 
   it('should hand back an HTML body with its status and the URL it was read from', async () => {
@@ -70,7 +71,7 @@ describe('FetchClient', () => {
     pinnedGetMock.mockResolvedValueOnce(respond('a,b', { headers: { 'content-type': 'text/csv' } }));
     const result = await client.get('https://northmoor.example/');
     expect(result.value).toMatchObject({ body: 'a,b', kind: 'text', url: 'https://northmoor.example/people/' });
-    expect(resolveMock).toHaveBeenCalledTimes(2);
+    expect(policy.resolve).toHaveBeenCalledTimes(2);
   });
 
   it('should refuse a redirect onto a private host before following it', async () => {
@@ -86,8 +87,8 @@ describe('FetchClient', () => {
 
   it('should refuse a redirect onto a name that resolves privately, at that hop (§3.4)', async () => {
     pinnedGetMock.mockResolvedValueOnce(redirect('https://intranet.northmoor.example/'));
-    resolveMock.mockResolvedValueOnce(Result.ok({ address: '203.0.113.7', family: 4 }));
-    resolveMock.mockResolvedValueOnce(
+    policy.resolve.mockResolvedValueOnce(Result.ok({ address: '203.0.113.7', family: 4 }));
+    policy.resolve.mockResolvedValueOnce(
       Result.err({ kind: 'url-refused', reason: 'not-public-host', url: 'https://intranet.northmoor.example/' })
     );
     const result = await client.get('https://northmoor.example/');

@@ -12,18 +12,19 @@ import { BrowserClient } from '../browser/browser.client.ts';
 import { BrowserSession } from '../browser/browser.session.ts';
 import { FetchClient } from '../fetch/fetch.client.ts';
 import { MARKDOWN_CAP_CHARS, MAX_LIVE_SESSIONS } from '../web.constants.ts';
-import { resolveAndVetHost } from '../web.policy.ts';
+import { refuseUnbrowsableUrl } from '../web.policy.ts';
 import { WebService } from '../web.service.ts';
+import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
 
 import type { FetchedResource } from '../fetch/fetch.types.ts';
-import type { RenderedCapture, WebFailure } from '../web.types.ts';
+import type { AddressPolicy, RenderedCapture, WebFailure } from '../web.types.ts';
 
-vi.mock('../web.policy.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../web.policy.ts')>()),
-  resolveAndVetHost: vi.fn()
-}));
-
-const resolveMock = vi.mocked(resolveAndVetHost);
+/** the strict scheme rule, with the resolved half scripted per test */
+const policy = {
+  refuse: vi.fn(refuseUnbrowsableUrl),
+  resolve: vi.fn<AddressPolicy['resolve']>(),
+  vet: vi.fn<AddressPolicy['vet']>()
+};
 
 const fixture = (name: string): string => {
   return fs.readFileSync(path.resolve(import.meta.dirname, 'fixtures', `${name}.html`), 'utf-8');
@@ -54,8 +55,8 @@ describe('WebService', () => {
   let webService: WebService;
 
   beforeEach(async () => {
-    resolveMock.mockReset();
-    resolveMock.mockResolvedValue(Result.ok({ address: '203.0.113.7', family: 4 }));
+    policy.resolve.mockReset();
+    policy.resolve.mockResolvedValue(Result.ok({ address: '203.0.113.7', family: 4 }));
     browserClient = MockFactory.createMock(BrowserClient);
     fetchClient = MockFactory.createMock(FetchClient);
     session = MockFactory.createMock(BrowserSession);
@@ -63,6 +64,7 @@ describe('WebService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         WebService,
+        { provide: ADDRESS_POLICY_TOKEN, useValue: policy },
         { provide: BrowserClient, useValue: browserClient },
         { provide: FetchClient, useValue: fetchClient }
       ]
@@ -113,7 +115,7 @@ describe('WebService', () => {
         reason: 'not-public-host',
         url: 'https://intranet.northmoor.example/'
       };
-      resolveMock.mockResolvedValueOnce(Result.err(refused));
+      policy.resolve.mockResolvedValueOnce(Result.err(refused));
       const result = await webService.navigate('turn-1', 'https://intranet.northmoor.example/');
       expect(result.error).toStrictEqual(refused);
       expect(session.navigate).not.toHaveBeenCalled();

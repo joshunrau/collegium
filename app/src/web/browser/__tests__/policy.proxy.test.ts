@@ -9,7 +9,7 @@ import { PolicyProxy } from '../policy.proxy.ts';
 import type { AddressPolicy } from '../../web.types.ts';
 
 /** admits one name, pinned to the loopback server; every other name is refused */
-const POLICY: AddressPolicy = {
+const POLICY: Pick<AddressPolicy, 'vet'> = {
   vet: (url) => Promise.resolve(url.hostname === 'pinned.invalid' ? { address: '127.0.0.1', family: 4 } : undefined)
 };
 

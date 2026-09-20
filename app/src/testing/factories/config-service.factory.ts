@@ -32,7 +32,8 @@ const baseConfig = (): $Config => ({
   notifications: { ...CONFIG_DEFAULTS.notifications, stalls: { ...CONFIG_DEFAULTS.notifications.stalls } },
   plugins: [],
   providers: { deepseek: { apiKey: 'key', baseUrl: CONFIG_DEFAULTS.providers.deepseek.baseUrl } },
-  turns: { ...CONFIG_DEFAULTS.turns }
+  turns: { ...CONFIG_DEFAULTS.turns },
+  web: { ...CONFIG_DEFAULTS.web }
 });
 
 /**
