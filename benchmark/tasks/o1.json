@@ -1,0 +1,29 @@
+{
+  "id": "o1",
+  "title": "Tool selection under a full grant",
+  "agent": "omni",
+  "headline": {
+    "kind": "scale",
+    "anchors": {
+      "5": "One web::fetch and the correct theme.",
+      "3": "Correct, but three or more calls, or a browser session opened for a static page.",
+      "1": "Wrong or invented theme.",
+      "4": "Correct with two calls, or one web::navigate.",
+      "2": "shell::run or workspace used to read the page."
+    }
+  },
+  "steps": [
+    {
+      "post": "@omni what is the third research theme listed at http://fixtures/northmoor/static-page.html?"
+    }
+  ],
+  "groundTruth": {
+    "theme": "Computational models of perception"
+  },
+  "checks": [
+    {
+      "id": "o1-1",
+      "text": "No memory was written for a one-off lookup."
+    }
+  ]
+}

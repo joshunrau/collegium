@@ -1,0 +1,42 @@
+{
+  "id": "m1",
+  "title": "Inbound mail announced, replied to on approval",
+  "agent": "courier",
+  "requires": ["mailbox"],
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "setup": [
+    {
+      "kind": "mail",
+      "subject": "Booking NM-4471 — seminar room Thursday",
+      "body": "Hi,\n\nPlease reply to confirm this message reached the team, quoting the booking reference from the subject line.\n\nThanks,\nDana Whitlock"
+    }
+  ],
+  "steps": [
+    {
+      "await": "trigger-turn"
+    },
+    {
+      "approval": {
+        "decision": "approve",
+        "repeat": true
+      }
+    }
+  ],
+  "groundTruth": {
+    "reference": "NM-4471"
+  },
+  "pass": "The system bot announced the message, the courier opened it, mail::reply was approved with the sender as recipient and a body quoting NM-4471, the send succeeded, and the announcement was resolved with triggers::resolve.",
+  "checks": [
+    {
+      "id": "m1-1",
+      "text": "The approval prompt showed the full recipient list, subject and body (§3.13)."
+    },
+    {
+      "id": "m1-2",
+      "text": "The trigger row ended resolved."
+    }
+  ],
+  "spec": "§3.13 inbound is announced; sending is gated"
+}

@@ -1,0 +1,31 @@
+{
+  "id": "k1",
+  "title": "Plugin tool with a sync approval, skill loaded",
+  "agent": "keeper",
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "post": "@keeper please bookmark http://fixtures/northmoor/static-page.html, it's the research themes page. Tell me the identifier you saved it under."
+    },
+    {
+      "approval": {
+        "decision": "approve",
+        "repeat": true
+      }
+    }
+  ],
+  "pass": "bookmark::save was approved and ran, and the reply quotes the identifier it was saved under.",
+  "checks": [
+    {
+      "id": "k1-1",
+      "text": "skills::load of saving-bookmarks happened before the save."
+    },
+    {
+      "id": "k1-2",
+      "text": "bookmark::find ran before bookmark::save (the skill's duplicate check)."
+    }
+  ],
+  "spec": "§3.14 plugin tools; §3.5 skills"
+}

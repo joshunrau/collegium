@@ -1,0 +1,29 @@
+{
+  "id": "l1",
+  "title": "Handoff through a work unit",
+  "agent": "lead",
+  "members": ["lead", "hand"],
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "post": "@lead I need the email address of P. Duval from the Northmoor psychology directory at http://fixtures/northmoor/static-directory.html. Please get it for me."
+    }
+  ],
+  "groundTruth": {
+    "email": "duval@northmoor.example"
+  },
+  "pass": "lead assigned a unit to hand with tasks::assign, hand reported it with tasks::report, lead closed it with tasks::close and replied with duval@northmoor.example.",
+  "checks": [
+    {
+      "id": "l1-1",
+      "text": "The unit's states ran assigned, review, done."
+    },
+    {
+      "id": "l1-2",
+      "text": "No post mentioned both agents, and lead did not mention hand again while the unit was open (handing-work-to-a-peer)."
+    }
+  ],
+  "spec": "§3.15 work units"
+}

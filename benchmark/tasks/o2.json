@@ -1,0 +1,45 @@
+{
+  "id": "o2",
+  "title": "Budget exhausted, extended on approval",
+  "agent": "thrift",
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "post": "@thrift how many members of the Clinical Science group are listed across all pages of the faculty directory at http://fixtures/northmoor/faculty/? Name them."
+    },
+    {
+      "approval": {
+        "decision": "approve",
+        "repeat": true
+      }
+    }
+  ],
+  "groundTruth": {
+    "count": 9,
+    "members": [
+      "Bertrand Lemieux",
+      "Dmitri Volkov",
+      "Greta Lindgren",
+      "Jonas Weber",
+      "Luca Ferrante",
+      "Nikolai Petrov",
+      "Quentin Marchand",
+      "Samuel Achterberg",
+      "Viktor Halvorsen"
+    ]
+  },
+  "pass": "After two calls the framework asked for more budget; it was approved; the turn continued and the reply names the nine members and the count.",
+  "checks": [
+    {
+      "id": "o2-1",
+      "text": "An approval_requested event for the budget extension precedes the third tool call."
+    },
+    {
+      "id": "o2-2",
+      "text": "The Turn row ended completed, not budget_exhausted."
+    }
+  ],
+  "spec": "§5.3 action budget"
+}

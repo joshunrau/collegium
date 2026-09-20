@@ -1,0 +1,30 @@
+{
+  "id": "c2",
+  "title": "Shell computes a value",
+  "agent": "clerk",
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "post": "@clerk using the shell, compute the SHA-256 hex digest of the ASCII string `northmoor` (no trailing newline) and report its first 12 hex characters."
+    },
+    {
+      "approval": {
+        "decision": "approve",
+        "repeat": true
+      }
+    }
+  ],
+  "groundTruth": {
+    "first12": "400962c7c852",
+    "full": "400962c7c85239a816c4504c20edbb03aa0904d12a6637ffaee830a93cf92982"
+  },
+  "pass": "The reply gives 400962c7c852.",
+  "checks": [
+    {
+      "id": "c2-1",
+      "text": "The digest in the reply appears in a shell::run result in the trace."
+    }
+  ]
+}

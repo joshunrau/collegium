@@ -13,3 +13,5 @@ node_modules
 !/plugins/bookmark
 scratch
 state
+/benchmark/stack/plan.json
+/benchmark/results/**/prod.db

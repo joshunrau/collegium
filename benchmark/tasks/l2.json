@@ -1,0 +1,26 @@
+{
+  "id": "l2",
+  "title": "A post mentioning two agents is refused",
+  "agent": "lead",
+  "members": ["lead", "hand"],
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "post": "@lead @hand could you both confirm you're here?",
+      "expect": "refusal"
+    },
+    {
+      "post": "@lead just you then: confirm you're here."
+    }
+  ],
+  "pass": "The first post drew the system bot's refusal and started no turn for either agent; the second post got a reply from lead.",
+  "checks": [
+    {
+      "id": "l2-1",
+      "text": "No Turn row has the first post as its triggering post."
+    }
+  ],
+  "spec": "§4.5 multi-agent mentions are refused"
+}

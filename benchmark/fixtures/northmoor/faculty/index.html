@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Faculty Directory — Department of Psychological Science — Northmoor University</title>
+    <style>
+      :root {
+        --ink: #16202c;
+        --muted: #5b6b7c;
+        --rule: #dce3ea;
+        --accent: #8a1538;
+        --surface: #fff;
+        --surface-alt: #f6f8fa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e7edf3;
+          --muted: #9aa9b8;
+          --rule: #2a3644;
+          --accent: #e8859c;
+          --surface: #0f1620;
+          --surface-alt: #16202c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--surface);
+        color: var(--ink);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        line-height: 1.6;
+      }
+      main {
+        margin-inline: auto;
+        max-width: 62rem;
+        padding: 3rem 1.5rem;
+      }
+      h1 {
+        margin: 0 0 0.25rem;
+        font-size: clamp(1.75rem, 4vw, 2.25rem);
+        letter-spacing: -0.02em;
+      }
+      .lede {
+        margin: 0;
+        color: var(--muted);
+        font-size: 1.15rem;
+      }
+      .pagination-status {
+        margin: 1.5rem 0 0.5rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      table {
+        width: 100%;
+        margin-top: 1rem;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+      }
+      th {
+        padding: 0.55rem 0.75rem;
+        border-bottom: 2px solid var(--rule);
+        color: var(--muted);
+        font-size: 0.75rem;
+        letter-spacing: 0.07em;
+        text-align: left;
+        text-transform: uppercase;
+      }
+      td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+      }
+      tbody tr:nth-child(even) {
+        background: var(--surface-alt);
+      }
+      nav[aria-label='Pagination'] {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--rule);
+        font-size: 0.95rem;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 0.2em;
+      }
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Faculty Directory</h1>
+      <p class="lede">Department of Psychological Science</p>
+      <p class="pagination-status">Page 1 of 3</p>
+      <p class="pagination-status">Showing 1–8 of 24 members</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Research group</th>
+            <th>Email</th>
+            <th>Office</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Amara Okafor</td>
+            <td>Professor</td>
+            <td>Cognition and Perception</td>
+            <td><a href="mailto:a.okafor@northmoor.example">a.okafor@northmoor.example</a></td>
+            <td>Hollis 214</td>
+          </tr>
+          <tr>
+            <td>Bertrand Lemieux</td>
+            <td>Associate Professor</td>
+            <td>Clinical Science</td>
+            <td><a href="mailto:b.lemieux@northmoor.example">b.lemieux@northmoor.example</a></td>
+            <td>Hollis 118</td>
+          </tr>
+          <tr>
+            <td>Chiara Bellandi</td>
+            <td>Assistant Professor</td>
+            <td>Developmental</td>
+            <td><a href="mailto:c.bellandi@northmoor.example">c.bellandi@northmoor.example</a></td>
+            <td>Hollis 302</td>
+          </tr>
+          <tr>
+            <td>Dmitri Volkov</td>
+            <td>Professor</td>
+            <td>Clinical Science</td>
+            <td><a href="mailto:d.volkov@northmoor.example">d.volkov@northmoor.example</a></td>
+            <td>Hollis 120</td>
+          </tr>
+          <tr>
+            <td>Esperanza Ruiz</td>
+            <td>Associate Professor</td>
+            <td>Cognition and Perception</td>
+            <td><a href="mailto:e.ruiz@northmoor.example">e.ruiz@northmoor.example</a></td>
+            <td>Hollis 216</td>
+          </tr>
+          <tr>
+            <td>Farid Hosseini</td>
+            <td>Assistant Professor</td>
+            <td>Developmental</td>
+            <td><a href="mailto:f.hosseini@northmoor.example">f.hosseini@northmoor.example</a></td>
+            <td>Hollis 304</td>
+          </tr>
+          <tr>
+            <td>Greta Lindgren</td>
+            <td>Professor</td>
+            <td>Clinical Science</td>
+            <td><a href="mailto:g.lindgren@northmoor.example">g.lindgren@northmoor.example</a></td>
+            <td>Hollis 122</td>
+          </tr>
+          <tr>
+            <td>Hiro Tanaka</td>
+            <td>Associate Professor</td>
+            <td>Developmental</td>
+            <td><a href="mailto:h.tanaka@northmoor.example">h.tanaka@northmoor.example</a></td>
+            <td>Hollis 306</td>
+          </tr>
+        </tbody>
+      </table>
+      <nav aria-label="Pagination">
+        <span></span>
+        <a href="page-2.html">Next →</a>
+      </nav>
+    </main>
+  </body>
+</html>

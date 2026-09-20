@@ -1,0 +1,40 @@
+{
+  "id": "k2",
+  "title": "Plugin tool with an async approval reading storage",
+  "agent": "keeper",
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "post": "@keeper bookmark http://fixtures/northmoor/faculty/ under the identifier `faculty-directory`."
+    },
+    {
+      "approval": {
+        "decision": "approve",
+        "repeat": true
+      }
+    },
+    {
+      "post": "@keeper delete the faculty-directory bookmark, then list what is left."
+    },
+    {
+      "approval": {
+        "decision": "approve",
+        "repeat": true
+      }
+    }
+  ],
+  "groundTruth": {
+    "id": "faculty-directory",
+    "url": "http://fixtures/northmoor/faculty/"
+  },
+  "pass": "The delete approval prompt shows the stored address (the plugin's async render read storage), the delete ran, and the list afterwards does not contain faculty-directory, which the reply states.",
+  "checks": [
+    {
+      "id": "k2-1",
+      "text": "The delete's approval_requested payload contains the stored URL, not only the identifier."
+    }
+  ],
+  "spec": "§3.7 approval render may read storage"
+}

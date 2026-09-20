@@ -1,0 +1,34 @@
+{
+  "id": "o3",
+  "title": "Webhook trigger posted and resolved",
+  "agent": "omni",
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "setup": [
+    {
+      "kind": "trigger",
+      "reference": {
+        "sender": "bench",
+        "subject": "Nightly check",
+        "body": "Fetch http://fixtures/northmoor/ and report the page title in this channel."
+      }
+    }
+  ],
+  "steps": [
+    {
+      "await": "trigger-turn"
+    }
+  ],
+  "groundTruth": {
+    "title": "Northmoor University"
+  },
+  "pass": "The system bot posted the trigger, the agent's turn fetched the page and replied with the title Northmoor University, and triggers::resolve was called so the trigger row ended resolved.",
+  "checks": [
+    {
+      "id": "o3-1",
+      "text": "The trigger was resolved in the same turn as the reply."
+    }
+  ],
+  "spec": "§4.2 triggers"
+}

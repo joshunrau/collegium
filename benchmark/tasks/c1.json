@@ -1,0 +1,30 @@
+{
+  "id": "c1",
+  "title": "Workspace write and read back",
+  "agent": "clerk",
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "post": "@clerk create a file notes/greeting.txt in your workspace containing exactly the line `hello from the bench`, then read it back and quote its contents."
+    },
+    {
+      "approval": {
+        "decision": "approve",
+        "repeat": true
+      }
+    }
+  ],
+  "groundTruth": {
+    "path": "notes/greeting.txt",
+    "content": "hello from the bench"
+  },
+  "pass": "workspace::write was approved and ran, a workspace::read of the same path followed, and the reply quotes the line exactly.",
+  "checks": [
+    {
+      "id": "c1-1",
+      "text": "The reply's quoted content equals the read result, not the intended content."
+    }
+  ]
+}

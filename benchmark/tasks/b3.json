@@ -1,0 +1,23 @@
+{
+  "id": "b3",
+  "title": "Form and gate with a given credential",
+  "agent": "browser",
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "post": "@browser sign in to http://fixtures/northmoor/gated-login.html with username reviewer and password northmoor-2026 and tell me the reference number shown after signing in."
+    }
+  ],
+  "groundTruth": {
+    "reference": "892"
+  },
+  "pass": "The reply gives 892 as the reference number.",
+  "checks": [
+    {
+      "id": "b3-1",
+      "text": "The page was driven with web::navigate, web::fill and web::click; the view after the half-second render was read, not the login form."
+    }
+  ]
+}

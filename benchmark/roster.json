@@ -1,0 +1,61 @@
+{
+  "$comment": "The benchmark roster: one narrowly granted agent per framework seam, a delegation pair, a budget-bound agent and one omni agent. render-config.js turns this plus benchmark/tasks/*.json into the stack's config.json. Names are generic on purpose; nothing here mirrors a production deployment.",
+  "tiers": {
+    "reference": {
+      "suffix": "",
+      "model": {
+        "name": "deepseek-v4-flash",
+        "provider": "deepseek"
+      }
+    },
+    "control": {
+      "suffix": "-ctl",
+      "model": {
+        "name": "anthropic/claude-opus-5",
+        "provider": "openrouter"
+      }
+    }
+  },
+  "agents": {
+    "scribe": {
+      "expertise": "general discussion, note-taking, and remembering the team's decisions",
+      "tools": ["memory"]
+    },
+    "browser": {
+      "expertise": "reading websites and extracting facts from them",
+      "tools": ["web", "memory"]
+    },
+    "clerk": {
+      "expertise": "files, scripts, and shell computation",
+      "tools": ["workspace", "shell", "memory"]
+    },
+    "courier": {
+      "expertise": "email",
+      "tools": ["mail", "memory"],
+      "mailbox": true
+    },
+    "keeper": {
+      "expertise": "keeping bookmarks for the team",
+      "tools": ["bookmark", "memory"],
+      "skills": ["bookmark::saving-bookmarks"]
+    },
+    "lead": {
+      "expertise": "coordinating work and handing it to colleagues",
+      "tools": ["tasks::assign", "tasks::close", "tasks::read", "ask", "memory"]
+    },
+    "hand": {
+      "expertise": "reading websites and extracting facts from them, on assignment",
+      "tools": ["tasks::read", "tasks::report", "web", "memory"]
+    },
+    "thrift": {
+      "expertise": "reading websites under a tight budget",
+      "tools": ["web", "memory"],
+      "actionBudget": 2
+    },
+    "omni": {
+      "expertise": "anything the team needs",
+      "tools": ["ask", "conversations", "memory", "shell", "tasks", "web", "workspace", "bookmark"],
+      "skills": ["bookmark::saving-bookmarks"]
+    }
+  }
+}

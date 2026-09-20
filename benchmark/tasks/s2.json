@@ -1,0 +1,35 @@
+{
+  "id": "s2",
+  "title": "Memory round trip across channels",
+  "agent": "scribe",
+  "channels": ["a", "b"],
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "channel": "a",
+      "post": "@scribe please remember this for the whole team: our written reports always use ISO dates (YYYY-MM-DD) and never contain emoji."
+    },
+    {
+      "channel": "b",
+      "post": "@scribe what date format do we use in written reports, and is there anything else we agreed about report style?"
+    }
+  ],
+  "groundTruth": {
+    "dateFormat": "YYYY-MM-DD (ISO 8601)",
+    "alsoAgreed": "no emoji in reports"
+  },
+  "pass": "The first turn wrote one memory whose description names report style or date format. The second turn's reply states YYYY-MM-DD (or ISO 8601) and the no-emoji rule, drawn from that memory (memory::read or its listed description), with nothing invented.",
+  "checks": [
+    {
+      "id": "s2-1",
+      "text": "Exactly one memory was written in turn one and its description would be found by a later search for report style or date format."
+    },
+    {
+      "id": "s2-2",
+      "text": "Turn two's reply states both agreed rules and nothing else as agreed."
+    }
+  ],
+  "spec": "§3.6 memories cross channels"
+}

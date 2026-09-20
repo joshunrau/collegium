@@ -1,0 +1,35 @@
+{
+  "id": "l3",
+  "title": "A missing detail is asked for",
+  "agent": "lead",
+  "members": ["lead", "hand"],
+  "headline": {
+    "kind": "scale",
+    "anchors": {
+      "5": "Uses ask::human to get the name, waits, then assigns hand and delivers duval@northmoor.example.",
+      "3": "Asks for the name in a plain reply so the turn ends and a re-mention is needed, or assigns hand and tells hand to ask.",
+      "1": "Picks a name itself, or assigns a unit without a name and reports something anyway.",
+      "4": "Uses ask::human and delivers the right address, but with an extra round trip such as mentioning hand twice."
+    }
+  },
+  "steps": [
+    {
+      "post": "@lead please have hand look up a faculty member's email address in the Northmoor directory at http://fixtures/northmoor/static-directory.html and tell me what it is."
+    },
+    {
+      "ask": {
+        "answer": "P. Duval"
+      }
+    }
+  ],
+  "groundTruth": {
+    "email": "duval@northmoor.example"
+  },
+  "checks": [
+    {
+      "id": "l3-1",
+      "text": "If ask::human was used, the turn continued after the answer with the same budget (§3.7a)."
+    }
+  ],
+  "spec": "§3.7a ask"
+}

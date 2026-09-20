@@ -20,7 +20,8 @@ the edge is what carries it through `turbo prune` into the image, where the plug
 it by specifier — and never imports a plugin at all. The root scripts below run
 across the workspace via turbo, so everything runs from the repo root. Instance files (`.env`,
 `config.json`, `docker-compose.yaml`) live at the workspace root, beside the packages rather than
-in them.
+in them. `benchmark/` holds the controlled run that measures the framework itself (`benchmark/README.md`);
+the `assessing-collegium` skill runs it.
 
 ```sh
 pnpm dev                    # start the server in watch mode
@@ -34,7 +35,7 @@ pnpm test <path>            # run a single test file
 
 - Ask before writing code if the task is ambiguous or its stated scope cannot accomplish the goal.
 - No new dependencies without asking in-conversation; the commit that adds one states why in its body.
-- Whenever making any code changes, run `pnpm lint` and `pnpm test` from the repo root and fix failures before declaring the task done. Also run `pnpm test:e2e` unless the diff touches only markdown, unit tests, `docs/`, `.agents/`, `.claude/`, or `.github/`.
+- Whenever making any code changes, run `pnpm lint` and `pnpm test` from the repo root and fix failures before declaring the task done. Also run `pnpm test:e2e` unless the diff touches only markdown, unit tests, `docs/`, `benchmark/`, `.agents/`, `.claude/`, or `.github/`.
 - Validate all data crossing into the process (network, LLM output, disk, env) with a Zod schema at the perimeter. Trust the interior; do not re-validate downstream. The only exception to this is in end-to-end tests, where the test serves as validation.
 - Default to no comments. Assume the reader is fluent in the language, has read the file, and wrote the adjacent code. Write one only if you can state the specific wrong action a competent engineer would take without it, and types and tests wouldn't catch that action — if you can't write that sentence, delete the comment.
 - Where a line of code or a test exists only because SPEC.md states a rule, cite the section (`§7.4`) in the comment or test description instead of restating the rule — the citation cannot drift out of sync with the spec the way a paraphrase can.
