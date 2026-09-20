@@ -23,6 +23,7 @@ const schema: JsonSchemaNode = {
           tools: {
             description: 'Grants.',
             items: {
+              anyOf: [{ enum: ['x', 'x::a'] }, { type: 'string' }],
               description: 'One grant.',
               type: 'string',
               'x-table': { rows: [{ label: 'x', values: ['x::a'] }], title: 'Built in' }
@@ -88,6 +89,11 @@ describe('buildFieldTree', () => {
       table: { rows: [{ label: 'x', values: ['x::a'] }], title: 'Built in' },
       type: 'string[]'
     });
+  });
+
+  it('should keep a stated type as the type, not read the values an editor completes from as a union', () => {
+    expect(tools?.type).toBe('string[]');
+    expect(tools?.variants).toStrictEqual([]);
   });
 
   it('should show defaults as JSON and close an open record with a trailing row', () => {

@@ -6,7 +6,12 @@ const OPEN_RECORD_NOTE = 'Further keys are accepted beyond those listed.';
 
 const json = (value: unknown): string => JSON.stringify(value);
 
-const variantsOf = (node: JsonSchemaNode) => node.oneOf ?? node.anyOf;
+/**
+ * A node stating its own type is that type, whatever branches sit beside it: `suggestedValues`
+ * emits an `anyOf` of the values an editor completes from, which is a completion hint and not a
+ * union — reading it as one renders every tool grant into the type column.
+ */
+const variantsOf = (node: JsonSchemaNode) => (node.type === undefined ? (node.oneOf ?? node.anyOf) : undefined);
 
 const isObject = (node: JsonSchemaNode): boolean => node.type === 'object' || node.properties !== undefined;
 

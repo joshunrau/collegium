@@ -13,14 +13,14 @@ import {
   QUALIFIED_SKILL_NAME_PATTERN
 } from '@collegium/core/skills';
 import { TOOL_REF_PATTERN, TOOL_SEGMENT_PATTERN } from '@collegium/core/tools';
-import { CORE_TOOLSET_DEFS, TOOL_GRANT_GROUPS } from '@collegium/core/toolsets';
+import { CORE_TOOLSET_DEFS, SKILL_GRANT_VALUES, TOOL_GRANT_GROUPS, TOOL_GRANT_VALUES } from '@collegium/core/toolsets';
 import type { ToolGrant } from '@collegium/core/toolsets';
 import { isUnique } from '@collegium/core/utils';
 import type { LiteralUnion } from 'type-fest';
 import { z } from 'zod';
 
 import { CONFIG_DEFAULTS, CONTEXT_BUDGET_WINDOW_SHARE } from '../constants.ts';
-import { schemaTable } from '../meta.ts';
+import { schemaTable, suggestedValues } from '../meta.ts';
 
 // After any change here, update the root config.json to match; `pnpm build` regenerates
 // dist/config.schema.json. The e2e mirror (`buildCollegiumConfig`) is typed from `ConfigInput` and
@@ -141,30 +141,33 @@ export const $ToolGrant = z
   .describe(
     'A toolset namespace, or one tool by its "namespace::tool" ref. Plugin grants use the plugin\'s namespace the same way.'
   )
-  .meta(schemaTable({ rows: TOOL_GRANT_GROUPS, title: 'Built-in options' })) as unknown as z.ZodType<
-  LiteralUnion<ToolGrant, string>,
-  LiteralUnion<ToolGrant, string>
->;
+  .meta({
+    ...schemaTable({ rows: TOOL_GRANT_GROUPS, title: 'Built-in options' }),
+    ...suggestedValues(TOOL_GRANT_VALUES)
+  }) as unknown as z.ZodType<LiteralUnion<ToolGrant, string>, LiteralUnion<ToolGrant, string>>;
 
 /** a framework library skill by bare name, or a toolset-shipped skill by its `ns::skill` name (§9) */
 export type $SkillGrant = z.infer<typeof $SkillGrant>;
-export const $SkillGrant = z.string().check((ctx) => {
-  if (CORE_SKILL_NAME_SET.has(ctx.value)) {
-    ctx.issues.push({
-      code: 'custom',
-      input: ctx.value,
-      message: `"${ctx.value}" is a core skill — always assigned and never granted`
-    });
-    return;
-  }
-  if (!GRANTABLE_SKILL_NAME_SET.has(ctx.value) && !QUALIFIED_SKILL_NAME_PATTERN.test(ctx.value)) {
-    ctx.issues.push({
-      code: 'custom',
-      input: ctx.value,
-      message: `"${ctx.value}" is neither a framework skill nor a "namespace::skill" name`
-    });
-  }
-});
+export const $SkillGrant = z
+  .string()
+  .check((ctx) => {
+    if (CORE_SKILL_NAME_SET.has(ctx.value)) {
+      ctx.issues.push({
+        code: 'custom',
+        input: ctx.value,
+        message: `"${ctx.value}" is a core skill — always assigned and never granted`
+      });
+      return;
+    }
+    if (!GRANTABLE_SKILL_NAME_SET.has(ctx.value) && !QUALIFIED_SKILL_NAME_PATTERN.test(ctx.value)) {
+      ctx.issues.push({
+        code: 'custom',
+        input: ctx.value,
+        message: `"${ctx.value}" is neither a framework skill nor a "namespace::skill" name`
+      });
+    }
+  })
+  .meta(suggestedValues(SKILL_GRANT_VALUES));
 
 /** the stances the framework ships; each is prose in the app, injected after the agent's own prompt (§3.8) */
 export type $Personality = z.infer<typeof $Personality>;

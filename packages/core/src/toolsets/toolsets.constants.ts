@@ -1,3 +1,4 @@
+import { BUILTIN_GRANTABLE_SKILL_NAMES } from '../skills.ts';
 import { renderToolDisplayName } from '../tools.ts';
 import { $MailSettings, $MemorySettings, $TasksSettings, $WebSettings } from './toolsets.schemas.ts';
 
@@ -76,3 +77,9 @@ export const TOOL_GRANT_VALUES: readonly string[] = TOOL_GRANT_GROUPS.flatMap((g
   group.label,
   ...group.values
 ]);
+
+/** what `agents[].skills` may hold for the framework (§9): the library skills by bare name, each toolset-shipped one by its `ns::skill` name */
+export const SKILL_GRANT_VALUES: readonly string[] = [
+  ...BUILTIN_GRANTABLE_SKILL_NAMES,
+  ...GRANTABLE_TOOLSET_DEFS.flatMap((def: ToolsetDef) => (def.skills ?? []).map((skill) => `${def.name}::${skill}`))
+];
