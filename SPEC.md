@@ -1,5 +1,13 @@
 # **Multi-Agent Orchestration Framework**
 
+## **0. This Document**
+
+This specification is normative for behaviour: what an agent, a person or a test can observe the system do, and what must always hold. Where the code disagrees, the code is presumed wrong, but the disagreement is a finding for a person to resolve, never something to align silently in either direction.
+
+A sentence belongs here if it states a guarantee — something whose violation a person could observe — or the reason for one that no axiom already supplies. How the code achieves a guarantee, which module holds it, a configuration key or its default, and the alternatives that were rejected do not belong; the code, its comments and the configuration reference hold those. A new guarantee is written here as well as in the code that provides it; a new mechanism is not.
+
+Every section is amendable, the axioms included. The weight of the case scales with what rests on the section: a proposal quotes the sentences it changes, names what elsewhere it invalidates, and says why the reason recorded for the current rule no longer holds. Nothing here changes until a person has approved the proposal.
+
 ## **1. What This Is**
 
 A single Node/TypeScript process running several LLM-backed agents. Each agent is a distinct identity that appears in our Mattermost workspace as a bot user, holds conversations with staff, and executes a fixed set of hand-written tools — subject to human approval on every consequential action.
