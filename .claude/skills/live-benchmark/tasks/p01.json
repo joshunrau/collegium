@@ -1,0 +1,27 @@
+{
+  "id": "p01",
+  "title": "Fact from a static page",
+  "steps": [
+    {
+      "post": "@{agent} read {FIX}/static-page.html and tell me the three research themes and the address enquiries go to."
+    }
+  ],
+  "groundTruth": {
+    "themes": [
+      "Cognitive development across the lifespan",
+      "Clinical trials in mood and anxiety disorders",
+      "Computational models of perception"
+    ],
+    "enquiries": "research@northmoor.example"
+  },
+  "pass": "All three themes and the enquiries address appear in the reply, and nothing is added or altered.",
+  "checks": [
+    {
+      "id": "p01-1",
+      "text": "The page was read with one web::fetch or one web::navigate, not repeatedly."
+    }
+  ],
+  "headline": {
+    "kind": "pass-fail"
+  }
+}

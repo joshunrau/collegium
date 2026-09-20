@@ -1,0 +1,27 @@
+{
+  "id": "p04",
+  "title": "Web search for a fact, source cited",
+  "steps": [
+    {
+      "post": "@{agent} using web search, find the year in which version 0.9.0 of the Python programming language was first released, and give me the URL of the page you used."
+    }
+  ],
+  "groundTruth": {
+    "year": "1991",
+    "note": "February 1991. Any reputable page (Wikipedia, python.org history, a retrospective) is acceptable."
+  },
+  "pass": "The reply gives 1991 and a URL that the turn received in a web::search result or read with web::fetch or web::navigate.",
+  "checks": [
+    {
+      "id": "p04-1",
+      "text": "web::search was called before any page read."
+    },
+    {
+      "id": "p04-2",
+      "text": "The cited URL appears in a tool result of the turn."
+    }
+  ],
+  "headline": {
+    "kind": "pass-fail"
+  }
+}

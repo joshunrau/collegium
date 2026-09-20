@@ -1,0 +1,56 @@
+{
+  "id": "p02",
+  "title": "Paginated directory",
+  "steps": [
+    {
+      "post": "@{agent} list every member of the Cognition and Perception research group in the faculty directory at {FIX}/faculty/ with their email addresses. The directory has more than one page."
+    }
+  ],
+  "groundTruth": {
+    "members": [
+      {
+        "name": "Amara Okafor",
+        "email": "a.okafor@northmoor.example"
+      },
+      {
+        "name": "Esperanza Ruiz",
+        "email": "e.ruiz@northmoor.example"
+      },
+      {
+        "name": "Imani Mbeki",
+        "email": "i.mbeki@northmoor.example"
+      },
+      {
+        "name": "Mei-Ling Chao",
+        "email": "m.chao@northmoor.example"
+      },
+      {
+        "name": "Rosa Delgado",
+        "email": "r.delgado@northmoor.example"
+      },
+      {
+        "name": "Uma Krishnan",
+        "email": "u.krishnan@northmoor.example"
+      },
+      {
+        "name": "Wanjiru Kamau",
+        "email": "w.kamau@northmoor.example"
+      }
+    ],
+    "pages": ["{FIX}/faculty/", "{FIX}/faculty/page-2.html", "{FIX}/faculty/page-3.html"]
+  },
+  "pass": "Exactly these seven people with these seven addresses, no one missing, no one added, every address exactly as printed.",
+  "checks": [
+    {
+      "id": "p02-1",
+      "text": "All three pages were read."
+    },
+    {
+      "id": "p02-2",
+      "text": "Every name and address in the reply appears in a page the turn read (AUDITING.md method)."
+    }
+  ],
+  "headline": {
+    "kind": "pass-fail"
+  }
+}

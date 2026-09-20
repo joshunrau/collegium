@@ -1,0 +1,39 @@
+{
+  "id": "p11",
+  "title": "Memory round trip across a reset",
+  "steps": [
+    {
+      "post": "@{agent} for future reference: our team's preferred citation style is Vancouver, and our shared drive is mapped to Q:. Please remember both."
+    },
+    {
+      "command": "/collegium reset {agent}"
+    },
+    {
+      "post": "@{agent} what citation style do we prefer, and which drive letter is the shared drive on?"
+    }
+  ],
+  "groundTruth": {
+    "citationStyle": "Vancouver",
+    "driveLetter": "Q:",
+    "note": "The reset between the turns is an episode boundary (§3.8): turn two cannot see turn one's post, so the answer must come from memory."
+  },
+  "pass": "Turn one wrote a memory holding both facts; turn two's reply gives Vancouver and Q:.",
+  "checks": [
+    {
+      "id": "p11-1",
+      "text": "Turn one has a record_written event whose description would be found by a search for citation style or shared drive."
+    },
+    {
+      "id": "p11-2",
+      "text": "Turn two answered from its memories (the description in its prompt or a memory::read), not by guessing."
+    },
+    {
+      "id": "p11-3",
+      "text": "The memory holds the preference, not a transcript of the post."
+    }
+  ],
+  "spec": "§3.6 memories",
+  "headline": {
+    "kind": "pass-fail"
+  }
+}

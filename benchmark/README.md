@@ -4,7 +4,7 @@ A controlled, repeatable run of the framework against a local stack, judged by a
 extracted artifacts. It measures the framework rather than any deployment: the roster is generic,
 every seam is held by one narrowly granted agent, and each task has ground truth an assessor holds.
 The procedure is the `assessing-collegium` skill under `.claude/skills/`; this directory holds what
-it runs on.
+it runs on. The `live-benchmark` skill beside it drives the same fixtures against a deployment.
 
 ```
 roster.json          who exists, what each holds, and the two model tiers
@@ -12,7 +12,7 @@ tasks/<id>.json      one task: the agent, the human's posts, scripted approvals,
 tasks/order.json     the fixed run order
 fixtures/            the Northmoor site nginx serves to the agents as http://fixtures/
 stack/               compose.yaml, bench.env, and the rendered config.json and plan.json (both ignored by git)
-scripts/             render-config.js, stack.sh, snapshot-db.sh, extract.js, dialog.js
+scripts/             render-config.js, stack.sh, snapshot-db.sh, extract.js, dialog.js, render-large-page.js, render-minutes.js
 results/<run>/       one committed directory per run: run.json, prod.db, tasks/<id>/ artifacts and record, report.md
 ```
 
