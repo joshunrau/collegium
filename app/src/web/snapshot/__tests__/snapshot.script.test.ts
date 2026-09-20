@@ -1,15 +1,28 @@
 // @vitest-environment happy-dom
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import { toMarkdown } from '../../web.utils.ts';
 import { captureSnapshot } from '../snapshot.script.ts';
 
-const fixture = (name: string): string => {
-  return fs.readFileSync(path.resolve(import.meta.dirname, '../../__tests__/fixtures', `${name}.html`), 'utf-8');
-};
+const FACULTY_DIRECTORY = `<!doctype html><html><body>
+  <nav><a href="/">Home</a></nav>
+  <h1>Full-Time Faculty</h1>
+  <table>
+    <thead><tr><th>Name</th><th>Office</th><th>Email</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="https://adeyemi.labs.northmoor.example/">Adeyemi, K.</a></td>
+        <td>5030 PDB</td>
+        <td><a href="mailto:adeyemi@northmoor.example">adeyemi@northmoor.example</a></td>
+      </tr>
+      <tr>
+        <td>Duval, P.</td>
+        <td>217 BSB</td>
+        <td><a href="mailto:duval@northmoor.example">duval@northmoor.example</a></td>
+      </tr>
+    </tbody>
+  </table>
+</body></html>`;
 
 const loadDocument = (html: string): void => {
   document.open();
@@ -31,7 +44,7 @@ describe('captureSnapshot', () => {
   });
 
   it('should stamp every interactable with a unique ref and advance the index', () => {
-    loadDocument(fixture('static-directory'));
+    loadDocument(FACULTY_DIRECTORY);
     const capture = captureSnapshot(0);
     const refs = [...document.querySelectorAll('[data-collegium-ref]')].map((element) => {
       return element.getAttribute('data-collegium-ref');
@@ -42,7 +55,7 @@ describe('captureSnapshot', () => {
   });
 
   it('should reuse existing stamps and number only new elements, so a stale ref can never alias', () => {
-    loadDocument(fixture('static-directory'));
+    loadDocument(FACULTY_DIRECTORY);
     const first = captureSnapshot(0);
     const anchor = document.querySelector('a[href]');
     const stamp = anchor?.getAttribute('data-collegium-ref');
@@ -59,7 +72,7 @@ describe('captureSnapshot', () => {
   });
 
   it('should land each marker beside its element, so a ref stays in its own table row', () => {
-    loadDocument(fixture('static-directory'));
+    loadDocument(FACULTY_DIRECTORY);
     const capture = captureSnapshot(0);
     const anchor = [...document.querySelectorAll('a[href]')].find(
       (element) => element.getAttribute('href') === 'mailto:duval@northmoor.example'
@@ -73,7 +86,7 @@ describe('captureSnapshot', () => {
   });
 
   it('should never write marker text into the live document', () => {
-    loadDocument(fixture('static-directory'));
+    loadDocument(FACULTY_DIRECTORY);
     captureSnapshot(0);
     expect(document.body.textContent).not.toContain('⟨');
   });

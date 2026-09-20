@@ -1,6 +1,3 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import { toMarkdown } from '../../web.utils.ts';
@@ -13,11 +10,15 @@ import {
   toDecoder
 } from '../fetch.utils.ts';
 
-const fixture = (name: string): string => {
-  return fs.readFileSync(
-    path.resolve(import.meta.dirname, '..', '..', '__tests__', 'fixtures', `${name}.html`),
-    'utf-8'
-  );
+const STATIC_PAGE =
+  '<!doctype html><html><head><title>Research Themes — Northmoor University</title></head><body><h1>Research Themes</h1><p>Enquiries go to research@northmoor.example.</p></body></html>';
+
+/** a shell whose every word arrives by script: nothing for markdown to carry */
+const CLIENT_RENDERED_PAGES = {
+  'client-rendered-directory':
+    '<!doctype html><html><head><title>Faculty</title></head><body><div id="directory"></div><script src="/directory.js"></script></body></html>',
+  'spa-marketing-site':
+    '<!doctype html><html><head><title>Northmoor</title></head><body><div id="app"></div><script src="/app.js"></script></body></html>'
 };
 
 describe('classifyContentType', () => {
@@ -54,7 +55,7 @@ describe('toDecoder', () => {
 
 describe('extractTitle', () => {
   it('should read the document title, trimmed, and nothing when there is none', () => {
-    expect(extractTitle(fixture('static-page'))).not.toBe('');
+    expect(extractTitle(STATIC_PAGE)).not.toBe('');
     expect(extractTitle('<html><head><title>\n  Faculty \n</title></head></html>')).toBe('Faculty');
     expect(extractTitle('<h1>No title</h1>')).toBe('');
   });
@@ -71,11 +72,11 @@ describe('describeFetchError', () => {
 });
 
 describe('needsClientRendering', () => {
-  it.each(['spa-marketing-site', 'client-rendered-directory'])('should refuse %s, which reads as nothing', (name) => {
-    expect(needsClientRendering(toMarkdown(fixture(name)))).toBe(true);
+  it.each(Object.entries(CLIENT_RENDERED_PAGES))('should refuse %s, which reads as nothing', (_name, html) => {
+    expect(needsClientRendering(toMarkdown(html))).toBe(true);
   });
 
   it('should admit a page with static content', () => {
-    expect(needsClientRendering(toMarkdown(fixture('static-page')))).toBe(false);
+    expect(needsClientRendering(toMarkdown(STATIC_PAGE))).toBe(false);
   });
 });

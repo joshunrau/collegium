@@ -1,6 +1,3 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
@@ -8,20 +5,43 @@ import { capMarkdown, renderWebFailure, renderWebSnapshot, toMarkdown } from '..
 
 import type { WebSnapshot } from '../web.types.ts';
 
-const fixture = (name: string): string => {
-  return fs.readFileSync(path.resolve(import.meta.dirname, 'fixtures', `${name}.html`), 'utf-8');
+const STATIC_PAGE = `<!doctype html><html><head><title>Research Themes</title></head><body>
+  <h1>Research Themes</h1>
+  <ul>
+    <li>Cognitive development across the lifespan</li>
+    <li>Computational models of perception</li>
+  </ul>
+  <p>Enquiries go to <a href="mailto:research@northmoor.example">research@northmoor.example</a>.</p>
+</body></html>`;
+
+const STATIC_DIRECTORY = `<!doctype html><html><head><title>Faculty</title></head><body>
+  <table>
+    <thead><tr><th>Name</th><th>Office</th><th>Extension</th><th>Email</th></tr></thead>
+    <tbody>
+      <tr><td>Adeyemi, K.</td><td>214 BSB</td><td>4102</td><td><a href="mailto:adeyemi@northmoor.example">adeyemi@northmoor.example</a></td></tr>
+      <tr><td>Duval, P.</td><td>217 BSB</td><td>—</td><td><a href="mailto:duval@northmoor.example">duval@northmoor.example</a></td></tr>
+    </tbody>
+  </table>
+</body></html>`;
+
+/** a shell whose every word arrives by script: nothing for markdown to carry */
+const CLIENT_RENDERED_PAGES = {
+  'client-rendered-directory':
+    '<!doctype html><html><head><title>Faculty</title></head><body><div id="directory"></div><script src="/directory.js"></script></body></html>',
+  'spa-marketing-site':
+    '<!doctype html><html><head><title>Northmoor</title></head><body><div id="app"></div><script src="/app.js"></script></body></html>'
 };
 
 describe('toMarkdown', () => {
   it('should carry headings, lists, and inline links across from a static page', () => {
-    const markdown = toMarkdown(fixture('static-page'));
+    const markdown = toMarkdown(STATIC_PAGE);
     expect(markdown).toContain('# Research Themes');
     expect(markdown).toContain('* Cognitive development across the lifespan');
     expect(markdown).toContain('[research@northmoor.example](mailto:research@northmoor.example)');
   });
 
   it('should keep a faculty table as a table, so a name stays beside its own email', () => {
-    const markdown = toMarkdown(fixture('static-directory'));
+    const markdown = toMarkdown(STATIC_DIRECTORY);
     expect(markdown).toContain('| Name | Office | Extension | Email |');
     expect(markdown).toContain(
       '| Duval, P. | 217 BSB | — | [duval@northmoor.example](mailto:duval@northmoor.example) |'
@@ -29,7 +49,7 @@ describe('toMarkdown', () => {
   });
 
   it('should collapse the alignment padding that carries nothing for a model', () => {
-    expect(toMarkdown(fixture('static-directory'))).not.toMatch(/ {2,}/);
+    expect(toMarkdown(STATIC_DIRECTORY)).not.toMatch(/ {2,}/);
   });
 
   it('should drop a doctype with a public identifier rather than read it as text', () => {
@@ -72,17 +92,17 @@ describe('toMarkdown', () => {
   });
 
   /** the empty string is why the render assertion exists: an unrendered page reads as "no results" */
-  it.each(['client-rendered-directory', 'spa-marketing-site'])(
+  it.each(Object.entries(CLIENT_RENDERED_PAGES))(
     'should yield nothing at all from %s, since no script has run',
-    (name) => {
-      expect(toMarkdown(fixture(name))).toBe('');
+    (_name, html) => {
+      expect(toMarkdown(html)).toBe('');
     }
   );
 });
 
 describe('capMarkdown', () => {
   it('should leave any page a real site would serve untouched', () => {
-    expect(capMarkdown(toMarkdown(fixture('static-directory')))).toContain('| Duval, P. |');
+    expect(capMarkdown(toMarkdown(STATIC_DIRECTORY))).toContain('| Duval, P. |');
   });
 
   it('should cut a page past the guard and say so, rather than shortening it silently', () => {

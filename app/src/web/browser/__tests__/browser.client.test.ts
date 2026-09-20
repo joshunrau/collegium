@@ -1,6 +1,4 @@
-import * as fs from 'node:fs';
 import * as http from 'node:http';
-import * as path from 'node:path';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -14,16 +12,151 @@ import { PolicyProxy } from '../policy.proxy.ts';
 import type { FormElement } from '../../snapshot/snapshot.types.ts';
 import type { BrowserSession } from '../browser.session.ts';
 
-const FIXTURES_DIR = path.resolve(import.meta.dirname, '../../__tests__/fixtures');
+/** the roster exists nowhere in the document until the link is clicked: its href is never followed */
+const SPA_MARKETING_SITE = `<!doctype html>
+<html lang="en">
+  <head><title>Northmoor Institute — Advancing What Comes Next</title></head>
+  <body>
+    <div id="app"></div>
+    <script>
+      const FACULTY = [
+        ['Adeyemi, K.', 'adeyemi@northmoor.example'],
+        ['Duval, P.', 'duval@northmoor.example']
+      ];
+      const app = document.getElementById('app');
+      const renderPeople = () => {
+        const rows = FACULTY.map(
+          (person) =>
+            '<tr><td>' + person[0] + '</td><td><a href="mailto:' + person[1] + '">' + person[1] + '</a></td></tr>'
+        );
+        app.innerHTML =
+          '<h1>Our People</h1><table><thead><tr><th>Name</th><th>Email</th></tr></thead><tbody>' +
+          rows.join('') +
+          '</tbody></table>';
+      };
+      const renderIndex = () => {
+        app.innerHTML = '<h1>Northmoor Institute</h1><a href="/people" id="view-people">View our people →</a>';
+        document.getElementById('view-people').addEventListener('click', (event) => {
+          event.preventDefault();
+          renderPeople();
+        });
+      };
+      window.setTimeout(renderIndex, 0);
+    </script>
+  </body>
+</html>`;
+
+/** the award page exists only after a successful submit, and only once its delay has elapsed */
+const GATED_LOGIN = `<!doctype html>
+<html lang="en">
+  <head><title>Grants Portal — Northmoor University</title></head>
+  <body>
+    <main id="root">
+      <h1>Grants Portal</h1>
+      <form id="sign-in">
+        <label for="username">Username</label><input id="username" name="username" type="text" />
+        <label for="password">Password</label><input id="password" name="password" type="password" />
+        <button type="submit">Sign in</button>
+      </form>
+      <p id="message"></p>
+    </main>
+    <script>
+      document.getElementById('sign-in').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        if (username !== 'reviewer' || password !== 'northmoor-2026') {
+          document.getElementById('message').textContent = 'Those credentials were not recognised.';
+          return;
+        }
+        window.setTimeout(() => {
+          document.getElementById('root').innerHTML =
+            '<h1>Award Reference</h1><p>Secret Number <strong>892</strong></p>';
+        }, 500);
+      });
+    </script>
+  </body>
+</html>`;
+
+const MEMBER_DATABASE = `<!doctype html>
+<html lang="fr">
+  <head><title>Répertoire des professeurs</title></head>
+  <body>
+    <h1>Répertoire des professeurs</h1>
+    <table>
+      <thead><tr><th>Nom</th><th>Rang</th><th>Courriel</th></tr></thead>
+      <tbody>
+        <tr><td>Lachance, M.</td><td>Professeure titulaire</td><td>lachance@northmoor.example</td></tr>
+      </tbody>
+    </table>
+  </body>
+</html>`;
+
+/** the submenu is in the document from the start and is revealed only under the pointer */
+const PORTAL_MENU = `<!doctype html>
+<html lang="fr">
+  <head>
+    <title>Portail Northmoor — Accueil</title>
+    <style>
+      .submenu {
+        display: none;
+      }
+      .has-submenu:hover .submenu {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="/portal">Accueil</a></li>
+        <li class="has-submenu">
+          <a href="#equipe">Équipe</a>
+          <ul class="submenu">
+            <li><a href="/member-database" target="_blank">Répertoire des professeurs</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+  </body>
+</html>`;
+
+/** no URL addresses a filtered view: the rows are chosen by the keydown handler alone */
+const SEARCHABLE_DIRECTORY = `<!doctype html>
+<html lang="en">
+  <head><title>People Directory — Northmoor Institute</title></head>
+  <body>
+    <h1>People Directory</h1>
+    <input aria-label="Search people" type="search" />
+    <table>
+      <thead><tr><th>Name</th><th>Email</th></tr></thead>
+      <tbody>
+        <tr><td>Adeyemi, K.</td><td>adeyemi@northmoor.example</td></tr>
+        <tr><td>Duval, P.</td><td>duval@northmoor.example</td></tr>
+      </tbody>
+    </table>
+    <script>
+      const rows = [...document.querySelectorAll('tbody tr')];
+      document.querySelector('input').addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') {
+          return;
+        }
+        const query = event.target.value.toLowerCase();
+        const matches = rows.filter((row) => row.textContent.toLowerCase().includes(query));
+        document.querySelector('tbody').replaceChildren(...matches);
+      });
+    </script>
+  </body>
+</html>`;
 
 /** `/` and `/people` both serve the SPA: the roster route deliberately deep-links to the shell */
-const FIXTURE_BY_ROUTE: { [key: string]: string } = {
-  '/': 'spa-marketing-site',
-  '/gated-login': 'gated-login',
-  '/member-database': 'member-database',
-  '/people': 'spa-marketing-site',
-  '/portal': 'portal-menu',
-  '/searchable-directory': 'searchable-directory'
+const DOCUMENT_BY_ROUTE: { [key: string]: string } = {
+  '/': SPA_MARKETING_SITE,
+  '/gated-login': GATED_LOGIN,
+  '/member-database': MEMBER_DATABASE,
+  '/people': SPA_MARKETING_SITE,
+  '/portal': PORTAL_MENU,
+  '/searchable-directory': SEARCHABLE_DIRECTORY
 };
 
 const PEOPLE_LINK_REF = /\[View our people →\]\([^)]+\)⟨(e\d+)⟩/u;
@@ -65,7 +198,7 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     elsewhereRequests = 0;
     elsewhere = http.createServer((_request, response) => {
       elsewhereRequests += 1;
-      response.writeHead(200, { 'content-type': 'text/html' });
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       response.end('<h1>elsewhere-marker</h1>');
     });
     elsewhereUrl = await listen(elsewhere);
@@ -76,18 +209,18 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
         return;
       }
       if (request.url === '/outbound') {
-        response.writeHead(200, { 'content-type': 'text/html' });
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         response.end(`<a href="${elsewhereUrl}/">Elsewhere</a>`);
         return;
       }
-      const fixture = FIXTURE_BY_ROUTE[request.url ?? ''];
-      if (!fixture) {
-        response.writeHead(404, { 'content-type': 'text/html' });
+      const page = DOCUMENT_BY_ROUTE[request.url ?? ''];
+      if (!page) {
+        response.writeHead(404, { 'content-type': 'text/html; charset=utf-8' });
         response.end('<h1>Not Found</h1>');
         return;
       }
-      response.writeHead(200, { 'content-type': 'text/html' });
-      response.end(fs.readFileSync(path.join(FIXTURES_DIR, `${fixture}.html`)));
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(page);
     });
     baseUrl = await listen(server);
     // the production policy refuses loopback, which is where the fixtures are served from

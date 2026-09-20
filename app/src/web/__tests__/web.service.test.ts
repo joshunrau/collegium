@@ -1,6 +1,3 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,9 +23,34 @@ const policy = {
   vet: vi.fn<AddressPolicy['vet']>()
 };
 
-const fixture = (name: string): string => {
-  return fs.readFileSync(path.resolve(import.meta.dirname, 'fixtures', `${name}.html`), 'utf-8');
-};
+const FACULTY_DIRECTORY = `<!doctype html><html><head>
+  <title>Full-Time Faculty — Department of Psychology — Northmoor University</title>
+</head><body>
+  <table>
+    <thead><tr><th>Name</th><th>Office</th><th>Extension</th><th>Email</th></tr></thead>
+    <tbody>
+      <tr><td>Duval, P.</td><td>217 BSB</td><td>—</td><td><a href="mailto:duval@northmoor.example">duval@northmoor.example</a></td></tr>
+    </tbody>
+  </table>
+</body></html>`;
+
+/** nothing here survives conversion: the shell is the whole document until a script fills it */
+const SPA_MARKETING_SITE = `<!doctype html><html><head>
+  <title>Northmoor Institute — Advancing What Comes Next</title>
+</head><body>
+  <div id="app"></div>
+  <noscript>Northmoor Institute requires JavaScript.</noscript>
+  <script src="/institute.js"></script>
+</body></html>`;
+
+/** as above: a directory whose rows exist only once the browser has run its script */
+const CLIENT_RENDERED_DIRECTORY = `<!doctype html><html><head>
+  <title>Full-Time Faculty — Department of Psychology — Northmoor University</title>
+</head><body>
+  <div id="app"></div>
+  <noscript>This directory requires JavaScript.</noscript>
+  <script src="/directory.js"></script>
+</body></html>`;
 
 const rendered = (over: Partial<RenderedCapture>): RenderedCapture => ({
   formElements: [],
@@ -74,7 +96,7 @@ describe('WebService', () => {
 
   describe('navigate', () => {
     it('should return a faculty directory as markdown, with each name beside its own email', async () => {
-      session.navigate.mockResolvedValue(Result.ok(rendered({ html: fixture('static-directory') })));
+      session.navigate.mockResolvedValue(Result.ok(rendered({ html: FACULTY_DIRECTORY })));
       const result = await webService.navigate('turn-1', 'https://northmoor.example/people/');
       expect(result.value?.markdown).toContain(
         '| Duval, P. | 217 BSB | — | [duval@northmoor.example](mailto:duval@northmoor.example) |'
@@ -98,7 +120,7 @@ describe('WebService', () => {
     });
 
     it('should refuse a page that rendered nothing, which reads as "no results" otherwise', async () => {
-      session.navigate.mockResolvedValue(Result.ok(rendered({ html: fixture('spa-marketing-site') })));
+      session.navigate.mockResolvedValue(Result.ok(rendered({ html: SPA_MARKETING_SITE })));
       const result = await webService.navigate('turn-1', 'https://northmoor.example/');
       expect(result.error).toStrictEqual({ kind: 'empty-render', url: 'https://northmoor.example/people/' });
     });
@@ -139,7 +161,7 @@ describe('WebService', () => {
 
   describe('fetch', () => {
     it('should convert a fetched directory by the same rules as a rendered one, without a session', async () => {
-      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: fixture('static-directory') })));
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
       const result = await webService.fetch('https://northmoor.example/people/');
       expect(result.value?.markdown).toContain(
         '| Duval, P. | 217 BSB | — | [duval@northmoor.example](mailto:duval@northmoor.example) |'
@@ -149,7 +171,7 @@ describe('WebService', () => {
     });
 
     it('should refuse a page that needs client rendering, naming the tool that can', async () => {
-      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: fixture('client-rendered-directory') })));
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: CLIENT_RENDERED_DIRECTORY })));
       const result = await webService.fetch('https://northmoor.example/people/');
       expect(result.error).toStrictEqual({ kind: 'no-static-content', url: 'https://northmoor.example/people/' });
     });
