@@ -1,6 +1,6 @@
 ---
 name: interacting-with-collegium-agents
-description: Driving a Collegium agent on a live Mattermost instance. Use to log in, instruct an agent in a channel, inspect a turn, or debug a turn that failed.
+description: Driving a Collegium agent on a live Mattermost instance. Use to log in, instruct an agent in a channel, poll a running turn, answer an approval or question it parks on, inspect a turn, or debug a turn that failed.
 ---
 
 How to operate an agent on a running deployment, and how to read what it did without filling your
@@ -41,18 +41,38 @@ agent sees a bounded window of recent posts, newest first. It does not see the w
 
 ## Read the result
 
-One turn writes two kinds of post. Confusing them wastes the most time.
+One turn writes three kinds of post. Confusing them wastes the most time.
 
 - A **status post** carries a marker. `⏳ _working…_` means the turn runs. The framework **edits
   this same post** as the turn proceeds. A terminal marker replaces it: `✅ _done_`, or a
   `⚠️ _stopped — …_` line that names the failure.
 - The **reply** is a separate post with no marker. This is the agent's message to you.
+- A **prompt** is a separate post that parks the turn on a human: `🔐 **Approval required**` for a
+  gated call, `❓ **Answer needed**` for `ask::human`. It carries buttons.
 
 So a poll that waits for a new post from the agent stops on the status post, not on the answer.
 Wait for a post from the agent that starts with no marker. The harness has `awaitPostUpdate` for
-the edit case.
+the edit case. The status post lists the tool names only. It is a summary. It is not the record.
 
-The status post lists the tool names only. It is a summary. It is not the record.
+## Poll for the three states
+
+A turn is working, parked on a human, or finished. **A parked turn still renders `⏳ _working…_`**:
+the marker set has no waiting state, and the trace simply stops growing. So the marker tells you a
+turn is open, never whether it is open *on you*, and last-update time cannot separate a parked turn
+from a long model call or a hung one. Poll for the park directly, every cycle:
+
+```
+/collegium approvals          # every channel you are in, oldest first, with each one's age
+```
+
+One call covers every track — pass an agent name only to narrow it. It lists gated calls. It does
+**not** list an `ask::human` question, which parks the turn just as hard, so also treat any post
+carrying buttons as a park: `props.attachments[].actions` is non-empty while a prompt waits, and the
+framework rewrites the post and clears its attachments the moment someone decides. That test needs
+no bookkeeping on your side and answers both kinds.
+
+Decide a park the same minute you see it. Until someone does, the turn holds the channel lock, the
+agent's queue grows behind it, and the sweep is stopped rather than slow.
 
 ## Inspect a turn
 
@@ -86,12 +106,17 @@ A gated tool posts a message with buttons and waits. Any human in the channel ca
 own account is sufficient.
 
 Press a button with `POST /api/v4/posts/{post-id}/actions/{action-id}`. The action ids are
-`approve`, `deny`, and `reason`. `approvals.renderer.ts` declares them.
+`approve`, `deny`, and `reason`. `approvals.renderer.ts` declares them. An `ask::human` question
+carries one button per option plus a free-text one, declared in `asks.renderer.ts`.
 
 Decide each approval on its declared action. An approval for a budget extension and an approval
 for an outbound message are not the same decision.
 
 ## Pitfalls
+
+**A poll that classifies on the status marker.** It reports a parked turn as working and waits out
+the whole park. Every polling loop you write asks `/collegium approvals` too, and treats a post with
+buttons as a park; see [Poll for the three states](#poll-for-the-three-states).
 
 **A turn that recorded no events.** `/collegium trace` answers "recorded no events" when the model
 provider refused the first request. The post that started the turn can be consumed. Check
