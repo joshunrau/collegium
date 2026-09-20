@@ -15,6 +15,9 @@ import { InspectHandler } from '../inspect.handler.ts';
 
 const MIRA = buildAgentProfile();
 
+/** what `preventWrappingAtHyphens` inserts, so an expectation reads as the name an operator sees */
+const JOINER = '⁠';
+
 describe('InspectHandler', () => {
   let systemPromptRenderer: MockedInstance<SystemPromptRenderer>;
   let inspectHandler: InspectHandler;
@@ -62,29 +65,41 @@ describe('InspectHandler', () => {
     expect(response).toStrictEqual({
       audience: 'invoker',
       text: [
-        'Agent @mira',
-        '- Model: deepseek-v4-flash (deepseek)',
-        '- Context budget: 8000 tokens',
-        '- Action budget: 25 attempts per turn',
-        '- Expertise: end-to-end testing',
+        '### @mira',
         '',
-        'Tools:',
-        '- clock: now',
-        '- shell: run 🔐',
+        '#### Profile',
         '',
-        '🔐 requires human approval on every call (§3.7)',
+        '| Setting | Value |',
+        '| --- | --- |',
+        '| **Expertise** | end-to-end testing |',
+        '| **Model** | `deepseek-v4-flash` (deepseek) |',
+        '| **Context Budget** | 8,000 tokens |',
+        '| **Action Budget** | 25 attempts per turn |',
         '',
-        'Skills:',
-        '- framework:',
-        '  - handing-work-to-a-peer — How to hand work over.',
+        '#### Tools',
         '',
-        'Schedules:',
-        '- morning-sweep (~ops): next September 18, 2026 at 9:00:00 AM UTC',
+        '| Toolset | Tools |',
+        '| --- | --- |',
+        '| **`clock`** | `now` |',
+        '| **`shell`** | `run`\\* |',
         '',
-        'System prompt in this channel:',
-        '```text',
-        'You are Mira.',
-        '```'
+        '_\\* Requires human approval on every call (§3.7)._',
+        '',
+        '#### Skills',
+        '',
+        '| Source | Skill | Description |',
+        '| --- | --- | --- |',
+        `| **\`framework\`** | \`handing-${JOINER}work-${JOINER}to-${JOINER}a-${JOINER}peer\` | How to hand work over. |`,
+        '',
+        '#### Schedules',
+        '',
+        '| Schedule | Channel | Next Occurrence |',
+        '| --- | --- | --- |',
+        `| **\`morning-${JOINER}sweep\`** | ~ops | September 18, 2026 at 9:00:00 AM UTC |`,
+        '',
+        '#### System Prompt in This Channel',
+        '',
+        '> You are Mira.'
       ].join('\n')
     });
   });

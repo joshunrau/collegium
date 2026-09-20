@@ -6,6 +6,9 @@ import { renderInspectResponse } from '../inspect.utils.ts';
 
 import type { InspectReport } from '../inspect.utils.ts';
 
+/** what `preventWrappingAtHyphens` inserts, so an expectation reads as the name an operator sees */
+const JOINER = '⁠';
+
 const REPORT: InspectReport = {
   profile: buildAgentProfile(),
   prompt: 'You are Mira.',
@@ -23,37 +26,65 @@ const REPORT: InspectReport = {
 
 const UNGATED: InspectReport = { ...REPORT, tools: [{ gates: false, id: ['clock', 'now'] }] };
 
-const UNSCHEDULED: InspectReport = { ...REPORT, schedules: [] };
-
 describe('renderInspectResponse', () => {
-  it('should group tools and skills by namespace, framework skills under their own label', () => {
+  it('should head the report with the agent and its settings', () => {
     expect(renderInspectResponse(REPORT)).toContain(
-      ['Tools:', '- clock: now', '- bookmark: save 🔐, list', '', '🔐'].join('\n')
+      ['### @mira', '', '#### Profile', '', '| Setting | Value |'].join('\n')
     );
-    expect(renderInspectResponse(REPORT)).toContain('- bookmark:\n  - saving-bookmarks — How to bookmark.');
+    expect(renderInspectResponse(REPORT)).toContain('| **Context Budget** | 8,000 tokens |');
   });
 
-  it('should mark a gated tool beside its ungated neighbours in the same namespace (§3.4)', () => {
-    expect(renderInspectResponse(REPORT)).toContain('- bookmark: save 🔐, list');
-    expect(renderInspectResponse(UNGATED)).toContain('- clock: now\n');
+  it('should table tools by namespace, marking a gated tool beside its ungated neighbours (§3.4)', () => {
+    expect(renderInspectResponse(REPORT)).toContain(
+      [
+        '| Toolset | Tools |',
+        '| --- | --- |',
+        '| **`clock`** | `now` |',
+        '| **`bookmark`** | `save`\\*, `list` |'
+      ].join('\n')
+    );
   });
 
   it('should show the gate legend only when a listed tool gates', () => {
-    expect(renderInspectResponse(REPORT)).toContain('🔐 requires human approval on every call (§3.7)');
-    expect(renderInspectResponse(UNGATED)).not.toContain('requires human approval');
+    expect(renderInspectResponse(REPORT)).toContain('_\\* Requires human approval on every call (§3.7)._');
+    expect(renderInspectResponse(UNGATED)).not.toContain('Requires human approval');
   });
 
-  it('should list each schedule with when it next fires, omitting the block for an agent with none (§8.4)', () => {
+  it('should source each skill, holding its name on one line', () => {
     expect(renderInspectResponse(REPORT)).toContain(
-      'Schedules:\n- morning-sweep (~ops): next September 18, 2026 at 9:00:00 AM UTC'
+      `| **\`framework\`** | \`handing-${JOINER}work-${JOINER}to-${JOINER}a-${JOINER}peer\` | How to hand work over. |`
     );
-    expect(renderInspectResponse(UNSCHEDULED)).not.toContain('Schedules:');
+    expect(renderInspectResponse(REPORT)).toContain(
+      `| **\`bookmark\`** | \`saving-${JOINER}bookmarks\` | How to bookmark. |`
+    );
   });
 
-  it('should truncate only the prompt and report the omitted characters', () => {
-    const response = renderInspectResponse({ ...REPORT, prompt: 'x'.repeat(20_000) });
+  it('should list each schedule with when it next fires (§8.4)', () => {
+    expect(renderInspectResponse(REPORT)).toContain(
+      `| **\`morning-${JOINER}sweep\`** | ~ops | September 18, 2026 at 9:00:00 AM UTC |`
+    );
+  });
+
+  it('should leave out a section the agent has nothing in', () => {
+    const bare = renderInspectResponse({ ...REPORT, schedules: [], skills: [], tools: [] });
+    expect(bare).not.toContain('#### Schedules');
+    expect(bare).not.toContain('#### Skills');
+    expect(bare).not.toContain('#### Tools');
+    expect(bare).toContain('#### Profile');
+  });
+
+  it('should quote the prompt so it renders as the Markdown it is, blank lines included', () => {
+    const response = renderInspectResponse({ ...REPORT, prompt: '## How you work\n\nBegin when asked.' });
+    expect(response).toContain(
+      ['#### System Prompt in This Channel', '', '> ## How you work', '>', '> Begin when asked.'].join('\n')
+    );
+  });
+
+  it('should cut the prompt at a line boundary and report what it omitted', () => {
+    const prompt = Array.from({ length: 400 }, (_, line) => `line ${line} ${'x'.repeat(80)}`).join('\n');
+    const response = renderInspectResponse({ ...REPORT, prompt });
     expect(response.length).toBeLessThanOrEqual(16_000);
-    expect(response).toContain('- bookmark: save 🔐, list');
-    expect(response).toMatch(/… \[truncated, \d+ characters omitted\]$/u);
+    expect(response).toContain('| **`bookmark`** | `save`\\*, `list` |');
+    expect(response).toMatch(/\n> line \d+ x+\n\n_… truncated — [\d,]+ of [\d,]+ characters omitted\._$/u);
   });
 });

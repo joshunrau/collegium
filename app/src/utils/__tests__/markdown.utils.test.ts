@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { fenceCodeBlock, listProseRanges, renderCodeSpan } from '../markdown.utils.ts';
+import {
+  fenceCodeBlock,
+  listProseRanges,
+  preventWrappingAtHyphens,
+  quoteBlock,
+  renderCodeSpan,
+  renderTable
+} from '../markdown.utils.ts';
 
 const prose = (text: string): string[] => listProseRanges(text).map((range) => text.slice(range.start, range.end));
 
@@ -20,6 +27,34 @@ describe('renderCodeSpan', () => {
     expect(renderCodeSpan('notes.md')).toBe('`notes.md`');
     expect(renderCodeSpan('a`b')).toBe('``a`b``');
     expect(renderCodeSpan('`x')).toBe('`` `x ``');
+  });
+});
+
+describe('quoteBlock', () => {
+  it('should mark every line, so a blank line does not break the quote in two', () => {
+    expect(quoteBlock('## Heading\n\nBody.')).toBe('> ## Heading\n>\n> Body.');
+  });
+});
+
+describe('renderTable', () => {
+  it('should render a header, its delimiter and one row per entry', () => {
+    expect(renderTable(['Tool', 'Use'], [['now', 'the clock']])).toBe(
+      '| Tool | Use |\n| --- | --- |\n| now | the clock |'
+    );
+  });
+
+  it('should keep a cell on its own line and inside its own column', () => {
+    expect(renderTable(['Skill'], [['reads a\nsecond line | and a pipe']])).toBe(
+      '| Skill |\n| --- |\n| reads a second line \\| and a pipe |'
+    );
+  });
+});
+
+describe('preventWrappingAtHyphens', () => {
+  it('should join the parts of a hyphenated name without changing what it reads as', () => {
+    const joined = preventWrappingAtHyphens('saving-bookmarks');
+    expect(joined).toBe('saving-⁠bookmarks');
+    expect(joined.replaceAll('⁠', '')).toBe('saving-bookmarks');
   });
 });
 

@@ -4,6 +4,9 @@ const FENCE_OPENING = /^ {0,3}(`{3,}|~{3,})/u;
 const INDENTED_CODE = /^(?: {4}|\t)/u;
 const BACKTICK_RUN = /`+/gu;
 
+/** zero-width and non-printing: it removes a break opportunity without changing what the text reads as */
+const WORD_JOINER = '⁠';
+
 type LineKind = 'blank' | 'code' | 'prose';
 
 function classifyLines(text: string): { end: number; kind: LineKind; start: number }[] {
@@ -61,6 +64,12 @@ function splitAroundCodeSpans(text: string, paragraph: TextRange): TextRange[] {
   return ranges.filter((range) => range.end > range.start);
 }
 
+/** a cell is one line of the table's own row, so a newline inside one would end the row early */
+function renderTableRow(cells: readonly string[]): string {
+  const escaped = cells.map((cell) => cell.replaceAll(/\s*\n\s*/gu, ' ').replaceAll('|', '\\|'));
+  return `| ${escaped.join(' | ')} |`;
+}
+
 function measureLongestBacktickRun(content: string): number {
   return Array.from(content.matchAll(BACKTICK_RUN)).reduce((longest, match) => Math.max(longest, match[0].length), 0);
 }
@@ -76,6 +85,24 @@ export function renderCodeSpan(content: string): string {
   const delimiter = '`'.repeat(measureLongestBacktickRun(content) + 1);
   const padding = content.startsWith('`') || content.endsWith('`') ? ' ' : '';
   return `${delimiter}${padding}${content}${padding}${delimiter}`;
+}
+
+/** a blank line carries the marker too, so one quote holds the whole block instead of breaking at every gap */
+export function quoteBlock(content: string): string {
+  return content
+    .split('\n')
+    .map((line) => (line === '' ? '>' : `> ${line}`))
+    .join('\n');
+}
+
+export function renderTable(header: readonly string[], rows: readonly (readonly string[])[]): string {
+  const delimiter = header.map(() => '---');
+  return [renderTableRow(header), renderTableRow(delimiter), ...rows.map(renderTableRow)].join('\n');
+}
+
+/** a renderer breaks a narrow table cell at each hyphen, which splits a name across lines; the joiner holds it whole */
+export function preventWrappingAtHyphens(text: string): string {
+  return text.replaceAll('-', `-${WORD_JOINER}`);
 }
 
 /**
