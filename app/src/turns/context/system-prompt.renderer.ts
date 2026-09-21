@@ -117,7 +117,8 @@ export class SystemPromptRenderer {
 
   /**
    * §3.8 — the directories the agent's file tools point at, and the shell's environment, which it
-   * cannot otherwise learn without failing: the directories are two and mutually unreadable (§A2),
+   * cannot otherwise learn without failing: the directories are two, the shell user reading the
+   * workspace and writing only its own home (§A2),
    * a shell output too large for a result spills into the workspace, and which commands exist is
    * what the boot probe found. Per agent and fixed for the life of the process, so they cost the
    * stable half nothing.
@@ -133,7 +134,7 @@ export class SystemPromptRenderer {
     const shell = [
       'shell__run runs each command as your own OS user, starting in {shellHomeDir}.',
       ...(holdsWorkspace
-        ? ['That user cannot read or write {workspaceDir}, and the workspace tools cannot reach {shellHomeDir}.']
+        ? ['That user can read {workspaceDir} but not write it, and the workspace tools cannot reach {shellHomeDir}.']
         : []),
       ...(holdsWorkspaceRead
         ? [

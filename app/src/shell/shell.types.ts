@@ -25,6 +25,7 @@ export type ShellRunFailure = {
 
 /** the OS identity a shell-holding agent runs as, both halves derived from its username (§A2) */
 export type ShellOsIdentity = {
+  readonly agentUsername: string;
   /** uid and gid alike: the agent's group holds only the agent, so one number names both */
   readonly id: number;
   readonly osUser: string;

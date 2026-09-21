@@ -1,5 +1,3 @@
-import * as path from 'node:path';
-
 import type { $TriggeringMode, AgentDefinition } from '@collegium/config';
 import { MODEL_CONTEXT_WINDOW_TOKENS } from '@collegium/core/common';
 import { Injectable } from '@nestjs/common';
@@ -12,6 +10,7 @@ import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
 import { ResourcesService } from '@/resources/resources.service.ts';
 import { resolveEffectiveToolSettings } from '@/tools/tools.settings.ts';
 import { FRAMEWORK_TOOLSETS } from '@/tools/tools.toolsets.ts';
+import { deriveWorkspaceDir } from '@/workspace/workspace.utils.ts';
 
 import type { AgentProfile } from './agents.types.ts';
 
@@ -122,7 +121,7 @@ export class AgentRegistry {
       tools: definition.tools,
       toolSettings,
       username: definition.username,
-      workspaceDir: path.join(workspaceRoot, definition.username)
+      workspaceDir: deriveWorkspaceDir(workspaceRoot, definition.username)
     };
   }
 }

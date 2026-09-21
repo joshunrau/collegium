@@ -5,6 +5,8 @@ import {
   buildCommandProbeArgv,
   buildProbeArgv,
   buildRunArgv,
+  buildWorkspaceGrantCommands,
+  buildWorkspaceProbeArgv,
   deriveShellHomeDir,
   deriveShellOsIdentities,
   deriveShellOsUser,
@@ -37,7 +39,9 @@ describe('deriveShellHomeDir', () => {
 
 describe('deriveShellOsIdentities', () => {
   it('should derive an id from the username alone, so it survives restarts and roster changes', () => {
-    expect(deriveShellOsIdentities(['mira'])).toStrictEqual([{ id: 646_747, osUser: 'collegium-mira' }]);
+    expect(deriveShellOsIdentities(['mira'])).toStrictEqual([
+      { agentUsername: 'mira', id: 646_747, osUser: 'collegium-mira' }
+    ]);
   });
 
   it('should place every id in the range reserved for agents', () => {
@@ -118,6 +122,27 @@ describe('parsePresentCommands', () => {
   it('should name the commands from the paths command -v printed, and nothing for the ones it did not', () => {
     expect(parsePresentCommands('/usr/local/bin/node\n/usr/bin/git\n')).toStrictEqual(['node', 'git']);
     expect(parsePresentCommands('')).toStrictEqual([]);
+  });
+});
+
+describe('buildWorkspaceGrantCommands', () => {
+  it('should hand the workspace to the agent’s own group read-only and to nobody else (§A2)', () => {
+    const identity = { agentUsername: 'mira', id: 646_747, osUser: 'collegium-mira' };
+    expect(buildWorkspaceGrantCommands('/workspaces/mira', 10_001, identity)).toStrictEqual([
+      { args: ['--recursive', '10001:646747', '/workspaces/mira'], command: 'chown' },
+      { args: ['--recursive', 'u=rwX,g=rX,o=', '/workspaces/mira'], command: 'chmod' },
+      { args: ['/workspaces/mira', '-type', 'd', '-exec', 'chmod', 'g+s', '{}', '+'], command: 'find' }
+    ]);
+  });
+});
+
+describe('buildWorkspaceProbeArgv', () => {
+  it('should check as the OS user that the workspace reads and does not write, with both paths in argv slots (§A2)', () => {
+    const argv = buildWorkspaceProbeArgv('collegium-mira', '/workspaces/mira', '/workspaces/mira/.probe');
+    expect(argv.slice(0, 5)).toStrictEqual(['--non-interactive', '--set-home', '--user', 'collegium-mira', '--']);
+    expect(argv.slice(-2)).toStrictEqual(['/workspaces/mira', '/workspaces/mira/.probe']);
+    expect(argv).toContain('test -x "$1" && ! test -w "$1" && test -r "$2" && ! test -w "$2"');
+    expect(argv.join(' ')).not.toContain('--login');
   });
 });
 

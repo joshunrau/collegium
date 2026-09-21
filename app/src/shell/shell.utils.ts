@@ -93,6 +93,7 @@ export function deriveShellHomeDir(agentUsername: string): string {
  */
 export function deriveShellOsIdentities(agentUsernames: readonly string[]): readonly ShellOsIdentity[] {
   const identities = agentUsernames.map((agentUsername) => ({
+    agentUsername,
     id: deriveShellOsUserId(agentUsername),
     osUser: deriveShellOsUser(agentUsername)
   }));
@@ -146,6 +147,46 @@ export function buildRunArgv(osUser: string, command: string): readonly string[]
  */
 export function buildProbeArgv(osUser: string): readonly string[] {
   return ['--non-interactive', '--set-home', '--user', osUser, '--', 'timeout', '1', 'true'];
+}
+
+/**
+ * §A2 — what makes an agent's workspace visible, read-only, to its own shell user and to nobody
+ * else: the app keeps ownership, the agent's private group may read and traverse, others may not,
+ * and every directory is setgid so what the app writes there later carries that group as well.
+ */
+export function buildWorkspaceGrantCommands(
+  workspaceDir: string,
+  appUid: number,
+  identity: ShellOsIdentity
+): readonly { readonly args: readonly string[]; readonly command: string }[] {
+  return [
+    { args: ['--recursive', `${appUid}:${identity.id}`, workspaceDir], command: 'chown' },
+    { args: ['--recursive', 'u=rwX,g=rX,o=', workspaceDir], command: 'chmod' },
+    { args: [workspaceDir, '-type', 'd', '-exec', 'chmod', 'g+s', '{}', '+'], command: 'find' }
+  ];
+}
+
+/**
+ * The boot probe's second half (§A2): as the agent's OS user, is its workspace readable and
+ * nothing more? The script is fixed and both paths ride in argv slots, so neither is parsed on the
+ * way.
+ */
+export function buildWorkspaceProbeArgv(osUser: string, workspaceDir: string, probeFile: string): readonly string[] {
+  return [
+    '--non-interactive',
+    '--set-home',
+    '--user',
+    osUser,
+    '--',
+    'timeout',
+    '5',
+    'bash',
+    '-c',
+    'test -x "$1" && ! test -w "$1" && test -r "$2" && ! test -w "$2"',
+    SHELL_ARGV0,
+    workspaceDir,
+    probeFile
+  ];
 }
 
 /**

@@ -84,3 +84,8 @@ export async function writeRetainedWorkspaceFile(
   );
   return path.join(file.directory, file.name);
 }
+
+/** the one derivation of an agent's workspace directory, shared by the registry that names it and the entrypoint that provisions it (§A2) */
+export function deriveWorkspaceDir(workspaceRoot: string, agentUsername: string): string {
+  return path.join(workspaceRoot, agentUsername);
+}

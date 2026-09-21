@@ -61,6 +61,7 @@ Every capability is a hand-written TypeScript function with a schema, reviewed a
 - Every command requires approval.
 - The agent runs as its own dedicated OS user, one per shell-holding agent.
 - That user owns its home directory and nothing else, mode `700`.
+- That user reads the agent's own workspace and writes nothing in it, so a file the agent wrote reaches a command by its path rather than retyped into one. No other agent's workspace is visible to it, and the framework's own state is not.
 - The framework's own tree is unreadable by agent users.
 - Agent home directories are unreadable by other agent users.
 - The shell's network reach is not policed. The address policy of §3.4 binds the web toolset, which is ungated, and not `shell::run`, whose control is the approval on every command: a person reads the command before it runs, and that reading is the whole of the network policy. The preamble says so (§3.8).
@@ -143,7 +144,7 @@ Reads are generally ungated: search, fetch, read mail. Writes, shell commands, a
 
 **Authority parameters are never model-supplied.** Any argument determining _whose authority an action carries_ is fixed in tool settings — the `from` address on outbound mail, credentials for external services. The model may request that mail be sent; it cannot choose who it appears to be from, and boot refuses a mail-granted agent without a mailbox (§3.13).
 
-**Filesystem scope.** The `workspace` tools and `shell::run` are confined to the agent's own directories — the former by path confinement, the latter by OS permissions (§A2). They are not the _same_ directory, and both paths are stated in the preamble (§3.8) rather than left for the agent to discover by failing, as are the commands the shell offers, probed once at boot. The shell's network reach is bounded by the approval on every command and by nothing else (§A2). Purpose-built tools may write to real systems by their own internal logic; those are individually reviewed and their write targets are fixed in code, never chosen by the model.
+**Filesystem scope.** The `workspace` tools and `shell::run` are confined to the agent's own directories — the former by path confinement, the latter by OS permissions (§A2). They are not the _same_ directory: the shell user reads the workspace and cannot write it, and the workspace tools do not reach the shell's home (A2). Both paths are stated in the preamble (§3.8) rather than left for the agent to discover by failing, as are the commands the shell offers, probed once at boot. The shell's network reach is bounded by the approval on every command and by nothing else (§A2). Purpose-built tools may write to real systems by their own internal logic; those are individually reviewed and their write targets are fixed in code, never chosen by the model.
 
 **Reading the workspace is not a shell command.** The `workspace` toolset's reads — `workspace::list`, `workspace::read`, `workspace::find`, `workspace::grep`, `workspace::stat` — take typed arguments under the same path confinement as `workspace::write`, so there is no command string in which a second command could hide. Each is ungated, because the confinement that bounds a write bounds a read of the same directory. The shell's own directory is not reached by these tools; a read there is still a `shell::run` under the gate.
 
@@ -239,7 +240,7 @@ Each turn assembles context fresh from the store:
 
 **The system prompt contains the agent's own prompt, the shared behavioral baseline, its optional personality, and the framework preamble.**
 
-The preamble states the one runtime fact about the filesystem an agent cannot otherwise see without failing: the directories its file tools point at. `workspace::write` and the workspace reads share one directory; `shell::run` runs in a different one, and A2 makes the two mutually unreadable on purpose. Naming them grants nothing: confinement is path rooting and OS permissions (§6.1), neither of which depends on the model not knowing where it is.
+The preamble states the one runtime fact about the filesystem an agent cannot otherwise see without failing: the directories its file tools point at. `workspace::write` and the workspace reads share one directory; `shell::run` runs in a different one, and reads the workspace without writing it (A2). Naming them grants nothing: confinement is path rooting and OS permissions (§6.1), neither of which depends on the model not knowing where it is.
 
 _What is deliberately not there:_ the time, and the host's operating system, git state and processes. The time is a tool call, `builtins::now`, because a prompt that changes every minute defeats the provider's cache. The rest is ambient state the agent was not granted, and a snapshot of it in the prompt is a read nobody approved. An agent that needs git state holds `shell::run` and asks for it under the gate.
 
@@ -495,7 +496,7 @@ For tool-only agents, confinement is enforced inside hand-written tool bodies �
 
 For shell-holding agents it is enforced by OS permissions (A2), which is a stronger boundary because it does not depend on our code being correct.
 
-**Shell confinement is OS permissions, not a path check.** `shell::run` runs each command as a dedicated OS user derived from the agent's username, never as the app's own user, and two agents can never share one. At boot the framework probes every shell-holding agent and refuses to start if its OS user is not provisioned, so a misconfigured host fails loudly rather than on the first command. **The approved bytes are the executed bytes**: the command runs in an argument slot of its own that no intermediate shell parses, so nothing the approver read as a literal is expanded on the way (§6.2).
+**Shell confinement is OS permissions, not a path check.** `shell::run` runs each command as a dedicated OS user derived from the agent's username, never as the app's own user, and two agents can never share one. At boot the framework probes every shell-holding agent and refuses to start if its OS user is not provisioned, or if its workspace is not readable, and only readable, by that user, so a misconfigured host fails loudly rather than on the first command. **The approved bytes are the executed bytes**: the command runs in an argument slot of its own that no intermediate shell parses, so nothing the approver read as a literal is expanded on the way (§6.2).
 
 **Confinement from framework code is traversal, not a path check either.** The app root is not traversable by any agent OS user, and the plugin root is beneath it, so framework code and operator-supplied plugin code alike are unreadable to the accounts `shell::run` executes as.
 

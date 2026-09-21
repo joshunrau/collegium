@@ -90,22 +90,59 @@ describe('ShellService', () => {
   });
 
   describe('assertProvisioned', () => {
+    let workspaceDir: string;
+
+    beforeEach(() => {
+      workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'collegium-shell-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(workspaceDir, { force: true, recursive: true });
+    });
+
     it('should never probe when no agent holds the shell tool (dev and e2e stay untouched)', async () => {
       await shellService.assertProvisioned([profile('mira', []), profile('tess', ['write_file'])]);
       expect(processRunner.spawnCaptured).not.toHaveBeenCalled();
     });
 
-    it('should pass when a shell-holding agent’s OS user is assumable', async () => {
+    it('should pass when a shell-holding agent’s OS user is assumable and reads its workspace (§A2)', async () => {
       processRunner.spawnCaptured.mockResolvedValue(exited(''));
-      await expect(shellService.assertProvisioned([profile('mira', ['shell'])])).resolves.toBeUndefined();
+      await expect(shellService.assertProvisioned([profile('mira', ['shell'], workspaceDir)])).resolves.toBeUndefined();
+      expect(processRunner.spawnCaptured.mock.calls[1]![1]).toContain(
+        path.join(workspaceDir, '.collegium-shell-probe')
+      );
+    });
+
+    it('should probe the workspace with a file it wrote and remove it afterwards (§A2)', async () => {
+      let probeFilePresentWhenProbed = false;
+      processRunner.spawnCaptured.mockImplementation((_command, argv) => {
+        const probed = argv.at(-1)!;
+        probeFilePresentWhenProbed ||= probed.startsWith(workspaceDir) && fs.existsSync(probed);
+        return Promise.resolve(exited(''));
+      });
+      await shellService.assertProvisioned([profile('mira', ['shell'], workspaceDir)]);
+      expect(probeFilePresentWhenProbed).toBe(true);
+      expect(fs.readdirSync(workspaceDir)).toStrictEqual([]);
     });
 
     it('should keep the commands the probe found, asked of the first shell-holding agent’s own shell (§3.8)', async () => {
       processRunner.spawnCaptured.mockResolvedValueOnce(exited(''));
+      processRunner.spawnCaptured.mockResolvedValueOnce(exited(''));
       processRunner.spawnCaptured.mockResolvedValueOnce(exited('/usr/local/bin/node\n/usr/bin/git\n'));
-      await shellService.assertProvisioned([profile('mira', ['shell'])]);
-      expect(processRunner.spawnCaptured.mock.calls[1]![1]).toContain('command -v "$@"');
+      await shellService.assertProvisioned([profile('mira', ['shell'], workspaceDir)]);
+      expect(processRunner.spawnCaptured.mock.calls[2]![1]).toContain('command -v "$@"');
       expect(shellService.listPresentCommands()).toStrictEqual(['node', 'git']);
+    });
+
+    it('should stop boot loudly when the OS user cannot read its workspace, or can write it (§A2)', async () => {
+      processRunner.spawnCaptured.mockResolvedValueOnce(exited(''));
+      processRunner.spawnCaptured.mockResolvedValueOnce(
+        Result.ok({ code: 1, droppedChars: { stderr: 0, stdout: 0 }, signal: null, stderr: '', stdout: '' })
+      );
+      await expect(shellService.assertProvisioned([profile('mira', ['shell'], workspaceDir)])).rejects.toThrow(
+        /collegium-mira.*cannot read/s
+      );
+      expect(fs.readdirSync(workspaceDir)).toStrictEqual([]);
     });
 
     it('should leave the commands unknown when no agent holds the shell tool', async () => {

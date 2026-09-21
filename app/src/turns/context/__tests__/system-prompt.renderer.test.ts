@@ -176,16 +176,16 @@ describe('SystemPromptRenderer', () => {
     expect(prompt).toContain(
       'shell__run runs each command as your own OS user, starting in /home/collegium-mira. The shell runs under bash with pipefail. Beside the usual POSIX utilities, these commands are present: node and git. The shell reaches the network under no address policy.'
     );
-    expect(prompt).not.toContain('cannot read or write');
+    expect(prompt).not.toContain('but not write it');
   });
 
-  it('should name both directories, their mutual unreadability and the output spill for an agent holding both (§3.8)', async () => {
+  it('should name both directories, the shell user’s read-only view of the workspace and the output spill for an agent holding both (§3.8)', async () => {
     toolRegistry.listFor.mockReturnValue([
       { gates: true, id: ['shell', 'run'] },
       { gates: false, id: ['workspace', 'read'] }
     ]);
     expect(await render()).toContain(
-      'workspace__read and workspace__write share one directory, /var/lib/collegium/workspaces/mira.\n\nshell__run runs each command as your own OS user, starting in /home/collegium-mira. That user cannot read or write /var/lib/collegium/workspaces/mira, and the workspace tools cannot reach /home/collegium-mira. Where a shell output is too large for a result, the framework, not your shell user, saves it into /var/lib/collegium/workspaces/mira and names the file in the result. The shell runs under bash with pipefail.'
+      'workspace__read and workspace__write share one directory, /var/lib/collegium/workspaces/mira.\n\nshell__run runs each command as your own OS user, starting in /home/collegium-mira. That user can read /var/lib/collegium/workspaces/mira but not write it, and the workspace tools cannot reach /home/collegium-mira. Where a shell output is too large for a result, the framework, not your shell user, saves it into /var/lib/collegium/workspaces/mira and names the file in the result. The shell runs under bash with pipefail.'
     );
   });
 

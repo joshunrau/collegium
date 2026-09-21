@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
@@ -13,12 +15,14 @@ import {
   SAVED_OUTPUT_DIRECTORY,
   SAVED_OUTPUT_RETAINED,
   SHELL_PROBED_COMMANDS,
-  SPAWN_WORKING_DIRECTORY
+  SPAWN_WORKING_DIRECTORY,
+  WORKSPACE_PROBE_FILE
 } from './shell.constants.ts';
 import {
   buildCommandProbeArgv,
   buildProbeArgv,
   buildRunArgv,
+  buildWorkspaceProbeArgv,
   deriveShellOsUser,
   holdsShellGrant,
   holdsWorkspaceRead,
@@ -49,28 +53,16 @@ export class ShellService {
   /**
    * §6.1 boot probe — fail loudly on an undeclared policy. For every shell-holding agent it checks
    * that the derived OS user can be assumed via passwordless sudo. An unprovisioned host stops boot
-   * here rather than surfacing as a first-command failure much later. Once one user is assumable,
-   * its shell is asked which of the candidate commands exist, so the preamble can say so (§3.8).
+   * here rather than surfacing as a first-command failure much later, and so does a workspace that
+   * user cannot read or could write (§A2). Once one user is assumable, its shell is asked which of
+   * the candidate commands exist, so the preamble can say so (§3.8).
    */
   async assertProvisioned(profiles: readonly AgentProfile[]): Promise<void> {
     const holders = profiles.filter((profile) => holdsShellGrant(profile.tools));
     for (const profile of holders) {
       const osUser = deriveShellOsUser(profile.username);
-      const probe = await this.processRunner.spawnCaptured('sudo', buildProbeArgv(osUser), {
-        captureLimitChars: CAPTURE_LIMIT_CHARS,
-        cwd: SPAWN_WORKING_DIRECTORY
-      });
-      if (!probe.success) {
-        throw new Error(
-          `agent "${profile.username}" holds shell but its dedicated user is unusable: ${probe.error.message}`
-        );
-      }
-      if (probe.value.code !== 0) {
-        throw new Error(
-          `agent "${profile.username}" holds shell but OS user "${osUser}" cannot be assumed via sudo ` +
-            `(exit ${probe.value.code}): ${probe.value.stderr.trim()}`
-        );
-      }
+      await this.assertAssumable(profile.username, osUser);
+      await this.assertWorkspaceReadOnly(profile, osUser);
     }
     const first = holders[0];
     if (first !== undefined) {
@@ -102,6 +94,50 @@ export class ShellService {
         ? await this.saveOutput(params.profile, params.command, captured.value)
         : undefined;
     return Result.ok({ text: toRunOutput(captured.value, savedPath) });
+  }
+
+  private async assertAssumable(agentUsername: string, osUser: string): Promise<void> {
+    const probe = await this.processRunner.spawnCaptured('sudo', buildProbeArgv(osUser), {
+      captureLimitChars: CAPTURE_LIMIT_CHARS,
+      cwd: SPAWN_WORKING_DIRECTORY
+    });
+    if (!probe.success) {
+      throw new Error(
+        `agent "${agentUsername}" holds shell but its dedicated user is unusable: ${probe.error.message}`
+      );
+    }
+    if (probe.value.code !== 0) {
+      throw new Error(
+        `agent "${agentUsername}" holds shell but OS user "${osUser}" cannot be assumed via sudo ` +
+          `(exit ${probe.value.code}): ${probe.value.stderr.trim()}`
+      );
+    }
+  }
+
+  /** §A2 — a file the app wrote is readable, and nothing in the workspace writable, as the agent's own OS user */
+  private async assertWorkspaceReadOnly(profile: AgentProfile, osUser: string): Promise<void> {
+    const probeFile = path.join(profile.workspaceDir, WORKSPACE_PROBE_FILE);
+    await fs.promises.writeFile(probeFile, '');
+    try {
+      const probe = await this.processRunner.spawnCaptured(
+        'sudo',
+        buildWorkspaceProbeArgv(osUser, profile.workspaceDir, probeFile),
+        { captureLimitChars: CAPTURE_LIMIT_CHARS, cwd: SPAWN_WORKING_DIRECTORY }
+      );
+      if (!probe.success) {
+        throw new Error(
+          `agent "${profile.username}" holds shell but its workspace could not be probed: ${probe.error.message}`
+        );
+      }
+      if (probe.value.code !== 0) {
+        throw new Error(
+          `agent "${profile.username}" holds shell but OS user "${osUser}" cannot read ${profile.workspaceDir}, ` +
+            `or can write it (exit ${probe.value.code}): ${probe.value.stderr.trim()}`
+        );
+      }
+    } finally {
+      await fs.promises.rm(probeFile, { force: true });
+    }
   }
 
   /** a probe that cannot run leaves the list empty and the preamble silent; the image is the source of truth, not this */

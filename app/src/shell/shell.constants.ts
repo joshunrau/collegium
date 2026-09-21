@@ -48,3 +48,9 @@ export const SPAWN_WORKING_DIRECTORY = '/';
  * A name missing from this list is only unmentioned; the probe never claims one that is absent.
  */
 export const SHELL_PROBED_COMMANDS: readonly string[] = ['node', 'python3', 'curl', 'wget', 'git', 'jq', 'perl'];
+
+/**
+ * §A2 — what the boot probe writes into a shell-holding agent's workspace to check that its OS user
+ * reads it and cannot write it; removed as soon as the probe returns.
+ */
+export const WORKSPACE_PROBE_FILE = '.collegium-shell-probe';

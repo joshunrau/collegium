@@ -18,7 +18,8 @@ import { parseConfigText } from '@/config/config.utils.ts';
 import { JSONLogger } from '@/logging/adapters/json.logger.ts';
 import { SHELL_HOME_ROOT } from '@/shell/shell.constants.ts';
 import type { ShellOsIdentity } from '@/shell/shell.types.ts';
-import { deriveShellOsIdentities, holdsShellGrant } from '@/shell/shell.utils.ts';
+import { buildWorkspaceGrantCommands, deriveShellOsIdentities, holdsShellGrant } from '@/shell/shell.utils.ts';
+import { deriveWorkspaceDir } from '@/workspace/workspace.utils.ts';
 
 const AGENT_GROUP = 'collegium-agents';
 // what provisioning authenticates with, and what the long-lived app process must never hold
@@ -36,7 +37,7 @@ const SUDOERS_FILE = '/etc/sudoers.d/collegium';
 const APP_GID = 10_001;
 const APP_UID = 10_001;
 
-function run(command: string, args: string[]): void {
+function run(command: string, args: readonly string[]): void {
   execFileSync(command, args, { stdio: 'inherit' });
 }
 
@@ -79,6 +80,21 @@ function provisionAgentOsUser({ id, osUser }: ShellOsIdentity): void {
   fs.mkdirSync(home, { recursive: true });
   run('chown', ['--recursive', `${id}:${id}`, home]);
   fs.chmodSync(home, 0o700);
+}
+
+// made here rather than on first write: beneath a root agent users may traverse, a directory the app
+// created at its default mode would be readable by every one of them
+function provisionWorkspace(workspaceRoot: string, agentUsername: string, identity: ShellOsIdentity | undefined): void {
+  const workspaceDir = deriveWorkspaceDir(workspaceRoot, agentUsername);
+  fs.mkdirSync(workspaceDir, { recursive: true });
+  if (identity === undefined) {
+    fs.chownSync(workspaceDir, APP_UID, APP_GID);
+    fs.chmodSync(workspaceDir, 0o700);
+    return;
+  }
+  for (const { args, command } of buildWorkspaceGrantCommands(workspaceDir, APP_UID, identity)) {
+    run(command, args);
+  }
 }
 
 const logger = new JSONLogger('Entrypoint');
@@ -129,10 +145,9 @@ try {
     fs.chmodSync(stateDirectory, 0o700);
   }
 
+  const agents = Object.values(config.agents);
   const identities = deriveShellOsIdentities(
-    Object.values(config.agents)
-      .filter((agent) => holdsShellGrant(agent.tools))
-      .map((agent) => agent.username)
+    agents.filter((agent) => holdsShellGrant(agent.tools)).map((agent) => agent.username)
   );
 
   if (identities.length > 0) {
@@ -143,6 +158,17 @@ try {
       provisionAgentOsUser(identity);
     }
     fs.writeFileSync(SUDOERS_FILE, `${APP_USER} ALL=(%${AGENT_GROUP}) NOPASSWD: ALL\n`, { mode: 0o440 });
+    // §A2 — agent users traverse the workspace root without listing it, so each reaches the one
+    // workspace granted to it below and learns nothing of the others
+    run('chown', [`${APP_UID}:${AGENT_GROUP}`, env.WORKSPACE_ROOT]);
+    fs.chmodSync(env.WORKSPACE_ROOT, 0o710);
+  }
+  for (const agent of agents) {
+    provisionWorkspace(
+      env.WORKSPACE_ROOT,
+      agent.username,
+      identities.find((identity) => identity.agentUsername === agent.username)
+    );
   }
 
   // §6.1: denying traversal of the app root is the whole of the framework's confinement — nothing
