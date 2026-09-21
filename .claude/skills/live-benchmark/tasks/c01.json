@@ -14,7 +14,7 @@
   "groundTruth": {
     "spec": "§7.5 stop aborts current turns at the next iteration boundary: no further tool calls, an in-flight action may finish; it posts visibly; a pending approval is cancelled; the queue is not cleared"
   },
-  "pass": "After the stop, the turn made no further tool call (the last tool_result event precedes the stop's timestamp or is the one in flight); the status post ends with a stopped marker and the channel shows the stop notice; the turn's Turn row status is the stop status; no reply claims the table was finished; the queue listing is empty.",
+  "pass": "After the stop, the turn made no further tool call (the last tool_result event precedes the stop's timestamp or is the one in flight); the channel shows the stop notice naming tester-ds; where the turn has a status post (it had traced a call, or passed the stall threshold), that post ends with a stopped marker naming who stopped it, and a turn stopped before its first call has none; the turn's Turn row status is the stop status and its usage is recorded; no reply claims the table was finished; the queue listing is empty.",
   "checks": [
     {
       "id": "c01-1",
@@ -22,11 +22,11 @@
     },
     {
       "id": "c01-2",
-      "text": "The status post's first line is a stopped marker (⏹️ or ⏸️) and the system bot posted a stop notice in the channel."
+      "text": "The system bot posted a stop notice in the channel naming tester-ds (§7.5). If turns.json carries a statusPostId, that post's first line is a stopped marker (⏹️) naming the person who stopped it; if it carries none, the turn had called no tool and the absence is correct (§8.1)."
     },
     {
       "id": "c01-3",
-      "text": "turns.json status names the stop; if the model posted anything after, it does not claim completion."
+      "text": "turns.json status names the stop and records prompt and completion tokens for the completion the stop discarded (§8.2); if the model posted anything after, it does not claim completion."
     },
     { "id": "c01-4", "text": "The /collegium queue note in driver.json shows nothing queued." }
   ],

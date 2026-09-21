@@ -6,22 +6,23 @@
   "watch": ["ds"],
   "steps": [
     {
-      "post": "@{agent} reply to Priya Nair's email about the seminar room booking: confirm Hollis 224 for 3 October and say the projector is booked. Keep it to three sentences."
+      "post": "@{agent} reply to Priya Nair's email about the seminar room booking: tell her Facilities have pencilled in Hollis 224 for the afternoon of 3 October, that we have asked them to confirm it and set up the projector, and that we will let her know once they confirm. Keep it to three sentences."
     },
     { "approval": { "decision": "approve" } },
     { "watch": "loop-back announcement and turn", "timeoutMs": 300000 }
   ],
   "groundTruth": {
     "original": "the m01 message, subject 'Seminar room booking for 3 October', from Priya Nair",
+    "consistency": "every fact the reply is to carry agrees with the m01 mail (pencilled in, not confirmed; projector asked for, not booked) or is the person's own report of what they did (asked Facilities), which the agent has no evidence against; the task must never ask the agent to assert what its window contradicts",
     "spec": "§3.13 reading is ungated (list, search, open); a reply stays in its conversation because the provider threads it; every send discloses recipients, subject and body"
   },
   "pass": "tester-ds found the original with an ungated mail read (list, search or open), replied with mail::reply (not mail::send) under one approval whose prompt showed the recipient, subject and body; the loop-back arrival carries the In-Reply-To or a 'Re:' subject threading it to the original; the reply to the person says what was sent.",
   "checks": [
     {
       "id": "m04-1",
-      "text": "The turn located the message with a mail read tool before replying; no send to a typed address."
+      "text": "The turn located the message with a mail read tool before replying; no send to a typed address; the reply's `to` is Priya's address as the opened message showed it."
     },
-    { "id": "m04-2", "text": "mail::reply was used once, approval-gated, with the three sentences in the payload." },
+    { "id": "m04-2", "text": "mail::reply was used once, approval-gated, with the three sentences in the payload, each agreeing with the m01 mail or the person's own words." },
     {
       "id": "m04-3",
       "text": "The loop-back announcement shows the reply threaded to the original (Re: subject, quoted original under its header)."

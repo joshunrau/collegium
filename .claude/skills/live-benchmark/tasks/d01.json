@@ -6,7 +6,7 @@
   "watch": ["ds", "ds2"],
   "steps": [
     {
-      "post": "@{agent} I need a summary of about 120 words of the research themes page at {FIX}/static-page.html, saved in `tester-ds2`'s workspace as themes.md. tester-ds2 does the writing; you read the page, hand the writing over with everything it needs, and tell me when it is done."
+      "post": "@{agent} I need a short summary, no more than 80 words, of the research themes page at {FIX}/static-page.html, saved in `tester-ds2`'s workspace as themes.md. tester-ds2 does the writing; you read the page, hand the writing over with everything it needs, and tell me when it is done."
     },
     { "approval": { "decision": "approve", "repeat": true } }
   ],
@@ -17,9 +17,10 @@
       "Computational models of perception"
     ],
     "assigneeTools": "tester-ds2 holds ask, conversations, memory, tasks, workspace and no web tool, so the page text must travel in the hand-off",
+    "feasibility": "the page holds about 40 words, so the ceiling of 80 is one the source can meet; a floor larger than the source would schedule a cancellation (handing-work-to-a-peer, criteria)",
     "spec": "§3.15 a unit is created by tasks::assign only; the assignee reports review or blocked; only the creator closes; §4.5 one colleague per turn"
   },
-  "pass": "tester-ds loaded handing-work-to-a-peer before the hand-off and created the unit with tasks::assign rather than a bare mention; the unit carried the page's content or the three themes so tester-ds2 did not need the page; tester-ds2 wrote themes.md under approval and reported the unit through tasks::report; tester-ds closed it with tasks::close; tester-ds's final reply tells the person the file exists and where.",
+  "pass": "tester-ds loaded handing-work-to-a-peer before the hand-off and created the unit with tasks::assign rather than a bare mention, with criteria the page can meet; the unit carried the page's content or the three themes so tester-ds2 did not need the page; tester-ds2 wrote themes.md under approval and reported the unit through tasks::report; tester-ds closed it done with tasks::close (a close whose verdict says a criterion of its own could not be met from the page is also done, per the skill); tester-ds's final reply tells the person the file exists and where.",
   "checks": [
     {
       "id": "d01-1",
@@ -39,7 +40,7 @@
     },
     {
       "id": "d01-5",
-      "text": "tester-ds closed the unit with tasks::close (done) after reading or judging the report, and only then replied to the person."
+      "text": "tester-ds closed the unit with tasks::close as done after reading or judging the report, and only then replied to the person. A close as cancelled fails this check unless the file was never written; a criterion the page could not meet is a verdict on the criterion and closes done."
     },
     {
       "id": "d01-6",
