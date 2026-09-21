@@ -91,8 +91,9 @@ function toSearchResult(query: string, result: Result<SearchResult[], SearchFail
  * traces every action. A click or fill may commit a side effect on the page, and even a navigation
  * can, so no browser tool is retryable: a timeout leaves us unable to say whether it landed (§7.2).
  * `fetch` and `search` are the exceptions — a scriptless GET commits nothing, so a timeout is a plain failure.
- * None of the session tools is `mutating` even so: §8.1 keeps that question separate from
- * retryability, and what these act on is the turn's own page.
+ * §8.1 keeps `mutating` separate from retryability: fill, hover and navigate act on the turn's own
+ * page and change nothing beyond it, so they stay off the effects line; a click can submit a form,
+ * so it does not.
  */
 export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
   services: { search: SEARCH_SERVICE_TOKEN, web: WEB_SERVICE_TOKEN },
@@ -100,7 +101,6 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
     click: {
       description: `${DESCRIPTION_PREAMBLE}Click an element from the latest snapshot, e.g. to follow a link or submit a form.`,
       execute: async (args, context) => toSnapshotResult(await context.web.click(context.turn.turnId, args.ref)),
-      mutating: false,
       parameters: z.object({
         ref: $Ref.describe('An element ref (shown as ⟨eN⟩) from the latest snapshot')
       }),
