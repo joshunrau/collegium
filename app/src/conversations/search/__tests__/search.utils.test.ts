@@ -16,6 +16,9 @@ describe('renderSearchHits', () => {
   it('should name the query and the substring rule when nothing matched', () => {
     expect(renderSearchHits([], 'python.org/doc')).toContain('no posts matched "python.org/doc"');
     expect(renderSearchHits([], 'python.org/doc')).toContain('one literal substring');
+    expect(renderSearchHits([], 'python.org/doc')).toContain(
+      'approval prompts, notices and status posts, are never matched'
+    );
   });
 
   it("should return a hit's text unaltered inside delimiters (§3.8)", () => {
@@ -39,10 +42,12 @@ describe('renderSearchPost', () => {
     expect(renderSearchPost(hit(message), 'post-1')).toContain(message);
   });
 
-  it('should read a post out of reach exactly as one that does not exist (§3.8)', () => {
+  it('should read a post out of reach exactly as one that does not exist, naming what is never matched (§3.8)', () => {
     expect(renderSearchPost(undefined, 'post-9')).toBe(
       'no post matched id post-9 — a post is read here only while it sits in a channel this search reaches, ' +
-        "after that channel's most recent episode boundary, and has not been forgotten"
+        "after that channel's most recent episode boundary, and has not been forgotten; posts the framework made " +
+        'under an agent’s name, work-unit assignments, reports and closes, approval prompts, notices and status ' +
+        'posts, are never matched'
     );
   });
 });

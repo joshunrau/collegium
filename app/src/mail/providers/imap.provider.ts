@@ -10,6 +10,7 @@ import MailComposer from 'nodemailer/lib/mail-composer/index.js';
 import { MailProvider } from '../mail.provider.ts';
 import {
   classifySmtpFailure,
+  hasAttachmentParts,
   parseImapCursor,
   parseImapRef,
   serializeImapCursor,
@@ -104,6 +105,7 @@ export class ImapMailProvider extends MailProvider {
       const start = Math.max(1, mailbox.exists - limit + 1);
       const summaries: MailSummary[] = [];
       for await (const message of client.fetch(`${start}:*`, {
+        bodyStructure: true,
         envelope: true,
         flags: true,
         source: { maxLength: PREVIEW_SOURCE_BYTES },
@@ -287,7 +289,7 @@ export class ImapMailProvider extends MailProvider {
     const summaries: MailSummary[] = [];
     for await (const message of client.fetch(
       uids.join(','),
-      { envelope: true, flags: true, source: { maxLength: PREVIEW_SOURCE_BYTES }, uid: true },
+      { bodyStructure: true, envelope: true, flags: true, source: { maxLength: PREVIEW_SOURCE_BYTES }, uid: true },
       { uid: true }
     )) {
       summaries.push(await this.toSummary(message, mailbox));
@@ -317,6 +319,7 @@ export class ImapMailProvider extends MailProvider {
           ? { address: from.address ?? '', name: from.name }
           : { address: from.address ?? '' };
     return {
+      hasAttachments: hasAttachmentParts(message.bodyStructure),
       isRead: message.flags?.has('\\Seen') ?? false,
       preview: toPreview(parsed?.text ?? undefined),
       receivedAt: message.envelope?.date ?? parsed?.date ?? new Date(0),

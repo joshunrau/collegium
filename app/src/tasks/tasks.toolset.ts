@@ -7,10 +7,18 @@ import { ASSIGNEE_TARGETS, CREATOR_TARGETS, renderTaskRefusal, renderUnitRecord 
 
 import type { TaskFailure } from './tasks.types.ts';
 
-const REFERENCE_PARAMETER = z
+/** the two write verbs act on open units, which the prompt lists; a read reaches a closed one too (§3.15) */
+const $OpenReference = z
   .string()
   .min(1)
   .describe('The reference of the work unit, as listed under Open work in your system prompt');
+
+const $AnyReference = z
+  .string()
+  .min(1)
+  .describe(
+    'The reference of the work unit: from the Open work section of your system prompt, or from the post in this channel that assigned, reported or closed it'
+  );
 
 const refused = (failure: TaskFailure) => {
   return Result.err({ kind: 'invalid-arguments' as const, message: renderTaskRefusal(failure) });
@@ -58,7 +66,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
           .string()
           .min(1)
           .describe(
-            'How you will judge the result when it comes back. State it as a checkable condition, not as a step.'
+            'How you will judge the result when it comes back. State it as a checkable condition, not as a step, and one the context you are supplying can meet.'
           ),
         outcome: z.string().min(1).describe('The result you need, stated as a result rather than as a step')
       }),
@@ -66,7 +74,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
     },
     close: {
       description:
-        'Close a unit you handed over, after reading the result: done when it meets your criteria, cancelled with the reason when it never will. Only the creator closes a unit; to try again, hand over a fresh unit with corrected criteria.',
+        'Close a unit you handed over, after reading the result: done when it meets your criteria, or when the report shows a criterion of yours could not be met from what you supplied, with that verdict; cancelled with the reason when the work will never be right. Only the creator closes a unit; to try again, hand over a fresh unit with corrected criteria.',
       execute: async (args, context) => {
         const prepared = await context.tasks.prepareClose({
           actingAgentUsername: context.turn.agentUsername,
@@ -85,10 +93,12 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         });
       },
       parameters: z.object({
-        reference: REFERENCE_PARAMETER,
+        reference: $OpenReference,
         state: z
           .enum(CREATOR_TARGETS)
-          .describe('done when the result meets your criteria; cancelled when it never will'),
+          .describe(
+            'done when the result meets your criteria or your criterion was the defect; cancelled when the work never will'
+          ),
         verdict: z
           .string()
           .min(1)
@@ -99,7 +109,8 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
     read: {
       budgetExempt: true,
       concurrent: true,
-      description: 'Read one work unit in full: its outcome, criteria, context, parties and state.',
+      description:
+        'Read one work unit in full: its outcome, criteria, context, parties and state. A unit you created or were assigned in this channel reads whether it is open or closed.',
       execute: async (args, context) => {
         const unit = await context.tasks.read(context.turn.agentUsername, context.turn.channelId, args.reference);
         if (!unit.success) {
@@ -107,7 +118,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         }
         return Result.ok({ text: renderUnitRecord(unit.value) });
       },
-      parameters: z.object({ reference: REFERENCE_PARAMETER }),
+      parameters: z.object({ reference: $AnyReference }),
       retryable: true,
       traceDetail: (args) => args.reference
     },
@@ -132,7 +143,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         });
       },
       parameters: z.object({
-        reference: REFERENCE_PARAMETER,
+        reference: $OpenReference,
         state: z
           .enum(ASSIGNEE_TARGETS)
           .describe('review when the result is ready to be judged; blocked when you cannot go on'),

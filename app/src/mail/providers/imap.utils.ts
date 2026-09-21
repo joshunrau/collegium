@@ -1,4 +1,5 @@
 import { Result, toErrorMessage } from '@collegium/core/utils';
+import type { MessageStructureObject } from 'imapflow';
 import type { AddressObject, ParsedMail } from 'mailparser';
 
 import { toMarkdown } from '@/web/web.utils.ts';
@@ -66,6 +67,17 @@ export function renderParsedBody(parsed: ParsedMail): string {
 /** a short single-line excerpt, never the full body */
 export function toPreview(text: string | undefined): string {
   return (text ?? '').replaceAll(/\s+/g, ' ').trim().slice(0, PREVIEW_CHARS);
+}
+
+/** §3.13 — whether anything rides the message, read off the server's structure rather than a source cut for the preview */
+export function hasAttachmentParts(structure: MessageStructureObject | undefined): boolean {
+  if (structure === undefined) {
+    return false;
+  }
+  if (structure.disposition?.toLowerCase() === 'attachment') {
+    return true;
+  }
+  return (structure.childNodes ?? []).some((child) => hasAttachmentParts(child));
 }
 
 /** the server's receipt time (INTERNALDATE), or the read itself when the server gave none it could parse */

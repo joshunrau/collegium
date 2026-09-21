@@ -26,6 +26,11 @@ Say what is _not_ theirs: where they should stop, and what to come back to you a
 decide. The tool takes an outcome, criteria and context; the boundary goes in the context, because
 nothing else carries it and an unbounded peer spends its own budget finding that out.
 
+Check each criterion against what you are handing over. A number the source cannot reach, a word
+count larger than the source or a comparison the context holds one side of, is not a standard; it is
+a cancellation you have already scheduled. Where the person's request implies such a number, settle
+it with them before you assign, and hand over the criterion you can actually judge.
+
 Address **one** colleague per turn, however many posts you make. A post naming a second one is
 refused back to you at the cost of an attempt. To name a colleague without waking them, write their
 handle in backticks.
@@ -42,6 +47,8 @@ before they reply, say in your reply that you are waiting on that peer and what 
 
 Answer a question they ask you. When a report comes back, read your own criteria before you read the
 report; `tasks__read` spends no attempt. A result you judge incomplete is a fresh unit with
-corrected criteria, never a reopened one.
+corrected criteria, never a reopened one. A report that shows a criterion of yours could not be met
+from what you handed over is a verdict on the criterion, not on the work: close the unit `done` with
+that verdict, and keep `cancelled` for work that will never be right.
 
 Done when you have either closed the unit or said plainly what is still outstanding.

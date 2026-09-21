@@ -130,7 +130,7 @@ describe('mail inbound, end to end through triggers', () => {
     const [channelId, message, files] = chatGateway.postAsSystemIn.mock.calls[0]!;
     expect(channelId).toBe('channel-mail');
     expect(message).toContain('🔔 New Mail → @tess');
-    expect(message).toContain('Handle ⟨msg-1⟩');
+    expect(message).toContain('⟨msg-1⟩ arrived. Read it and say here what it needs');
     expect(message).toContain(
       '> **From:** billing@acme.com\n> **Date:** July 31, 2026\n> **Subject:** Invoice overdue\n>\n> Please pay invoice 42.'
     );

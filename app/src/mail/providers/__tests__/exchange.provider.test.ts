@@ -45,6 +45,7 @@ describe('ExchangeMailProvider', () => {
     const listed = await provider.listRecent(5);
     expect(listed.value).toStrictEqual([
       {
+        hasAttachments: false,
         isRead: false,
         preview: 'Please pay invoice 42',
         receivedAt: new Date('2026-07-30T12:00:00Z'),

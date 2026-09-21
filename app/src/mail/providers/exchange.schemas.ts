@@ -37,6 +37,7 @@ export const $GraphMessageSummary = z.object({
   bodyPreview: z.string().default(''),
   conversationId: z.string().optional(),
   from: $GraphRecipient.optional(),
+  hasAttachments: z.boolean().default(false),
   id: z.string().min(1),
   isRead: z.boolean().default(false),
   receivedDateTime: z.coerce.date(),
@@ -52,7 +53,6 @@ export const $GraphMessage = $GraphMessageSummary.extend({
     })
     .optional(),
   ccRecipients: z.array($GraphRecipient).default([]),
-  hasAttachments: z.boolean().default(false),
   replyTo: z.array($GraphRecipient).default([]),
   toRecipients: z.array($GraphRecipient).default([])
 });

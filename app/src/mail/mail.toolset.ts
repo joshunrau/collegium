@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { composeOutboundMail } from './compose/compose.utils.ts';
 import { MAIL_REGISTRY_TOKEN } from './mail.tokens.ts';
-import { renderMailMessage, renderMailSummaries, renderOutboundPayload } from './mail.utils.ts';
+import { renderMailConversation, renderMailMessage, renderMailSummaries, renderOutboundPayload } from './mail.utils.ts';
 
 import type { MailboxRuntime, MailRegistry } from './mail.registry.ts';
 import type { MailFailure } from './mail.types.ts';
@@ -89,12 +89,12 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
   tools: {
     conversation: {
       description:
-        'Gather the whole conversation a message belongs to, oldest first. Returns summaries only — only open returns a body.',
+        'Gather the whole conversation a message belongs to, oldest first, and say how many messages it holds. Returns summaries only — only open returns a body.',
       execute: (args, context) => {
         return withMailbox(context, async ({ provider }) => {
           return toReadResult(
             await provider.getConversation(args.ref),
-            renderMailSummaries,
+            renderMailConversation,
             `mail conversation ${args.ref}`
           );
         });
@@ -123,7 +123,7 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
     open: {
       description:
         'Open one message in full — the only mail action that returns a body. Attachments are described by name, ' +
-        'type, and size; their content is not retrievable.',
+        'type, and size, and a message with none says so; their content is not retrievable.',
       execute: (args, context) => {
         return withMailbox(context, async ({ provider }) => {
           return toReadResult(await provider.open(args.ref), renderMailMessage, `mail message ${args.ref}`);
@@ -154,14 +154,19 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
       parameters: z.object({
         ...$Outbound,
         ref: $Ref.describe('The message being replied to; it stays in that conversation for the recipient'),
-        to: z.array(z.email()).min(1).describe('Everyone the reply goes to')
+        to: z
+          .array(z.email())
+          .min(1)
+          .describe(
+            'Everyone the reply goes to — normally the sender of the message at ref, or its Reply-To where it names one, and its other recipients when replying to all'
+          )
       }),
       timeoutMs: MAIL_TIMEOUT_MS,
       traceDetail: (args) => `⟨${args.ref}⟩ → ${args.to.join(', ')}`
     },
     search: {
       description:
-        "Search your mailbox in the mail provider's own query grammar. Returns summaries only — only open returns a body.",
+        'Search your mailbox for a phrase, matched against sender, subject and body by the provider itself; it is one phrase, not a query language. Returns summaries only — only open returns a body.',
       execute: (args, context) => {
         return withMailbox(context, async ({ provider }) => {
           return toReadResult(
@@ -173,7 +178,12 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
       },
       parameters: z.object({
         count: $Count.describe('How many matches to return'),
-        query: z.string().min(1).describe("What to search for, in the mail provider's own query grammar")
+        query: z
+          .string()
+          .min(1)
+          .describe(
+            'One phrase to find in a sender, subject or body; operators and field prefixes are matched as words'
+          )
       }),
       retryable: true,
       timeoutMs: MAIL_TIMEOUT_MS,

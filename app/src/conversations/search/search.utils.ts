@@ -30,12 +30,17 @@ function renderSearchHit(hit: SearchHit, query: string): string {
   return `${renderHeader(hit)}\n${renderBody(hit, windowAroundMatch(hit.message, query))}\n${cut}`;
 }
 
+/** §3.8 — the bound the description states, said again where a search came back empty, since that is where it decided the result */
+const UNSEARCHABLE_KINDS_NOTE =
+  'posts the framework made under an agent’s name, work-unit assignments, reports and closes, approval prompts, ' +
+  'notices and status posts, are never matched';
+
 /** §3.8 — each hit's source named and its text bounded, with the whole post one call away */
 export function renderSearchHits(hits: readonly SearchHit[], query: string): string {
   if (hits.length === 0) {
     return (
       `no posts matched "${query}" — the query is matched as one literal substring, without regard to case ` +
-      'and with no stemming; try a shorter distinctive phrase'
+      `and with no stemming; try a shorter distinctive phrase. Also, ${UNSEARCHABLE_KINDS_NOTE}`
     );
   }
   return hits.map((hit) => renderSearchHit(hit, query)).join('\n\n');
@@ -49,7 +54,7 @@ export function renderSearchPost(hit: SearchHit | undefined, postId: string): st
   if (hit === undefined) {
     return (
       `no post matched id ${postId} — a post is read here only while it sits in a channel this search ` +
-      "reaches, after that channel's most recent episode boundary, and has not been forgotten"
+      `reaches, after that channel's most recent episode boundary, and has not been forgotten; ${UNSEARCHABLE_KINDS_NOTE}`
     );
   }
   return `${renderHeader(hit)}\n${renderBody(hit, hit.message)}`;

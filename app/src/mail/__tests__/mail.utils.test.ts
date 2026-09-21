@@ -83,7 +83,7 @@ describe('renderMailMessage', () => {
       to: []
     });
     expect(rendered).toBe(
-      '⟨1:6⟩\nFrom: jane@example.com\nSubject: Re: Hello\nReceived: 2026-09-02T15:03:00.000Z\n\nNew words\n\n---\n\n**From:** sam@example.com\n**Date:** Sep 2, 2026, at 5:00 PM\n\nOld words'
+      '⟨1:6⟩\nFrom: jane@example.com\nSubject: Re: Hello\nReceived: 2026-09-02T15:03:00.000Z\nAttachments: none\n\nNew words\n\n---\n\n**From:** sam@example.com\n**Date:** Sep 2, 2026, at 5:00 PM\n\nOld words'
     );
   });
 });

@@ -2,6 +2,7 @@ import { simpleParser } from 'mailparser';
 import { describe, expect, it } from 'vitest';
 
 import {
+  hasAttachmentParts,
   parseImapCursor,
   parseImapRef,
   serializeImapCursor,
@@ -44,6 +45,19 @@ const TEXT_EML = [
 ].join('\r\n');
 
 const OBSERVED_AT = new Date('2026-07-30T12:30:00Z');
+
+describe('hasAttachmentParts', () => {
+  it('should find an attachment part anywhere in the structure, and none where nothing is disposed as one (§3.13)', () => {
+    const attached = {
+      childNodes: [{ type: 'text/plain' }, { disposition: 'attachment', type: 'application/pdf' }],
+      type: 'multipart/mixed'
+    };
+    const inlineOnly = { childNodes: [{ disposition: 'inline', type: 'image/png' }], type: 'multipart/related' };
+    expect(hasAttachmentParts(attached as never)).toBe(true);
+    expect(hasAttachmentParts(inlineOnly as never)).toBe(false);
+    expect(hasAttachmentParts(undefined)).toBe(false);
+  });
+});
 
 describe('toMailMessage', () => {
   it('should render an HTML part as markdown and describe the attachment without content', async () => {

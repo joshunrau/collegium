@@ -13,6 +13,7 @@ import type { MailSummary } from '../mail.types.ts';
 const { conversation, list, open, reply, search, send } = MAIL_TOOLSET.tools;
 
 const SUMMARY: MailSummary = {
+  hasAttachments: true,
   isRead: false,
   preview: 'Quarterly numbers attached',
   receivedAt: new Date('2026-08-01T10:00:00Z'),
@@ -43,7 +44,17 @@ describe('MAIL_TOOLSET', () => {
     const result = await executeTool(list, { count: 5 }, context);
     expect(provider.listRecent).toHaveBeenCalledWith(5);
     expect(result.unwrap().text).toContain('⟨m1⟩');
-    expect(result.unwrap().text).toContain('Q3 report');
+    expect(result.unwrap().text).toContain('Q3 report — 2026-08-01T10:00:00.000Z · unread · has attachments');
+  });
+
+  it('counts the messages a conversation holds (§3.13)', async () => {
+    const { context, provider } = buildContext();
+    provider.getConversation.mockResolvedValue(Result.ok([SUMMARY]));
+    const one = await executeTool(conversation, { ref: 'm1' }, context);
+    expect(one.unwrap().text.startsWith('1 message in this conversation\n⟨m1⟩')).toBe(true);
+    provider.getConversation.mockResolvedValue(Result.ok([SUMMARY, { ...SUMMARY, ref: 'm2' }]));
+    const two = await executeTool(conversation, { ref: 'm1' }, context);
+    expect(two.unwrap().text.startsWith('2 messages in this conversation, oldest first\n')).toBe(true);
   });
 
   it('returns a stale ref to the model as its own recoverable mistake', async () => {

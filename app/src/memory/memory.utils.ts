@@ -33,7 +33,8 @@ export function renderMemoryFailure(failure: MemoryFailure): string {
     .with({ kind: 'ambiguous' }, { kind: 'not-found' }, renderUnresolvedReference)
     .with(
       { kind: 'too-long' },
-      ({ field, length, limit }) => `the ${field} is ${length} characters, over its cap of ${limit}`
+      ({ field, length, limit }) =>
+        `the ${field} is ${length} characters, over its cap of ${limit}; shorten it and write again`
     )
     .with({ kind: 'empty-body' }, () => 'the revision would leave the memory empty; delete it instead')
     .with({ kind: 'passage-unmatched', occurrences: 'none' }, () => 'the passage does not occur in that memory')

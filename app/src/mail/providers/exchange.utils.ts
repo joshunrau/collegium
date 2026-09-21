@@ -19,6 +19,7 @@ export function toSenderParty(summary: $GraphMessageSummary): MailParty {
 
 export function toMailSummary(summary: $GraphMessageSummary): MailSummary {
   return {
+    hasAttachments: summary.hasAttachments,
     isRead: summary.isRead,
     preview: summary.bodyPreview,
     receivedAt: summary.receivedDateTime,

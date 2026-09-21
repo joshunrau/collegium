@@ -39,9 +39,9 @@ const REQUEST_TIMEOUT_MS = 30_000;
 /** one page is enough for a working thread; a longer conversation is history, not context */
 const CONVERSATION_PAGE_SIZE = 50;
 
-const SUMMARY_SELECT = 'id,subject,from,receivedDateTime,isRead,bodyPreview';
+const SUMMARY_SELECT = 'id,subject,from,receivedDateTime,isRead,bodyPreview,hasAttachments';
 
-const MESSAGE_SELECT = `${SUMMARY_SELECT},conversationId,body,toRecipients,ccRecipients,replyTo,hasAttachments`;
+const MESSAGE_SELECT = `${SUMMARY_SELECT},conversationId,body,toRecipients,ccRecipients,replyTo`;
 
 /** without this, Graph message ids change when a message moves folders, and held refs die */
 const PREFER_IMMUTABLE_IDS = 'IdType="ImmutableId"';

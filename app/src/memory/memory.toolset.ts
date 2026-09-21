@@ -115,7 +115,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
     // §3.6 — the single ungated write: gating memory formation would park a turn on a triviality
     write: {
       description:
-        'Save a memory: a one-line description shown to you on every turn, and a body you can read back on demand.',
+        'Save a memory: a one-line description shown to you on every turn, and a body you can read back on demand. Keep the description to one short line; a long one is refused, and so is a body over its cap.',
       execute: async (args, context) => {
         const written = await context.memory.write(
           {

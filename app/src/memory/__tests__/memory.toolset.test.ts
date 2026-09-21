@@ -82,7 +82,7 @@ describe('MEMORY_TOOLSET', () => {
     const result = await executeTool(write, { body: 'long', description: 'd' }, context);
     expect(result.error).toStrictEqual({
       kind: 'invalid-arguments',
-      message: 'the body is 5000 characters, over its cap of 4000'
+      message: 'the body is 5000 characters, over its cap of 4000; shorten it and write again'
     });
   });
 

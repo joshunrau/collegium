@@ -69,7 +69,10 @@ export const CONVERSATIONS_TOOLSET = implementToolset(CONVERSATIONS_TOOLSET_DEF,
         'without regard to case and with no stemming or synonyms, so a distinctive word or two finds what a ' +
         'sentence does not. Returns the newest matches first, each with its post id, channel, author and time, ' +
         'and a long post cut to a window around the match; pass postId instead of query to read one post whole. ' +
-        "Reaches back no further than each channel's most recent episode boundary.",
+        "Reaches back no further than each channel's most recent episode boundary. Posts the framework made " +
+        'under an agent’s name are not searchable: a work-unit assignment, report or close, an approval prompt, ' +
+        'a turn’s notices and status posts are outside this index, so the record of a unit is read with ' +
+        'tasks__read, not found here.',
       execute: async (args, context) => {
         const channels = context.roster.listReachableFrom(context.turn.agentUsername, context.turn.channelId);
         if (args.postId !== undefined) {

@@ -4,8 +4,9 @@ import { splitMailThread } from './thread/thread.splitter.ts';
 import type { MailArrival, MailMessage, MailParty, MailSummary, OutboundMail } from './mail.types.ts';
 
 function renderMailSummary(summary: MailSummary): string {
-  const marker = summary.isRead ? '' : ' · unread';
-  const header = `⟨${summary.ref}⟩ ${formatMailParty(summary.sender)} — ${summary.subject} — ${summary.receivedAt.toISOString()}${marker}`;
+  const unread = summary.isRead ? '' : ' · unread';
+  const attachments = summary.hasAttachments ? ' · has attachments' : '';
+  const header = `⟨${summary.ref}⟩ ${formatMailParty(summary.sender)} — ${summary.subject} — ${summary.receivedAt.toISOString()}${unread}${attachments}`;
   return summary.preview === '' ? header : `${header}\n> ${summary.preview}`;
 }
 
@@ -19,6 +20,18 @@ export function renderMailSummaries(summaries: readonly MailSummary[]): string {
     return 'no messages';
   }
   return summaries.map(renderMailSummary).join('\n');
+}
+
+/** §3.13 — a conversation says how many messages it holds, so one message reads as a thread of one rather than as a listing */
+export function renderMailConversation(summaries: readonly MailSummary[]): string {
+  if (summaries.length === 0) {
+    return 'no messages';
+  }
+  const count =
+    summaries.length === 1
+      ? '1 message in this conversation'
+      : `${summaries.length} messages in this conversation, oldest first`;
+  return `${count}\n${renderMailSummaries(summaries)}`;
 }
 
 /**
@@ -38,7 +51,7 @@ export function renderMailAnnouncement(arrival: MailArrival, receivedAtFormatted
   return quoteMarkdown(renderMailSegments([head, ...thread.quoted], ANNOUNCEMENT_ENVELOPE));
 }
 
-/** one message in full, as readable text; attachments are described and say so */
+/** one message in full, as readable text; attachments are described, and their absence stated, so none is never read as withheld (§3.13) */
 export function renderMailMessage(message: MailMessage): string {
   const thread = splitMailThread(message.body);
   const parties = (label: string, list: readonly MailParty[]) => {
@@ -46,7 +59,7 @@ export function renderMailMessage(message: MailMessage): string {
   };
   const attachments =
     message.attachments.length === 0
-      ? []
+      ? ['Attachments: none']
       : [
           'Attachments (content is not retrievable):',
           ...message.attachments.map(

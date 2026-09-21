@@ -14,6 +14,8 @@ export type MailParty = {
 
 /** what listing, searching, and gathering a conversation return — never a body; only `open` returns a body */
 export type MailSummary = {
+  /** whether anything rides the message, so a decision to open it is made before the body is fetched (§3.13) */
+  readonly hasAttachments: boolean;
   readonly isRead: boolean;
   /** a short plain-text excerpt, never the full body */
   readonly preview: string;
