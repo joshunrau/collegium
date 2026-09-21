@@ -107,6 +107,7 @@ export class ToolExecutor {
       .with({ kind: 'denied-with-reason' }, ({ byUsername, reason }): ToolAttempt => ({
         kind: 'continue',
         output: renderToolDenialResult({ byUsername, displayName: tool.displayName, reason }),
+        reasonedDenial: { byUsername, reason },
         traceMark: `🛑 denied by @${byUsername}`
       }))
       .exhaustive();

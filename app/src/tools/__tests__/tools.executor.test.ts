@@ -256,6 +256,7 @@ describe('ToolExecutor', () => {
       kind: 'continue',
       output:
         "casey denied fixture::gated: not that host\n\nThis is a person's decision, not a tool error. The turn continues under the same budget: you may act on the reason, including by making this call differently, or reply.",
+      reasonedDenial: { byUsername: 'casey', reason: 'not that host' },
       traceMark: '🛑 denied by @casey'
     });
   });

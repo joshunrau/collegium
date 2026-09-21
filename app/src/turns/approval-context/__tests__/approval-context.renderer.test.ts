@@ -28,6 +28,19 @@ describe('renderApprovalContext', () => {
     ).toBe('Action 4 of 25 · asked by colleague owen');
   });
 
+  it('should name the reasoned denial a re-requested call follows (§3.7)', () => {
+    expect(
+      renderApprovalContext({
+        actionBudget: 200,
+        actionNumber: 2,
+        follows: { byUsername: 'joshua', reason: 'Use the name summary.txt instead.', toolName: 'workspace::write' },
+        requestedBy: { kind: 'human', message: 'create a file report.txt', username: 'joshua' }
+      })
+    ).toBe(
+      'Action 2 of 200 · requested by @joshua: "create a file report.txt" · after @joshua denied workspace::write: "Use the name summary.txt instead."'
+    );
+  });
+
   it('should say a trigger raised the turn rather than repeating text written elsewhere (§3.7)', () => {
     expect(renderApprovalContext({ actionBudget: 25, actionNumber: 4, requestedBy: undefined })).toBe(
       'Action 4 of 25 · raised by a trigger'

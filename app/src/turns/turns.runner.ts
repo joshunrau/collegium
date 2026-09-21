@@ -72,6 +72,7 @@ import { StatusPostService } from './status/status-post.service.ts';
 import { TurnsService } from './turns.service.ts';
 import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
 
+import type { ApprovalContext } from './approval-context/approval-context.renderer.ts';
 import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
@@ -206,6 +207,8 @@ type TurnState = {
   readonly messages: CompletionMessage[];
   /** §3.8 — the estimated size of the whole outgoing request, kept current by `pushMessage` and the collapses */
   promptTokens: number;
+  /** §3.7 — the last reasoned denial of each tool, by display name, named on that tool's next approval prompt */
+  readonly reasonedDenials: Map<string, { byUsername: string; reason: string }>;
   /** §7.1 — results this turn recorded; a turn that recorded none accumulated nothing a fresh one would not rebuild */
   recordedResults: number;
   /** §3.7 — resolved once, at turn setup, and quoted on every approval prompt the turn raises */
@@ -307,6 +310,7 @@ export class TurnRunner {
       lastInterimText: undefined,
       messages: [],
       promptTokens: 0,
+      reasonedDenials: new Map(),
       recordedResults: 0,
       requestedBy: await this.resolveRequester(input),
       seenSupersedable: new Map(),
@@ -470,6 +474,20 @@ export class TurnRunner {
       authorUsername: input.profile.username,
       channelId: input.channelId,
       mentionedUsernames: extractMentionedUsernames(content)
+    };
+  }
+
+  /** §3.7 — what the approver is told above the payload, including the denial an amended call answers */
+  private assembleApprovalContext(
+    state: TurnState,
+    identified: IdentifiedCall,
+    position: BudgetPosition
+  ): ApprovalContext {
+    const denial = state.reasonedDenials.get(identified.displayName);
+    return {
+      ...position,
+      ...(denial && { follows: { ...denial, toolName: identified.displayName } }),
+      requestedBy: state.requestedBy
     };
   }
 
@@ -795,7 +813,7 @@ export class TurnRunner {
             return this.toolExecutor.execute({
               appendEvent: (event) => this.turnsService.appendEvent(state.turn.id, event),
               call: identified.call,
-              contextText: renderApprovalContext({ ...positions[index]!, requestedBy: state.requestedBy }),
+              contextText: renderApprovalContext(this.assembleApprovalContext(state, identified, positions[index]!)),
               profile: input.profile,
               turn: this.createTurnScope(input, state)
             });
@@ -1129,6 +1147,9 @@ export class TurnRunner {
       return this.answerUnknownTool(input, state, identified, attempt.output);
     }
     state.consecutiveRejections = 0;
+    if (attempt.reasonedDenial) {
+      state.reasonedDenials.set(identified.displayName, attempt.reasonedDenial);
+    }
     const published = attempt.post === undefined ? undefined : await this.publishToolPost(input, state, attempt.post);
     if (published?.kind === 'undelivered') {
       return published.outcome;
