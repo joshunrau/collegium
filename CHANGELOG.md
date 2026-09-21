@@ -1,3 +1,21 @@
+## [0.0.1-beta.25](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.24...v0.0.1-beta.25) (2026-09-21)
+
+### Features
+
+- **benchmark:** add the controlled run that measures the framework ([dcf6969](https://github.com/joshunrau/collegium/commit/dcf69697394dbbcf90ef305893619c6c34435ef5))
+- **benchmark:** add the noindex fixtures, the large report and the minutes pages ([2373fd5](https://github.com/joshunrau/collegium/commit/2373fd53bada33b1c62f78f1c418065a7e36a354))
+- **commands:** lay /collegium inspect out in sections and tables ([27446ff](https://github.com/joshunrau/collegium/commit/27446ffd9cdd5c53fd21f78d20adb2baf67e225d))
+- **config:** complete tool grants in an editor writing config.json ([5ec960d](https://github.com/joshunrau/collegium/commit/5ec960d7f36e9cb8b587b93fe14d27bc3107762d))
+- **shell:** run under pipefail, add python3, and state the present commands in the preamble ([7ed505c](https://github.com/joshunrau/collegium/commit/7ed505cec3dd1945343eb5da69c508df353c7031))
+- **turns:** make the status post deliverable and honest, and give the extension prompt the spend ([2119b12](https://github.com/joshunrau/collegium/commit/2119b12e69bc7e93df1b019fb5699e268ab165dc))
+- **turns:** retain page results by token share and name what a collapsed result was ([1b72a4e](https://github.com/joshunrau/collegium/commit/1b72a4e99a2149d2806ef43bc3ad380b338c2d31))
+- **turns:** rewrite the prompt to what the framework does and name authors as people or agents ([454727a](https://github.com/joshunrau/collegium/commit/454727aebbbe9c358c9bff80c9c350415b4d998f))
+- **web:** let a deployment declare its own network browsable ([9ed3ffc](https://github.com/joshunrau/collegium/commit/9ed3ffc89178eef5cd68db3bbf30a0f0957fb7ea))
+
+### Bug Fixes
+
+- **web:** report a 404 as 404, name browser transport errors, and send a user-agent ([d59ff5c](https://github.com/joshunrau/collegium/commit/d59ff5cf78f359941c922d7a0a3af9b8f60b0f09))
+
 ## [0.0.1-beta.24](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.23...v0.0.1-beta.24) (2026-09-19)
 
 ### Features
