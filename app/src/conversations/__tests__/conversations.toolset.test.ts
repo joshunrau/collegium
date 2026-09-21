@@ -28,12 +28,13 @@ describe('CONVERSATIONS_TOOLSET', () => {
       agentUsername: 'mira',
       authorUsername: undefined,
       channels,
+      excludePostIds: ['post-1'],
       from: undefined,
       limit: 10,
       query: 'budget',
       until: undefined
     });
-    expect(result.unwrap().text).toBe('no posts matched');
+    expect(result.unwrap().text).toContain('no posts matched "budget"');
   });
 
   it('should pass author and day bounds through', async () => {
@@ -59,10 +60,56 @@ describe('CONVERSATIONS_TOOLSET', () => {
     const { context, roster, searchService } = buildContext();
     roster.listReachableFrom.mockReturnValue([{ channelId: 'channel-1', name: 'Main' }]);
     searchService.find.mockResolvedValue([
-      { authorUsername: 'casey', channelName: 'Main', createdAt: new Date(0), id: 'post-1', message: 'the budget' }
+      { authorUsername: 'casey', channelName: 'Main', createdAt: new Date(0), id: 'post-2', message: 'the budget' }
     ]);
     const result = await executeTool(search, { count: 10, query: 'budget' }, context);
-    expect(result.unwrap().text).toContain('⟨post-1⟩ in Main — @casey');
-    expect(result.unwrap().text).toContain('> the budget');
+    expect(result.unwrap().text).toContain('⟨post-2⟩ in Main — @casey');
+    expect(result.unwrap().text).toContain('<<<post post-2\nthe budget\n>>>');
+  });
+
+  it('should not return the post that triggered this turn (§3.8)', async () => {
+    const { context, roster, searchService } = buildContext();
+    roster.listReachableFrom.mockReturnValue([]);
+    searchService.find.mockResolvedValue([]);
+    await executeTool(search, { count: 10, query: 'budget' }, context);
+    expect(searchService.find).toHaveBeenCalledWith(expect.objectContaining({ excludePostIds: ['post-1'] }));
+  });
+
+  it('should read one post whole by its id, through the reach a search has (§3.8)', async () => {
+    const { context, roster, searchService } = buildContext();
+    const channels = [{ channelId: 'channel-1', name: 'Main' }];
+    roster.listReachableFrom.mockReturnValue(channels);
+    searchService.findById.mockResolvedValue({
+      authorUsername: 'casey',
+      channelName: 'Main',
+      createdAt: new Date(0),
+      id: 'post-7',
+      message: 'the whole budget'
+    });
+    const result = await executeTool(search, { count: 10, postId: 'post-7' }, context);
+    expect(searchService.findById).toHaveBeenCalledWith({ agentUsername: 'mira', channels, postId: 'post-7' });
+    expect(searchService.find).not.toHaveBeenCalled();
+    expect(result.unwrap().text).toContain('<<<post post-7\nthe whole budget\n>>>');
+  });
+
+  it('should reject a call giving both a query and a postId', () => {
+    expect(search.parameters.safeParse({ postId: 'post-7', query: 'budget' }).success).toBe(false);
+    expect(search.parameters.safeParse({}).success).toBe(false);
+  });
+
+  it('should mark a search that matched nothing (§8.1)', async () => {
+    const { context, roster, searchService } = buildContext();
+    roster.listReachableFrom.mockReturnValue([]);
+    searchService.find.mockResolvedValue([]);
+    const empty = await executeTool(search, { count: 10, query: 'budget' }, context);
+    expect(empty.unwrap().traceOutcome).toBe('⚠️ no matches');
+  });
+
+  it('should name active filters in the trace (§8.1)', () => {
+    expect(search.traceDetail?.({ count: 10, query: 'budget' })).toBe('"budget"');
+    expect(search.traceDetail?.({ author: 'casey', count: 10, from: '2026-01-01', query: 'budget' })).toBe(
+      '"budget" (author casey, 2026-01-01..…)'
+    );
+    expect(search.traceDetail?.({ count: 10, postId: 'post-7' })).toBe('post post-7');
   });
 });

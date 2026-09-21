@@ -9,7 +9,7 @@ import { createModelTable } from '@/testing/factories/model-table.factory.ts';
 import { EpisodesService } from '../../episodes/episodes.service.ts';
 import { SearchService } from '../search.service.ts';
 
-import type { SearchInput } from '../../conversations.types.ts';
+import type { SearchInput, SearchPostInput } from '../../conversations.types.ts';
 
 type PostRow = {
   authorUsername: string;
@@ -40,7 +40,7 @@ const CHANNELS = [
 describe('SearchService', () => {
   let episodesService: MockedInstance<EpisodesService>;
 
-  const find = async (rows: PostRow[], overrides: Partial<SearchInput> = {}) => {
+  const buildService = async (rows: PostRow[]) => {
     const posts = createModelTable<PostRow>();
     posts.rows.push(...rows);
     const moduleRef = await Test.createTestingModule({
@@ -50,9 +50,17 @@ describe('SearchService', () => {
         { provide: getModelToken('Post'), useValue: posts }
       ]
     }).compile();
-    return moduleRef
-      .get(SearchService)
-      .find({ agentUsername: 'mira', channels: CHANNELS, limit: 10, query: 'budget', ...overrides });
+    return moduleRef.get(SearchService);
+  };
+
+  const find = async (rows: PostRow[], overrides: Partial<SearchInput> = {}) => {
+    const service = await buildService(rows);
+    return service.find({ agentUsername: 'mira', channels: CHANNELS, limit: 10, query: 'budget', ...overrides });
+  };
+
+  const findById = async (rows: PostRow[], overrides: Partial<SearchPostInput> = {}) => {
+    const service = await buildService(rows);
+    return service.findById({ agentUsername: 'mira', channels: CHANNELS, postId: 'post-1', ...overrides });
   };
 
   beforeEach(() => {
@@ -120,5 +128,24 @@ describe('SearchService', () => {
   it('should return at most the limit', async () => {
     const hits = await find([post('post-1', 1000), post('post-2', 2000), post('post-3', 3000)], { limit: 2 });
     expect(hits.map((hit) => hit.id)).toStrictEqual(['post-3', 'post-2']);
+  });
+
+  it('should leave out an excluded post before the limit is applied', async () => {
+    const hits = await find([post('post-1', 1000), post('post-2', 2000)], {
+      excludePostIds: ['post-2'],
+      limit: 1
+    });
+    expect(hits.map((hit) => hit.id)).toStrictEqual(['post-1']);
+  });
+
+  it('should read a post by id, whatever its text (§3.8)', async () => {
+    const hit = await findById([post('post-1', 1000, { message: 'nothing about money' })]);
+    expect(hit?.message).toBe('nothing about money');
+  });
+
+  it('should not find by id a post the search itself could not reach (§3.8)', async () => {
+    expect(await findById([post('post-1', 1000, { channelId: 'channel-9' })])).toBeUndefined();
+    expect(await findById([post('post-1', 1000, { isForgotten: true })])).toBeUndefined();
+    expect(await findById([post('post-1', 1000, { kind: 'status' })])).toBeUndefined();
   });
 });

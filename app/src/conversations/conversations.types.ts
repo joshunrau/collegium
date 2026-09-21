@@ -32,10 +32,19 @@ export type SearchInput = {
   readonly authorUsername?: string;
   /** the channels the roster allows from where the search is made (§3.8); nothing outside them is read */
   readonly channels: readonly ReachableChannel[];
+  /** posts the turn already holds, kept out of the query so one never costs a result slot */
+  readonly excludePostIds?: readonly string[];
   readonly from?: Date;
   readonly limit: number;
   readonly query: string;
   readonly until?: Date;
+};
+
+/** §3.8 — one post read by its id, under exactly the bounds a search is read under */
+export type SearchPostInput = {
+  readonly agentUsername: string;
+  readonly channels: readonly ReachableChannel[];
+  readonly postId: string;
 };
 
 /** who asked for a turn's work, read off the triggering post: a person's words, a colleague's name, or the system bot (§3.7) */
