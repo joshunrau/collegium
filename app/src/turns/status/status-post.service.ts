@@ -5,12 +5,13 @@ import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
+import type { TraceMark } from '@/tools/tools.types.ts';
 
 import { TurnsService } from '../turns.service.ts';
 import { renderAbandonedStatusPost, renderStatusPost } from './status-post.renderer.ts';
 
 import type { AbandonedStatusPost } from '../turns.types.ts';
-import type { StatusPostState } from './status-post.renderer.ts';
+import type { StatusPostState, TraceEntry } from './status-post.renderer.ts';
 
 type OpenInput = {
   agentUsername: string;
@@ -37,10 +38,10 @@ export type TraceLineHandle = number;
  * the chat server between one tool call and the next. Only `close` waits, for every queued edit.
  */
 export type StatusPostHandle = {
-  appendTrace(line: string): TraceLineHandle;
+  appendTrace(entry: TraceEntry): TraceLineHandle;
   close(outcome: Exclude<TurnStatus, 'running'>): Promise<void>;
   /** §8.1 — a call's disposition, set once its result is known: the line was written before the call ran */
-  markTrace(handle: TraceLineHandle, mark: string): void;
+  markTrace(handle: TraceLineHandle, mark: TraceMark): void;
   /** §8.1 — a completed call to a tool that writes outside the turn, for the closing effects line */
   recordEffect(toolDisplayName: string): void;
   /** text alongside a tool call is transient status, replaced on the next edit (§3.3) */
@@ -163,8 +164,8 @@ export class StatusPostService {
       return inFlight;
     };
     return {
-      appendTrace: (line) => {
-        state.traceLines.push({ text: line });
+      appendTrace: (entry) => {
+        state.traceLines.push(entry);
         void schedule();
         return state.traceLines.length - 1;
       },

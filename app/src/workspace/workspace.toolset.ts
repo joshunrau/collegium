@@ -217,8 +217,9 @@ export const WORKSPACE_TOOLSET = implementToolset(WORKSPACE_TOOLSET_DEF, {
           .describe('Where to write, relative to your workspace; absolute paths and traversal are rejected')
       }),
       timeoutMs: 10_000,
-      /** the path and the size; the content itself is in the approval payload and in `/trace` */
-      traceDetail: (args) => `${args.path} (${Buffer.byteLength(args.content, 'utf8')} bytes)`
+      /** the path alone; the content itself is in the approval payload and in `/trace` */
+      traceDetail: (args) => args.path,
+      traceEffect: (args) => `(${Buffer.byteLength(args.content, 'utf8')} bytes)`
     }
   }
 });

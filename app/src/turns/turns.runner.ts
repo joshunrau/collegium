@@ -39,7 +39,7 @@ import type { PostKind, TurnStatus } from '@/prisma/prisma.types.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
-import type { ToolAttempt } from '@/tools/tools.types.ts';
+import type { ToolAttempt, TraceMark } from '@/tools/tools.types.ts';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 import { WebService } from '@/web/web.service.ts';
 
@@ -66,7 +66,8 @@ import {
   renderSemanticErrorNotice,
   renderSideEffectAmbiguityNotice,
   renderSteeringLine,
-  renderToolCallLine
+  renderToolCallLine,
+  toOutcomeTraceMark
 } from './status/status-post.renderer.ts';
 import { StatusPostService } from './status/status-post.service.ts';
 import { TurnsService } from './turns.service.ts';
@@ -158,10 +159,11 @@ type CallIdentity = {
   readonly recordedName: PrismaJson.RecordedToolName;
 };
 
-/** a call the executor may run, with the detail its tool renders for the status post */
+/** a call the executor may run, with the subject and effect its tool renders for the status post */
 type RunnableCall = CallIdentity & {
   readonly call: ToolCall;
   readonly detail: string | undefined;
+  readonly effect: string | undefined;
   readonly kind: 'runnable';
 };
 
@@ -377,7 +379,7 @@ export class TurnRunner {
         content: renderAuthoredMessage(steering.byUsername, 'human', steering.text),
         role: 'user'
       });
-      state.status.appendTrace(renderSteeringLine(steering.byUsername));
+      state.status.appendTrace({ kind: 'note', text: renderSteeringLine(steering.byUsername) });
       state.consecutiveRejections = 0;
       if (denial !== undefined) {
         // the remaining steers are words the human said; they are heard, but no further attempt is spent
@@ -387,7 +389,7 @@ export class TurnRunner {
             content: renderAuthoredMessage(rest.byUsername, 'human', rest.text),
             role: 'user'
           });
-          state.status.appendTrace(renderSteeringLine(rest.byUsername));
+          state.status.appendTrace({ kind: 'note', text: renderSteeringLine(rest.byUsername) });
         }
         this.pushMessage(state, { content: denial, role: 'user' });
         return undefined;
@@ -415,11 +417,15 @@ export class TurnRunner {
       }
       state.budget.trySpend(isExempt);
     }
-    const line = renderToolCallLine(
-      identified.displayName,
-      identified.kind === 'runnable' ? identified.detail : undefined
+    const traced =
+      identified.kind === 'runnable'
+        ? { detail: identified.detail, effect: identified.effect }
+        : { detail: undefined, effect: undefined };
+    state.traceHandles.set(
+      identified.call.id,
+      state.status.appendTrace({ ...traced, kind: 'call', toolName: identified.displayName })
     );
-    state.traceHandles.set(identified.call.id, state.status.appendTrace(line));
+    const line = renderToolCallLine(identified.displayName, traced.detail, traced.effect);
     state.callTally.set(line, (state.callTally.get(line) ?? 0) + 1);
     return {
       kind: 'admitted',
@@ -545,11 +551,11 @@ export class TurnRunner {
     this.markTraceLine(
       state,
       identified,
-      match(attempt.status)
-        .with('delivery_failure', () => '⚠️ undelivered')
-        .with('denied', () => '🛑 denied')
-        .with('semantic_error', () => '⚠️ error')
-        .with('side_effect_ambiguous', () => '⚠️ unconfirmed')
+      match<TurnStatus, TraceMark | undefined>(attempt.status)
+        .with('delivery_failure', () => ({ ran: false, text: '⚠️ undelivered' }))
+        .with('denied', () => ({ ran: false, text: '🛑 denied' }))
+        .with('semantic_error', () => ({ ran: true, text: '⚠️ error' }))
+        .with('side_effect_ambiguous', () => ({ ran: true, text: '⚠️ unconfirmed' }))
         .otherwise(() => undefined)
     );
     if (attempt.status === 'semantic_error' || attempt.status === 'side_effect_ambiguous') {
@@ -1028,7 +1034,7 @@ export class TurnRunner {
     if (isUnparsedToolCall(call)) {
       return { ...identity, call, kind: 'unparsed' };
     }
-    return { ...identity, call, detail: described?.detail, kind: 'runnable' };
+    return { ...identity, call, detail: described?.detail, effect: described?.effect, kind: 'runnable' };
   }
 
   /** §3.8 — the request as assembled is measured whole; everything pushed afterwards adds its own estimate */
@@ -1040,7 +1046,7 @@ export class TurnRunner {
   }
 
   /** §8.1 — the line was written at admission; the call's disposition is known only now */
-  private markTraceLine(state: TurnState, identified: IdentifiedCall, mark: string | undefined): void {
+  private markTraceLine(state: TurnState, identified: IdentifiedCall, mark: TraceMark | undefined): void {
     const handle = state.traceHandles.get(identified.call.id);
     if (handle !== undefined && mark !== undefined) {
       state.status.markTrace(handle, mark);
@@ -1176,7 +1182,9 @@ export class TurnRunner {
     this.markTraceLine(
       state,
       identified,
-      published?.kind === 'refused' ? '⚠️ post refused' : (attempt.traceMark ?? attempt.traceOutcome)
+      published?.kind === 'refused'
+        ? { ran: true, text: '⚠️ post refused' }
+        : (attempt.traceMark ?? toOutcomeTraceMark(attempt.traceOutcome))
     );
     if (attempt.mayHaveTakenEffect && published?.kind !== 'refused') {
       state.status.recordEffect(identified.displayName);

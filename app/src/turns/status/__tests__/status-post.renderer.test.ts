@@ -14,8 +14,12 @@ import type { StatusPostState } from '../status-post.renderer.ts';
 
 const state = (over: Partial<StatusPostState> & { lines?: string[] } = {}): StatusPostState => {
   const { lines = [], ...rest } = over;
-  return { effects: new Map(), traceLines: lines.map((text) => ({ text })), ...rest };
+  return { effects: new Map(), traceLines: lines.map((text) => ({ kind: 'note' as const, text })), ...rest };
 };
+
+const WRITE_CALL = { detail: 'report.txt', effect: '(9 bytes)', kind: 'call' as const, toolName: 'workspace::write' };
+
+const DENIED = { ran: false, text: '🛑 denied by @casey' };
 
 const NOTHING_CHANGED = '✎ _may have changed: nothing_';
 
@@ -76,10 +80,18 @@ describe('renderStatusPost', () => {
   });
 
   it('should keep a marked line apart from the run it would otherwise join (§8.1)', () => {
-    const write = '→ `workspace::write report.txt (9 bytes)`';
-    const traceLines = [{ text: write }, { mark: '🛑 denied by @casey', text: write }, { text: write }];
+    const call = { detail: 'report.txt', kind: 'call' as const, toolName: 'workspace::write' };
+    const traceLines = [call, { ...call, mark: DENIED }, call];
+    const write = '→ `workspace::write report.txt`';
     expect(renderStatusPost(state({ traceLines }))).toBe(
       `⏳ _working…_\n${write}\n${write} 🛑 denied by @casey\n${write}`
+    );
+  });
+
+  it('should drop the effect detail from a line the gate denied (§8.1)', () => {
+    const traceLines = [WRITE_CALL, { ...WRITE_CALL, mark: DENIED }];
+    expect(renderStatusPost(state({ traceLines }))).toBe(
+      '⏳ _working…_\n→ `workspace::write report.txt (9 bytes)`\n→ `workspace::write report.txt` 🛑 denied by @casey'
     );
   });
 

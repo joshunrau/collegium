@@ -196,4 +196,10 @@ export type ToolDefinition<TContext, TParams extends z.ZodType> = {
   readonly timeoutMs?: number;
   /** §8.1 — the one-line summary beside the name in the status post; absent shows the name alone */
   traceDetail?(args: z.infer<TParams>): string;
+  /**
+   * §8.1 — what the call would come to, beside the summary: the bytes a write would put on disk, the
+   * rows a delete would remove. Separate from `traceDetail` because a call the gate never ran keeps
+   * its subject and loses this.
+   */
+  traceEffect?(args: z.infer<TParams>): string;
 };

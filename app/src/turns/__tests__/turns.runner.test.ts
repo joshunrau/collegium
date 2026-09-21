@@ -410,7 +410,12 @@ describe('TurnRunner', () => {
       'tool'
     ]);
     expect(statusHandle.setTransient).toHaveBeenCalledWith('checking');
-    expect(statusHandle.appendTrace).toHaveBeenCalledWith('→ `lookup_fixture`');
+    expect(statusHandle.appendTrace).toHaveBeenCalledWith({
+      detail: undefined,
+      effect: undefined,
+      kind: 'call',
+      toolName: 'lookup_fixture'
+    });
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'completed', expect.objectContaining({ actionCount: 1 }));
   });
 
@@ -434,6 +439,7 @@ describe('TurnRunner', () => {
     toolRegistry.describeCall.mockReturnValue({
       detail: 'https://northmoor.example/',
       displayName: 'web::navigate',
+      effect: undefined,
       id: ['web', 'navigate']
     });
     complete.mockResolvedValueOnce(Result.ok(toolUse(['web__navigate'])));
@@ -444,7 +450,12 @@ describe('TurnRunner', () => {
       name: 'web__navigate',
       profile: PROFILE
     });
-    expect(statusHandle.appendTrace).toHaveBeenCalledWith('→ `web::navigate https://northmoor.example/`');
+    expect(statusHandle.appendTrace).toHaveBeenCalledWith({
+      detail: 'https://northmoor.example/',
+      effect: undefined,
+      kind: 'call',
+      toolName: 'web::navigate'
+    });
   });
 
   it('should not count a budget-exempt call against the budget (§5.3)', async () => {
@@ -460,12 +471,12 @@ describe('TurnRunner', () => {
     toolExecutor.execute.mockResolvedValueOnce({
       kind: 'continue',
       output: 'denied: use another name',
-      traceMark: '🛑 denied by @casey'
+      traceMark: { ran: false, text: '🛑 denied by @casey' }
     });
     complete.mockResolvedValueOnce(Result.ok(toolUse(['write_file'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
-    expect(statusHandle.markTrace).toHaveBeenCalledExactlyOnceWith(7, '🛑 denied by @casey');
+    expect(statusHandle.markTrace).toHaveBeenCalledExactlyOnceWith(7, { ran: false, text: '🛑 denied by @casey' });
     expect(statusHandle.recordEffect).not.toHaveBeenCalled();
   });
 
@@ -474,7 +485,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
-    expect(statusHandle.markTrace).toHaveBeenCalledExactlyOnceWith(0, 'HTTP 404');
+    expect(statusHandle.markTrace).toHaveBeenCalledExactlyOnceWith(0, { ran: true, text: 'HTTP 404' });
   });
 
   it('should record a completed call to a tool that may have changed something for the effects line (§8.1)', async () => {
@@ -490,6 +501,7 @@ describe('TurnRunner', () => {
     toolRegistry.describeCall.mockImplementation(({ name }: { name: string }) => ({
       detail: name === 'lookup_fixture' ? 'https://x.example/page-2' : undefined,
       displayName: name,
+      effect: undefined,
       id: ['fixture', name]
     }));
     complete.mockResolvedValueOnce(
@@ -720,6 +732,7 @@ describe('TurnRunner', () => {
       toolRegistry.describeCall.mockReturnValue({
         detail: undefined,
         displayName: 'workspace::write',
+        effect: undefined,
         id: ['workspace', 'write']
       });
     };
@@ -733,7 +746,12 @@ describe('TurnRunner', () => {
       const outcome = await run();
       expect(outcome.status).toBe('completed');
       expect(toolExecutor.execute).not.toHaveBeenCalled();
-      expect(statusHandle.appendTrace).toHaveBeenCalledWith('→ `workspace::write`');
+      expect(statusHandle.appendTrace).toHaveBeenCalledWith({
+        detail: undefined,
+        effect: undefined,
+        kind: 'call',
+        toolName: 'workspace::write'
+      });
       expect(turnsService.close).toHaveBeenCalledWith(
         'turn-1',
         'completed',
@@ -847,7 +865,7 @@ describe('TurnRunner', () => {
         kind: 'steering_received',
         text: 'use staging'
       });
-      expect(statusHandle.appendTrace).toHaveBeenCalledWith('↩ _steered by @casey_');
+      expect(statusHandle.appendTrace).toHaveBeenCalledWith({ kind: 'note', text: '↩ _steered by @casey_' });
       expect(turnsService.close).toHaveBeenCalledWith(
         'turn-1',
         'completed',

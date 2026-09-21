@@ -37,6 +37,8 @@ export type GrantedTool = {
 export type DescribedCall = {
   readonly detail: string | undefined;
   readonly displayName: string;
+  /** §8.1 — what the call would come to, kept apart from the subject so a call that never ran can drop it */
+  readonly effect: string | undefined;
   readonly id: ToolId;
 };
 
@@ -142,7 +144,8 @@ export class ToolRegistry {
     const { definition, displayName, id } = resolved.value;
     const args = definition.parameters.safeParse(input.args);
     const detail = args.success ? definition.traceDetail?.(args.data) : undefined;
-    return { detail, displayName, id };
+    const effect = args.success ? definition.traceEffect?.(args.data) : undefined;
+    return { detail, displayName, effect, id };
   }
 
   /** the definitions an agent may call, in the shape the provider expects — wire names (§1) */

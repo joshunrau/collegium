@@ -63,7 +63,7 @@ describe('StatusPostService', () => {
 
   it('should open the post on the first trace line and record it as the turn status post', async () => {
     const handle = statusPostService.open(OPEN_INPUT);
-    handle.appendTrace('→ `read_memory`');
+    handle.appendTrace({ kind: 'call', toolName: 'read_memory' });
     await vi.waitFor(() => expect(transport.send).toHaveBeenCalledOnce());
     await handle.close('completed');
 
@@ -94,7 +94,7 @@ describe('StatusPostService', () => {
     vi.useFakeTimers();
     const handle = statusPostService.open(OPEN_INPUT);
 
-    handle.appendTrace('→ `load_skill`');
+    handle.appendTrace({ kind: 'call', toolName: 'load_skill' });
     vi.advanceTimersByTime(200_000);
     await handle.close('completed');
 
@@ -106,18 +106,18 @@ describe('StatusPostService', () => {
     let finishEditing: () => void = () => undefined;
     const handle = statusPostService.open(OPEN_INPUT);
 
-    handle.appendTrace('→ `load_skill`');
+    handle.appendTrace({ kind: 'call', toolName: 'load_skill' });
     await vi.waitFor(() => expect(transport.send).toHaveBeenCalledOnce());
     transport.updatePost.mockReturnValueOnce(
       new Promise((resolve) => {
         finishEditing = () => resolve(Result.ok());
       })
     );
-    handle.appendTrace('→ `write_memory`');
+    handle.appendTrace({ kind: 'call', toolName: 'write_memory' });
     await vi.advanceTimersByTimeAsync(1_000);
     expect(transport.updatePost).toHaveBeenCalledOnce();
-    handle.appendTrace('→ `read_memory`');
-    handle.appendTrace('→ `list_memory`');
+    handle.appendTrace({ kind: 'call', toolName: 'read_memory' });
+    handle.appendTrace({ kind: 'call', toolName: 'list_memory' });
     finishEditing();
     await vi.advanceTimersByTimeAsync(1_000);
     expect(transport.updatePost).toHaveBeenCalledTimes(2);
@@ -137,7 +137,7 @@ describe('StatusPostService', () => {
     vi.useFakeTimers();
     const handle = statusPostService.open(OPEN_INPUT);
 
-    handle.appendTrace('→ `load_skill`');
+    handle.appendTrace({ kind: 'call', toolName: 'load_skill' });
     await vi.waitFor(() => expect(transport.send).toHaveBeenCalledOnce());
     handle.setTransient('reading the skill');
     handle.setTransient('writing it up');
@@ -155,16 +155,16 @@ describe('StatusPostService', () => {
     vi.useFakeTimers();
     const handle = statusPostService.open(OPEN_INPUT);
 
-    handle.appendTrace('→ `load_skill`');
+    handle.appendTrace({ kind: 'call', toolName: 'load_skill' });
     await vi.waitFor(() => expect(transport.send).toHaveBeenCalledOnce());
-    handle.appendTrace('→ `write_memory`');
+    handle.appendTrace({ kind: 'call', toolName: 'write_memory' });
     await vi.advanceTimersByTimeAsync(400);
-    handle.appendTrace('→ `read_memory`');
+    handle.appendTrace({ kind: 'call', toolName: 'read_memory' });
     await vi.advanceTimersByTimeAsync(400);
     expect(transport.updatePost).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(200);
     expect(transport.updatePost).toHaveBeenCalledOnce();
-    handle.appendTrace('→ `list_memory`');
+    handle.appendTrace({ kind: 'call', toolName: 'list_memory' });
     await handle.close('completed');
 
     expect(editedTexts()).toStrictEqual([
@@ -176,14 +176,19 @@ describe('StatusPostService', () => {
   it('should mark a line after the fact with what the call came to (§8.1)', async () => {
     const handle = statusPostService.open(OPEN_INPUT);
 
-    const write = handle.appendTrace('→ `workspace::write report.txt (9 bytes)`');
-    handle.markTrace(write, '🛑 denied by @casey');
+    const write = handle.appendTrace({
+      detail: 'report.txt',
+      effect: '(9 bytes)',
+      kind: 'call',
+      toolName: 'workspace::write'
+    });
+    handle.markTrace(write, { ran: false, text: '🛑 denied by @casey' });
     handle.recordEffect('shell::run');
     handle.recordEffect('shell::run');
     await handle.close('completed');
 
     expect(editedTexts().at(-1)).toBe(
-      '✅ _done (0s)_\n→ `workspace::write report.txt (9 bytes)` 🛑 denied by @casey\n✎ _may have changed: shell::run ×2_'
+      '✅ _done (0s)_\n→ `workspace::write report.txt` 🛑 denied by @casey\n✎ _may have changed: shell::run ×2_'
     );
   });
 
@@ -192,7 +197,11 @@ describe('StatusPostService', () => {
     const handle = statusPostService.open(OPEN_INPUT);
 
     for (let index = 0; index < 80; index += 1) {
-      handle.appendTrace(`→ \`web::fetch https://x.example/${'p'.repeat(60)}/${index}\``);
+      handle.appendTrace({
+        detail: `https://x.example/${'p'.repeat(60)}/${index}`,
+        kind: 'call',
+        toolName: 'web::fetch'
+      });
     }
     await handle.close('completed');
 
@@ -214,9 +223,9 @@ describe('StatusPostService', () => {
     transport.send.mockResolvedValue(Result.err(FAILURE));
     const handle = statusPostService.open(OPEN_INPUT);
 
-    handle.appendTrace('→ `load_skill`');
+    handle.appendTrace({ kind: 'call', toolName: 'load_skill' });
     await handle.close('completed');
-    handle.appendTrace('→ `write_memory`');
+    handle.appendTrace({ kind: 'call', toolName: 'write_memory' });
     await handle.close('completed');
 
     expect(transport.send).toHaveBeenCalledOnce();
@@ -231,12 +240,12 @@ describe('StatusPostService', () => {
     transport.updatePost.mockResolvedValueOnce(Result.err(FAILURE));
     const handle = statusPostService.open(OPEN_INPUT);
 
-    handle.appendTrace('→ `load_skill`');
+    handle.appendTrace({ kind: 'call', toolName: 'load_skill' });
     await vi.waitFor(() => expect(transport.send).toHaveBeenCalledOnce());
-    handle.appendTrace('→ `write_memory`');
+    handle.appendTrace({ kind: 'call', toolName: 'write_memory' });
     await vi.advanceTimersByTimeAsync(1_000);
     expect(loggingService.error).toHaveBeenCalledOnce();
-    handle.appendTrace('→ `read_memory`');
+    handle.appendTrace({ kind: 'call', toolName: 'read_memory' });
     await handle.close('completed');
 
     expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(
@@ -254,7 +263,7 @@ describe('StatusPostService', () => {
     conversationsService.record.mockRejectedValue(new Error('database is locked'));
     const handle = statusPostService.open(OPEN_INPUT);
 
-    handle.appendTrace('→ `load_skill`');
+    handle.appendTrace({ kind: 'call', toolName: 'load_skill' });
     await handle.close('completed');
 
     expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(
@@ -303,7 +312,7 @@ describe('StatusPostService', () => {
     conversationsService.updateAuthoredMessage.mockRejectedValue(new Error('database is locked'));
     const handle = statusPostService.open(OPEN_INPUT);
 
-    handle.appendTrace('→ `load_skill`');
+    handle.appendTrace({ kind: 'call', toolName: 'load_skill' });
     await handle.close('completed');
 
     expect(loggingService.error).toHaveBeenCalledExactlyOnceWith(

@@ -2,6 +2,15 @@ import type { ToolDisclosure, ToolPost } from '@collegium/core/tools';
 
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 
+/**
+ * §8.1 — a call's disposition for its status-post line, and whether the call ran at all: a line
+ * whose mark says it did not states its subject and not its effect.
+ */
+export type TraceMark = {
+  readonly ran: boolean;
+  readonly text: string;
+};
+
 export declare namespace ToolAttempt {
   /** the model receives this as the tool result and the turn continues */
   type Continue = {
@@ -20,7 +29,7 @@ export declare namespace ToolAttempt {
     /** what the output was, from which the framework renders the in-turn and later-turn lines (§3.8) */
     replaySubject?: string;
     /** §8.1 — the call's disposition for its status-post line, where it was not plain success */
-    traceMark?: string;
+    traceMark?: TraceMark;
     /** §8.1 — what the call came to, from the tool, for its status-post line */
     traceOutcome?: string;
   };

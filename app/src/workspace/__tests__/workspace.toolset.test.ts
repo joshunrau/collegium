@@ -167,8 +167,10 @@ describe('WORKSPACE_TOOLSET', () => {
       });
     });
 
-    it('traces the path and size, leaving the content to the approval payload', () => {
-      expect(write.traceDetail?.({ content: 'line one\nline two', path: 'notes.md' })).toBe('notes.md (17 bytes)');
+    it('traces the path as its subject and the size as its effect, which a denied call drops (§8.1)', () => {
+      const args = { content: 'line one\nline two', path: 'notes.md' };
+      expect(write.traceDetail?.(args)).toBe('notes.md');
+      expect(write.traceEffect?.(args)).toBe('(17 bytes)');
     });
   });
 });

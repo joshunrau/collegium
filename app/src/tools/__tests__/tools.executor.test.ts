@@ -263,7 +263,7 @@ describe('ToolExecutor', () => {
       output:
         "casey denied fixture::gated: not that host\n\nThis is a person's decision, not a tool error. The turn continues under the same budget: you may act on the reason, including by making this call differently, or reply.",
       reasonedDenial: { byUsername: 'casey', reason: 'not that host' },
-      traceMark: '🛑 denied by @casey'
+      traceMark: { ran: false, text: '🛑 denied by @casey' }
     });
   });
 
@@ -272,7 +272,7 @@ describe('ToolExecutor', () => {
     expect(attempt).toStrictEqual({
       kind: 'continue',
       output: 'fixture__sleepy_read timed out after 10ms',
-      traceMark: '⚠️ timed out'
+      traceMark: { ran: true, text: '⚠️ timed out' }
     });
   });
 

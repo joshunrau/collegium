@@ -3,6 +3,7 @@ import { match } from 'ts-pattern';
 import type { InferenceFailure } from '@/inference/inference.types.ts';
 import { describeTransportReason } from '@/inference/inference.utils.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
+import type { TraceMark } from '@/tools/tools.types.ts';
 
 import type { ContextExhaustionCause } from '../turns.types.ts';
 
@@ -41,15 +42,28 @@ function renderOutcomeLine(outcome: Exclude<TurnStatus, 'running'>, elapsedMs: n
   return elapsedMs === undefined ? phrase : `${phrase.slice(0, -1)} (${formatDuration(elapsedMs)})_`;
 }
 
+function sanitizeTraceText(text: string): string {
+  return text.replaceAll('`', '').replaceAll(/\s+/gu, ' ').trim();
+}
+
+/** §8.1 — a call that never ran states its subject and not its effect, however long it would have been */
+function renderTraceText(line: TraceLine): string {
+  if (line.kind === 'note') {
+    return line.text;
+  }
+  return renderToolCallLine(line.toolName, line.detail, line.mark?.ran === false ? undefined : line.effect);
+}
+
 /** consecutive identical lines read as one with a count, so a loop is one line long rather than two hundred (§8.1) */
 function groupTraceLines(lines: readonly TraceLine[]): { calls: number; text: string }[] {
-  const groups: { calls: number; line: TraceLine }[] = [];
+  const groups: { calls: number; line: { mark: string | undefined; text: string } }[] = [];
   for (const line of lines) {
+    const rendered = { mark: line.mark?.text, text: renderTraceText(line) };
     const last = groups.at(-1);
-    if (last?.line.text === line.text && last.line.mark === line.mark) {
+    if (last?.line.text === rendered.text && last.line.mark === rendered.mark) {
       last.calls += 1;
     } else {
-      groups.push({ calls: 1, line });
+      groups.push({ calls: 1, line: rendered });
     }
   }
   return groups.map(({ calls, line }) => ({
@@ -66,11 +80,17 @@ function renderElisionLine(droppedCalls: number): string {
 /** §8.1 — the closing effects line of a post a dead process left: nothing recorded what its calls came to */
 const ABANDONED_EFFECTS_LINE = '✎ _may have changed: not recorded; the process restarted mid-turn_';
 
-/** one call as the status post traces it; the mark states its disposition when it was not plain success (§8.1) */
-export type TraceLine = {
-  mark?: string;
-  text: string;
-};
+/**
+ * §8.1 — what the status post traces: a call the turn made, or a note the framework wrote beside
+ * the calls. A call is held as its parts rather than as a rendered line, because whether its effect
+ * belongs on the line is known only once the call has been marked.
+ */
+export type TraceEntry =
+  | { readonly detail?: string; readonly effect?: string; readonly kind: 'call'; readonly toolName: string }
+  | { readonly kind: 'note'; readonly text: string };
+
+/** a traced entry with the disposition it ended up with, where that was not plain success (§8.1) */
+export type TraceLine = TraceEntry & { mark?: TraceMark };
 
 export type StatusPostState = {
   /** §8.1 — completed calls to tools that write outside the turn, by display name */
@@ -128,17 +148,21 @@ export function renderAbandonedStatusPost(storedText: string): string {
 }
 
 /**
- * The name and the tool's own summary of the call share one code span, so nothing in a model-supplied
- * argument is read as markdown. Backticks would close that span, so they are dropped — the
- * untruncated, unaltered arguments are in `/trace` (§8.1).
+ * The name, the tool's own summary of the call and what the call came to share one code span, so
+ * nothing in a model-supplied argument is read as markdown. Backticks would close that span, so they
+ * are dropped — the untruncated, unaltered arguments are in `/trace` (§8.1). Only the summary is
+ * capped: the effect is the framework's own few words and is never what makes a line long.
  */
-export function renderToolCallLine(toolName: string, detail?: string): string {
-  const summary = detail === undefined ? '' : detail.replaceAll('`', '').replaceAll(/\s+/gu, ' ').trim();
-  if (summary === '') {
-    return `→ \`${toolName}\``;
-  }
+export function renderToolCallLine(toolName: string, detail?: string, effect?: string): string {
+  const summary = detail === undefined ? '' : sanitizeTraceText(detail);
   const elided = summary.length > TRACE_DETAIL_LIMIT_CHARS ? `${summary.slice(0, TRACE_DETAIL_LIMIT_CHARS)}…` : summary;
-  return `→ \`${toolName} ${elided}\``;
+  const parts = [toolName, elided, effect === undefined ? '' : sanitizeTraceText(effect)];
+  return `→ \`${parts.filter((part) => part !== '').join(' ')}\``;
+}
+
+/** §8.1 — a tool reports what a call came to only once its body has run, so such a mark always marks a line that ran */
+export function toOutcomeTraceMark(outcome: string | undefined): TraceMark | undefined {
+  return outcome === undefined ? undefined : { ran: true, text: outcome };
 }
 
 /** §7.5 — the channel learns of a steer from the turn's own status post, since the command's response is ephemeral */

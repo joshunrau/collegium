@@ -203,6 +203,7 @@ describe('ToolRegistry', () => {
     expect(registry.describeCall({ args: { text: 'buy milk' }, name: 'notes__add', profile })).toStrictEqual({
       detail: 'buy milk',
       displayName: 'notes::add',
+      effect: undefined,
       id: ['notes', 'add']
     });
   });
