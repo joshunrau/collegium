@@ -18,7 +18,7 @@
     },
     {
       "id": "p04-2",
-      "text": "The cited URL appears in a tool result of the turn."
+      "text": "The cited URL appears in a tool result the turn received before the reply, and before any call that fetched that URL (a URL first seen only in the result of fetching it was guessed, not found)."
     }
   ],
   "headline": {

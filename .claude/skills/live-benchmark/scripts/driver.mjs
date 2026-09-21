@@ -53,12 +53,23 @@ function token() {
   return fs.readFileSync(TOKEN_FILE, 'utf-8').trim();
 }
 
-async function api(method, route, body) {
-  const response = await fetch(`${MM}/api/v4${route}`, {
-    method,
-    headers: { authorization: `Bearer ${token()}`, 'content-type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
+async function api(method, route, body, attempt = 1) {
+  let response;
+  try {
+    response = await fetch(`${MM}/api/v4${route}`, {
+      method,
+      headers: { authorization: `Bearer ${token()}`, 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000)
+    });
+  } catch (error) {
+    // A stalled or reset connection is the driver's problem, never the run's: retry reads, and
+    // retry a post only after a poll failed to show it (the caller re-posting would duplicate it).
+    if (attempt >= 4 || method !== 'GET') throw error;
+    log('api', `${method} ${route} failed (${error.cause?.code ?? error.name}); retry ${attempt}`);
+    await sleep(5_000 * attempt);
+    return api(method, route, body, attempt + 1);
+  }
   const text = await response.text();
   if (!response.ok) {
     throw new Error(`${method} ${route} -> ${response.status}: ${text.slice(0, 300)}`);
@@ -137,7 +148,7 @@ async function decidePrompt(tag, agent, prompt, queue, record) {
     if (step) queue.splice(queue.indexOf(step), 1);
     const answer = step?.ask.answer ?? 'Use your best judgment and continue.';
     if (!step) record.notes.push(`unexpected ask at ${now()}: ${heading} -> answered "${answer}"`);
-    const option = actions.find((a) => a.name === answer);
+    const option = actions.find((a) => a.name === answer) ?? actions.find((a) => a.name.startsWith(answer));
     if (option) {
       await pressButton(prompt.id, option.id);
     } else {
@@ -178,7 +189,9 @@ async function waitTurn(tag, agent, sinceMs, queue, record) {
   const started = Date.now();
   let terminalSeenAt;
   while (true) {
-    const posts = await postsSince(agent.channel, sinceMs);
+    // `since` also returns posts edited after that instant, so the previous turn's status post,
+    // edited to its terminal marker moments before this task was posted, would be matched here.
+    const posts = (await postsSince(agent.channel, sinceMs)).filter((p) => p.create_at >= sinceMs + 1000);
     for (const p of posts) {
       if (isPrompt(p) && !handled.has(p.id)) {
         handled.add(p.id);
@@ -314,7 +327,7 @@ async function resumeTask(taskId, task, key, humanPostId, stepIndex) {
   log(key, `turn ended: ${result.outcome} with ${result.replies.length} reply post(s)`);
   const target = turn.statusPostId ?? turn.replyPostIds[0];
   if (target) {
-    const file = path.join(HERE, 'traces', `${taskId}-${key}-${record.turns.length}.md`);
+    const file = path.join(RUN_DIR, 'traces', `${taskId}-${key}-${record.turns.length}.md`);
     turn.traceChars = await saveTrace(agent, target, file);
     log(key, `trace ${turn.traceChars} chars`);
   }

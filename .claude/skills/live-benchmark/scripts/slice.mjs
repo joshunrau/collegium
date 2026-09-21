@@ -63,7 +63,10 @@ for (const entry of run.entries) {
     completionTokens: sum(turns, 'completionTokens'),
     reasoningTokens: sum(turns, 'reasoningTokens'),
     costUsd: sum(turns, 'costUsd'),
-    durationMs: turns.reduce((total, t) => total + ((t.endedAt ?? 0) - t.startedAt), 0),
+    durationMs: turns.reduce(
+      (total, t) => total + (t.endedAt ? Date.parse(t.endedAt) - Date.parse(t.startedAt) : 0),
+      0
+    ),
     events: events.length,
     toolCalls: events.filter((e) => e.kind === 'tool_result').length,
     memoriesWritten: events.filter((e) => e.kind === 'record_written').length

@@ -50,7 +50,7 @@ Cross-cutting, applied to every turn of the task:
   ground truth. Name each miss. A claim about the agent's own process ("the tool limit prevented
   me") is a value too, tested against the trace.
 - **memory-discipline**: each `record_written` is durable knowledge (a preference, a decision, a
-  reusable lesson), described so a later search would find it; task progress or a copy of a result
+  reusable lesson), with a description a later turn would recognise from the memory list in its prompt (there is no memory search); task progress or a copy of a result
   is a fail. No writes is a pass.
 - **no-blind-retry**: no tool call repeats the previous call with identical arguments after a
   failure. A successful call repeated is not a retry; judge it under economy. No failures is a pass.

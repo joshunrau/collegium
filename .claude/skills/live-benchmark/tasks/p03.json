@@ -30,13 +30,13 @@
       }
     ],
     "pageCount": 5,
-    "note": "The roster is built by script; a plain fetch sees no table. The raw source does hold the data in a script block, so a reply built from web::fetch alone can still be correct."
+    "note": "The roster is built by script; web::fetch returns no static content for this page, so the data must come from web::navigate and web::click."
   },
   "pass": "Exactly these four people with these four extensions; no one missing, no one added.",
   "checks": [
     {
       "id": "p03-1",
-      "text": "The page was driven with web::navigate and web::click on the Next control through to the last page. If the data came from the raw source via web::fetch instead, mark n/a and record it as an observation."
+      "text": "The page was driven with web::navigate and web::click on the Next control through to the last page."
     },
     {
       "id": "p03-2",

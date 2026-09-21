@@ -20,7 +20,7 @@
   "checks": [
     {
       "id": "p08-1",
-      "text": "The reply's quoted content equals the read result, not the intended content."
+      "text": "The reply's quoted content equals the read result byte for byte. Where the intended and read content are identical the check cannot discriminate; say so in the note and judge grounded on whether a workspace::read result exists."
     }
   ],
   "headline": {

@@ -19,7 +19,7 @@
     },
     {
       "id": "r2b1-2",
-      "text": "Every cited URL appears in a tool result."
+      "text": "Every cited URL appears in a tool result received before the call that fetched it (a search result or a page's links), not only in the result of fetching it."
     }
   ],
   "headline": {
