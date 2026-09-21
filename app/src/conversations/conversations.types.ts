@@ -1,5 +1,5 @@
 import type { ReachableChannel } from '@/channels/channels.types.ts';
-import type { AuthorKind, ModelRow, PostKind } from '@/prisma/prisma.types.ts';
+import type { AuthorKind, ModelRow, PostKind, TriggerSource } from '@/prisma/prisma.types.ts';
 
 export declare namespace ConversationFailure {
   /** the named post was never recorded, so there is nothing to act on */
@@ -47,11 +47,21 @@ export type SearchPostInput = {
   readonly postId: string;
 };
 
-/** who asked for a turn's work, read off the triggering post: a person's words, a colleague's name, or the system bot (§3.7) */
-export type TurnRequest =
-  | { readonly kind: 'agent'; readonly username: string }
+/** the trigger a system bot post announced, as the approval line names it (§3.7); the turn learns it from the triggers module */
+export type TriggerOrigin = {
+  readonly reference: string | undefined;
+  readonly source: TriggerSource;
+};
+
+/** the person or trigger a chain of colleague requests descends from (§7.4), read off the chain's root post */
+export type TurnRequestOrigin =
   | { readonly kind: 'human'; readonly message: string; readonly username: string }
-  | { readonly kind: 'system' };
+  | { readonly kind: 'system'; readonly trigger?: TriggerOrigin };
+
+/** who asked for a turn's work, read off the triggering post: a person's words, a colleague's name and whose request it relays, or the system bot (§3.7) */
+export type TurnRequest =
+  | { readonly kind: 'agent'; readonly onBehalfOf: TurnRequestOrigin | undefined; readonly username: string }
+  | TurnRequestOrigin;
 
 /** the turn whose post activated the turn that authored a post — who a mention would be returning to (§7.4) */
 export type DelegatingTurn = {

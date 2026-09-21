@@ -222,6 +222,11 @@ export class TriggersService {
     });
   }
 
+  /** the trigger this system post announced, so the turn it started can say what raised it (§3.7); undefined for any other post */
+  async findAnnouncedBy(postId: string): Promise<Trigger | undefined> {
+    return (await this.triggers.findFirst({ where: { postId } })) ?? undefined;
+  }
+
   /** whether this system post announced a trigger — its turn was already started by the flush that posted it */
   async wasAnnouncedBy(postId: string): Promise<boolean> {
     return (await this.triggers.count({ where: { postId } })) > 0;

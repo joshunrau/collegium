@@ -11,7 +11,8 @@ import type {
   EpisodeBoundary,
   PostAuthorship,
   RecordablePost,
-  TurnRequest
+  TurnRequest,
+  TurnRequestOrigin
 } from './conversations.types.ts';
 
 @Injectable()
@@ -70,17 +71,29 @@ export class ConversationsService {
     return post?.authoringTurn ?? undefined;
   }
 
-  /** §3.7 — who asked: a person's words are quoted back, a colleague is named, the system bot's post is a trigger */
+  /**
+   * §3.7 — who asked: a person's words are quoted back, a colleague is named beside the person or
+   * trigger its own turn's chain descends from (§7.4), the system bot's post is a trigger.
+   */
   async findRequester(postId: string): Promise<TurnRequest | undefined> {
     const post = await this.posts.findUnique({
-      select: { authorKind: true, authorUsername: true, message: true },
+      select: {
+        authoringTurn: { select: { rootPostId: true } },
+        authorKind: true,
+        authorUsername: true,
+        message: true
+      },
       where: { id: postId }
     });
     if (!post) {
       return undefined;
     }
     return match(post)
-      .with({ authorKind: 'agent' }, ({ authorUsername }): TurnRequest => ({ kind: 'agent', username: authorUsername }))
+      .with({ authorKind: 'agent' }, async ({ authoringTurn, authorUsername }): Promise<TurnRequest> => ({
+        kind: 'agent',
+        onBehalfOf: await this.findRequestOrigin(authoringTurn?.rootPostId),
+        username: authorUsername
+      }))
       .with({ authorKind: 'human' }, ({ authorUsername, message }): TurnRequest => ({
         kind: 'human',
         message,
@@ -173,6 +186,26 @@ export class ConversationsService {
   /** keeps the stored copy of a framework-authored post current as it is edited in place (§8.1) */
   async updateAuthoredMessage(postId: string, message: string): Promise<void> {
     await this.posts.updateMany({ data: { message }, where: { id: postId } });
+  }
+
+  /** §7.4 — the chain's root is a person's or the system bot's post by construction; an agent's, left by a restart, names nobody */
+  private async findRequestOrigin(rootPostId: null | string | undefined): Promise<TurnRequestOrigin | undefined> {
+    if (rootPostId === null || rootPostId === undefined) {
+      return undefined;
+    }
+    const root = await this.posts.findUnique({
+      select: { authorKind: true, authorUsername: true, message: true },
+      where: { id: rootPostId }
+    });
+    return match(root)
+      .with(null, { authorKind: 'agent' }, () => undefined)
+      .with({ authorKind: 'human' }, ({ authorUsername, message }): TurnRequestOrigin => ({
+        kind: 'human',
+        message,
+        username: authorUsername
+      }))
+      .with({ authorKind: 'system' }, (): TurnRequestOrigin => ({ kind: 'system' }))
+      .exhaustive();
   }
 
   private async findDelegator(triggeringPostId: null | string | undefined): Promise<DelegatingTurn | undefined> {

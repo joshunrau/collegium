@@ -12,6 +12,7 @@ import { ShellModule } from '@/shell/shell.module.ts';
 import { SkillsModule } from '@/skills/skills.module.ts';
 import { TasksModule } from '@/tasks/tasks.module.ts';
 import { ToolsModule } from '@/tools/tools.module.ts';
+import { TriggersModule } from '@/triggers/triggers.module.ts';
 import { WebModule } from '@/web/web.module.ts';
 
 import { ContextAssembler } from './context/context.assembler.ts';
@@ -46,6 +47,7 @@ import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
     SkillsModule,
     TasksModule,
     ToolsModule,
+    TriggersModule,
     WebModule
   ],
   providers: [

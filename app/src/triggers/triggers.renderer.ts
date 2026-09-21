@@ -9,18 +9,19 @@ type RenderedTrigger = {
   readonly message: string;
 };
 
-/** how a source's trigger reads: its heading, and whether a body it supplies already names sender and subject */
+/** how a source's trigger reads: its heading, what its item did, and whether a body it supplies already names sender and subject */
 type SourceRendering = {
   readonly bodyDescribesItself: boolean;
   readonly label: string;
+  readonly verb: string;
 };
 
 const ATTACHED_BODY_FILENAME = 'message.md';
 
 const SOURCES: { readonly [Source in TriggerSource]: SourceRendering } = {
-  cron: { bodyDescribesItself: true, label: 'Scheduled' },
-  mail: { bodyDescribesItself: true, label: 'New Mail' },
-  webhook: { bodyDescribesItself: false, label: 'Webhook' }
+  cron: { bodyDescribesItself: true, label: 'Scheduled', verb: 'fired' },
+  mail: { bodyDescribesItself: true, label: 'New Mail', verb: 'arrived' },
+  webhook: { bodyDescribesItself: false, label: 'Webhook', verb: 'arrived' }
 };
 
 function summarize(reference: PrismaJson.TriggerReference): string | undefined {
@@ -30,9 +31,14 @@ function summarize(reference: PrismaJson.TriggerReference): string | undefined {
   return parts.length === 0 ? undefined : parts.join(' · ');
 }
 
-function renderHeader(trigger: Trigger, label: string): string {
-  const item = trigger.reference.id === undefined ? 'it' : `⟨${trigger.reference.id}⟩`;
-  return `🔔 ${label} → @${trigger.targetAgentUsername}\n\nHandle ${item}, then mark it done with \`triggers__resolve("${trigger.id}")\`.`;
+/**
+ * §4.2 — the announcement states that the item arrived and asks for a reading, never that it be
+ * acted on: the item's own text is outside content, and an action that leaves the workspace on
+ * its account is a person's call (§3.7).
+ */
+function renderHeader(trigger: Trigger, { label, verb }: SourceRendering): string {
+  const item = trigger.reference.id === undefined ? 'An item' : `⟨${trigger.reference.id}⟩`;
+  return `🔔 ${label} → @${trigger.targetAgentUsername}\n\n${item} ${verb}. Read it and say here what it needs, then mark it done with \`triggers__resolve("${trigger.id}")\`.`;
 }
 
 /**
@@ -42,11 +48,11 @@ function renderHeader(trigger: Trigger, label: string): string {
  * The reference summary rides above the body unless the source declares its bodies self-describing.
  */
 export function renderTriggerPost(trigger: Trigger, maxPostSizeChars: number): RenderedTrigger {
-  const { bodyDescribesItself, label } = SOURCES[trigger.source];
+  const source = SOURCES[trigger.source];
   const { body } = trigger.reference;
   const hasBody = body !== undefined && body.trim() !== '';
-  const summary = hasBody && bodyDescribesItself ? undefined : summarize(trigger.reference);
-  const preamble = [renderHeader(trigger, label), ...(summary === undefined ? [] : [summary])].join('\n\n');
+  const summary = hasBody && source.bodyDescribesItself ? undefined : summarize(trigger.reference);
+  const preamble = [renderHeader(trigger, source), ...(summary === undefined ? [] : [summary])].join('\n\n');
   if (!hasBody) {
     return { files: [], message: preamble };
   }

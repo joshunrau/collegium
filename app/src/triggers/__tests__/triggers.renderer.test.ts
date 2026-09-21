@@ -21,26 +21,26 @@ const trigger = (reference: PrismaJson.TriggerReference, source: Trigger['source
 });
 
 describe('renderTriggerPost', () => {
-  it('should mention the agent, name the source item, and summarize a reference with no body', () => {
+  it('should mention the agent, report the item’s arrival without instructing, and summarize a reference with no body (§4.2)', () => {
     const rendered = renderTriggerPost(
       trigger({ id: 'msg-7', sender: 'billing@acme.com', subject: 'invoice overdue' }),
       MAX_POST_SIZE
     );
     expect(rendered.message).toBe(
-      '🔔 Webhook → @mira\n\nHandle ⟨msg-7⟩, then mark it done with `triggers__resolve("trigger-1")`.\n\ninvoice overdue · from billing@acme.com'
+      '🔔 Webhook → @mira\n\n⟨msg-7⟩ arrived. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.\n\ninvoice overdue · from billing@acme.com'
     );
     expect(rendered.files).toStrictEqual([]);
   });
 
   it('should omit the reference fields the event did not carry', () => {
     const { message } = renderTriggerPost(trigger({ subject: 'invoice overdue' }), MAX_POST_SIZE);
-    expect(message).toContain('Handle it,');
+    expect(message).toContain('An item arrived.');
     expect(message.endsWith('\n\ninvoice overdue')).toBe(true);
   });
 
   it('should stop at the instruction when the reference carries nothing', () => {
     expect(renderTriggerPost(trigger({}), MAX_POST_SIZE).message).toBe(
-      '🔔 Webhook → @mira\n\nHandle it, then mark it done with `triggers__resolve("trigger-1")`.'
+      '🔔 Webhook → @mira\n\nAn item arrived. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.'
     );
   });
 
@@ -50,7 +50,7 @@ describe('renderTriggerPost', () => {
       MAX_POST_SIZE
     );
     expect(rendered.message).toBe(
-      '🔔 Webhook → @mira\n\nHandle it, then mark it done with `triggers__resolve("trigger-1")`.\n\nShipment · from shop@acme.com\n\nOrder 88 shipped.'
+      '🔔 Webhook → @mira\n\nAn item arrived. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.\n\nShipment · from shop@acme.com\n\nOrder 88 shipped.'
     );
   });
 
@@ -60,7 +60,7 @@ describe('renderTriggerPost', () => {
       MAX_POST_SIZE
     );
     expect(rendered.message).toBe(
-      '🔔 New Mail → @mira\n\nHandle it, then mark it done with `triggers__resolve("trigger-1")`.\n\nPlease pay invoice 42.'
+      '🔔 New Mail → @mira\n\nAn item arrived. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.\n\nPlease pay invoice 42.'
     );
     expect(rendered.files).toStrictEqual([]);
   });
@@ -71,7 +71,7 @@ describe('renderTriggerPost', () => {
       MAX_POST_SIZE
     );
     expect(rendered.message).toBe(
-      '🔔 Scheduled → @mira\n\nHandle ⟨morning-sweep⟩, then mark it done with `triggers__resolve("trigger-1")`.\n\nSweep the shared mailbox.'
+      '🔔 Scheduled → @mira\n\n⟨morning-sweep⟩ fired. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.\n\nSweep the shared mailbox.'
     );
   });
 

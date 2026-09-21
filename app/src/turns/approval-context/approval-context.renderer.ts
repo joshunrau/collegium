@@ -1,9 +1,17 @@
 import { match } from 'ts-pattern';
 
-import type { TurnRequest } from '@/conversations/conversations.types.ts';
+import type { TriggerOrigin, TurnRequest, TurnRequestOrigin } from '@/conversations/conversations.types.ts';
+import type { TriggerSource } from '@/prisma/prisma.types.ts';
 
 /** enough of a request for a sentence of it, never enough for a pasted document */
 const REQUEST_EXCERPT_CHARS = 140;
+
+/** §3.2 — a trigger's source in the approver's words */
+const SOURCE_WORDS: { readonly [Source in TriggerSource]: string } = {
+  cron: 'scheduled',
+  mail: 'mail',
+  webhook: 'webhook'
+};
 
 function renderExcerpt(message: string): string {
   const collapsed = message.replaceAll(/\s+/gu, ' ').trim();
@@ -11,6 +19,24 @@ function renderExcerpt(message: string): string {
     return collapsed;
   }
   return `${collapsed.slice(0, REQUEST_EXCERPT_CHARS)}…`;
+}
+
+/** §3.7 — a trigger-started turn says which trigger, and that no person asked: the item's own text is never an instruction */
+function renderTriggerOrigin(trigger: TriggerOrigin | undefined): string {
+  if (trigger === undefined) {
+    return 'raised by a trigger, not by a person';
+  }
+  const item = trigger.reference === undefined ? '' : ` (⟨${trigger.reference}⟩)`;
+  return `raised by a ${SOURCE_WORDS[trigger.source]} trigger${item}, not by a person`;
+}
+
+/** §3.7 — the person whose request a colleague's relay serves, so the approver is not deciding on a colleague's word alone */
+function renderRelayOrigin(origin: TurnRequestOrigin | undefined): string {
+  return match(origin)
+    .with(undefined, () => '')
+    .with({ kind: 'human' }, ({ message, username }) => `, for @${username}: "${renderExcerpt(message)}"`)
+    .with({ kind: 'system' }, () => ', on an item a trigger raised')
+    .exhaustive();
 }
 
 export type ApprovalContext = {
@@ -31,8 +57,12 @@ export type ApprovalContext = {
  */
 export function renderApprovalContext(context: ApprovalContext): string {
   const asked = match(context.requestedBy)
-    .with(undefined, { kind: 'system' }, () => 'raised by a trigger')
-    .with({ kind: 'agent' }, ({ username }) => `asked by colleague ${username}`)
+    .with(undefined, () => renderTriggerOrigin(undefined))
+    .with({ kind: 'system' }, ({ trigger }) => renderTriggerOrigin(trigger))
+    .with(
+      { kind: 'agent' },
+      ({ onBehalfOf, username }) => `asked by colleague ${username}${renderRelayOrigin(onBehalfOf)}`
+    )
     .with({ kind: 'human' }, ({ message, username }) => `requested by @${username}: "${renderExcerpt(message)}"`)
     .exhaustive();
   const follows =

@@ -12,7 +12,7 @@ import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
-import type { TurnRequest } from '@/conversations/conversations.types.ts';
+import type { TurnRequest, TurnRequestOrigin } from '@/conversations/conversations.types.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
@@ -41,6 +41,7 @@ import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import type { ToolAttempt, TraceMark } from '@/tools/tools.types.ts';
+import { TriggersService } from '@/triggers/triggers.service.ts';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 import { WebService } from '@/web/web.service.ts';
 
@@ -263,6 +264,7 @@ export class TurnRunner {
     private readonly toolExecutor: ToolExecutor,
     private readonly toolRegistry: ToolRegistry,
     private readonly transportRegistry: TransportRegistry,
+    private readonly triggersService: TriggersService,
     private readonly turnControlRegistry: TurnControlRegistry,
     private readonly turnFoldRegistry: TurnFoldRegistry,
     private readonly turnsService: TurnsService,
@@ -1346,10 +1348,27 @@ export class TurnRunner {
       return undefined;
     }
     const request = await this.conversationsService.findRequester(postId);
-    if (request?.kind !== 'human') {
-      return request;
-    }
-    return { ...request, message: this.multiMentionPolicy.stripAgentMentions(request.message) };
+    return match(request)
+      .with(undefined, () => undefined)
+      .with({ kind: 'human' }, (human) => this.stripRequestOrigin(human))
+      .with({ kind: 'agent' }, (agent): TurnRequest => ({
+        ...agent,
+        onBehalfOf: this.stripRequestOrigin(agent.onBehalfOf)
+      }))
+      .with({ kind: 'system' }, async (): Promise<TurnRequest> => {
+        const trigger = await this.triggersService.findAnnouncedBy(postId);
+        return {
+          kind: 'system',
+          ...(trigger && { trigger: { reference: trigger.reference.id, source: trigger.source } })
+        };
+      })
+      .exhaustive();
+  }
+
+  private stripRequestOrigin<TOrigin extends TurnRequestOrigin | undefined>(origin: TOrigin): TOrigin {
+    return origin?.kind === 'human'
+      ? { ...origin, message: this.multiMentionPolicy.stripAgentMentions(origin.message) }
+      : origin;
   }
 
   /** §3.8 — oldest read first, past the share and never below the floor; measured from the messages themselves, since a cut can shrink one after it was pushed */

@@ -160,6 +160,47 @@ describe('ConversationsService', () => {
     });
   });
 
+  describe('findRequester', () => {
+    it('should name a colleague beside the person its chain descends from, read off the root post (§3.7, §7.4)', async () => {
+      await conversationsService.record(
+        post({ authorKind: 'human', authorUsername: 'casey', id: 'post-root', message: 'owen, ask mira' })
+      );
+      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'owen' }), {
+        kind: 'reply',
+        turnId: 'turn-1'
+      });
+      expect(await conversationsService.findRequester('post-1')).toStrictEqual({
+        kind: 'agent',
+        onBehalfOf: { kind: 'human', message: 'owen, ask mira', username: 'casey' },
+        username: 'owen'
+      });
+    });
+
+    it('should name a colleague alone when its chain root is not stored', async () => {
+      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'owen' }), {
+        kind: 'reply',
+        turnId: 'turn-1'
+      });
+      expect(await conversationsService.findRequester('post-1')).toStrictEqual({
+        kind: 'agent',
+        onBehalfOf: undefined,
+        username: 'owen'
+      });
+    });
+
+    it("should quote a person's own post and mark the system bot's as a trigger", async () => {
+      await conversationsService.record(post({ message: 'ship it' }));
+      await conversationsService.record(post({ authorKind: 'system', authorUsername: 'orchestrator', id: 'post-2' }));
+      expect(await conversationsService.findRequester('post-1')).toStrictEqual({
+        kind: 'human',
+        message: 'ship it',
+        username: 'casey'
+      });
+      expect(await conversationsService.findRequester('post-2')).toStrictEqual({ kind: 'system' });
+      expect(await conversationsService.findRequester('post-9')).toBeUndefined();
+    });
+  });
+
   describe('findAuthoringTurn', () => {
     it('should resolve a post to the row of the turn that authored it', async () => {
       await conversationsService.record(post(), { kind: 'reply', turnId: 'turn-1' });

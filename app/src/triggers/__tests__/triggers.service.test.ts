@@ -181,6 +181,8 @@ describe('TriggersService', () => {
     await triggersService.post(recorded.value!.id);
     expect(await triggersService.wasAnnouncedBy('announcement-1')).toBe(true);
     expect(await triggersService.wasAnnouncedBy('some-human-post')).toBe(false);
+    expect(await triggersService.findAnnouncedBy('announcement-1')).toMatchObject({ id: recorded.value!.id });
+    expect(await triggersService.findAnnouncedBy('some-human-post')).toBeUndefined();
   });
 
   it('should name every channel holding an unannounced trigger exactly once', async () => {

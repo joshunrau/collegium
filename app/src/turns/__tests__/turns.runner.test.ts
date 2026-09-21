@@ -28,6 +28,8 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import type { ToolAttempt } from '@/tools/tools.types.ts';
+import { TriggersService } from '@/triggers/triggers.service.ts';
+import type { Trigger } from '@/triggers/triggers.types.ts';
 import { WebService } from '@/web/web.service.ts';
 
 import { ContextAssembler } from '../context/context.assembler.ts';
@@ -87,6 +89,7 @@ describe('TurnRunner', () => {
   let toolExecutor: MockedInstance<ToolExecutor>;
   let toolRegistry: MockedInstance<ToolRegistry>;
   let transportSend: Mock<(message: { channelId: string; text: string }) => Promise<unknown>>;
+  let triggersService: MockedInstance<TriggersService>;
   let turnControlRegistry: TurnControlRegistry;
   let turnFoldRegistry: TurnFoldRegistry;
   let turnRunner: TurnRunner;
@@ -147,6 +150,8 @@ describe('TurnRunner', () => {
     const transportRegistry = MockFactory.createMock(TransportRegistry);
     maxPostSizeChars = vi.fn().mockResolvedValue(Result.ok(16_383));
     transportRegistry.get.mockReturnValue({ maxPostSizeChars, send: transportSend } as unknown as ChatTransport);
+    triggersService = MockFactory.createMock(TriggersService);
+    triggersService.findAnnouncedBy.mockResolvedValue(undefined);
     typingHandle = { stop: vi.fn() };
     typingIndicatorService = MockFactory.createMock(TypingIndicatorService);
     typingIndicatorService.start.mockReturnValue(typingHandle);
@@ -175,6 +180,7 @@ describe('TurnRunner', () => {
         { provide: ToolExecutor, useValue: toolExecutor },
         { provide: ToolRegistry, useValue: toolRegistry },
         { provide: TransportRegistry, useValue: transportRegistry },
+        { provide: TriggersService, useValue: triggersService },
         { provide: TurnsService, useValue: turnsService },
         { provide: TypingIndicatorService, useValue: typingIndicatorService },
         { provide: WebService, useValue: webService }
@@ -421,8 +427,50 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
-    expect(toolExecutor.execute.mock.calls[0]?.[0].contextText).toBe('Action 1 of 10 · raised by a trigger');
+    expect(toolExecutor.execute.mock.calls[0]?.[0].contextText).toBe(
+      'Action 1 of 10 · raised by a trigger, not by a person'
+    );
     expect(conversationsService.findRequester).not.toHaveBeenCalled();
+  });
+
+  it('should name the trigger a system post announced on the approval prompt (§3.7)', async () => {
+    conversationsService.findRequester.mockResolvedValue({ kind: 'system' });
+    triggersService.findAnnouncedBy.mockResolvedValue({ reference: { id: '1:12' }, source: 'mail' } as Trigger);
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await turnRunner.run({
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 1,
+      profile: PROFILE,
+      rootPostId: 'announcement-1',
+      triggeringPostId: 'announcement-1'
+    });
+    expect(toolExecutor.execute.mock.calls[0]?.[0].contextText).toBe(
+      'Action 1 of 10 · raised by a mail trigger (⟨1:12⟩), not by a person'
+    );
+  });
+
+  it('should strip agent mentions from the words of the person a colleague relays (§4.5)', async () => {
+    multiMentionPolicy.stripAgentMentions.mockImplementation((content: string) => content.replaceAll('@', ''));
+    conversationsService.findRequester.mockResolvedValue({
+      kind: 'agent',
+      onBehalfOf: { kind: 'human', message: '@owen ask @mira to run it', username: 'casey' },
+      username: 'owen'
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await turnRunner.run({
+      chainLength: 2,
+      channelId: 'channel-1',
+      depth: 1,
+      profile: PROFILE,
+      rootPostId: 'post-1',
+      triggeringPostId: 'post-2'
+    });
+    expect(toolExecutor.execute.mock.calls[0]?.[0].contextText).toBe(
+      'Action 1 of 10 · asked by colleague owen, for @casey: "owen ask mira to run it"'
+    );
   });
 
   it('should execute tools, record the trace, and loop until the model emits text', async () => {
