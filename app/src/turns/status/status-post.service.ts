@@ -41,7 +41,7 @@ export type StatusPostHandle = {
   close(outcome: Exclude<TurnStatus, 'running'>): Promise<void>;
   /** §8.1 — a call's disposition, set once its result is known: the line was written before the call ran */
   markTrace(handle: TraceLineHandle, mark: string): void;
-  /** §8.1 — a completed call to a tool not declared retryable, for the closing effects line */
+  /** §8.1 — a completed call to a tool that writes outside the turn, for the closing effects line */
   recordEffect(toolDisplayName: string): void;
   /** text alongside a tool call is transient status, replaced on the next edit (§3.3) */
   setTransient(text: string): void;

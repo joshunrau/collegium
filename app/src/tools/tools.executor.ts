@@ -259,7 +259,7 @@ export class ToolExecutor {
     return {
       kind: 'continue',
       output: output.text,
-      ...(tool.definition.retryable !== true && { mayHaveTakenEffect: true }),
+      ...((tool.definition.mutating ?? tool.definition.retryable !== true) && { mayHaveTakenEffect: true }),
       ...(output.disclosure && { disclosure: output.disclosure }),
       ...(output.post && { post: output.post }),
       ...(output.replay !== undefined && { replay: output.replay }),

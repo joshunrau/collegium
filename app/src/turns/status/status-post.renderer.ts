@@ -73,7 +73,7 @@ export type TraceLine = {
 };
 
 export type StatusPostState = {
-  /** §8.1 — completed calls to tools not declared retryable, by display name */
+  /** §8.1 — completed calls to tools that write outside the turn, by display name */
   effects: Map<string, number>;
   /** wall-clock time the turn ran, approval waits included; absent where its end was never observed */
   elapsedMs?: number;

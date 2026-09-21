@@ -8,7 +8,7 @@ export declare namespace ToolAttempt {
     /** a durable record the call created, for the turn to write into the event trail and trace (§3) */
     disclosure?: ToolDisclosure;
     kind: 'continue';
-    /** §7.1 — the body of a tool not declared retryable ran to completion, so a failure post names the call */
+    /** §7.1 — the body of a mutating tool ran to completion, so a failure post names the call */
     mayHaveTakenEffect?: true;
     output: string;
     /** §3.15 — published under the agent's account by the runner, never by the tool (§3.3) */
