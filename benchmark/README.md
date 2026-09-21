@@ -4,7 +4,7 @@ A controlled, repeatable run of the framework against a local stack, judged by a
 extracted artifacts. It measures the framework rather than any deployment: the roster is generic,
 every seam is held by one narrowly granted agent, and each task has ground truth an assessor holds.
 The procedure is the `assessing-collegium` skill under `.claude/skills/`; this directory holds what
-it runs on. The `live-benchmark` skill beside it drives the same fixtures against a deployment.
+it runs on.
 
 ```
 roster.json          who exists, what each holds, and the two model tiers

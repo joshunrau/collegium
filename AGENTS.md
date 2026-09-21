@@ -21,7 +21,7 @@ it by specifier — and never imports a plugin at all. The root scripts below ru
 across the workspace via turbo, so everything runs from the repo root. Instance files (`.env`,
 `config.json`, `docker-compose.yaml`) live at the workspace root, beside the packages rather than
 in them. `benchmark/` holds the controlled run that measures the framework itself (`benchmark/README.md`);
-the `assessing-collegium` skill runs it, and the `live-benchmark` skill runs its fixtures against a deployment.
+the `assessing-collegium` skill runs it.
 
 ```sh
 pnpm dev                    # start the server in watch mode

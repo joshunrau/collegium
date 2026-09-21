@@ -15,4 +15,3 @@ scratch
 state
 /benchmark/stack/plan.json
 /benchmark/results/**/prod.db
-/benchmark/fixtures/northmoor/reports/
