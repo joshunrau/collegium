@@ -67,7 +67,11 @@ export class WebService {
   ): Promise<
     Result<
       WebPage,
-      WebFailure.Navigation | WebFailure.NoStaticContent | WebFailure.UnsupportedContent | WebFailure.UrlRefused
+      | WebFailure.HttpError
+      | WebFailure.Navigation
+      | WebFailure.NoStaticContent
+      | WebFailure.UnsupportedContent
+      | WebFailure.UrlRefused
     >
   > {
     const fetched = await this.fetchClient.get(url);
@@ -85,7 +89,10 @@ export class WebService {
     }
     const markdown = toMarkdown(body, finalUrl);
     if (needsClientRendering(markdown)) {
-      return Result.err({ kind: 'no-static-content', url: finalUrl });
+      // an error status with nothing readable is a page that is not there; a browser will not find one either
+      return status >= 400
+        ? Result.err({ bodyChars: body.length, kind: 'http-error', status, url: finalUrl })
+        : Result.err({ kind: 'no-static-content', status, url: finalUrl });
     }
     return Result.ok({ ...windowMarkdown(markdown, startChar), status, title: extractTitle(body), url: finalUrl });
   }
@@ -171,7 +178,7 @@ export class WebService {
     // a page that rendered nothing is indistinguishable from a page with nothing on it, and the
     // model cannot tell them apart — so it is never returned as content
     if (!capped.markdown) {
-      return Result.err({ kind: 'empty-render', url: rendered.value.url });
+      return Result.err({ kind: 'empty-render', status: rendered.value.status, url: rendered.value.url });
     }
     return Result.ok({
       ...capped,

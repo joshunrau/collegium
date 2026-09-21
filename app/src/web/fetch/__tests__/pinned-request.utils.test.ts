@@ -44,7 +44,8 @@ describe('pinnedGet', () => {
       { address: '127.0.0.1', family: 4 },
       {
         accept: 'text/plain',
-        signal
+        signal,
+        userAgent: 'Collegium (+https://github.com/joshunrau/collegium)'
       }
     );
   };
@@ -54,6 +55,11 @@ describe('pinnedGet', () => {
     expect(await text(response.body)).toBe('plain');
     expect(received.at(-1)?.host).toBe(`pinned.invalid:${port}`);
     expect(received.at(-1)?.['accept-encoding']).toBeUndefined();
+  });
+
+  it('should name itself in a user-agent, since robot-policy hosts refuse an unnamed client', async () => {
+    await get('/plain');
+    expect(received.at(-1)?.['user-agent']).toBe('Collegium (+https://github.com/joshunrau/collegium)');
   });
 
   it('should decode a body the server compressed anyway and drop the encoding header', async () => {

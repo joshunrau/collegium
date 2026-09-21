@@ -51,13 +51,17 @@ export function pinnedLookup(vetted: VettedAddress): LookupFunction {
 export function pinnedGet(
   url: string,
   vetted: VettedAddress,
-  init: { readonly accept: string; readonly signal: AbortSignal }
+  init: { readonly accept: string; readonly signal: AbortSignal; readonly userAgent: string }
 ): Promise<PinnedResponse> {
   const request = new URL(url).protocol === 'https:' ? httpsRequest : httpRequest;
   return new Promise((resolve, reject) => {
     const outgoing = request(
       url,
-      { headers: { accept: init.accept }, lookup: pinnedLookup(vetted), signal: init.signal },
+      {
+        headers: { accept: init.accept, 'user-agent': init.userAgent },
+        lookup: pinnedLookup(vetted),
+        signal: init.signal
+      },
       (response) => {
         resolve({ body: decodedBody(response), headers: toHeaders(response), status: response.statusCode ?? 0 });
       }

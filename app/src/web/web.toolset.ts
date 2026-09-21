@@ -54,8 +54,9 @@ function toPageResult<TPage extends WebPage>(
 }
 
 /** §8.1 — a status worth a mark is one that is not success: a 403 listed like a success is what the bare line hid */
-const httpStatusOutcome = (page: WebPage): string | undefined =>
-  page.status >= 300 ? `HTTP ${page.status}` : undefined;
+const httpStatusOutcome = (page: WebPage): string | undefined => {
+  return page.status >= 300 ? `HTTP ${page.status}` : undefined;
+};
 
 /** §8.1 — where the action landed, since the line for a click names only a ref */
 const landingOutcome = (page: WebPage): string => `→ ${page.url}`;

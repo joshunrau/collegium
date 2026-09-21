@@ -148,9 +148,28 @@ describe('windowMarkdown (§3.8)', () => {
 });
 
 describe('renderWebFailure', () => {
-  it('should tell the model which tool can read a page that needs client rendering', () => {
-    expect(renderWebFailure({ kind: 'no-static-content', url: 'https://northmoor.example/' })).toBe(
-      'the page at https://northmoor.example/ has no readable content without JavaScript — open it with web::navigate instead'
+  it('should tell the model which tool can read a page that needs client rendering, and the status it got', () => {
+    expect(renderWebFailure({ kind: 'no-static-content', status: 200, url: 'https://northmoor.example/' })).toBe(
+      'the page at https://northmoor.example/ answered HTTP 200 and has no readable content without JavaScript — open it with web::navigate instead'
+    );
+  });
+
+  it('should not name web::navigate for a page the server said is not there', () => {
+    const line = renderWebFailure({
+      bodyChars: 0,
+      kind: 'http-error',
+      status: 404,
+      url: 'https://northmoor.example/gone'
+    });
+    expect(line).toBe(
+      'https://northmoor.example/gone answered HTTP 404 with 0 characters of body and nothing readable in it; there is no page there, and a browser will not find one'
+    );
+    expect(line).not.toContain('web::navigate');
+  });
+
+  it('should carry the status on a page that rendered nothing', () => {
+    expect(renderWebFailure({ kind: 'empty-render', status: 404, url: 'https://northmoor.example/gone' })).toBe(
+      'the page at https://northmoor.example/gone answered HTTP 404 and rendered no readable content'
     );
   });
 

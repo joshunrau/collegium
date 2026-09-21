@@ -63,6 +63,14 @@ export declare namespace WebFailure {
   /** the page rendered and produced nothing — the assertion this module exists for */
   type EmptyRender = {
     kind: 'empty-render';
+    status: number;
+    url: string;
+  };
+  /** the server answered with an error status and nothing readable — the page is not there, not unrendered */
+  type HttpError = {
+    bodyChars: number;
+    kind: 'http-error';
+    status: number;
     url: string;
   };
   /** DNS, connection refused, navigation timeout — the page's fault, not the browser's */
@@ -82,6 +90,7 @@ export declare namespace WebFailure {
   /** the HTML fetched without a browser reads as nothing — the page needs client rendering */
   type NoStaticContent = {
     kind: 'no-static-content';
+    status: number;
     url: string;
   };
   /** the ref points at nothing in the current page state — the page moved on since that snapshot */
@@ -109,6 +118,7 @@ export declare namespace WebFailure {
   type Any =
     | Busy
     | EmptyRender
+    | HttpError
     | Navigation
     | NoSession
     | NoStaticContent

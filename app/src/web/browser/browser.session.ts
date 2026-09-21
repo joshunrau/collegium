@@ -12,6 +12,7 @@ import {
   NETWORK_IDLE_TIMEOUT_MS,
   OPENED_TAB_URL_TIMEOUT_MS
 } from '../web.constants.ts';
+import { describeNavigationError } from './browser.utils.ts';
 
 import type { RenderedCapture, WebFailure } from '../web.types.ts';
 
@@ -131,7 +132,7 @@ export class BrowserSession {
     if (this.page.isClosed() || this.context.browser()?.isConnected() === false) {
       return { kind: 'unreachable', message };
     }
-    return { kind: 'navigation', message };
+    return { kind: 'navigation', message: describeNavigationError(message) };
   }
 
   private async capture(): Promise<Result<RenderedCapture, WebFailure.Navigation | WebFailure.Unreachable>> {

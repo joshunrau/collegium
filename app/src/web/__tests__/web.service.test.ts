@@ -122,7 +122,11 @@ describe('WebService', () => {
     it('should refuse a page that rendered nothing, which reads as "no results" otherwise', async () => {
       session.navigate.mockResolvedValue(Result.ok(rendered({ html: SPA_MARKETING_SITE })));
       const result = await webService.navigate('turn-1', 'https://northmoor.example/');
-      expect(result.error).toStrictEqual({ kind: 'empty-render', url: 'https://northmoor.example/people/' });
+      expect(result.error).toStrictEqual({
+        kind: 'empty-render',
+        status: 200,
+        url: 'https://northmoor.example/people/'
+      });
     });
 
     it('should cut a page past the guard rather than shortening it silently', async () => {
@@ -187,7 +191,22 @@ describe('WebService', () => {
     it('should refuse a page that needs client rendering, naming the tool that can', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: CLIENT_RENDERED_DIRECTORY })));
       const result = await webService.fetch('https://northmoor.example/people/');
-      expect(result.error).toStrictEqual({ kind: 'no-static-content', url: 'https://northmoor.example/people/' });
+      expect(result.error).toStrictEqual({
+        kind: 'no-static-content',
+        status: 200,
+        url: 'https://northmoor.example/people/'
+      });
+    });
+
+    it('should report a 404 whose body reads as nothing as the status it is, not as a page needing JavaScript', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: '<html></html>', status: 404 })));
+      const result = await webService.fetch('https://northmoor.example/gone');
+      expect(result.error).toStrictEqual({
+        bodyChars: 13,
+        kind: 'http-error',
+        status: 404,
+        url: 'https://northmoor.example/people/'
+      });
     });
 
     it('should hand back an HTTP error as a page', async () => {

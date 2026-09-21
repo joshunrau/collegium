@@ -174,14 +174,19 @@ export function windowMarkdown(markdown: string, startChar: number): CappedMarkd
 export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreachable>): string {
   return match(failure)
     .with({ kind: 'busy' }, () => 'the browser is at its concurrent-session limit; try again shortly')
-    .with({ kind: 'empty-render' }, ({ url }) => `the page at ${url} rendered no readable content`)
+    .with({ kind: 'empty-render' }, ({ status, url }) => {
+      return `the page at ${url} answered HTTP ${status} and rendered no readable content`;
+    })
+    .with({ kind: 'http-error' }, ({ bodyChars, status, url }) => {
+      return `${url} answered HTTP ${status} with ${bodyChars} characters of body and nothing readable in it; there is no page there, and a browser will not find one`;
+    })
     .with({ kind: 'navigation' }, ({ message }) => `the page could not be loaded: ${message}`)
     .with({ kind: 'no-session' }, () => 'no page is open in this turn — navigate to a URL first')
     .with({ kind: 'not-visible' }, ({ ref }) => {
       return `⟨${ref}⟩ is on the page but CSS hides it, so no click or fill can land — reveal it first, e.g. web::hover on the menu or control that opens it`;
     })
-    .with({ kind: 'no-static-content' }, ({ url }) => {
-      return `the page at ${url} has no readable content without JavaScript — open it with web::navigate instead`;
+    .with({ kind: 'no-static-content' }, ({ status, url }) => {
+      return `the page at ${url} answered HTTP ${status} and has no readable content without JavaScript — open it with web::navigate instead`;
     })
     .with({ kind: 'stale-ref' }, ({ ref }) => {
       return `⟨${ref}⟩ is not on the current page; the page has changed since that snapshot — use refs from the latest one`;

@@ -3,7 +3,7 @@ import type { Readable } from 'node:stream';
 import { Result } from '@collegium/core/utils';
 import { Inject, Injectable } from '@nestjs/common';
 
-import { FETCH_BODY_CAP_BYTES, FETCH_TIMEOUT_MS, MAX_REDIRECTS } from '../web.constants.ts';
+import { FETCH_BODY_CAP_BYTES, FETCH_TIMEOUT_MS, FETCH_USER_AGENT, MAX_REDIRECTS } from '../web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
 import { charsetOf, classifyContentType, describeFetchError, toDecoder } from './fetch.utils.ts';
 import { pinnedGet } from './pinned-request.utils.ts';
@@ -64,7 +64,8 @@ export class FetchClient {
       try {
         response = await pinnedGet(current, vetted.value, {
           accept: ACCEPT,
-          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+          userAgent: FETCH_USER_AGENT
         });
       } catch (error) {
         return Result.err({ kind: 'navigation', message: describeFetchError(error) });

@@ -59,6 +59,12 @@ export const MAX_LIVE_SESSIONS = 4;
 export const FETCH_TIMEOUT_MS = 20_000;
 
 /**
+ * Wikimedia and other robot-policy hosts refuse an unnamed client with a 403; a named one is what
+ * their policy asks for. No deployment name, since the header reaches every site an agent reads.
+ */
+export const FETCH_USER_AGENT = 'Collegium (+https://github.com/joshunrau/collegium)';
+
+/**
  * The ceiling on one fetched body, in bytes — a resource guard on the read, before conversion,
  * where a tarpit would otherwise be buffered whole. Past it the body is cut and the page says so.
  */

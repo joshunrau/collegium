@@ -76,7 +76,7 @@ describe('WEB_TOOLSET', () => {
 
   it('returns a page that needs client rendering as text pointing at navigate', async () => {
     const { context, web } = buildContext();
-    web.fetch.mockResolvedValue(Result.err({ kind: 'no-static-content', url: 'https://example.org/' }));
+    web.fetch.mockResolvedValue(Result.err({ kind: 'no-static-content', status: 200, url: 'https://example.org/' }));
     const result = await executeTool(fetch, { url: 'https://example.org/' }, context);
     expect(result.unwrap().text).toContain('open it with web::navigate instead');
   });
