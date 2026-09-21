@@ -117,20 +117,34 @@ describe('capMarkdown', () => {
 });
 
 describe('windowMarkdown (§3.8)', () => {
-  it('should leave a page that fits untouched when read from the start', () => {
-    expect(windowMarkdown('short', 0)).toStrictEqual({ markdown: 'short' });
+  it('should state that a page ended where the result ended (§3.8)', () => {
+    expect(windowMarkdown('short', 0)).toStrictEqual({ markdown: 'short\n…end of page, 5 characters in all' });
   });
 
-  it('should cut a page past the guard and say where to read on from', () => {
+  it('should cut a page past the guard and say where to read on from, and how to reach the end', () => {
     const total = MARKDOWN_CAP_CHARS + 10;
     const windowed = windowMarkdown('x'.repeat(total), 0);
     expect(windowed.markdown).toMatch(
       new RegExp(
-        `x\\n…showing characters 0–${MARKDOWN_CAP_CHARS} of ${total}; read on with web::fetch startChar=${MARKDOWN_CAP_CHARS}$`,
+        `x\\n…showing characters 0–${MARKDOWN_CAP_CHARS} of ${total}; read on with startChar=${MARKDOWN_CAP_CHARS}, or startChar=-20000 for the end$`,
         'u'
       )
     );
     expect(windowed.shown).toStrictEqual({ from: 0, to: MARKDOWN_CAP_CHARS, total });
+  });
+
+  it('should return only the requested window and still say where to read on', () => {
+    expect(windowMarkdown('0123456789', 0, 4)).toStrictEqual({
+      markdown: '0123\n…showing characters 0–4 of 10; read on with startChar=4, or startChar=-20000 for the end',
+      shown: { from: 0, to: 4, total: 10 }
+    });
+  });
+
+  it('should read a negative startChar as an offset from the end of the page', () => {
+    expect(windowMarkdown('0123456789', -3)).toStrictEqual({
+      markdown: '789\n…showing characters 7–10 of 10',
+      shown: { from: 7, to: 10, total: 10 }
+    });
   });
 
   it('should read from the offset to the end, and say so without an invitation to read on', () => {

@@ -12,6 +12,7 @@ import { MARKDOWN_CAP_CHARS, MAX_LIVE_SESSIONS } from '../web.constants.ts';
 import { refuseUnbrowsableUrl } from '../web.policy.ts';
 import { WebService } from '../web.service.ts';
 import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
+import { toMarkdown } from '../web.utils.ts';
 
 import type { FetchedResource } from '../fetch/fetch.types.ts';
 import type { AddressPolicy, RenderedCapture, WebFailure } from '../web.types.ts';
@@ -179,13 +180,10 @@ describe('WebService', () => {
 
     it('should read on from an offset so a page past the cap can be finished (§3.8)', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
-      const whole = await webService.fetch('https://northmoor.example/people/');
-      const total = whole.value!.markdown.length;
+      const page = toMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
       const result = await webService.fetch('https://northmoor.example/people/', 10);
-      expect(result.value?.markdown).toBe(
-        `${whole.value!.markdown.slice(10)}\n…showing characters 10–${total} of ${total}`
-      );
-      expect(result.value?.shown).toStrictEqual({ from: 10, to: total, total });
+      expect(result.value?.markdown).toBe(`${page.slice(10)}\n…showing characters 10–${page.length} of ${page.length}`);
+      expect(result.value?.shown).toStrictEqual({ from: 10, to: page.length, total: page.length });
     });
 
     it('should refuse a page that needs client rendering, naming the tool that can', async () => {
@@ -212,7 +210,11 @@ describe('WebService', () => {
     it('should hand back an HTTP error as a page', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: '<h1>Not Found</h1>', status: 404 })));
       const result = await webService.fetch('https://northmoor.example/gone');
-      expect(result.value).toMatchObject({ markdown: '# Not Found', status: 404, title: '' });
+      expect(result.value).toMatchObject({
+        markdown: '# Not Found\n…end of page, 11 characters in all',
+        status: 404,
+        title: ''
+      });
     });
 
     it('should pass a text resource through untouched, titled by its path', async () => {
@@ -220,7 +222,10 @@ describe('WebService', () => {
         Result.ok(fetched({ body: '{"a":1}', kind: 'text', url: 'https://northmoor.example/api/people.json' }))
       );
       const result = await webService.fetch('https://northmoor.example/api/people.json');
-      expect(result.value).toMatchObject({ markdown: '{"a":1}', title: '/api/people.json' });
+      expect(result.value).toMatchObject({
+        markdown: '{"a":1}\n…end of page, 7 characters in all',
+        title: '/api/people.json'
+      });
     });
 
     it('should surface a transport failure untouched', async () => {

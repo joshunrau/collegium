@@ -46,7 +46,7 @@ describe('WEB_TOOLSET', () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.ok(PAGE));
     const result = await executeTool(fetch, { startChar: 0, url: 'https://example.org/' }, context);
-    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 0);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 0, undefined);
     const text = 'Example — https://example.org/ (HTTP 200)\n\n# Example Domain';
     expect(result.unwrap()).toStrictEqual({
       replaySubject: `page https://example.org/, ${text.length} characters`,
@@ -58,7 +58,7 @@ describe('WEB_TOOLSET', () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 1000, to: 2000, total: 5000 } }));
     const result = await executeTool(fetch, { startChar: 1000, url: 'https://example.org/' }, context);
-    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 1000);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 1000, undefined);
     expect(result.unwrap().replaySubject).toMatch(
       /^page https:\/\/example\.org\/ \(characters 1000–2000 of 5000\), \d+ characters$/u
     );
@@ -108,6 +108,19 @@ describe('WEB_TOOLSET', () => {
     expect('approval' in fetch).toBe(false);
     expect(fetch.retryable).toBe(true);
     expect(fetch.traceDetail?.({ startChar: 0, url: 'https://example.org/' })).toBe('https://example.org/');
+  });
+
+  it('should name the offset in the trace so two windows do not collapse (§8.1)', () => {
+    expect(fetch.traceDetail?.({ maxChars: 2000, startChar: -20_000, url: 'https://example.org/' })).toBe(
+      'https://example.org/ from -20000 for 2000'
+    );
+  });
+
+  it('reads a bounded window of a page, passing the width through to the fetch (§3.8)', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 0, to: 2000, total: 5000 } }));
+    await executeTool(fetch, { maxChars: 2000, startChar: 0, url: 'https://example.org/' }, context);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 0, 2000);
   });
 
   it('hovers a ref and returns the snapshot that reveals what the hover exposed', async () => {

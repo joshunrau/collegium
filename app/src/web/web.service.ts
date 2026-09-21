@@ -60,10 +60,11 @@ export class WebService {
     }
   }
 
-  /** no session and no slot: one GET, converted by the same rules a rendered page is, read from `startChar` on (§3.8) */
+  /** no session and no slot: one GET, converted by the same rules a rendered page is, read as the window `startChar` and `maxChars` name (§3.8) */
   async fetch(
     url: string,
-    startChar = 0
+    startChar = 0,
+    maxChars?: number
   ): Promise<
     Result<
       WebPage,
@@ -81,7 +82,7 @@ export class WebService {
     const { body, kind, status, url: finalUrl } = fetched.value;
     if (kind === 'text') {
       return Result.ok({
-        ...windowMarkdown(body, startChar),
+        ...windowMarkdown(body, startChar, maxChars),
         status,
         title: new URL(finalUrl).pathname,
         url: finalUrl
@@ -94,7 +95,12 @@ export class WebService {
         ? Result.err({ bodyChars: body.length, kind: 'http-error', status, url: finalUrl })
         : Result.err({ kind: 'no-static-content', status, url: finalUrl });
     }
-    return Result.ok({ ...windowMarkdown(markdown, startChar), status, title: extractTitle(body), url: finalUrl });
+    return Result.ok({
+      ...windowMarkdown(markdown, startChar, maxChars),
+      status,
+      title: extractTitle(body),
+      url: finalUrl
+    });
   }
 
   async fill(

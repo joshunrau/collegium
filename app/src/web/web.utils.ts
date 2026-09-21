@@ -15,6 +15,9 @@ const DOCTYPE = /^\s*<!DOCTYPE[^>]*>/i;
 
 const BASE_HREF = /<base\b[^>]*\bhref\s*=\s*["']([^"']+)["']/i;
 
+/** the tail the read-on footer offers, wide enough to hold a closing section without re-reading the page */
+const TAIL_WINDOW_CHARS = 20_000;
+
 /** node-html-markdown's own escaping of a link target, so a resolved address renders as an authored one does */
 function encodeHref(href: string): string {
   return href.replaceAll('(', '%28').replaceAll(')', '%29').replaceAll('_', '%5F').replaceAll('*', '%2A');
@@ -148,25 +151,29 @@ export function capMarkdown(markdown: string): CappedMarkdown {
 }
 
 /**
- * §3.8 — a fetched page read from an offset: what is past the guard says where to read on, so a
- * page larger than one result holds can be finished in parts rather than re-read from the top.
+ * §3.8 — a fetched page read as a window: what is past the guard says where to read on and how to
+ * reach the end, so a page larger than one result holds is finished in parts rather than re-read
+ * from the top. A page that fits says where it ends, since completeness inferred from a missing
+ * marker cannot be told from a marker that was forgotten.
  */
-export function windowMarkdown(markdown: string, startChar: number): CappedMarkdown {
+export function windowMarkdown(markdown: string, startChar: number, maxChars?: number): CappedMarkdown {
   const total = markdown.length;
-  if (startChar === 0 && total <= MARKDOWN_CAP_CHARS) {
-    return { markdown };
+  const width = Math.min(maxChars ?? MARKDOWN_CAP_CHARS, MARKDOWN_CAP_CHARS);
+  const from = startChar < 0 ? Math.max(0, total + startChar) : startChar;
+  if (from === 0 && total <= width) {
+    return { markdown: `${markdown}\n…end of page, ${total} characters in all` };
   }
-  if (startChar >= total) {
+  if (from >= total) {
     return {
       markdown: `…startChar ${startChar} is past the end of this page, which has ${total} characters`,
       shown: { from: total, to: total, total }
     };
   }
-  const to = Math.min(startChar + MARKDOWN_CAP_CHARS, total);
-  const readOn = to < total ? `; read on with web::fetch startChar=${to}` : '';
+  const to = Math.min(from + width, total);
+  const readOn = to < total ? `; read on with startChar=${to}, or startChar=-${TAIL_WINDOW_CHARS} for the end` : '';
   return {
-    markdown: `${markdown.slice(startChar, to)}\n…showing characters ${startChar}–${to} of ${total}${readOn}`,
-    shown: { from: startChar, to, total }
+    markdown: `${markdown.slice(from, to)}\n…showing characters ${from}–${to} of ${total}${readOn}`,
+    shown: { from, to, total }
   };
 }
 

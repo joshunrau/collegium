@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { SEARCH_TIMEOUT_MS } from './search/search.constants.ts';
 import { renderSearchResults } from './search/search.utils.ts';
-import { FETCH_TIMEOUT_MS } from './web.constants.ts';
+import { FETCH_TIMEOUT_MS, MARKDOWN_CAP_CHARS } from './web.constants.ts';
 import { SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from './web.tokens.ts';
 import { renderWebFailure, renderWebPage, renderWebSnapshot } from './web.utils.ts';
 
@@ -114,21 +114,34 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         'or when the task needs a click, a search, or a sign-in. A page too long for one result is cut and says ' +
         'where to read on from; each call fetches the page again.',
       execute: async (args, context) => {
-        return toPageResult(await context.web.fetch(args.url, args.startChar), renderWebPage, httpStatusOutcome);
+        return toPageResult(
+          await context.web.fetch(args.url, args.startChar, args.maxChars),
+          renderWebPage,
+          httpStatusOutcome
+        );
       },
       parameters: z.object({
+        maxChars: z
+          .number()
+          .int()
+          .min(1_000)
+          .max(MARKDOWN_CAP_CHARS)
+          .optional()
+          .describe('How much of the page to return, in characters; omit for as much as one result holds'),
         startChar: z
           .number()
           .int()
-          .min(0)
           .default(0)
-          .describe('Where in the page to start reading, in characters; use it to read on past a truncated result'),
+          .describe('Where in the page to start reading, in characters; a negative value counts back from the end'),
         url: z.url().describe('The absolute http(s) URL of a page or text resource to fetch')
       }),
       retryable: true,
       supersedable: true,
       timeoutMs: FETCH_TIMEOUT_MS + 5_000,
-      traceDetail: (args) => args.url
+      traceDetail: (args) => {
+        const width = args.maxChars === undefined ? '' : ` for ${args.maxChars}`;
+        return args.startChar === 0 ? `${args.url}${width}` : `${args.url} from ${args.startChar}${width}`;
+      }
     },
     fill: {
       description: `${DESCRIPTION_PREAMBLE}Type into an input from the latest snapshot, replacing its current value — including signing in when the task calls for it.`,
