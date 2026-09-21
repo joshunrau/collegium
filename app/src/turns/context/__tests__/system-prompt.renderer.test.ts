@@ -4,12 +4,16 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
+import { ConfigService } from '@/config/config.service.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
+import { MailRegistry } from '@/mail/mail.registry.ts';
+import type { MailboxRuntime } from '@/mail/mail.registry.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
 import { ShellService } from '@/shell/shell.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
+import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -29,6 +33,7 @@ const PROFILE = {
 const PEER = { expertise: 'scheduling', username: 'tess' } as AgentProfile;
 
 describe('SystemPromptRenderer', () => {
+  let mailRegistry: MockedInstance<MailRegistry>;
   let memoryService: MockedInstance<MemoryService>;
   let rosterService: MockedInstance<RosterService>;
   let shellService: MockedInstance<ShellService>;
@@ -40,10 +45,13 @@ describe('SystemPromptRenderer', () => {
   let tasksService: MockedInstance<TasksService>;
 
   beforeEach(async () => {
+    mailRegistry = MockFactory.createMock(MailRegistry);
+    mailRegistry.mailboxFor.mockReturnValue(undefined);
     memoryService = MockFactory.createMock(MemoryService);
     memoryService.list.mockResolvedValue([]);
     rosterService = MockFactory.createMock(RosterService);
     rosterService.getPeers.mockReturnValue([]);
+    rosterService.nameOf.mockReturnValue(undefined);
     shellService = MockFactory.createMock(ShellService);
     shellService.listPresentCommands.mockReturnValue(['node', 'git']);
     skillsService = MockFactory.createMock(SkillsService);
@@ -64,6 +72,8 @@ describe('SystemPromptRenderer', () => {
       providers: [
         SystemPromptRenderer,
         TextFormatter,
+        { provide: ConfigService, useValue: createConfigServiceMock() },
+        { provide: MailRegistry, useValue: mailRegistry },
         { provide: MemoryService, useValue: memoryService },
         { provide: RosterService, useValue: rosterService },
         { provide: ShellService, useValue: shellService },
@@ -146,12 +156,52 @@ describe('SystemPromptRenderer', () => {
     );
   });
 
-  it('should state the options ask__human may offer only for an agent that holds it (§3.7a)', async () => {
+  it('should describe ask__human only for an agent that holds it, leaving what its description says to it (§3.7a)', async () => {
     expect(await render()).not.toContain('ask__human');
     toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['ask', 'human'] }]);
-    expect(await render()).toContain(
-      'It may offer two to six short answers as buttons; the person may type something else.'
+    const prompt = await render();
+    expect(prompt).toContain('ask__human waits with no timeout for one person in this channel to answer');
+    expect(prompt).not.toContain('two to six short answers');
+  });
+
+  it('should open the preamble with the agent’s own handle (§3.8)', async () => {
+    expect(await render()).toContain('## How this works\n\nYou are @mira, one of a group of agents.');
+  });
+
+  it('should state where a drained post sits and how often a turn may start over for a further post (§4.4, §5.2)', async () => {
+    const prompt = await render();
+    expect(prompt).toContain('which is before your own last reply and not at the end');
+    expect(prompt).toContain('you begin the turn again, at most 3 times in one turn');
+  });
+
+  it('should state the mailbox, its announcement channel and what a ref is only for an agent holding a mailbox (§3.13)', async () => {
+    expect(await render()).not.toContain('Your mailbox is');
+    mailRegistry.mailboxFor.mockReturnValue({
+      announcementChannelId: 'channel-mail',
+      provider: { address: 'mira@example.com' }
+    } as MailboxRuntime);
+    rosterService.nameOf.mockReturnValue('Mail Room');
+    const prompt = await render();
+    expect(prompt).toContain(
+      'Your mailbox is mira@example.com, and mail arriving there is announced in Mail Room and nowhere else. A ⟨ref⟩ names one message inside that mailbox'
     );
+    expect(rosterService.nameOf).toHaveBeenCalledWith('channel-mail', 'mira');
+  });
+
+  it('should describe the Open work section and its absence only for an agent holding a tasks tool (§3.15)', async () => {
+    expect(await render()).not.toContain('listed under Open work');
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['tasks', 'read'] }]);
+    expect(await render()).toContain(
+      'listed under Open work with their references, oldest first, and that section says so when none is open'
+    );
+  });
+
+  it('should say whose item a system-bot announcement is, and that its body is the whole of it (§4.2)', async () => {
+    const prompt = await render();
+    expect(prompt).toContain(
+      'An item for somebody else is ordinary channel content and its id is not yours to resolve.'
+    );
+    expect(prompt).toContain('is the whole of that item, inline or in a file the post names');
   });
 
   it('should name no directory for an agent holding no file tool (§3.8)', async () => {
@@ -330,6 +380,11 @@ Colleagues in this channel and what each is asked about. The toolsets say what e
       '## Open work\n\nWork handed over in this channel and still open, oldest first. A line marked `to @name` is one you assigned and are waiting on; `from @name` is one you owe. Read one in full with tasks__read:\n\n- [abcd1234] to @tess · assigned · 2h 0m — a schedule for the offsite\n\n…and 1 more.'
     );
     expect(tasksService.listOpenFor).toHaveBeenCalledWith({ agentUsername: 'mira', channelId: 'channel-1' });
+  });
+
+  it('should state that no work is open rather than omit the section, for an agent holding a tasks tool (§3.15)', async () => {
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['tasks', 'assign'] }]);
+    expect((await renderParts()).dynamic).toContain('## Open work\n\nNo work is open in this channel.');
   });
 
   it('should omit open work for an agent holding no tasks tool (§3.15)', async () => {

@@ -6,6 +6,7 @@ import { ChannelsModule } from '@/channels/channels.module.ts';
 import { ChatModule } from '@/chat/chat.module.ts';
 import { ConversationsModule } from '@/conversations/conversations.module.ts';
 import { InferenceModule } from '@/inference/inference.module.ts';
+import { MailModule } from '@/mail/mail.module.ts';
 import { MemoryModule } from '@/memory/memory.module.ts';
 import { NotificationsModule } from '@/notifications/notifications.module.ts';
 import { ShellModule } from '@/shell/shell.module.ts';
@@ -41,6 +42,7 @@ import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
     ChatModule,
     ConversationsModule,
     InferenceModule,
+    MailModule,
     MemoryModule,
     NotificationsModule,
     ShellModule,
