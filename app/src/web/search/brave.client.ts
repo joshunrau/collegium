@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 
 import { describeFetchError } from '../fetch/fetch.utils.ts';
 import { $BraveErrorResponse, $BraveWebSearchResponse } from './brave.schemas.ts';
+import { decodeHtmlEntities } from './brave.utils.ts';
 import { BRAVE_WEB_SEARCH_ENDPOINT, SEARCH_TIMEOUT_MS } from './search.constants.ts';
 
 import type { SearchFailure, SearchRequest, SearchResult } from './search.types.ts';
@@ -35,7 +36,13 @@ export class BraveSearchClient {
     if (!parsed.success) {
       return Result.err({ kind: 'unavailable', message: 'Brave Search answered with a body outside its contract' });
     }
-    return Result.ok(parsed.data.web?.results ?? []);
+    return Result.ok(
+      parsed.data.web?.results.map((result) => ({
+        ...result,
+        description: decodeHtmlEntities(result.description),
+        title: decodeHtmlEntities(result.title)
+      })) ?? []
+    );
   }
 
   private toFailure(status: number, body: unknown): SearchFailure {

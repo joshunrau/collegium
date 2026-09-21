@@ -9,5 +9,5 @@ export function renderSearchResults(query: string, results: readonly SearchResul
     const heading = `${index + 1}. ${result.title} — ${result.url}`;
     return summary === '' ? heading : `${heading}\n   ${summary}`;
   });
-  return `Results for "${query}":\n\n${entries.join('\n\n')}`;
+  return `Results for "${query}" — each is the provider's own excerpt, not the page:\n\n${entries.join('\n\n')}`;
 }

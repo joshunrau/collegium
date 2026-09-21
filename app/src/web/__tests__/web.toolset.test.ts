@@ -126,7 +126,7 @@ describe('WEB_TOOLSET', () => {
     const result = await executeTool(search, { count: 5, query: 'example' }, context);
     expect(searchService.search).toHaveBeenCalledWith(BRAVE, { count: 5, query: 'example' });
     expect(result.unwrap().text).toBe(
-      'Results for "example":\n\n1. Example — https://example.org/\n   2 days ago · An example.'
+      'Results for "example" — each is the provider\'s own excerpt, not the page:\n\n1. Example — https://example.org/\n   2 days ago · An example.'
     );
   });
 

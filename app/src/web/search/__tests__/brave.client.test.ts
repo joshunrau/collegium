@@ -40,6 +40,28 @@ describe('BraveSearchClient', () => {
     );
   });
 
+  it('should decode character references in a provider snippet', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({
+        web: {
+          results: [
+            {
+              description: 'Python&#x27;s &quot;feature&quot; releases &amp; fixes &#8212; see &unknown;.',
+              title: 'Python &amp; friends',
+              url: 'https://python.example/'
+            }
+          ]
+        }
+      })
+    );
+    const result = await client.search('test-key', { count: 5, query: 'python' });
+    expect(result.value?.[0]).toStrictEqual({
+      description: 'Python\'s "feature" releases & fixes — see &unknown;.',
+      title: 'Python & friends',
+      url: 'https://python.example/'
+    });
+  });
+
   it('should answer no results when the body carries no web section', async () => {
     fetchMock.mockResolvedValueOnce(json({ query: { original: 'zzqx' } }));
     const result = await client.search('test-key', { count: 5, query: 'zzqx' });

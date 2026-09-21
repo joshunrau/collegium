@@ -123,7 +123,7 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
           .min(0)
           .default(0)
           .describe('Where in the page to start reading, in characters; use it to read on past a truncated result'),
-        url: z.url().describe('The absolute http(s) URL of a public web page or text resource to fetch')
+        url: z.url().describe('The absolute http(s) URL of a page or text resource to fetch')
       }),
       retryable: true,
       supersedable: true,
@@ -165,7 +165,7 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         return toSnapshotResult(await context.web.navigate(context.turn.turnId, args.url), httpStatusOutcome);
       },
       parameters: z.object({
-        url: z.url().describe("The absolute http(s) URL of a public web page, to open in this turn's page")
+        url: z.url().describe("The absolute http(s) URL of a page to open in this turn's page")
       }),
       supersedable: true,
       timeoutMs: WEB_TIMEOUT_MS,
@@ -174,7 +174,8 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
     search: {
       concurrent: true,
       description:
-        'Search the web and get back ranked results — a title, URL, and short snippet each, never the page itself. ' +
+        'Search the public web and get back ranked results — a title, URL, and short snippet each, never the page itself. ' +
+        'The index holds public pages only, so a page on your own network is not findable here even when fetch can open it. ' +
         'Read a result with fetch, or navigate when it needs a browser. Search operators such as "quoted phrases" and site: work.',
       execute: async (args, context) => {
         const { search } = context.settings;
