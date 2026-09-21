@@ -42,8 +42,6 @@ export type StatusPostHandle = {
   close(outcome: Exclude<TurnStatus, 'running'>): Promise<void>;
   /** §8.1 — a call's disposition, set once its result is known: the line was written before the call ran */
   markTrace(handle: TraceLineHandle, mark: TraceMark): void;
-  /** §8.1 — a completed call to a tool that writes outside the turn, for the closing effects line */
-  recordEffect(toolDisplayName: string): void;
   /** text alongside a tool call is transient status, replaced on the next edit (§3.3) */
   setTransient(text: string): void;
 };
@@ -92,7 +90,7 @@ export class StatusPostService {
 
   open(input: OpenInput): StatusPostHandle {
     const transport = this.transportRegistry.get(input.agentUsername);
-    const state: StatusPostState = { effects: new Map(), traceLines: [] };
+    const state: StatusPostState = { traceLines: [] };
     const openedAt = Date.now();
     let postId: string | undefined;
     let openFailed = false;
@@ -186,9 +184,6 @@ export class StatusPostService {
           line.mark = mark;
           void schedule();
         }
-      },
-      recordEffect: (toolDisplayName) => {
-        state.effects.set(toolDisplayName, (state.effects.get(toolDisplayName) ?? 0) + 1);
       },
       setTransient: (text) => {
         state.transientText = text;

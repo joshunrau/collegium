@@ -177,13 +177,6 @@ export type ToolDefinition<TContext, TParams extends z.ZodType> = {
    * the plugin perimeter (§6).
    */
   isAvailableWith?(settings: ToolContextSettings<TContext>): boolean;
-  /**
-   * §8.1 — whether a completed call may have changed something outside the turn, which the effects
-   * line and a §7.1 failure post name. Absent derives from `retryable`, which is the narrower
-   * question of whether a timed-out call is safe to report as a plain failure (§7.2): a tool may be
-   * unsafe to repeat and still change nothing.
-   */
-  readonly mutating?: boolean;
   readonly parameters: TParams;
   /** §7.2 — whether a timed-out call may be reported to the model as a plain failure; false ends the turn as unconfirmable */
   readonly retryable?: boolean;

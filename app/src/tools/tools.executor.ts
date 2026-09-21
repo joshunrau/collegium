@@ -207,7 +207,7 @@ export class ToolExecutor {
       };
     }
     if (result.success) {
-      return this.toContinueAttempt(tool, result.value);
+      return this.toContinueAttempt(result.value);
     }
     return match(result.error)
       .with({ kind: 'exception' }, (failure): ToolAttempt => ({
@@ -255,11 +255,10 @@ export class ToolExecutor {
   }
 
   /** the model receives the text; a disclosure rides beside it for the turn to write out (§3) */
-  private toContinueAttempt(tool: ResolvedTool, output: ToolOutput): ToolAttempt {
+  private toContinueAttempt(output: ToolOutput): ToolAttempt {
     return {
       kind: 'continue',
       output: output.text,
-      ...((tool.definition.mutating ?? tool.definition.retryable !== true) && { mayHaveTakenEffect: true }),
       ...(output.disclosure && { disclosure: output.disclosure }),
       ...(output.post && { post: output.post }),
       ...(output.replay !== undefined && { replay: output.replay }),

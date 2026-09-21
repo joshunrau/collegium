@@ -1186,9 +1186,6 @@ export class TurnRunner {
         ? { ran: true, text: '⚠️ post refused' }
         : (attempt.traceMark ?? toOutcomeTraceMark(attempt.traceOutcome))
     );
-    if (attempt.mayHaveTakenEffect && published?.kind !== 'refused') {
-      state.status.recordEffect(identified.displayName);
-    }
     if (published?.kind === 'published' && attempt.post) {
       await attempt.post.onPublished(published.postId);
     }

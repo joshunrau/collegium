@@ -20,8 +20,6 @@ const FAILURE: ChatFailure = { kind: 'api', message: 'the channel is archived' }
 
 const OPEN_INPUT = { agentUsername: 'mira', channelId: 'channel-1', turnId: 'turn-1' };
 
-const NOTHING_CHANGED = '✎ _may have changed: nothing_';
-
 describe('StatusPostService', () => {
   let conversationsService: MockedInstance<ConversationsService>;
   let loggingService: MockedInstance<LoggingService>;
@@ -98,7 +96,7 @@ describe('StatusPostService', () => {
     vi.advanceTimersByTime(200_000);
     await handle.close('completed');
 
-    expect(editedTexts()).toContain(`✅ _done (3m 20s)_\n→ \`load_skill\`\n${NOTHING_CHANGED}`);
+    expect(editedTexts()).toContain(`✅ _done (3m 20s)_\n→ \`load_skill\``);
   });
 
   it('should coalesce the lines queued while an edit is in flight into the next edit (§8.1)', async () => {
@@ -128,7 +126,7 @@ describe('StatusPostService', () => {
     expect(editedTexts()).toStrictEqual([
       '⏳ _working…_\n→ `load_skill`\n→ `write_memory`',
       queued,
-      `✅ _done (2s)_\n→ \`load_skill\`\n→ \`write_memory\`\n→ \`read_memory\`\n→ \`list_memory\`\n${NOTHING_CHANGED}`
+      `✅ _done (2s)_\n→ \`load_skill\`\n→ \`write_memory\`\n→ \`read_memory\`\n→ \`list_memory\``
     ]);
     expect(conversationsService.updateAuthoredMessage).toHaveBeenCalledWith('status-1', queued);
   });
@@ -147,7 +145,7 @@ describe('StatusPostService', () => {
 
     expect(editedTexts()).toStrictEqual([
       '⏳ _working…_\n→ `load_skill`\n_writing it up_',
-      expect.stringMatching(/^⏹️ _killed \(\d+s\)_\n→ `load_skill`\n✎ _may have changed: nothing_$/u)
+      expect.stringMatching(/^⏹️ _killed \(\d+s\)_\n→ `load_skill`$/u)
     ]);
   });
 
@@ -169,7 +167,7 @@ describe('StatusPostService', () => {
 
     expect(editedTexts()).toStrictEqual([
       '⏳ _working…_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`',
-      `✅ _done (1s)_\n→ \`load_skill\`\n→ \`write_memory\`\n→ \`read_memory\`\n→ \`list_memory\`\n${NOTHING_CHANGED}`
+      `✅ _done (1s)_\n→ \`load_skill\`\n→ \`write_memory\`\n→ \`read_memory\`\n→ \`list_memory\``
     ]);
   });
 
@@ -183,13 +181,9 @@ describe('StatusPostService', () => {
       toolName: 'workspace::write'
     });
     handle.markTrace(write, { ran: false, text: '🛑 denied by @casey' });
-    handle.recordEffect('shell::run');
-    handle.recordEffect('shell::run');
     await handle.close('completed');
 
-    expect(editedTexts().at(-1)).toBe(
-      '✅ _done (0s)_\n→ `workspace::write report.txt` 🛑 denied by @casey\n✎ _may have changed: shell::run ×2_'
-    );
+    expect(editedTexts().at(-1)).toBe('✅ _done (0s)_\n→ `workspace::write report.txt` 🛑 denied by @casey');
   });
 
   it('should bound the post by the substrate’s limit, falling back to a conservative one it cannot read (§8.1)', async () => {
@@ -208,7 +202,6 @@ describe('StatusPostService', () => {
     const closing = editedTexts().at(-1)!;
     expect(closing.length).toBeLessThanOrEqual(4000);
     expect(closing).toContain('earlier calls; the full trace is in /collegium trace');
-    expect(closing.endsWith(NOTHING_CHANGED)).toBe(true);
     expect(loggingService.warn).toHaveBeenCalledWith(expect.stringContaining('using 4000'));
   });
 
@@ -253,9 +246,7 @@ describe('StatusPostService', () => {
     );
     expect(conversationsService.updateAuthoredMessage).toHaveBeenLastCalledWith(
       'status-1',
-      expect.stringMatching(
-        /^✅ _done \(\d+s\)_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`\n✎ _may have changed: nothing_$/u
-      )
+      expect.stringMatching(/^✅ _done \(\d+s\)_\n→ `load_skill`\n→ `write_memory`\n→ `read_memory`$/u)
     );
   });
 
@@ -270,7 +261,7 @@ describe('StatusPostService', () => {
       expect.objectContaining({ message: 'failed to record status post status-1' })
     );
     expect(transport.updatePost).toHaveBeenCalledExactlyOnceWith('status-1', {
-      text: `✅ _done (0s)_\n→ \`load_skill\`\n${NOTHING_CHANGED}`
+      text: `✅ _done (0s)_\n→ \`load_skill\``
     });
   });
 
@@ -282,8 +273,7 @@ describe('StatusPostService', () => {
 
       await statusPostService.closeAbandoned(ABANDONED);
 
-      const text =
-        '⚪ _abandoned — the process restarted mid-turn_\n→ `load_skill`\n_still reading_\n✎ _may have changed: not recorded; the process restarted mid-turn_';
+      const text = '⚪ _abandoned — the process restarted mid-turn_\n→ `load_skill`\n_still reading_';
       expect(transport.updatePost).toHaveBeenCalledExactlyOnceWith('status-1', { text });
       expect(conversationsService.updateAuthoredMessage).toHaveBeenCalledExactlyOnceWith('status-1', text);
     });

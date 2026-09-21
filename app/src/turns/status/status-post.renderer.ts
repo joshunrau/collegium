@@ -77,9 +77,6 @@ function renderElisionLine(droppedCalls: number): string {
   return `_… ${droppedCalls} earlier call${droppedCalls === 1 ? '' : 's'}; the full trace is in /collegium trace_`;
 }
 
-/** §8.1 — the closing effects line of a post a dead process left: nothing recorded what its calls came to */
-const ABANDONED_EFFECTS_LINE = '✎ _may have changed: not recorded; the process restarted mid-turn_';
-
 /**
  * §8.1 — what the status post traces: a call the turn made, or a note the framework wrote beside
  * the calls. A call is held as its parts rather than as a rendered line, because whether its effect
@@ -93,8 +90,6 @@ export type TraceEntry =
 export type TraceLine = TraceEntry & { mark?: TraceMark };
 
 export type StatusPostState = {
-  /** §8.1 — completed calls to tools that write outside the turn, by display name */
-  effects: Map<string, number>;
   /** wall-clock time the turn ran, approval waits included; absent where its end was never observed */
   elapsedMs?: number;
   outcome?: Exclude<TurnStatus, 'running'>;
@@ -102,24 +97,14 @@ export type StatusPostState = {
   transientText?: string;
 };
 
-/** §8.1 — the framework's own record of what the turn may have changed, set where the reader of the reply will look */
-export function renderEffectsLine(effects: ReadonlyMap<string, number>): string {
-  if (effects.size === 0) {
-    return '✎ _may have changed: nothing_';
-  }
-  const listed = Array.from(effects, ([name, count]) => `${name}${count > 1 ? ` ×${count}` : ''}`).join(', ');
-  return `✎ _may have changed: ${listed}_`;
-}
-
 /**
- * §8.1 — the post as a whole fits the substrate's limit, and the closing line is never the one
- * dropped: trace lines go from the front, behind one line that says how many, then the transient
- * text, so an edit is always deliverable however long the turn ran.
+ * §8.1 — the post as a whole fits the substrate's limit: trace lines go from the front, behind one
+ * line that says how many, then the transient text, so an edit is always deliverable however long
+ * the turn ran.
  */
 export function renderStatusPost(state: StatusPostState, limitChars = Number.POSITIVE_INFINITY): string {
   const head = state.outcome === undefined ? WORKING_LINE : renderOutcomeLine(state.outcome, state.elapsedMs);
   const groups = groupTraceLines(state.traceLines);
-  const closing = state.outcome === undefined ? [] : [renderEffectsLine(state.effects)];
   const transient =
     state.outcome === undefined && state.transientText !== undefined && state.transientText !== ''
       ? [`_${state.transientText}_`]
@@ -127,24 +112,22 @@ export function renderStatusPost(state: StatusPostState, limitChars = Number.POS
   for (let dropped = 0; dropped <= groups.length; dropped += 1) {
     const droppedCalls = groups.slice(0, dropped).reduce((sum, group) => sum + group.calls, 0);
     const elision = dropped === 0 ? [] : [renderElisionLine(droppedCalls)];
-    const text = [head, ...elision, ...groups.slice(dropped).map((group) => group.text), ...closing, ...transient].join(
-      '\n'
-    );
+    const text = [head, ...elision, ...groups.slice(dropped).map((group) => group.text), ...transient].join('\n');
     if (text.length <= limitChars) {
       return text;
     }
   }
   const allCalls = groups.reduce((sum, group) => sum + group.calls, 0);
-  return [head, ...(allCalls === 0 ? [] : [renderElisionLine(allCalls)]), ...closing].join('\n');
+  return [head, ...(allCalls === 0 ? [] : [renderElisionLine(allCalls)])].join('\n');
 }
 
 /**
  * §7.3 — the post a dead process left, closed from the next boot: the first line is the working
- * line by construction, the rest is kept as it was, and the effects line says nothing recorded them.
+ * line by construction and the rest is kept as it was.
  */
 export function renderAbandonedStatusPost(storedText: string): string {
   const [, ...rest] = storedText.split('\n');
-  return [renderOutcomeLine('abandoned', undefined), ...rest, ABANDONED_EFFECTS_LINE].join('\n');
+  return [renderOutcomeLine('abandoned', undefined), ...rest].join('\n');
 }
 
 /**

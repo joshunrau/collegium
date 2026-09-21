@@ -91,9 +91,6 @@ function toSearchResult(query: string, result: Result<SearchResult[], SearchFail
  * traces every action. A click or fill may commit a side effect on the page, and even a navigation
  * can, so no browser tool is retryable: a timeout leaves us unable to say whether it landed (§7.2).
  * `fetch` and `search` are the exceptions — a scriptless GET commits nothing, so a timeout is a plain failure.
- * §8.1 keeps `mutating` separate from retryability: fill, hover and navigate act on the turn's own
- * page and change nothing beyond it, so they stay off the effects line; a click can submit a form,
- * so it does not.
  */
 export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
   services: { search: SEARCH_SERVICE_TOKEN, web: WEB_SERVICE_TOKEN },
@@ -153,7 +150,6 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
           await context.web.fill(context.turn.turnId, { pressEnter: args.pressEnter, ref: args.ref, text: args.text })
         );
       },
-      mutating: false,
       parameters: z.object({
         pressEnter: z.boolean().optional().describe('Press Enter after typing, e.g. to run a search'),
         ref: $Ref.describe('The ref of the input to fill, from the latest snapshot'),
@@ -169,7 +165,6 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         'appears on hover — a drop-down menu, a submenu, a tooltip. A ref the snapshot marks `hidden` cannot be ' +
         'clicked or filled until something reveals it; hovering its parent menu is usually what does.',
       execute: async (args, context) => toSnapshotResult(await context.web.hover(context.turn.turnId, args.ref)),
-      mutating: false,
       parameters: z.object({
         ref: $Ref.describe('An element ref (shown as ⟨eN⟩) from the latest snapshot')
       }),
@@ -182,7 +177,6 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       execute: async (args, context) => {
         return toSnapshotResult(await context.web.navigate(context.turn.turnId, args.url), httpStatusOutcome);
       },
-      mutating: false,
       parameters: z.object({
         url: z.url().describe("The absolute http(s) URL of a page to open in this turn's page")
       }),

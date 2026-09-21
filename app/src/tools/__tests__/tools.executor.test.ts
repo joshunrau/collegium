@@ -114,12 +114,6 @@ const FIXTURE_TOOLSET = defineToolset({
       description: 'Commits something unconfirmable.',
       execute: () => Result.err({ kind: 'unresolved', message: 'the send may have left' }),
       parameters: z.object({})
-    },
-    viewer: {
-      description: 'Looks at something without changing it, and is unsafe to repeat.',
-      execute: () => Result.ok({ text: 'looked' }),
-      mutating: false,
-      parameters: z.object({})
     }
   }
 });
@@ -212,7 +206,7 @@ describe('ToolExecutor', () => {
         toolNamespace: 'fixture'
       })
     );
-    expect(attempt).toStrictEqual({ kind: 'continue', mayHaveTakenEffect: true, output: 'ran deploy' });
+    expect(attempt).toStrictEqual({ kind: 'continue', output: 'ran deploy' });
   });
 
   it('renders the payload from the stored record the call acts on (§3.4)', async () => {
@@ -302,17 +296,11 @@ describe('ToolExecutor', () => {
     expect(attempt).toMatchObject({ kind: 'continue', output: 'handed', post: { text: '@owen take this' } });
   });
 
-  it('should leave a call to a tool declaring itself non-mutating out of the effects line (§8.1)', async () => {
-    const attempt = await execute('fixture__viewer', {});
-    expect(attempt).toStrictEqual({ kind: 'continue', output: 'looked' });
-  });
-
   it('passes a returned disclosure through for the turn to write (§3)', async () => {
     const attempt = await execute('fixture__disclose', {});
     expect(attempt).toStrictEqual({
       disclosure: { body: 'the body', description: 'a fact', reference: 'record-1' },
       kind: 'continue',
-      mayHaveTakenEffect: true,
       output: 'recorded'
     });
   });

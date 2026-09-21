@@ -81,7 +81,7 @@ describe('TurnRunner', () => {
   let conversationsService: MockedInstance<ConversationsService>;
   let multiMentionPolicy: MockedInstance<MultiMentionPolicy>;
   let sends: { channelId: string; text: string }[];
-  let statusHandle: { appendTrace: any; close: any; markTrace: any; recordEffect: any; setTransient: any };
+  let statusHandle: { appendTrace: any; close: any; markTrace: any; setTransient: any };
   let tasksService: MockedInstance<TasksService>;
   let toolExecutor: MockedInstance<ToolExecutor>;
   let toolRegistry: MockedInstance<ToolRegistry>;
@@ -107,7 +107,6 @@ describe('TurnRunner', () => {
       appendTrace: vi.fn().mockReturnValue(0),
       close: vi.fn().mockResolvedValue(undefined),
       markTrace: vi.fn(),
-      recordEffect: vi.fn(),
       setTransient: vi.fn().mockResolvedValue(undefined)
     };
     contextAssembler = MockFactory.createMock(ContextAssembler);
@@ -477,7 +476,6 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
     expect(statusHandle.markTrace).toHaveBeenCalledExactlyOnceWith(7, { ran: false, text: '🛑 denied by @casey' });
-    expect(statusHandle.recordEffect).not.toHaveBeenCalled();
   });
 
   it('should mark a line with what the tool says the call came to (§8.1)', async () => {
@@ -486,15 +484,6 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
     expect(statusHandle.markTrace).toHaveBeenCalledExactlyOnceWith(0, { ran: true, text: 'HTTP 404' });
-  });
-
-  it('should record a completed call to a tool that may have changed something for the effects line (§8.1)', async () => {
-    toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', mayHaveTakenEffect: true, output: 'wrote' });
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['write_file'])));
-    complete.mockResolvedValueOnce(Result.ok(text('done')));
-    await run();
-    expect(statusHandle.recordEffect).toHaveBeenCalledExactlyOnceWith('write_file');
-    expect(statusHandle.markTrace).not.toHaveBeenCalled();
   });
 
   it('should name the most repeated calls and the agent’s last words in an extension prompt (§5.3)', async () => {
@@ -1401,7 +1390,6 @@ describe('TurnRunner', () => {
     const onPublished = vi.fn(() => Promise.resolve());
     toolExecutor.execute.mockResolvedValueOnce({
       kind: 'continue',
-      mayHaveTakenEffect: true,
       output: 'unit assigned',
       post: { onPublished, text: '@owen take this long unit' }
     });

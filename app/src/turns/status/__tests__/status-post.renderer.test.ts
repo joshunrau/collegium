@@ -14,14 +14,12 @@ import type { StatusPostState } from '../status-post.renderer.ts';
 
 const state = (over: Partial<StatusPostState> & { lines?: string[] } = {}): StatusPostState => {
   const { lines = [], ...rest } = over;
-  return { effects: new Map(), traceLines: lines.map((text) => ({ kind: 'note' as const, text })), ...rest };
+  return { traceLines: lines.map((text) => ({ kind: 'note' as const, text })), ...rest };
 };
 
 const WRITE_CALL = { detail: 'report.txt', effect: '(9 bytes)', kind: 'call' as const, toolName: 'workspace::write' };
 
 const DENIED = { ran: false, text: '🛑 denied by @casey' };
-
-const NOTHING_CHANGED = '✎ _may have changed: nothing_';
 
 describe('renderSteeringLine', () => {
   it('should name the human who steered the turn (§7.5)', () => {
@@ -40,32 +38,16 @@ describe('renderStatusPost', () => {
     ).toBe('⏳ _working…_\n→ `load_skill`\n→ `write_memory`\n_saving what I learned_');
   });
 
-  it('should replace the working line with the outcome, drop the transient text, and close with the effects line (§8.1)', () => {
+  it('should replace the working line with the outcome and drop the transient text (§8.1)', () => {
     expect(
       renderStatusPost(state({ lines: ['→ `load_skill`'], outcome: 'completed', transientText: 'still here' }))
-    ).toBe(`✅ _done_\n→ \`load_skill\`\n${NOTHING_CHANGED}`);
-  });
-
-  it('should list the completed calls to tools that may have changed something, grouped with a count (§8.1)', () => {
-    const effects = new Map([
-      ['shell::run', 1],
-      ['workspace::write', 2]
-    ]);
-    expect(renderStatusPost(state({ effects, outcome: 'completed' }))).toBe(
-      '✅ _done_\n✎ _may have changed: shell::run, workspace::write ×2_'
-    );
+    ).toBe(`✅ _done_\n→ \`load_skill\``);
   });
 
   it('should state the elapsed time on the outcome line, in seconds and past the minute (§8.1)', () => {
-    expect(renderStatusPost(state({ elapsedMs: 59_400, outcome: 'completed' }))).toBe(
-      `✅ _done (59s)_\n${NOTHING_CHANGED}`
-    );
-    expect(renderStatusPost(state({ elapsedMs: 60_000, outcome: 'completed' }))).toBe(
-      `✅ _done (1m 0s)_\n${NOTHING_CHANGED}`
-    );
-    expect(renderStatusPost(state({ elapsedMs: 200_000, outcome: 'killed' }))).toBe(
-      `⏹️ _killed (3m 20s)_\n${NOTHING_CHANGED}`
-    );
+    expect(renderStatusPost(state({ elapsedMs: 59_400, outcome: 'completed' }))).toBe(`✅ _done (59s)_`);
+    expect(renderStatusPost(state({ elapsedMs: 60_000, outcome: 'completed' }))).toBe(`✅ _done (1m 0s)_`);
+    expect(renderStatusPost(state({ elapsedMs: 200_000, outcome: 'killed' }))).toBe(`⏹️ _killed (3m 20s)_`);
   });
 
   it('should omit an empty transient line', () => {
@@ -95,15 +77,14 @@ describe('renderStatusPost', () => {
     );
   });
 
-  it('should keep the outcome line and the effects line when the trace exceeds the post limit (§8.1)', () => {
+  it('should keep the outcome line when the trace exceeds the post limit (§8.1)', () => {
     const lines = Array.from({ length: 60 }, (_, index) => `→ \`web::fetch https://x.example/page-${index}\``);
-    const effects = new Map([['workspace::write', 1]]);
-    const text = renderStatusPost(state({ effects, lines, outcome: 'completed' }), 400);
+    const text = renderStatusPost(state({ lines, outcome: 'completed' }), 400);
     expect(text.length).toBeLessThanOrEqual(400);
     expect(text.startsWith('✅ _done_\n_… ')).toBe(true);
     expect(text).toMatch(/_… \d+ earlier calls; the full trace is in \/collegium trace_/u);
     expect(text).toContain('page-59`');
-    expect(text.endsWith('✎ _may have changed: workspace::write_')).toBe(true);
+    expect(text.endsWith('page-59`')).toBe(true);
   });
 
   it('should drop the transient text before the outcome line when nothing else fits (§8.1)', () => {
@@ -116,9 +97,9 @@ describe('renderStatusPost', () => {
 });
 
 describe('renderAbandonedStatusPost', () => {
-  it('should replace only the working line and say the effects went unrecorded (§7.3)', () => {
+  it('should replace only the working line (§7.3)', () => {
     expect(renderAbandonedStatusPost('⏳ _working…_\n→ `load_skill`\n_still reading_')).toBe(
-      '⚪ _abandoned — the process restarted mid-turn_\n→ `load_skill`\n_still reading_\n✎ _may have changed: not recorded; the process restarted mid-turn_'
+      '⚪ _abandoned — the process restarted mid-turn_\n→ `load_skill`\n_still reading_'
     );
   });
 });
