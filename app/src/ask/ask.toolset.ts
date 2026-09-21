@@ -25,7 +25,7 @@ export const ASK_TOOLSET = implementToolset(ASK_TOOLSET_DEF, {
           .max(MAX_OFFERED_OPTIONS)
           .optional()
           .describe(
-            'Two to six short answers to offer as buttons; more than six is rejected. The person may still type something else.'
+            'Two to six short answers to offer as buttons; more than six is rejected. Omit this field entirely for a free-text question. The person may still type something else. Where more answers are possible than you offer, say so in the question.'
           ),
         question: z.string().min(1).max(2000)
       }),

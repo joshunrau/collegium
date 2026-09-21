@@ -13,4 +13,8 @@ describe('ASK_TOOLSET', () => {
       human.parameters.safeParse({ options: ['a', 'b', 'c', 'd', 'e', 'f', 'g'], question: 'which?' }).success
     ).toBe(false);
   });
+
+  it('should accept a question offering no options at all (§3.7a)', () => {
+    expect(ASK_TOOLSET.tools.human.parameters.safeParse({ question: 'which airport?' }).success).toBe(true);
+  });
 });
