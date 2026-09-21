@@ -55,6 +55,7 @@ Every `fail` on the headline or a check carries one `cause`:
 | `preamble`  | the "How this works" prompt misdescribes or omits a mechanic the failure turned on        |
 | `skill`     | a loaded skill's instruction, or a skill that should have been loaded and was not offered |
 | `framework` | the code did something other than SPEC.md states, or a tool result misled the model       |
+| `gap`       | nothing in the framework provides what would have prevented it (a missing capability)     |
 | `task`      | the task or a fixture is wrong or ambiguous; say what                                     |
 
 `model` is the default only when the others are ruled out; a `model` cause on both tiers of the same

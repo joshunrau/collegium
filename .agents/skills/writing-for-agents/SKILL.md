@@ -71,7 +71,21 @@ Hunt for opportunities to refactor with leading words. A triad spelled out at th
 
 You win twice: fewer tokens, and a sharper hook for the agent to hang its thinking on. Assume every document is carrying restatements that leading words retire. Go find them.
 
-**Negation** is the failure mode beside this lever: steering by prohibition drags the forbidden behaviour into context and makes it _more_ available, not less. _Don't think of an elephant_, and the elephant is all there is; the negation is a weak modifier the strongly-activated concept overruns, so the ban half-reads as an instruction to do the thing. Prompt the **positive**: state the target behaviour ("write one-line comments") so the banned one is never spoken. A prohibition earns its place only as a hard guardrail you cannot phrase positively; even then, pair it with the positive target so attention lands on what to do.
+**Negation** is a heuristic beside this lever, not a measured rule: steering by prohibition may drag the forbidden behaviour into context and make it _more_ available, not less. _Don't think of an elephant_, and the elephant is all there is; the negation is a weak modifier the strongly-activated concept overruns, so the ban half-reads as an instruction to do the thing. No published matched-pair measurement backs this (one vendor guide recommends prohibitions, and "avoid contradictions" scores near-perfect in instruction-following benchmarks), so a positive rewrite must stand on its own merits: prefer the **positive** where it is as clear ("write one-line comments"), and keep a prohibition where it is a hard guardrail that cannot be phrased positively, paired with the positive target so attention lands on what to do.
+
+## The instruction budget
+
+An always-on document is a budget, not a list. Published measurements of prompt-level compliance (every instruction satisfied at once, not each on its own) fall steeply with the count: for current model families the knee sits around ten to fifteen instructions, and reasoning models degrade fastest. Below that count each instruction is mostly followed; above it, the document is followed one rule at a time and essentially never in full, which from the outside looks like a model obeying one sentence while breaking the one beside it.
+
+So an instruction added to an always-on document is paid for by one removed. Before adding, name the sentence that goes. Where nothing can go, the addition belongs in a skill, a tool description, or a runtime fact stated once, not in the baseline. This repo does not state a number: the shared baseline sits above the knee today, and a ceiling it cannot meet would teach that the rules are soft.
+
+## Advisory or enforced
+
+Every sentence in an agent document is one of two things, and the document should make clear which. An **enforced** rule is one the framework holds whether or not the model complies: a gate, a confinement, a cap; a document states it as a fact ("every command needs a person's approval"), never as an instruction, because an instruction implies the model could do otherwise. An **advisory** rule is one only the model's compliance upholds; it is an instruction, and it lives with the other instructions. Mixing the two in one voice is how a model comes to argue with a gate, or treat an instruction as a wall it need not test.
+
+## Evaluation first
+
+Write the test before the document. A skill's description is a pointer whose only measure is whether it fires when it should and stays quiet when it should not: three to five queries that should trigger it, three to five that should not, and a few ambiguous ones, run per model, before the wording is argued about. A rule that is ignored despite existing is not a rule to restate more forcefully; it is a sign the document is too long or the rule sits too far from the moment it applies. Skill caps (title, description, body) are what `packages/core/src/skills/skills.schemas.ts` states, and are looked up there rather than copied here.
 
 ## Pruning
 

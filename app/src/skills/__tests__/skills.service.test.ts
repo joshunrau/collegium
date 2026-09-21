@@ -69,7 +69,7 @@ describe('SkillsService', () => {
     it('should render the body under its title', async () => {
       const skillsService = await buildService([]);
       expect(skillsService.getDocument('mira', 'handing-work-to-a-peer').unwrap()).toMatch(
-        /^# Handing work to a peer\n\nYour system/
+        /^# Handing work to a peer\n\n## Decide whether to delegate/
       );
     });
 
@@ -146,12 +146,12 @@ describe('SkillsService', () => {
       expect(skillsService.listFor(GRANTED)).toStrictEqual([
         {
           description:
-            'How to decide whether to hand a task to another agent, and how to hand it over so the result can be judged.',
+            'Delegate to a colleague: whether to, which one, what to put in the hand-off, and how to judge what comes back. Load before mentioning a peer or calling tasks__assign.',
           name: 'handing-work-to-a-peer'
         },
         {
           description:
-            'What Collegium is and who controls what. Use when a person asks what you are, how you are governed, why a turn stopped or an action was refused, or what a /collegium command does.',
+            'Explain the framework to a person: why the framework stopped a turn or refused an action, what a /collegium command does, and what you cannot change about yourself.',
           name: 'understanding-collegium'
         },
         { description: 'How to bookmark.', name: 'bookmark::saving-bookmarks' }
@@ -164,8 +164,8 @@ describe('SkillsService', () => {
       const skillsService = await buildService([]);
       const manifest = skillsService.renderManifest(buildAgentProfile({ skills: ['bookmark::saving-bookmarks'] }));
       expect(manifest.split('\n')).toStrictEqual([
-        '- handing-work-to-a-peer: How to decide whether to hand a task to another agent, and how to hand it over so the result can be judged.',
-        '- understanding-collegium: What Collegium is and who controls what. Use when a person asks what you are, how you are governed, why a turn stopped or an action was refused, or what a /collegium command does.',
+        '- handing-work-to-a-peer: Delegate to a colleague: whether to, which one, what to put in the hand-off, and how to judge what comes back. Load before mentioning a peer or calling tasks__assign.',
+        '- understanding-collegium: Explain the framework to a person: why the framework stopped a turn or refused an action, what a /collegium command does, and what you cannot change about yourself.',
         '- bookmark::saving-bookmarks: How to bookmark.'
       ]);
     });

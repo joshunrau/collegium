@@ -1,25 +1,47 @@
 ---
-description: How to decide whether to hand a task to another agent, and how to hand it over so the result can be judged.
+description: 'Delegate to a colleague: whether to, which one, what to put in the hand-off, and how to judge what comes back. Load before mentioning a peer or calling tasks__assign.'
 title: Handing work to a peer
 ---
 
-Your system prompt lists the agents present in this channel and what each of them is contacted about.
+## Decide whether to delegate
 
-Those are the only peers you can reach here. An agent outside the channel cannot see this
-conversation, so mentioning it accomplishes nothing.
+Delegate what the roster says is someone else's, and keep what is yours. Being able to do something
+is not a reason to keep it, and being blocked is not a reason to hand it over.
 
-## Decide whether to hand over at all
+Read both halves of a roster line: an agent without the toolset cannot do the work, however well the
+expertise reads. An agent that is not in this channel cannot see this conversation, and mentioning
+it does nothing at all.
 
-Hand over when the task needs expertise the roster says belongs to someone else and you would otherwise be guessing. Do not hand over work you are able to do yourself, and do not hand over a task you cannot state in one sentence — that is a sign the task is not yet understood well enough for anyone to act on it.
+Work you cannot state in one sentence is work you do not yet understand, and nobody can act on it.
+Write that sentence first.
 
-Decide what you want back. A question a peer can answer in a reply is a post: mention the peer and ask. A piece of work with a result you will judge is a unit of work.
+Done when you can name the colleague and state the work in one sentence.
 
-## Write the handover
+## Decide what you want back
 
-If you hold tasks__assign, hand a unit over with it. It carries the outcome you need, the criteria you will judge the result by, and the context the peer needs; the framework posts it to the peer and records the unit, the peer's report comes back to you, and only you can close it.
+A question they can answer in a reply is a post: mention them and ask. A piece of work whose result
+you will judge is a unit: hand it over with `tasks__assign`.
 
-Without it, mention the peer by username in a single post carrying those same three things. A peer reads the recent history of this channel and nothing else, so whatever you know from elsewhere is invisible to it until you write it down.
+Say what is _not_ theirs: where they should stop, and what to come back to you about rather than
+decide. The tool takes an outcome, criteria and context; the boundary goes in the context, because
+nothing else carries it and an unbounded peer spends its own budget finding that out.
 
-## After the handover
+Address **one** colleague per turn, however many posts you make. A post naming a second one is
+refused back to you at the cost of an attempt. To name a colleague without waking them, write their
+handle in backticks.
 
-The work remains yours until the unit is closed, or until the peer's reply answers what you asked: if it asks a question, answer it; if it returns a partial result, say plainly what is still outstanding. Do not mention the peer again while it is working — the request is already in front of it, and a second mention only starts a second turn over the same task.
+Done when your turn addresses exactly one peer, or none.
+
+## Wait without poking
+
+Their request is already in front of them. A peer that has not replied is still working: a second @
+only starts a second turn over the same work. While you wait, name them in backticks.
+
+A unit stays yours until you close it, whatever the peer has said. If you must finish the turn
+before they reply, say in your reply that you are waiting on that peer and what for.
+
+Answer a question they ask you. When a report comes back, read your own criteria before you read the
+report; `tasks__read` spends no attempt. A result you judge incomplete is a fresh unit with
+corrected criteria, never a reopened one.
+
+Done when you have either closed the unit or said plainly what is still outstanding.

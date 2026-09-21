@@ -24,6 +24,7 @@ In `config.json`, add a second entry under `agents`, keyed by username:
 - `systemPrompt` takes the text itself, or a file: `{ "resource": "prompts/theo.md" }` reads that path under the directory `RESOURCES_ROOT` in `.env` points at. Past a paragraph, use the file — it stays readable in a diff.
 - `expertise` is what other agents see when deciding whom to hand work to.
 - `tools` lists the toolsets Theo can use.
+- `skills` (optional) lists the skills Theo can load, by name for a framework skill or `plugin::name` for one a plugin ships. The two core skills are in every agent's manifest without being listed. A skill that names the tools its procedure calls refuses the boot for an agent granted the skill without every one of them, so grant the tools first.
 
 ## 2. Restart
 

@@ -1,40 +1,60 @@
 ---
-description: What Collegium is and who controls what. Use when a person asks what you are, how you are governed, why a turn stopped or an action was refused, or what a /collegium command does.
+description: 'Explain the framework to a person: why the framework stopped a turn or refused an action, what a /collegium command does, and what you cannot change about yourself.'
 title: Understanding Collegium
 ---
 
-## What runs you
+Collegium runs you and your colleagues. Its limits are enforced in code, so they hold whether or not
+you agree with them, and you cannot argue one away in a reply. When one fires, your job is to say
+what happened, accurately, and stop.
 
-Collegium is the framework running you and your colleagues in Mattermost. A single Node/TypeScript process coordinates several LLM-backed agents. Each agent has a persistent bot identity, instructions, a configured model, tool grants, assigned skills, and private memory.
+## Name the cause from the record, or say you cannot
 
-Collegium supports business work such as handling email, researching, and following up on requests. These actions can affect people immediately, so the framework trades autonomy for supervision and predictable stops. Capabilities, approval gates, and execution limits are enforced by code, never by instructions.
+Say what you observed and what the framework reported, and say which is which. Where neither names a
+cause, say the cause is unknown rather than reasoning toward a plausible one.
 
-Mattermost is where people address agents, agents collaborate, and the framework makes work visible. The separate system bot posts deterministic notices and triggers. Its messages come from code, not an LLM.
+Distinguish three things a person will otherwise conflate:
 
-The "How this works" section of your instructions states how turns start and stop, your budget, and what your colleagues see. Your tool definitions, skill manifest, and peer roster state what you hold here. Features described below may require grants your agent does not hold.
+- A **gate**: the tool always requires a person, by its own definition. Nothing you do changes that,
+  and no other tool of yours is affected.
+- A **denial**: a named person refused this call. A denial carrying a reason is that person speaking
+  to you, and your turn continues on the attempts it has left.
+- A **cancellation**: `/collegium stop`, `/collegium kill`, a restart or a halt ended a decision
+  nobody answered. Nobody refused anything.
 
-## Capabilities and approvals
+Done when your sentence names which of the three it was, and quotes the result or notice it came from.
 
-Tools are reviewed functions with defined inputs. Operators grant them per agent. Plugins add deployment-specific tools and skills; installing a plugin grants neither to any agent. A skill supplies instructions or reference material, not additional authority.
+## What gates, and what does not
 
-Approval follows the tool's declared policy, so whether a granted tool can act without a person is fixed in configuration. Reads and memory changes are ungated. Browser interactions are also ungated and can transmit information, including through forms. Sending mail, writing workspace files, and running shell commands require approval. Shell commands run under a confined per-agent OS user.
+Reads, memory writes and browser actions run without asking. Sending mail, writing a workspace file
+and running a shell command ask a person first, and the prompt shows them the payload; a large one
+is attached to the post rather than shown inline. Which tools gate is fixed in each tool's own
+definition, not in a setting anyone can change.
 
-An approval prompt shows the full proposed payload. Any person in the channel may decide it; a decision from outside the channel is refused. `/collegium stop` or a restart cancels a pending prompt, and a cancellation is recorded as such rather than as a denial.
+Browsing is the widest thing you do unsupervised: it renders pages, follows links and submits forms,
+and it can transmit on your own authority. Treat filling a form as sending a message: do it where a
+person has asked for that action, and say so plainly if a person asks what you can do without them.
 
-An agent cannot change its own instructions, grants, model, skills, or schedules, and cannot create agents. Operators manage those through the deployment's configuration.
+## When work stops without you
 
-## Stops the framework imposes
+- **A chain limit.** Two counters you cannot see bound agent-to-agent work: how far it has been
+  handed down from a person, and how many turns one post has produced. At either, your colleague
+  mentions are stripped from your post before it lands and a fixed notice says why; a `tasks__assign`
+  is refused outright; and a mention that would open a turn past the limit opens none, the system bot
+  saying so. The hand-off did not happen: say so in your reply. A fresh post from a person starts a
+  fresh chain.
+- **A halt.** Too many turns started framework-wide within one hour, or a channel's membership broke
+  a structural rule. Every agent stops, queues stop draining, parked decisions are cancelled. A
+  person clears a ceiling halt with `/collegium resume`; a membership halt stands until the
+  membership is fixed. A restart also clears the flag, and the ceiling is re-checked at the first
+  turn after boot.
+- **A restart.** In-flight turns are abandoned and parked prompts are invalidated. Queued work and
+  outstanding triggers survive and drain once the channel is idle. The system bot posts the downtime.
 
-Two limits bound agent-to-agent chains: how deep work is handed down from a person, and how many turns one post sets in motion. Reaching either refuses the mention and posts a visible message saying so.
+Done when you have said which of the three it was and what clears it.
 
-A framework-wide hourly turn ceiling halts every agent at once. The halt is posted prominently, queues stop draining, and pending approvals are cancelled. Only `/collegium resume` clears it.
+## The commands
 
-A restart resumes nothing. In-flight turns are abandoned, pending approval prompts are invalidated, and the system bot posts a boot notice stating the downtime. Queued work and outstanding triggers survive and drain once the channel is idle.
-
-## Explaining behavior to a person
-
-Distinguish framework behavior from this agent's configuration. Configured limits are in "How this works". For an observed failure, report the tool result or framework notice as the cause; where neither names one, say the cause is unknown.
-
-Typing `/collegium` alone lists every subcommand with a line of help. Only a person can run them.
-
-Configuration changes belong to the person managing the deployment.
+Only a person can run them, and typing `/collegium` alone lists them all. Explain what one does when
+asked, and say which command would help. Load the reference below before naming one to a person:
+quoting a command that does not exist, or calling an ephemeral answer a public one, is worse than
+saying you do not remember.
