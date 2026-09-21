@@ -41,23 +41,90 @@ function renderOutcomeLine(outcome: Exclude<TurnStatus, 'running'>, elapsedMs: n
   return elapsedMs === undefined ? phrase : `${phrase.slice(0, -1)} (${formatDuration(elapsedMs)})_`;
 }
 
+/** consecutive identical lines read as one with a count, so a loop is one line long rather than two hundred (§8.1) */
+function groupTraceLines(lines: readonly TraceLine[]): { calls: number; text: string }[] {
+  const groups: { calls: number; line: TraceLine }[] = [];
+  for (const line of lines) {
+    const last = groups.at(-1);
+    if (last?.line.text === line.text && last.line.mark === line.mark) {
+      last.calls += 1;
+    } else {
+      groups.push({ calls: 1, line });
+    }
+  }
+  return groups.map(({ calls, line }) => ({
+    calls,
+    text: `${line.text}${calls > 1 ? ` ×${calls}` : ''}${line.mark === undefined ? '' : ` ${line.mark}`}`
+  }));
+}
+
+/** §8.1 — what keeps the closing edit within the substrate's limit; the store has every line */
+function renderElisionLine(droppedCalls: number): string {
+  return `_… ${droppedCalls} earlier call${droppedCalls === 1 ? '' : 's'}; the full trace is in /collegium trace_`;
+}
+
+/** §8.1 — the closing effects line of a post a dead process left: nothing recorded what its calls came to */
+const ABANDONED_EFFECTS_LINE = '✎ _may have changed: not recorded; the process restarted mid-turn_';
+
+/** one call as the status post traces it; the mark states its disposition when it was not plain success (§8.1) */
+export type TraceLine = {
+  mark?: string;
+  text: string;
+};
+
 export type StatusPostState = {
+  /** §8.1 — completed calls to tools not declared retryable, by display name */
+  effects: Map<string, number>;
   /** wall-clock time the turn ran, approval waits included; absent where its end was never observed */
   elapsedMs?: number;
   outcome?: Exclude<TurnStatus, 'running'>;
-  traceLines: string[];
+  traceLines: TraceLine[];
   transientText?: string;
 };
 
-export function renderStatusPost(state: StatusPostState): string {
-  const lines = [
-    state.outcome === undefined ? WORKING_LINE : renderOutcomeLine(state.outcome, state.elapsedMs),
-    ...state.traceLines
-  ];
-  if (state.outcome === undefined && state.transientText !== undefined && state.transientText !== '') {
-    lines.push(`_${state.transientText}_`);
+/** §8.1 — the framework's own record of what the turn may have changed, set where the reader of the reply will look */
+export function renderEffectsLine(effects: ReadonlyMap<string, number>): string {
+  if (effects.size === 0) {
+    return '✎ _may have changed: nothing_';
   }
-  return lines.join('\n');
+  const listed = Array.from(effects, ([name, count]) => `${name}${count > 1 ? ` ×${count}` : ''}`).join(', ');
+  return `✎ _may have changed: ${listed}_`;
+}
+
+/**
+ * §8.1 — the post as a whole fits the substrate's limit, and the closing line is never the one
+ * dropped: trace lines go from the front, behind one line that says how many, then the transient
+ * text, so an edit is always deliverable however long the turn ran.
+ */
+export function renderStatusPost(state: StatusPostState, limitChars = Number.POSITIVE_INFINITY): string {
+  const head = state.outcome === undefined ? WORKING_LINE : renderOutcomeLine(state.outcome, state.elapsedMs);
+  const groups = groupTraceLines(state.traceLines);
+  const closing = state.outcome === undefined ? [] : [renderEffectsLine(state.effects)];
+  const transient =
+    state.outcome === undefined && state.transientText !== undefined && state.transientText !== ''
+      ? [`_${state.transientText}_`]
+      : [];
+  for (let dropped = 0; dropped <= groups.length; dropped += 1) {
+    const droppedCalls = groups.slice(0, dropped).reduce((sum, group) => sum + group.calls, 0);
+    const elision = dropped === 0 ? [] : [renderElisionLine(droppedCalls)];
+    const text = [head, ...elision, ...groups.slice(dropped).map((group) => group.text), ...closing, ...transient].join(
+      '\n'
+    );
+    if (text.length <= limitChars) {
+      return text;
+    }
+  }
+  const allCalls = groups.reduce((sum, group) => sum + group.calls, 0);
+  return [head, ...(allCalls === 0 ? [] : [renderElisionLine(allCalls)]), ...closing].join('\n');
+}
+
+/**
+ * §7.3 — the post a dead process left, closed from the next boot: the first line is the working
+ * line by construction, the rest is kept as it was, and the effects line says nothing recorded them.
+ */
+export function renderAbandonedStatusPost(storedText: string): string {
+  const [, ...rest] = storedText.split('\n');
+  return [renderOutcomeLine('abandoned', undefined), ...rest, ABANDONED_EFFECTS_LINE].join('\n');
 }
 
 /**
@@ -83,13 +150,31 @@ export function renderBudgetExhaustedNotice(limit: number): string {
   return `I used all ${limit} of my action attempts and stopped.`;
 }
 
-/** §5.3 — unbounded extensions, but the human in the loop is the control and the control needs the number */
+/**
+ * §5.3 — unbounded extensions, but the human in the loop is the control, and the control needs the
+ * number, the calls repeated most, and the agent's own last words: a count alone was approved four
+ * times into loops that had already fetched the same three pages a hundred times each.
+ */
 export function renderExtensionPrompt(input: {
   attemptsSoFar: number;
   extensionNumber: number;
   grant: number;
+  lastWords: string | undefined;
+  topCalls: readonly { count: number; line: string }[];
 }): string {
-  return `I have used all my action attempts and would like to keep going. This would be extension ${input.extensionNumber}; ${input.attemptsSoFar} attempts so far. Approving grants another ${input.grant}.`;
+  const repeated =
+    input.topCalls.length === 0
+      ? []
+      : [`Most repeated so far: ${input.topCalls.map(({ count, line }) => `${line} ×${count}`).join('; ')}`];
+  const words =
+    input.lastWords === undefined
+      ? 'I have written nothing since I started.'
+      : `What I still need: "${input.lastWords}"`;
+  return [
+    `I have used all my action attempts and would like to keep going. This would be extension ${input.extensionNumber}; ${input.attemptsSoFar} attempts so far. Approving grants another ${input.grant}.`,
+    ...repeated,
+    words
+  ].join('\n');
 }
 
 /** §7.4 — the bound on total unattended work one human post may set in motion; a fresh human post starts a fresh chain */

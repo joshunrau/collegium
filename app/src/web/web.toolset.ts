@@ -32,7 +32,8 @@ const DESCRIPTION_PREAMBLE =
  */
 function toPageResult<TPage extends WebPage>(
   result: Result<TPage, WebFailure>,
-  render: (page: TPage) => string
+  render: (page: TPage) => string,
+  describeOutcome: (page: TPage) => string | undefined
 ): ToolResult {
   if (!result.success) {
     if (result.error.kind === 'unreachable') {
@@ -44,11 +45,26 @@ function toPageResult<TPage extends WebPage>(
   const text = render(result.value);
   const name =
     shown === undefined ? `page ${url}` : `page ${url} (characters ${shown.from}–${shown.to} of ${shown.total})`;
-  return Result.ok({ replaySubject: describeReplaySubject(name, text), text });
+  const traceOutcome = describeOutcome(result.value);
+  return Result.ok({
+    replaySubject: describeReplaySubject(name, text),
+    text,
+    ...(traceOutcome !== undefined && { traceOutcome })
+  });
 }
 
-const toSnapshotResult = (result: Result<WebSnapshot, WebFailure>): ToolResult => {
-  return toPageResult(result, renderWebSnapshot);
+/** §8.1 — a status worth a mark is one that is not success: a 403 listed like a success is what the bare line hid */
+const httpStatusOutcome = (page: WebPage): string | undefined =>
+  page.status >= 300 ? `HTTP ${page.status}` : undefined;
+
+/** §8.1 — where the action landed, since the line for a click names only a ref */
+const landingOutcome = (page: WebPage): string => `→ ${page.url}`;
+
+const toSnapshotResult = (
+  result: Result<WebSnapshot, WebFailure>,
+  describeOutcome: (page: WebSnapshot) => string | undefined = landingOutcome
+): ToolResult => {
+  return toPageResult(result, renderWebSnapshot, describeOutcome);
 };
 
 /** throttling is weather the model can plan around; bad credentials or a dead provider end the turn loudly */
@@ -96,7 +112,9 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         'documentation, and static pages, and switch to navigate when the result says the page has no static content ' +
         'or when the task needs a click, a search, or a sign-in. A page too long for one result is cut and says ' +
         'where to read on from; each call fetches the page again.',
-      execute: async (args, context) => toPageResult(await context.web.fetch(args.url, args.startChar), renderWebPage),
+      execute: async (args, context) => {
+        return toPageResult(await context.web.fetch(args.url, args.startChar), renderWebPage, httpStatusOutcome);
+      },
       parameters: z.object({
         startChar: z
           .number()
@@ -142,7 +160,9 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
     },
     navigate: {
       description: `${DESCRIPTION_PREAMBLE}Open a URL in this turn's page, replacing whatever it showed.`,
-      execute: async (args, context) => toSnapshotResult(await context.web.navigate(context.turn.turnId, args.url)),
+      execute: async (args, context) => {
+        return toSnapshotResult(await context.web.navigate(context.turn.turnId, args.url), httpStatusOutcome);
+      },
       parameters: z.object({
         url: z.url().describe("The absolute http(s) URL of a public web page, to open in this turn's page")
       }),

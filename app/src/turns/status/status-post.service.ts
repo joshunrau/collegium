@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
+import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 
 import { TurnsService } from '../turns.service.ts';
-import { renderStatusPost } from './status-post.renderer.ts';
+import { renderAbandonedStatusPost, renderStatusPost } from './status-post.renderer.ts';
 
 import type { AbandonedStatusPost } from '../turns.types.ts';
 import type { StatusPostState } from './status-post.renderer.ts';
@@ -18,13 +19,30 @@ type OpenInput = {
 };
 
 /**
+ * §8.1 — the substrate's limit when it cannot be read. The conservative choice: the current
+ * Mattermost default is 16383, this the pre-5.x one, and a fallback too small elides trace lines
+ * while one too large freezes the post at its working line.
+ */
+const STATUS_POST_FALLBACK_LIMIT_CHARS = 4000;
+
+/** §8.1 — edits coalesce to this interval; a 200-call turn otherwise makes some 300 of them */
+const MIN_EDIT_INTERVAL_MS = 1000;
+
+/** the line a call was traced on, so its disposition can be marked once the call has run (§8.1) */
+export type TraceLineHandle = number;
+
+/**
  * One post per turn, edited in place as the trace accumulates (§8.1). Edits coalesce: a line is
  * queued and lands on the next edit with whatever else queued by then, so a turn never waits on
  * the chat server between one tool call and the next. Only `close` waits, for every queued edit.
  */
 export type StatusPostHandle = {
-  appendTrace(line: string): void;
+  appendTrace(line: string): TraceLineHandle;
   close(outcome: Exclude<TurnStatus, 'running'>): Promise<void>;
+  /** §8.1 — a call's disposition, set once its result is known: the line was written before the call ran */
+  markTrace(handle: TraceLineHandle, mark: string): void;
+  /** §8.1 — a completed call to a tool not declared retryable, for the closing effects line */
+  recordEffect(toolDisplayName: string): void;
   /** text alongside a tool call is transient status, replaced on the next edit (§3.3) */
   setTransient(text: string): void;
 };
@@ -57,7 +75,7 @@ export class StatusPostService {
       if (stored === undefined) {
         return;
       }
-      const text = renderStatusPost({ outcome: 'abandoned', traceLines: stored.split('\n').slice(1) });
+      const text = renderAbandonedStatusPost(stored);
       const updated = await this.transportRegistry.get(post.agentUsername).updatePost(post.postId, { text });
       if (!updated.success) {
         this.loggingService.error(
@@ -73,18 +91,36 @@ export class StatusPostService {
 
   open(input: OpenInput): StatusPostHandle {
     const transport = this.transportRegistry.get(input.agentUsername);
-    const state: StatusPostState = { traceLines: [] };
+    const state: StatusPostState = { effects: new Map(), traceLines: [] };
     const openedAt = Date.now();
     let postId: string | undefined;
     let openFailed = false;
     let dirty = false;
     let touched = false;
+    let closing = false;
     let inFlight: Promise<void> | undefined;
+    let lastSyncAt: number | undefined;
+    let limitChars: number | undefined;
+    let wake: (() => void) | undefined;
+    const waitOutInterval = (ms: number): Promise<void> => {
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          wake = undefined;
+          resolve();
+        }, ms);
+        wake = () => {
+          clearTimeout(timer);
+          wake = undefined;
+          resolve();
+        };
+      });
+    };
     const sync = async (): Promise<void> => {
       if (openFailed) {
         return;
       }
-      const text = renderStatusPost(state);
+      limitChars ??= await this.readPostLimit(transport);
+      const text = renderStatusPost(state, limitChars);
       if (postId === undefined) {
         const created = await transport.send({ channelId: input.channelId, text });
         if (!created.success) {
@@ -103,9 +139,15 @@ export class StatusPostService {
       }
       await this.recordEdited(postId, text);
     };
+    // the create and the closing edit go at once; between them an edit waits out the interval
     const drain = async (): Promise<void> => {
       while (dirty) {
+        const wait = lastSyncAt === undefined || closing ? 0 : lastSyncAt + MIN_EDIT_INTERVAL_MS - Date.now();
+        if (wait > 0) {
+          await waitOutInterval(wait);
+        }
         dirty = false;
+        lastSyncAt = Date.now();
         try {
           await sync();
         } catch (error) {
@@ -122,23 +164,48 @@ export class StatusPostService {
     };
     return {
       appendTrace: (line) => {
-        state.traceLines.push(line);
+        state.traceLines.push({ text: line });
         void schedule();
+        return state.traceLines.length - 1;
       },
       close: (outcome) => {
         if (!touched) {
           return Promise.resolve();
         }
+        closing = true;
+        wake?.();
         state.elapsedMs = Date.now() - openedAt;
         state.outcome = outcome;
         state.transientText = undefined;
         return schedule();
+      },
+      markTrace: (handle, mark) => {
+        const line = state.traceLines[handle];
+        if (line !== undefined) {
+          line.mark = mark;
+          void schedule();
+        }
+      },
+      recordEffect: (toolDisplayName) => {
+        state.effects.set(toolDisplayName, (state.effects.get(toolDisplayName) ?? 0) + 1);
       },
       setTransient: (text) => {
         state.transientText = text;
         void schedule();
       }
     };
+  }
+
+  /** unreadable is not a reason to render an unbounded post; the fallback keeps the closing edit deliverable */
+  private async readPostLimit(transport: ChatTransport): Promise<number> {
+    const limit = await transport.maxPostSizeChars();
+    if (limit.success) {
+      return limit.value;
+    }
+    this.loggingService.warn(
+      `could not read MaxPostSize to bound a status post: ${limit.error.message}; using ${STATUS_POST_FALLBACK_LIMIT_CHARS}`
+    );
+    return STATUS_POST_FALLBACK_LIMIT_CHARS;
   }
 
   private async recordEdited(postId: string, text: string): Promise<void> {

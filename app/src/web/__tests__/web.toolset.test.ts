@@ -64,6 +64,16 @@ describe('WEB_TOOLSET', () => {
     );
   });
 
+  it('marks a click with the page it landed on, and a fetch with a status that is not success (§8.1)', async () => {
+    const { context, web } = buildContext();
+    web.click.mockResolvedValue(Result.ok(SNAPSHOT));
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, status: 404 }));
+    const clicked = await executeTool(click, { ref: 'e1' }, context);
+    const fetched = await executeTool(fetch, { startChar: 0, url: 'https://example.org/' }, context);
+    expect(clicked.unwrap().traceOutcome).toBe('→ https://example.org/');
+    expect(fetched.unwrap().traceOutcome).toBe('HTTP 404');
+  });
+
   it('returns a page that needs client rendering as text pointing at navigate', async () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.err({ kind: 'no-static-content', url: 'https://example.org/' }));

@@ -81,7 +81,7 @@ describe('TurnRunner', () => {
   let conversationsService: MockedInstance<ConversationsService>;
   let multiMentionPolicy: MockedInstance<MultiMentionPolicy>;
   let sends: { channelId: string; text: string }[];
-  let statusHandle: { appendTrace: any; close: any; setTransient: any };
+  let statusHandle: { appendTrace: any; close: any; markTrace: any; recordEffect: any; setTransient: any };
   let tasksService: MockedInstance<TasksService>;
   let toolExecutor: MockedInstance<ToolExecutor>;
   let toolRegistry: MockedInstance<ToolRegistry>;
@@ -104,8 +104,10 @@ describe('TurnRunner', () => {
     conversationsService.record.mockResolvedValue(true);
     sends = [];
     statusHandle = {
-      appendTrace: vi.fn().mockResolvedValue(undefined),
+      appendTrace: vi.fn().mockReturnValue(0),
       close: vi.fn().mockResolvedValue(undefined),
+      markTrace: vi.fn(),
+      recordEffect: vi.fn(),
       setTransient: vi.fn().mockResolvedValue(undefined)
     };
     contextAssembler = MockFactory.createMock(ContextAssembler);
@@ -451,6 +453,61 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'completed', expect.objectContaining({ actionCount: 1 }));
+  });
+
+  it('should mark a reasoned denial on its own trace line (§8.1)', async () => {
+    statusHandle.appendTrace.mockReturnValueOnce(7);
+    toolExecutor.execute.mockResolvedValueOnce({
+      kind: 'continue',
+      output: 'denied: use another name',
+      traceMark: '🛑 denied by @casey'
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['write_file'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(statusHandle.markTrace).toHaveBeenCalledExactlyOnceWith(7, '🛑 denied by @casey');
+    expect(statusHandle.recordEffect).not.toHaveBeenCalled();
+  });
+
+  it('should mark a line with what the tool says the call came to (§8.1)', async () => {
+    toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', output: 'page', traceOutcome: 'HTTP 404' });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(statusHandle.markTrace).toHaveBeenCalledExactlyOnceWith(0, 'HTTP 404');
+  });
+
+  it('should record a completed call to a tool that may have changed something for the effects line (§8.1)', async () => {
+    toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', mayHaveTakenEffect: true, output: 'wrote' });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['write_file'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(statusHandle.recordEffect).toHaveBeenCalledExactlyOnceWith('write_file');
+    expect(statusHandle.markTrace).not.toHaveBeenCalled();
+  });
+
+  it('should name the most repeated calls and the agent’s last words in an extension prompt (§5.3)', async () => {
+    toolRegistry.describeCall.mockImplementation(({ name }: { name: string }) => ({
+      detail: name === 'lookup_fixture' ? 'https://x.example/page-2' : undefined,
+      displayName: name,
+      id: ['fixture', name]
+    }));
+    complete.mockResolvedValueOnce(
+      Result.ok(
+        toolUse([...Array.from({ length: 9 }, () => 'lookup_fixture'), 'other_fixture'], 'collecting the roster')
+      )
+    );
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    await run();
+    expect(approvalsService.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payloadText: [
+          'I have used all my action attempts and would like to keep going. This would be extension 1; 10 attempts so far. Approving grants another 10.',
+          'Most repeated so far: `lookup_fixture https://x.example/page-2` ×9',
+          'What I still need: "collecting the roster"'
+        ].join('\n')
+      })
+    );
   });
 
   it('should block on an extension at the attempt past the limit, ending exhausted when denied', async () => {

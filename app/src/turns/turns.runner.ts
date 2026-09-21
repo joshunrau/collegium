@@ -75,7 +75,7 @@ import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
 import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
-import type { StatusPostHandle } from './status/status-post.service.ts';
+import type { StatusPostHandle, TraceLineHandle } from './status/status-post.service.ts';
 import type { Steering, Turn, TurnOpenFailure, TurnOutcome } from './turns.types.ts';
 
 /** §3.8 — what a re-read of a result already collapsed opens with, so the model learns the page did not change without paying to compare */
@@ -87,6 +87,9 @@ const TRUNCATED_OUTPUT_REJECTION =
 
 /** §4.5 — rejections in a row a turn survives; the budget bounds the loop too, but with a number that says nothing about why */
 const CONSECUTIVE_REJECTION_LIMIT = 2;
+
+/** §5.3 — how many repeated calls the extension prompt names; the loop it exposes is three URLs long, not fifty */
+const TOP_REPEATED_CALLS = 5;
 
 /**
  * §3.8 — the share of a model's window one turn's prompt may reach before its stale pages are
@@ -190,12 +193,16 @@ type TurnState = {
   /** §4.5 — the one peer this turn has addressed, whatever number of posts it emits */
   addressedPeer: string | undefined;
   readonly budget: ActionBudget;
+  /** §5.3 — how often each status-post line was admitted, so the extension prompt can name what the turn keeps repeating */
+  readonly callTally: Map<string, number>;
   /** §4.5 — rejected posts and unknown tool names (§7.2) since the last call that ran */
   consecutiveRejections: number;
   /** §5.2 — when the context was last assembled, and the posts its window held */
   contextAssembledAt: Date;
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
+  /** §5.3 — the agent's most recent interim text, quoted on the extension prompt as its own last words */
+  lastInterimText: string | undefined;
   readonly messages: CompletionMessage[];
   /** §3.8 — the estimated size of the whole outgoing request, kept current by `pushMessage` and the collapses */
   promptTokens: number;
@@ -208,6 +215,8 @@ type TurnState = {
   readonly status: StatusPostHandle;
   /** the supersedable results still verbatim in `messages`, oldest first (§3.8) */
   readonly supersedable: { messageIndex: number; subject: string }[];
+  /** §8.1 — each admitted call's status-post line, by call id, marked once the call's disposition is known */
+  readonly traceHandles: Map<string, TraceLineHandle>;
   readonly transport: ChatTransport;
   readonly turn: Turn;
   /** §7.2 — calls with unparseable arguments this turn has already forgiven */
@@ -259,6 +268,14 @@ export class TurnRunner {
     };
   }
 
+  /** §5.3 — the calls the turn keeps repeating, most first, for the person deciding whether to extend it */
+  private static topCallsOf(state: TurnState): { count: number; line: string }[] {
+    return Array.from(state.callTally, ([line, count]) => ({ count, line: line.replace(/^→ /u, '') }))
+      .filter(({ count }) => count > 1)
+      .sort((first, second) => second.count - first.count)
+      .slice(0, TOP_REPEATED_CALLS);
+  }
+
   /** §7.4 — a turn the chain limit refuses at admission opens nothing: no row, no status post, no session */
   async run(input: RunInput): Promise<Result<TurnOutcome, TurnOpenFailure>> {
     const { channelId, profile } = input;
@@ -278,6 +295,7 @@ export class TurnRunner {
     const state: TurnState = {
       addressedPeer: undefined,
       budget: new ActionBudget(profile.actionBudget),
+      callTally: new Map(),
       consecutiveRejections: 0,
       contextAssembledAt: new Date(),
       control: this.turnControlRegistry.register(turn.id, channelId),
@@ -286,6 +304,7 @@ export class TurnRunner {
         authorUsername: input.foldAuthorUsername,
         channelId
       }),
+      lastInterimText: undefined,
       messages: [],
       promptTokens: 0,
       recordedResults: 0,
@@ -293,6 +312,7 @@ export class TurnRunner {
       seenSupersedable: new Map(),
       status: this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id }),
       supersedable: [],
+      traceHandles: new Map(),
       transport: this.transportRegistry.get(profile.username),
       turn,
       unparsedCalls: 0,
@@ -385,9 +405,12 @@ export class TurnRunner {
       }
       state.budget.trySpend(isExempt);
     }
-    state.status.appendTrace(
-      renderToolCallLine(identified.displayName, identified.kind === 'runnable' ? identified.detail : undefined)
+    const line = renderToolCallLine(
+      identified.displayName,
+      identified.kind === 'runnable' ? identified.detail : undefined
     );
+    state.traceHandles.set(identified.call.id, state.status.appendTrace(line));
+    state.callTally.set(line, (state.callTally.get(line) ?? 0) + 1);
     return {
       kind: 'admitted',
       position: { actionBudget: state.budget.limitCount, actionNumber: state.budget.spentCount }
@@ -495,6 +518,16 @@ export class TurnRunner {
     identified: IdentifiedCall,
     attempt: ToolAttempt.Terminal
   ): Promise<TurnOutcome> {
+    this.markTraceLine(
+      state,
+      identified,
+      match(attempt.status)
+        .with('delivery_failure', () => '⚠️ undelivered')
+        .with('denied', () => '🛑 denied')
+        .with('semantic_error', () => '⚠️ error')
+        .with('side_effect_ambiguous', () => '⚠️ unconfirmed')
+        .otherwise(() => undefined)
+    );
     if (attempt.status === 'semantic_error' || attempt.status === 'side_effect_ambiguous') {
       await this.turnsService.appendEvent(state.turn.id, {
         callId: identified.call.id,
@@ -724,7 +757,8 @@ export class TurnRunner {
     });
     state.unreadFrom = state.messages.length;
     if (completion.content !== '') {
-      state.status.setTransient(this.multiMentionPolicy.stripAgentMentions(completion.content));
+      state.lastInterimText = this.multiMentionPolicy.stripAgentMentions(completion.content);
+      state.status.setTransient(state.lastInterimText);
     }
     for (let position = 0; position < calls.length;) {
       const first = calls[position]!;
@@ -895,7 +929,9 @@ export class TurnRunner {
       payloadText: renderExtensionPrompt({
         attemptsSoFar: state.budget.spentCount,
         extensionNumber,
-        grant: state.budget.baseCount
+        grant: state.budget.baseCount,
+        lastWords: state.lastInterimText,
+        topCalls: TurnRunner.topCallsOf(state)
       }),
       toolName: 'extend_budget',
       toolNamespace: null,
@@ -970,6 +1006,14 @@ export class TurnRunner {
     state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
     state.contextAssembledAt = assembled.assembledAt;
     state.windowPostIds = assembled.windowPostIds;
+  }
+
+  /** §8.1 — the line was written at admission; the call's disposition is known only now */
+  private markTraceLine(state: TurnState, identified: IdentifiedCall, mark: string | undefined): void {
+    const handle = state.traceHandles.get(identified.call.id);
+    if (handle !== undefined && mark !== undefined) {
+      state.status.markTrace(handle, mark);
+    }
   }
 
   /**
@@ -1095,6 +1139,14 @@ export class TurnRunner {
       this.pushMessage(state, { content: result.output, role: 'tool', toolCallId: identified.call.id });
     }
     state.recordedResults += 1;
+    this.markTraceLine(
+      state,
+      identified,
+      published?.kind === 'refused' ? '⚠️ post refused' : (attempt.traceMark ?? attempt.traceOutcome)
+    );
+    if (attempt.mayHaveTakenEffect && published?.kind !== 'refused') {
+      state.status.recordEffect(identified.displayName);
+    }
     if (published?.kind === 'published' && attempt.post) {
       await attempt.post.onPublished(published.postId);
     }

@@ -17,6 +17,10 @@ export declare namespace ToolAttempt {
     replay?: string;
     /** what the output was, from which the framework renders the in-turn and later-turn lines (§3.8) */
     replaySubject?: string;
+    /** §8.1 — the call's disposition for its status-post line, where it was not plain success */
+    traceMark?: string;
+    /** §8.1 — what the call came to, from the tool, for its status-post line */
+    traceOutcome?: string;
   };
   /**
    * The turn ends with this status: a §7.1 semantic error, an unconfirmed mutation (§7.2), a §5.4

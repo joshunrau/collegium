@@ -70,7 +70,8 @@ export class ToolExecutor {
       // fed back to the model, so the name is spelled as the model spelled it (§1)
       return {
         kind: 'continue',
-        output: `invalid arguments for ${tool.wireName}: ${z.prettifyError(args.error)}`
+        output: `invalid arguments for ${tool.wireName}: ${z.prettifyError(args.error)}`,
+        traceMark: '⚠️ invalid arguments'
       };
     }
     // the gate is declared by presence (§5), resolved only after a successful parse: malformed args never reach it
@@ -102,9 +103,10 @@ export class ToolExecutor {
         kind: 'terminal',
         status: 'denied'
       }))
-      .with({ kind: 'denied-with-reason' }, ({ reason }): ToolAttempt => ({
+      .with({ kind: 'denied-with-reason' }, ({ byUsername, reason }): ToolAttempt => ({
         kind: 'continue',
-        output: `denied: ${reason}`
+        output: `denied: ${reason}`,
+        traceMark: `🛑 denied by @${byUsername}`
       }))
       .exhaustive();
   }
@@ -205,7 +207,11 @@ export class ToolExecutor {
         kind: 'terminal',
         status: 'semantic_error'
       }))
-      .with({ kind: 'invalid-arguments' }, (failure): ToolAttempt => ({ kind: 'continue', output: failure.message }))
+      .with({ kind: 'invalid-arguments' }, (failure): ToolAttempt => ({
+        kind: 'continue',
+        output: failure.message,
+        traceMark: '⚠️ refused by the tool'
+      }))
       .with({ kind: 'timeout' }, (failure): ToolAttempt => this.toTimeoutAttempt(tool, failure.timeoutMs))
       .with({ kind: 'unresolved' }, (failure): ToolAttempt => ({
         detail: failure.message,
@@ -229,7 +235,8 @@ export class ToolExecutor {
     if (failure.kind === 'payload-too-large') {
       return {
         kind: 'continue',
-        output: 'the command is too long to present for approval and was refused; shorten it'
+        output: 'the command is too long to present for approval and was refused; shorten it',
+        traceMark: '⚠️ too long to present for approval'
       };
     }
     return {
@@ -248,7 +255,8 @@ export class ToolExecutor {
       ...(output.disclosure && { disclosure: output.disclosure }),
       ...(output.post && { post: output.post }),
       ...(output.replay !== undefined && { replay: output.replay }),
-      ...(output.replaySubject !== undefined && { replaySubject: output.replaySubject })
+      ...(output.replaySubject !== undefined && { replaySubject: output.replaySubject }),
+      ...(output.traceOutcome !== undefined && { traceOutcome: output.traceOutcome })
     };
   }
 
@@ -259,7 +267,7 @@ export class ToolExecutor {
    */
   private toTimeoutAttempt(tool: ResolvedTool, timeoutMs: number): ToolAttempt {
     if (tool.definition.retryable === true) {
-      return { kind: 'continue', output: `${tool.wireName} timed out after ${timeoutMs}ms` };
+      return { kind: 'continue', output: `${tool.wireName} timed out after ${timeoutMs}ms`, traceMark: '⚠️ timed out' };
     }
     return {
       detail: `${tool.displayName} timed out after ${timeoutMs}ms and may or may not have taken effect`,

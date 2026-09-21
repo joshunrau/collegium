@@ -75,6 +75,8 @@ export type ToolOutput = {
   /** §3.15 — framework tools only; a plugin's output type carries no post */
   readonly post?: ToolPost;
   readonly text: string;
+  /** §8.1 — what the call came to, shown after its line in the status post: the page a click landed on, the status a fetch got */
+  readonly traceOutcome?: string;
 } & (
   | { readonly replay?: never; readonly replaySubject?: string }
   | { readonly replay?: string; readonly replaySubject?: never }

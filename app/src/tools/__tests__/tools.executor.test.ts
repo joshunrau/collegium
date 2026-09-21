@@ -252,12 +252,20 @@ describe('ToolExecutor', () => {
       Result.ok({ byUsername: 'casey', kind: 'denied-with-reason', reason: 'not that host' })
     );
     const attempt = await execute('fixture__gated', { value: 'deploy' });
-    expect(attempt).toStrictEqual({ kind: 'continue', output: 'denied: not that host' });
+    expect(attempt).toStrictEqual({
+      kind: 'continue',
+      output: 'denied: not that host',
+      traceMark: '🛑 denied by @casey'
+    });
   });
 
   it('reports a timed-out read as a plain failure the model hears (§7.2)', async () => {
     const attempt = await execute('fixture__sleepy_read', {});
-    expect(attempt).toStrictEqual({ kind: 'continue', output: 'fixture__sleepy_read timed out after 10ms' });
+    expect(attempt).toStrictEqual({
+      kind: 'continue',
+      output: 'fixture__sleepy_read timed out after 10ms',
+      traceMark: '⚠️ timed out'
+    });
   });
 
   it('ends the turn on a timed-out mutation, which may have landed (§7.2)', async () => {
