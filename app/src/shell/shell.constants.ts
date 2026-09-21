@@ -42,3 +42,9 @@ export const SHELL_OS_USER_ID_COUNT = 900_000;
  * prints a `getcwd` warning onto the model's stderr before it can reach the agent's home.
  */
 export const SPAWN_WORKING_DIRECTORY = '/';
+
+/**
+ * §3.8 — what the boot probe asks the agent's shell for, so the preamble can say which are present.
+ * A name missing from this list is only unmentioned; the probe never claims one that is absent.
+ */
+export const SHELL_PROBED_COMMANDS: readonly string[] = ['node', 'python3', 'curl', 'wget', 'git', 'jq', 'perl'];

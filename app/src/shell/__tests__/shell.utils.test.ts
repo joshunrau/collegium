@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { OUTPUT_CAP_CHARS, SHELL_OS_USER_ID_BASE, SHELL_OS_USER_ID_COUNT } from '../shell.constants.ts';
 import {
+  buildCommandProbeArgv,
   buildProbeArgv,
   buildRunArgv,
   deriveShellHomeDir,
   deriveShellOsIdentities,
   deriveShellOsUser,
+  parsePresentCommands,
   toRunOutput
 } from '../shell.utils.ts';
 
@@ -69,10 +71,16 @@ describe('buildRunArgv', () => {
       '60',
       'bash',
       '-lc',
-      'cd -- "$HOME" || exit 1; exec bash -c "$1" "$0"',
+      'cd -- "$HOME" || exit 1; exec bash -o pipefail -c "$1" "$0"',
       'collegium-shell',
       'ls -la'
     ]);
+  });
+
+  it('should run the command under pipefail so a pipeline reports its failing stage', () => {
+    expect(buildRunArgv('collegium-mira', 'curl x | node').find((arg) => arg.includes('pipefail'))).toBe(
+      'cd -- "$HOME" || exit 1; exec bash -o pipefail -c "$1" "$0"'
+    );
   });
 
   it('should pass the command as a single argv element, never re-parsed on our side', () => {
@@ -83,6 +91,33 @@ describe('buildRunArgv', () => {
   // target's login shell would expand a literal the approver read and fold a newline away (§6.2)
   it('should never ask sudo for a login shell, which would re-parse the command', () => {
     expect(buildRunArgv('collegium-mira', 'echo a')).not.toContain('--login');
+  });
+});
+
+describe('buildCommandProbeArgv', () => {
+  it('should ask the agent’s own login shell which candidates exist, under the same sudo flags (§3.8)', () => {
+    expect(buildCommandProbeArgv('collegium-mira', ['node', 'curl'])).toStrictEqual([
+      '--non-interactive',
+      '--set-home',
+      '--user',
+      'collegium-mira',
+      '--',
+      'timeout',
+      '5',
+      'bash',
+      '-lc',
+      'command -v "$@"',
+      'collegium-shell',
+      'node',
+      'curl'
+    ]);
+  });
+});
+
+describe('parsePresentCommands', () => {
+  it('should name the commands from the paths command -v printed, and nothing for the ones it did not', () => {
+    expect(parsePresentCommands('/usr/local/bin/node\n/usr/bin/git\n')).toStrictEqual(['node', 'git']);
+    expect(parsePresentCommands('')).toStrictEqual([]);
   });
 });
 

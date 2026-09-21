@@ -100,6 +100,19 @@ describe('ShellService', () => {
       await expect(shellService.assertProvisioned([profile('mira', ['shell'])])).resolves.toBeUndefined();
     });
 
+    it('should keep the commands the probe found, asked of the first shell-holding agent’s own shell (§3.8)', async () => {
+      processRunner.spawnCaptured.mockResolvedValueOnce(exited(''));
+      processRunner.spawnCaptured.mockResolvedValueOnce(exited('/usr/local/bin/node\n/usr/bin/git\n'));
+      await shellService.assertProvisioned([profile('mira', ['shell'])]);
+      expect(processRunner.spawnCaptured.mock.calls[1]![1]).toContain('command -v "$@"');
+      expect(shellService.listPresentCommands()).toStrictEqual(['node', 'git']);
+    });
+
+    it('should leave the commands unknown when no agent holds the shell tool', async () => {
+      await shellService.assertProvisioned([profile('mira', [])]);
+      expect(shellService.listPresentCommands()).toStrictEqual([]);
+    });
+
     it('should stop boot loudly when sudo cannot be launched at all', async () => {
       processRunner.spawnCaptured.mockResolvedValue(Result.err({ message: 'spawn sudo ENOENT' }));
       await expect(shellService.assertProvisioned([profile('mira', ['shell'])])).rejects.toThrow(/mira.*unusable/s);

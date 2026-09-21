@@ -17,7 +17,9 @@ export const SHELL_TOOLSET = implementToolset(SHELL_TOOLSET_DEF, {
         body: `Run this shell command as this agent's dedicated OS user:\n\n${fenceCodeBlock(args.command, 'sh')}`,
         presentation: 'verbatim'
       }),
-      description: 'Run a shell command on the host as your own dedicated OS user.',
+      description:
+        'Run a shell command on the host as your own dedicated OS user, under bash with pipefail, starting in your own ' +
+        "home directory. Every command needs a person's approval; read web pages with web::fetch rather than from here.",
       execute: async (args, context) => {
         const profile = context.agents.get(context.turn.agentUsername);
         if (!profile) {

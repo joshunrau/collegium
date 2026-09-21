@@ -10,6 +10,7 @@ import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import type { SystemPrompt } from '@/inference/inference.types.ts';
 import { renderSystemPrompt } from '@/inference/inference.utils.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
+import { ShellService } from '@/shell/shell.service.ts';
 import { deriveShellHomeDir } from '@/shell/shell.utils.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
@@ -32,6 +33,7 @@ export class SystemPromptRenderer {
     private readonly agentRegistry: AgentRegistry,
     private readonly memoryService: MemoryService,
     private readonly rosterService: RosterService,
+    private readonly shellService: ShellService,
     private readonly skillsService: SkillsService,
     private readonly tasksService: TasksService,
     private readonly textFormatter: TextFormatter,
@@ -107,24 +109,38 @@ export class SystemPromptRenderer {
   }
 
   /**
-   * §3.8 — the directories the agent's file tools point at, which it cannot otherwise learn without
-   * failing: they are two, they are mutually unreadable (§A2), and an agent told neither writes with
-   * one tool and looks with the other. Per agent and fixed for the life of the process, so they cost
-   * the stable half nothing.
+   * §3.8 — the directories the agent's file tools point at, and the shell's environment, which it
+   * cannot otherwise learn without failing: the directories are two and mutually unreadable (§A2),
+   * a shell output too large for a result spills into the workspace, and which commands exist is
+   * what the boot probe found. Per agent and fixed for the life of the process, so they cost the
+   * stable half nothing.
    */
   private renderDirectories(profile: AgentProfile) {
     const granted = this.toolRegistry.listFor(profile);
     const holdsShell = granted.some(({ id: [namespace, tool] }) => namespace === 'shell' && tool === 'run');
     const holdsWorkspace = granted.some(({ id: [namespace] }) => namespace === 'workspace');
-    if (holdsWorkspace && holdsShell) {
-      return [
-        'workspace__read and workspace__write share one directory, {workspaceDir}. shell__run starts in {shellHomeDir}, which is a different directory: a file one tool writes is not visible to the other.'
-      ];
-    }
-    if (holdsWorkspace) {
-      return ['workspace__read and workspace__write share one directory, {workspaceDir}.'];
-    }
-    return holdsShell ? ['shell__run starts in {shellHomeDir}.'] : [];
+    const holdsWorkspaceRead = granted.some(
+      ({ id: [namespace, tool] }) => namespace === 'workspace' && tool === 'read'
+    );
+    const commands = this.shellService.listPresentCommands();
+    const shell = [
+      'shell__run runs each command as your own OS user, starting in {shellHomeDir}.',
+      ...(holdsWorkspace
+        ? ['That user cannot read or write {workspaceDir}, and the workspace tools cannot reach {shellHomeDir}.']
+        : []),
+      ...(holdsWorkspaceRead
+        ? ['A shell output too large for a result is written into {workspaceDir} and named in the result.']
+        : []),
+      'The shell runs under bash with pipefail.',
+      ...(commands.length === 0
+        ? []
+        : ['These commands are present: {shellCommands}. Anything not listed is not installed.']),
+      'The shell reaches the network under no address policy.'
+    ].join(' ');
+    return [
+      ...(holdsWorkspace ? ['workspace__read and workspace__write share one directory, {workspaceDir}.'] : []),
+      ...(holdsShell ? [shell] : [])
+    ];
   }
 
   private renderMemories(memories: readonly { description: string; reference: string }[]): string | undefined {
@@ -233,6 +249,7 @@ export class SystemPromptRenderer {
         foldingCalls: this.textFormatter.formatConjunction(foldingCalls),
         retainedResultFloor: SUPERSEDABLE_RETENTION_FLOOR,
         retainedResultTokens: retentionBudgetFor(profile),
+        shellCommands: this.textFormatter.formatConjunction(this.shellService.listPresentCommands()),
         shellHomeDir: deriveShellHomeDir(profile.username),
         workspaceDir: profile.workspaceDir
       }

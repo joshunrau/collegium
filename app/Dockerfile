@@ -62,10 +62,13 @@ COPY --from=build /srv /srv
 # entrypoint's APP_ROOT, which is what §6.1 confinement is applied to.
 WORKDIR /srv/app
 
-# sudo is the whole of the shell tool's privilege (§A2). Firefox's shared libraries are resolved by
-# the browser vendor's own matrix rather than a hand-kept list.
+# sudo is the whole of the shell tool's privilege (§A2). python3 is the one interpreter the shell
+# offers beside node: every model reached for it on every large-page task, and the shell's network
+# reach is declared unpoliced (§A2), so this is an allowance made once rather than discovered by
+# failing. Firefox's shared libraries are resolved by the browser vendor's own matrix rather than a
+# hand-kept list.
 RUN apt-get update \
-  && apt-get install --yes --no-install-recommends sudo \
+  && apt-get install --yes --no-install-recommends python3 sudo \
   && pnpm exec playwright-core install-deps firefox \
   && rm -rf /var/lib/apt/lists/*
 

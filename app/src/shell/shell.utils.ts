@@ -28,9 +28,12 @@ const SHELL_ARGV0 = 'collegium-shell';
  * the agent's own home in `$HOME` from the passwd database, this cds there, and `-l` on the outer
  * shell reads the login profiles. The command rides in its own argv slot and reaches the inner shell
  * as a quoted `"$1"`, so nothing between the approver and execution re-parses it. `exec` keeps the
- * pid `timeout(1)` is watching.
+ * pid `timeout(1)` is watching. `pipefail` makes a pipeline report its failing stage rather than
+ * its last one: without it `curl … | node` exited 0 with curl missing, and the failure sat in
+ * stderr alone. The trade is that a command which means to ignore an early stage (`yes | head`)
+ * now reports non-zero.
  */
-const RUN_FROM_HOME = 'cd -- "$HOME" || exit 1; exec bash -c "$1" "$0"';
+const RUN_FROM_HOME = 'cd -- "$HOME" || exit 1; exec bash -o pipefail -c "$1" "$0"';
 
 function deriveShellOsUserId(agentUsername: string): number {
   const digest = createHash('sha256').update(agentUsername).digest();
@@ -143,6 +146,37 @@ export function buildRunArgv(osUser: string, command: string): readonly string[]
  */
 export function buildProbeArgv(osUser: string): readonly string[] {
   return ['--non-interactive', '--set-home', '--user', osUser, '--', 'timeout', '1', 'true'];
+}
+
+/**
+ * §3.8 — which of the candidate commands the agent's own shell finds, under the same login shell
+ * the real run uses, so the preamble states what is installed rather than leaving the model to
+ * discover it by failing. `command -v` prints one path per name it finds and nothing for the rest.
+ */
+export function buildCommandProbeArgv(osUser: string, candidates: readonly string[]): readonly string[] {
+  return [
+    '--non-interactive',
+    '--set-home',
+    '--user',
+    osUser,
+    '--',
+    'timeout',
+    '5',
+    'bash',
+    '-lc',
+    'command -v "$@"',
+    SHELL_ARGV0,
+    ...candidates
+  ];
+}
+
+/** the names `command -v` found, from the paths it printed */
+export function parsePresentCommands(stdout: string): string[] {
+  return stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .map((line) => path.basename(line));
 }
 
 /**

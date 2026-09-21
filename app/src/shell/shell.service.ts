@@ -12,9 +12,11 @@ import {
   CAPTURE_LIMIT_CHARS,
   SAVED_OUTPUT_DIRECTORY,
   SAVED_OUTPUT_RETAINED,
+  SHELL_PROBED_COMMANDS,
   SPAWN_WORKING_DIRECTORY
 } from './shell.constants.ts';
 import {
+  buildCommandProbeArgv,
   buildProbeArgv,
   buildRunArgv,
   deriveShellOsUser,
@@ -22,6 +24,7 @@ import {
   holdsWorkspaceRead,
   isOverResultCap,
   nameSavedOutput,
+  parsePresentCommands,
   renderSavedOutput,
   toRunOutput
 } from './shell.utils.ts';
@@ -35,6 +38,9 @@ import type { CapturedProcess, ShellRunFailure, ShellRunOutput } from './shell.t
  */
 @Injectable()
 export class ShellService {
+  /** §3.8 — what the boot probe found installed, fixed for the life of the process; empty until a shell-holding agent's user was probed */
+  private presentCommands: readonly string[] = [];
+
   constructor(
     private readonly loggingService: LoggingService,
     private readonly processRunner: ProcessRunner
@@ -43,13 +49,12 @@ export class ShellService {
   /**
    * §6.1 boot probe — fail loudly on an undeclared policy. For every shell-holding agent it checks
    * that the derived OS user can be assumed via passwordless sudo. An unprovisioned host stops boot
-   * here rather than surfacing as a first-command failure much later.
+   * here rather than surfacing as a first-command failure much later. Once one user is assumable,
+   * its shell is asked which of the candidate commands exist, so the preamble can say so (§3.8).
    */
   async assertProvisioned(profiles: readonly AgentProfile[]): Promise<void> {
-    for (const profile of profiles) {
-      if (!holdsShellGrant(profile.tools)) {
-        continue;
-      }
+    const holders = profiles.filter((profile) => holdsShellGrant(profile.tools));
+    for (const profile of holders) {
       const osUser = deriveShellOsUser(profile.username);
       const probe = await this.processRunner.spawnCaptured('sudo', buildProbeArgv(osUser), {
         captureLimitChars: CAPTURE_LIMIT_CHARS,
@@ -67,6 +72,15 @@ export class ShellService {
         );
       }
     }
+    const first = holders[0];
+    if (first !== undefined) {
+      this.presentCommands = await this.probeCommands(deriveShellOsUser(first.username));
+    }
+  }
+
+  /** §3.8 — the commands the boot probe found, for the preamble of every shell-holding agent */
+  listPresentCommands(): readonly string[] {
+    return this.presentCommands;
   }
 
   /**
@@ -88,6 +102,19 @@ export class ShellService {
         ? await this.saveOutput(params.profile, params.command, captured.value)
         : undefined;
     return Result.ok({ text: toRunOutput(captured.value, savedPath) });
+  }
+
+  /** a probe that cannot run leaves the list empty and the preamble silent; the image is the source of truth, not this */
+  private async probeCommands(osUser: string): Promise<readonly string[]> {
+    const probe = await this.processRunner.spawnCaptured('sudo', buildCommandProbeArgv(osUser, SHELL_PROBED_COMMANDS), {
+      captureLimitChars: CAPTURE_LIMIT_CHARS,
+      cwd: SPAWN_WORKING_DIRECTORY
+    });
+    if (!probe.success) {
+      this.loggingService.warn(`could not probe which commands the shell offers: ${probe.error.message}`);
+      return [];
+    }
+    return parsePresentCommands(probe.value.stdout);
   }
 
   /**

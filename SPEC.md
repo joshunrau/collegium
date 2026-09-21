@@ -63,6 +63,7 @@ Every capability is a hand-written TypeScript function with a schema, reviewed a
 - That user owns its home directory and nothing else, mode `700`.
 - The framework's own tree is unreadable by agent users.
 - Agent home directories are unreadable by other agent users.
+- The shell's network reach is not policed. The address policy of §3.4 binds the web toolset, which is ungated, and not `shell::run`, whose control is the approval on every command: a person reads the command before it runs, and that reading is the whole of the network policy. The preamble says so (§3.8).
 
 The capability surface of an agent is therefore fully enumerable by reading config.
 
@@ -142,7 +143,7 @@ Reads are generally ungated: search, fetch, read mail. Writes, shell commands, a
 
 **Authority parameters are never model-supplied.** Any argument determining _whose authority an action carries_ is fixed in tool settings — the `from` address on outbound mail, credentials for external services. The model may request that mail be sent; it cannot choose who it appears to be from, and boot refuses a mail-granted agent without a mailbox (§3.13).
 
-**Filesystem scope.** The `workspace` tools and `shell::run` are confined to the agent's own directories — the former by path confinement, the latter by OS permissions (§A2). They are not the _same_ directory, and both paths are stated in the preamble (§3.8) rather than left for the agent to discover by failing. Purpose-built tools may write to real systems by their own internal logic; those are individually reviewed and their write targets are fixed in code, never chosen by the model.
+**Filesystem scope.** The `workspace` tools and `shell::run` are confined to the agent's own directories — the former by path confinement, the latter by OS permissions (§A2). They are not the _same_ directory, and both paths are stated in the preamble (§3.8) rather than left for the agent to discover by failing, as are the commands the shell offers, probed once at boot. The shell's network reach is bounded by the approval on every command and by nothing else (§A2). Purpose-built tools may write to real systems by their own internal logic; those are individually reviewed and their write targets are fixed in code, never chosen by the model.
 
 **Reading the workspace is not a shell command.** The `workspace` toolset's reads — `workspace::list`, `workspace::read`, `workspace::find`, `workspace::grep`, `workspace::stat` — take typed arguments under the same path confinement as `workspace::write`, so there is no command string in which a second command could hide. Each is ungated, because the confinement that bounds a write bounds a read of the same directory. The shell's own directory is not reached by these tools; a read there is still a `shell::run` under the gate.
 

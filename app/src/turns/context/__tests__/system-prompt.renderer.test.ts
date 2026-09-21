@@ -7,6 +7,7 @@ import { RosterService } from '@/channels/roster/roster.service.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
+import { ShellService } from '@/shell/shell.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -30,6 +31,7 @@ const PEER = { expertise: 'scheduling', username: 'tess' } as AgentProfile;
 describe('SystemPromptRenderer', () => {
   let memoryService: MockedInstance<MemoryService>;
   let rosterService: MockedInstance<RosterService>;
+  let shellService: MockedInstance<ShellService>;
   let skillsService: MockedInstance<SkillsService>;
   let systemPromptRenderer: SystemPromptRenderer;
   let toolRegistry: MockedInstance<ToolRegistry>;
@@ -42,6 +44,8 @@ describe('SystemPromptRenderer', () => {
     memoryService.list.mockResolvedValue([]);
     rosterService = MockFactory.createMock(RosterService);
     rosterService.getPeers.mockReturnValue([]);
+    shellService = MockFactory.createMock(ShellService);
+    shellService.listPresentCommands.mockReturnValue(['node', 'git']);
     skillsService = MockFactory.createMock(SkillsService);
     skillsService.renderManifest.mockReturnValue('');
     toolRegistry = MockFactory.createMock(ToolRegistry);
@@ -62,6 +66,7 @@ describe('SystemPromptRenderer', () => {
         TextFormatter,
         { provide: MemoryService, useValue: memoryService },
         { provide: RosterService, useValue: rosterService },
+        { provide: ShellService, useValue: shellService },
         { provide: SkillsService, useValue: skillsService },
         { provide: ToolRegistry, useValue: toolRegistry },
         { provide: WindowService, useValue: windowService },
@@ -124,7 +129,8 @@ describe('SystemPromptRenderer', () => {
   it('should name no directory for an agent holding no file tool (§3.8)', async () => {
     const prompt = await render();
     expect(prompt).not.toContain('share one directory');
-    expect(prompt).not.toContain('shell__run starts in');
+    expect(prompt).not.toContain('shell__run runs');
+    expect(prompt).not.toContain('These commands are present');
   });
 
   it('should name the workspace directory for an agent holding a workspace tool (§3.8)', async () => {
@@ -139,18 +145,30 @@ describe('SystemPromptRenderer', () => {
   it('should name the shell home alone for an agent holding shell run without a workspace tool (§3.8)', async () => {
     toolRegistry.listFor.mockReturnValue([{ gates: true, id: ['shell', 'run'] }]);
     const prompt = await render();
-    expect(prompt).toContain('shell__run starts in /home/collegium-mira.');
-    expect(prompt).not.toContain('different directory');
+    expect(prompt).toContain(
+      'shell__run runs each command as your own OS user, starting in /home/collegium-mira. The shell runs under bash with pipefail. These commands are present: node and git. Anything not listed is not installed. The shell reaches the network under no address policy.'
+    );
+    expect(prompt).not.toContain('cannot read or write');
   });
 
-  it('should name both directories and their difference for an agent holding both (§3.8)', async () => {
+  it('should name both directories, their mutual unreadability and the output spill for an agent holding both (§3.8)', async () => {
     toolRegistry.listFor.mockReturnValue([
       { gates: true, id: ['shell', 'run'] },
-      { gates: true, id: ['workspace', 'write'] }
+      { gates: false, id: ['workspace', 'read'] }
     ]);
     expect(await render()).toContain(
-      'workspace__read and workspace__write share one directory, /var/lib/collegium/workspaces/mira. shell__run starts in /home/collegium-mira, which is a different directory: a file one tool writes is not visible to the other.'
+      'workspace__read and workspace__write share one directory, /var/lib/collegium/workspaces/mira.\n\nshell__run runs each command as your own OS user, starting in /home/collegium-mira. That user cannot read or write /var/lib/collegium/workspaces/mira, and the workspace tools cannot reach /home/collegium-mira. A shell output too large for a result is written into /var/lib/collegium/workspaces/mira and named in the result. The shell runs under bash with pipefail.'
     );
+  });
+
+  it('should say nothing about commands when the probe found none (§3.8)', async () => {
+    shellService.listPresentCommands.mockReturnValue([]);
+    toolRegistry.listFor.mockReturnValue([{ gates: true, id: ['shell', 'run'] }]);
+    const prompt = await render();
+    expect(prompt).toContain(
+      'The shell runs under bash with pipefail. The shell reaches the network under no address policy.'
+    );
+    expect(prompt).not.toContain('These commands are present');
   });
 
   it('should carry the directories in the stable half and no clock or host state in either (§3.8)', async () => {

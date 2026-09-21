@@ -8,6 +8,7 @@ import { ConversationsModule } from '@/conversations/conversations.module.ts';
 import { InferenceModule } from '@/inference/inference.module.ts';
 import { MemoryModule } from '@/memory/memory.module.ts';
 import { NotificationsModule } from '@/notifications/notifications.module.ts';
+import { ShellModule } from '@/shell/shell.module.ts';
 import { SkillsModule } from '@/skills/skills.module.ts';
 import { TasksModule } from '@/tasks/tasks.module.ts';
 import { ToolsModule } from '@/tools/tools.module.ts';
@@ -41,6 +42,7 @@ import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
     InferenceModule,
     MemoryModule,
     NotificationsModule,
+    ShellModule,
     SkillsModule,
     TasksModule,
     ToolsModule,
