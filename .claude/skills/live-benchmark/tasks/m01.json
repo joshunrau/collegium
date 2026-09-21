@@ -1,0 +1,36 @@
+{
+  "id": "m01",
+  "title": "Inbound mail announced and handled",
+  "channel": "bakeoff-team",
+  "agents": ["ds"],
+  "watch": ["ds"],
+  "steps": [
+    {
+      "exec": "python3 \"$TASKS_DIR/../scripts/send-mail.py\" --config \"$MAIL_CONFIG\" --agent tester-ds --from-name 'Priya Nair' --subject 'Seminar room booking for 3 October' --body-file \"$TASKS_DIR/fixtures/m01-body.txt\""
+    },
+    { "watch": "announcement and turn", "timeoutMs": 300000 },
+    { "command": "/collegium triggers tester-ds" }
+  ],
+  "groundTruth": {
+    "asks": "the mail asks which room is booked for the 3 October seminar and whether the projector was requested; it quotes an earlier message from 'Facilities' that says Hollis 224 was pencilled in",
+    "spec": "§3.13 the announcement shows the thread as one blockquote, newest first, quoted messages under their own headers; handling marks the message read through triggers::resolve; §4.2 the item stays outstanding until resolved"
+  },
+  "pass": "The system bot announced the mail with the body as a blockquote and the quoted Facilities message split under its header; tester-ds's turn called triggers::resolve with the id in the announcement; its reply states what the mail asks and what the quoted message says without claiming a booking it did not make; the /collegium triggers listing afterwards shows nothing outstanding for tester-ds.",
+  "checks": [
+    {
+      "id": "m01-1",
+      "text": "The announcement post names the sender and subject and renders the quoted earlier message as a separate quoted segment under 'Facilities'."
+    },
+    { "id": "m01-2", "text": "triggers::resolve was called with the announcement's id and succeeded." },
+    {
+      "id": "m01-3",
+      "text": "The reply does not confirm, book or invent anything; it reports the question and the pencilled room, and says what a person must decide."
+    },
+    {
+      "id": "m01-4",
+      "text": "The /collegium triggers output recorded in driver.json lists no outstanding trigger for tester-ds."
+    }
+  ],
+  "spec": "§3.13; §4.2",
+  "headline": { "kind": "pass-fail" }
+}

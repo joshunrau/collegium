@@ -37,8 +37,43 @@ const AGENTS = {
     id: '41c891ywii8d7j18yt71rubbgy',
     channel: 'rfsric38n3napfq9kx7d5xb6ho',
     channelName: 'bakeoff-luna'
-  }
+  },
+  ds2: { username: 'tester-ds2', channelName: 'bakeoff-team' }
 };
+const SYSTEM_BOT = { username: 'orchestrator', id: 'jyf4abkjcjfkmy5ohk7szepf9o' };
+const QUIET_MS = 40_000;
+const channelIds = new Map();
+
+// An agent provisioned after this file was written has no id here; look it and its channel up once.
+async function resolveIds() {
+  const missing = Object.values(AGENTS).filter((a) => !a.id);
+  if (missing.length > 0) {
+    const users = await api(
+      'POST',
+      '/users/usernames',
+      missing.map((a) => a.username)
+    );
+    for (const a of missing) a.id = users.find((u) => u.username === a.username)?.id;
+  }
+  for (const a of Object.values(AGENTS)) {
+    if (!a.channel) a.channel = await channelIdByName(a.channelName);
+  }
+}
+
+// `dm:<agentKey>` is the direct channel between the driver's account and that agent.
+async function channelIdByName(name) {
+  if (!channelIds.has(name)) {
+    if (name.startsWith('dm:')) {
+      const me = await api('GET', '/users/me');
+      const channel = await api('POST', '/channels/direct', [me.id, AGENTS[name.slice(3)].id]);
+      channelIds.set(name, channel.id);
+    } else {
+      const channel = await api('GET', `/teams/${TEAM}/channels/name/${name}`);
+      channelIds.set(name, channel.id);
+    }
+  }
+  return channelIds.get(name);
+}
 const WORKING = '⏳';
 const TERMINAL = ['✅', '⚠️', '🛑', '⏸️', '⏹️'];
 const PROMPT = ['🔐', '❓'];
@@ -132,8 +167,10 @@ function dialog(postId, actionId, field, text) {
   return result.stdout.trim();
 }
 
-async function saveTrace(agent, postId, file) {
-  const response = await command(agent.channel, `/collegium trace ${postId}`);
+// The trace command answers only in the channel the turn ran in (§8.2), so the task's channel
+// is passed, not the agent's default one.
+async function saveTrace(agent, postId, file, channelId = agent.channel) {
+  const response = await command(channelId, `/collegium trace ${postId}`);
   fs.writeFileSync(file, response.text ?? '');
   fs.writeFileSync(`${file}.json`, JSON.stringify({ ...response, text: undefined }, null, 2));
   return (response.text ?? '').length;
@@ -184,71 +221,101 @@ async function decidePrompt(tag, agent, prompt, queue, record) {
   log(tag, `decided "${heading}" -> ${decision.decision}${decision.reason ? ` (${decision.reason})` : ''}`);
 }
 
-async function waitTurn(tag, agent, sinceMs, queue, record) {
+// Watches one channel from `sinceMs` for the turns of every agent in `watch` (a chain of hand-offs
+// is several turns by several agents); settles when every watched agent's newest status post is
+// terminal and nothing has changed for QUIET_MS, so a colleague's turn that starts a few seconds
+// after the first one ends is still caught.
+async function waitTurn(tag, watch, channelId, sinceMs, queue, record, timeoutMs = TURN_TIMEOUT_MS) {
   const handled = new Set();
   const started = Date.now();
-  let terminalSeenAt;
+  const watchedIds = new Set(watch.map((a) => a.id));
+  const ownedBy = (p) => watchedIds.has(p.user_id);
   while (true) {
     // `since` also returns posts edited after that instant, so the previous turn's status post,
     // edited to its terminal marker moments before this task was posted, would be matched here.
-    const posts = (await postsSince(agent.channel, sinceMs)).filter((p) => p.create_at >= sinceMs + 1000);
+    const posts = (await postsSince(channelId, sinceMs)).filter((p) => p.create_at >= sinceMs + 1000);
     for (const p of posts) {
-      if (isPrompt(p) && !handled.has(p.id)) {
+      if (isPrompt(p) && ownedBy(p) && !handled.has(p.id)) {
         handled.add(p.id);
         try {
-          await decidePrompt(tag, agent, p, queue, record);
+          await decidePrompt(tag, watch[0], p, queue, record);
         } catch (error) {
           record.notes.push(`decision failed on ${p.id} at ${now()}: ${String(error).slice(0, 200)}`);
           log(tag, `decision failed on ${p.id}: ${String(error).slice(0, 120)}`);
         }
       }
     }
-    const status = posts.find((p) => p.user_id === agent.id && STATUS_RE.test(p.message));
+    const statuses = posts.filter((p) => ownedBy(p) && STATUS_RE.test(p.message));
+    const status = statuses.at(-1);
     const replies = posts.filter(
       (p) =>
-        p.user_id === agent.id &&
+        ownedBy(p) &&
         p.message.length > 0 &&
         !STATUS_RE.test(p.message) &&
         !DECISION_RE.test(p.message) &&
         !startsWithAny(p.message, PROMPT)
     );
-    if (status && startsWithAny(status.message, TERMINAL)) {
-      if (terminalSeenAt === undefined) {
-        terminalSeenAt = Date.now();
-        if (replies.length === 0) {
-          await sleep(5000);
-          continue;
-        }
-      }
-      return { status, replies, outcome: status.message.split('\n')[0] };
-    }
+    const systemPosts = posts.filter((p) => p.user_id === SYSTEM_BOT.id && p.message.length > 0);
+    const newestOf = (a) => statuses.filter((p) => p.user_id === a.id).at(-1);
+    // A colleague addressed by a watched post owes a turn; its status post can lag the mention by
+    // minutes (the first model call posts nothing), so wait for it before calling the chain done.
+    const owed = watch.filter((a) =>
+      posts.some(
+        (p) =>
+          (ownedBy(p) || p.user_id === SYSTEM_BOT.id || !p.user_id.startsWith('_')) &&
+          p.message.includes(`@${a.username}`) &&
+          !(newestOf(a) && newestOf(a).create_at > p.create_at)
+      )
+    );
+    const allTerminal =
+      statuses.length > 0 &&
+      owed.length === 0 &&
+      watch.every((a) => !newestOf(a) || startsWithAny(newestOf(a).message, TERMINAL));
     const newest = Math.max(0, ...posts.map((p) => Math.max(p.create_at, p.update_at)));
-    if (replies.length > 0 && Date.now() - newest > 90_000 && !posts.some((p) => isPrompt(p) && !handled.has(p.id))) {
-      record.notes.push(
-        `reply settled without a terminal status marker at ${now()} (status post ${status?.id ?? 'none'}, ${status?.message.length ?? 0} chars)`
-      );
-      return {
-        status,
-        replies,
-        outcome: `settled-without-terminal (${status?.message.split('\n')[0] ?? 'no status'})`
-      };
+    const quietFor = Date.now() - newest;
+    const pending = posts.some((p) => isPrompt(p) && !handled.has(p.id));
+    if (allTerminal && quietFor > QUIET_MS && !pending) {
+      return { status, statuses, replies, systemPosts, outcome: status.message.split('\n')[0] };
     }
-    if (Date.now() - started > TURN_TIMEOUT_MS) {
-      return { status, replies, outcome: 'timeout' };
+    if (statuses.length === 0 && (replies.length > 0 || systemPosts.length > 0) && quietFor > 90_000 && !pending) {
+      record.notes.push(
+        `settled with no status post at ${now()} (${replies.length} replies, ${systemPosts.length} system posts)`
+      );
+      return { status, statuses, replies, systemPosts, outcome: 'settled-without-status' };
+    }
+    if (Date.now() - started > timeoutMs) {
+      return { status, statuses, replies, systemPosts, outcome: 'timeout' };
     }
     await sleep(POLL_MS);
   }
 }
 
+const exec = (cmd) =>
+  spawnSync('bash', ['-lc', cmd], { encoding: 'utf-8', env: { ...process.env, RUN_DIR, TASKS_DIR } });
+
+// A task may name a `channel` (by name) other than the agent's own, and `watch` (agent keys) whose
+// turns all belong to the task, for a hand-off chain. Steps beyond post/approval/ask/command:
+// `exec` runs a local shell command (a webhook call, a mail send); `watch` posts nothing and waits
+// for the next turn in the channel (a trigger announcement); a `post` with `noWait` returns at once
+// and `delayMs` sleeps before it, for concurrency probes.
 async function runTask(taskId, task, key) {
   const agent = AGENTS[key];
   const tag = key;
-  const substitute = (text) => text.replaceAll('{agent}', agent.username).replaceAll('{FIX}', FIX);
+  const channelId = task.channel ? await channelIdByName(task.channel) : agent.channel;
+  const watch = (task.watch ?? [key]).map((k) => AGENTS[k]);
+  const substitute = (text) =>
+    text
+      .replaceAll('{agent}', agent.username)
+      .replaceAll('{FIX}', FIX)
+      .replaceAll('{channelId}', channelId)
+      .replaceAll('{MAILBOX}', process.env.MAILBOX ?? '')
+      .replaceAll('{TOKEN}', process.env.TRIGGER_TOKEN ?? '');
   const record = {
     task: taskId,
     agent: agent.username,
     model: key,
-    channel: agent.channel,
+    channel: channelId,
+    watch: watch.map((a) => a.username),
     startedAt: now(),
     turns: [],
     promptPostIds: [],
@@ -256,43 +323,79 @@ async function runTask(taskId, task, key) {
     notes: []
   };
   const steps = [...task.steps];
+  let lastHumanCreateAt;
   while (steps.length > 0) {
     const step = steps.shift();
+    if (step.delayMs) await sleep(step.delayMs);
     if (step.command) {
-      const response = await command(agent.channel, substitute(step.command));
-      record.notes.push(`command ${substitute(step.command)} -> ${(response?.text ?? '').slice(0, 120)}`);
+      const response = await command(channelId, substitute(step.command));
+      record.notes.push(`command ${substitute(step.command)} -> ${(response?.text ?? '').slice(0, 300)}`);
       log(tag, `ran ${substitute(step.command)}`);
       await sleep(3000);
       continue;
     }
-    if (!step.post) continue;
+    if (step.exec) {
+      const result = exec(substitute(step.exec));
+      record.notes.push(
+        `exec ${step.exec.slice(0, 80)} -> ${result.status}: ${(result.stdout + result.stderr).trim().slice(0, 300)}`
+      );
+      log(tag, `exec ${step.exec.slice(0, 60)} -> ${result.status}`);
+      continue;
+    }
+    if (!step.post && !step.watch) continue;
     const queue = [];
     while (steps.length > 0 && (steps[0].approval || steps[0].ask)) queue.push(steps.shift());
-    const human = await post(agent.channel, substitute(step.post));
+    let human;
+    if (step.post) {
+      human = await post(channelId, substitute(step.post));
+      lastHumanCreateAt = human.create_at;
+      log(tag, `posted ${human.id}: ${substitute(step.post).slice(0, 80)}`);
+    }
     const turn = {
-      humanPostId: human.id,
+      humanPostId: human?.id,
+      watchLabel: step.watch,
       postedAt: now(),
-      statusPostId: undefined,
+      statusPostIds: [],
       replyPostIds: [],
+      systemPostIds: [],
       outcome: undefined,
       endedAt: undefined,
       traceChars: 0
     };
     record.turns.push(turn);
-    log(tag, `posted ${human.id}: ${substitute(step.post).slice(0, 80)}`);
-    const result = await waitTurn(tag, agent, human.create_at - 1000, queue, record);
+    if (step.noWait) {
+      turn.outcome = 'not-waited';
+      continue;
+    }
+    // A watch after a post the driver did not wait for still belongs to that post's turn.
+    const sinceMs =
+      (human?.create_at ??
+        (step.watch && steps.length < task.steps.length ? lastHumanCreateAt : undefined) ??
+        Date.now()) - 1000;
+    lastHumanCreateAt = undefined;
+    const result = await waitTurn(tag, watch, channelId, sinceMs, queue, record, step.timeoutMs);
     turn.statusPostId = result.status?.id;
+    turn.statusPostIds = result.statuses.map((p) => p.id);
     turn.replyPostIds = result.replies.map((p) => p.id);
-    turn.replies = result.replies.map((p) => p.message);
+    turn.replies = result.replies.map((p) => `@${watch.find((a) => a.id === p.user_id)?.username}: ${p.message}`);
+    turn.systemPostIds = result.systemPosts.map((p) => p.id);
+    turn.systemPosts = result.systemPosts.map((p) => p.message);
     turn.outcome = result.outcome;
     turn.endedAt = now();
-    log(tag, `turn ended: ${result.outcome} with ${result.replies.length} reply post(s)`);
-    const traceTarget = turn.statusPostId ?? turn.replyPostIds[0];
-    if (traceTarget) {
-      const file = path.join(RUN_DIR, 'traces', `${taskId}-${key}-${record.turns.length}.md`);
-      turn.traceChars = await saveTrace(agent, traceTarget, file);
-      log(tag, `trace ${turn.traceChars} chars -> ${path.basename(file)}`);
+    log(
+      tag,
+      `turn ended: ${result.outcome} with ${result.statuses.length} status, ${result.replies.length} reply, ${result.systemPosts.length} system post(s)`
+    );
+    for (const [i, s] of result.statuses.entries()) {
+      const owner = watch.find((a) => a.id === s.user_id);
+      const file = path.join(
+        RUN_DIR,
+        'traces',
+        `${taskId}-${key}-${record.turns.length}${result.statuses.length > 1 ? `-${i + 1}-${owner?.username}` : ''}.md`
+      );
+      turn.traceChars += await saveTrace(owner ?? agent, s.id, file, channelId);
     }
+    if (turn.traceChars) log(tag, `trace ${turn.traceChars} chars`);
     if (queue.some((s) => !s.approval?.repeat)) record.notes.push(`unused scripted steps: ${JSON.stringify(queue)}`);
   }
   record.endedAt = now();
@@ -318,7 +421,7 @@ async function resumeTask(taskId, task, key, humanPostId, stepIndex) {
   while (steps.length > 0 && (steps[0].approval || steps[0].ask)) queue.push(steps.shift());
   const turn = { humanPostId, postedAt: record.startedAt, replyPostIds: [], traceChars: 0 };
   record.turns.push(turn);
-  const result = await waitTurn(key, agent, human.create_at - 1000, queue, record);
+  const result = await waitTurn(key, [agent], agent.channel, human.create_at - 1000, queue, record);
   turn.statusPostId = result.status?.id;
   turn.replyPostIds = result.replies.map((p) => p.id);
   turn.replies = result.replies.map((p) => p.message);
@@ -351,12 +454,15 @@ function appendRun(records) {
 }
 
 const [, , verb, ...rest] = process.argv;
+if (verb !== 'login') await resolveIds();
 if (verb === 'login') {
   await login();
 } else if (verb === 'task') {
   const taskFile = rest[0].includes('/') ? rest[0] : path.join(TASKS_DIR, `${rest[0]}.json`);
   const task = JSON.parse(fs.readFileSync(taskFile, 'utf-8'));
-  const keys = (rest.includes('--agents') ? rest[rest.indexOf('--agents') + 1] : 'ds,glm,luna').split(',');
+  const keys = (
+    rest.includes('--agents') ? rest[rest.indexOf('--agents') + 1] : (task.agents?.join(',') ?? 'ds,glm,luna')
+  ).split(',');
   log('run', `task ${task.id} "${task.title}" on ${keys.join(', ')}`);
   const records = await Promise.all(
     keys.map((key) =>

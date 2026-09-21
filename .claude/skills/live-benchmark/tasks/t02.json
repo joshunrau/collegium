@@ -1,0 +1,40 @@
+{
+  "id": "t02",
+  "title": "A webhook arriving while the agent is busy waits for idle",
+  "channel": "bakeoff-team",
+  "agents": ["ds"],
+  "watch": ["ds"],
+  "steps": [
+    {
+      "post": "@{agent} read every monthly minutes page linked from {FIX}/minutes/ and give me the total of the approved expenditures across all of them.",
+      "noWait": true
+    },
+    {
+      "delayMs": 6000,
+      "exec": "ssh unrjos@internal.clinivance.com \"curl -sS -o /dev/stdout -w ' HTTP %{http_code}' -X POST http://127.0.0.1:3000/triggers -H 'Authorization: Bearer {TOKEN}' -H 'Content-Type: application/json' -d '{\\\"targetAgentUsername\\\":\\\"tester-ds\\\",\\\"targetChannelId\\\":\\\"{channelId}\\\",\\\"reference\\\":{\\\"id\\\":\\\"ticket-r3-2\\\",\\\"sender\\\":\\\"monitoring\\\",\\\"subject\\\":\\\"Certificate for chat.internal expires in 9 days\\\",\\\"body\\\":\\\"The TLS certificate for chat.internal.clinivance.com expires on 30 September 2026. Renewal is automatic through Caddy; confirm nothing needs doing or say what to check.\\\"}}'\""
+    },
+    { "watch": "the running turn, then the announcement and its turn", "timeoutMs": 480000 },
+    { "approval": { "decision": "approve", "repeat": true } }
+  ],
+  "groundTruth": {
+    "total": "$78,565",
+    "spec": "§4.2 a trigger is posted only when the target channel is idle (no turn running, no approval pending, nothing debouncing); nothing the system bot posts enters the queue; the announcement starts a normal turn"
+  },
+  "pass": "The announcement post's creation time is after the minutes turn's terminal status marker; the minutes reply gives $78,565; the announcement's turn answered from the body and called triggers::resolve; the minutes turn shows no sign of the webhook (no 👀 reaction, nothing folded in).",
+  "checks": [
+    {
+      "id": "t02-1",
+      "text": "posts.json: the system-bot announcement's create_at is later than the first turn's status post reaching a terminal marker (compare with events.json's last event of that turn)."
+    },
+    {
+      "id": "t02-2",
+      "text": "The first turn's reply gives $78,565 and its trace holds no reference to the certificate ticket."
+    },
+    {
+      "id": "t02-3",
+      "text": "The second turn resolved the trigger and answered from the body (30 September 2026, Caddy renews) without checking anything it cannot reach."
+    }
+  ],
+  "spec": "§4.2 idle gate",
+  "headline": { "kind": "pass-fail" }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "q03",
+  "title": "A direct message",
+  "channel": "dm:ds",
+  "agents": ["ds"],
+  "watch": ["ds"],
+  "steps": [
+    { "post": "What is the enquiries email address on {FIX}/static-page.html? Just the address." },
+    { "post": "Thanks. Now run `uname -a` in the shell and paste the first word of the output.", "noWait": true },
+    { "delayMs": 25000, "command": "/collegium stop" },
+    { "watch": "the stopped DM turn", "timeoutMs": 120000 }
+  ],
+  "groundTruth": {
+    "email": "research@northmoor.example",
+    "spec": "DM context follows the same mechanism as a channel; no mention is needed in a DM; a notice in a DM is posted under the agent's own account (§3.2 permits it) because the system bot cannot be a member; stop cancels the pending approval"
+  },
+  "pass": "The first DM post (no mention) started a turn whose reply is the address alone; the second post's shell approval prompt appeared in the DM; the stop cancelled it and the stop notice was posted under tester-ds's own account, not the system bot's; nothing ran in the shell.",
+  "checks": [
+    { "id": "q03-1", "text": "Turn one started without a mention and replied with research@northmoor.example." },
+    { "id": "q03-2", "text": "The approval prompt and its cancellation exist in the DM; no shell::run result exists." },
+    {
+      "id": "q03-3",
+      "text": "The stop notice's author is tester-ds's account; no post in the DM is by the system bot."
+    }
+  ],
+  "spec": "§3.2; §7.5; DM behaviour",
+  "headline": { "kind": "pass-fail" }
+}

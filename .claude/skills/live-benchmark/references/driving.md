@@ -16,7 +16,24 @@ A task file's `{agent}` is the agent's username and `{FIX}` the fixtures base UR
 Steps are `post`, `approval` (`approve`, `deny`, `deny-with-reason` with a `reason`; `repeat` covers
 every later ordinary prompt but never a budget prompt), `ask` (an `answer`, pressed as an option
 button when one matches, otherwise typed through `benchmark/scripts/dialog.js`), and `command`
-(a slash command run in the channel between posts, e.g. a reset).
+(a slash command run in the channel between posts, e.g. a reset). A round-3 task also names its
+`channel` (by name, or `dm:<agentKey>` for a direct message), the `agents` it runs on, and the agents
+it `watch`es (a hand-off chain is several turns by several agents; the driver waits for a colleague a
+watched post addressed, and settles when every watched agent's newest status post is terminal and
+the channel has been quiet for forty seconds). Extra steps: `exec` runs a local command (a webhook
+`curl` over ssh, `scripts/send-mail.py`, which sends a fixture to the agent's own mailbox from the
+config named by `MAIL_CONFIG`), `watch` posts nothing and waits for the next turn (a trigger
+announcement), and a `post` with `noWait` returns at once so a `command` or a second post can land
+mid-turn after `delayMs`. `{channelId}`, `{TOKEN}` (env `TRIGGER_TOKEN`) and `{MAILBOX}` (env) are
+substituted.
+
+Round 3 needs, on the host: a second test agent holding `tasks` and `workspace` but no `web`; `mail`
+granted to one tester (a mailbox is unique per agent, so move it from whoever holds it) with the
+shared channel as its announcement channel; an hourly schedule; `turns.delegationDepthLimit` low
+enough to reach; `notifications.stalls` lowered to 90 s; `TRIGGER_TOKEN` in `.env` followed by
+`docker compose up -d app`, since a plain restart keeps the old environment. Recreate, do not
+restart, and log every step with its revert. Never post the next task into a channel while a
+colleague's turn is still running there: the post queues behind it and folds into that turn.
 
 Classification the driver relies on: a status post starts with `⏳ _working`, `✅ _done`,
 `⚠️ _stopped`, `🛑 _stopped`, `⏸️ _stopped` or `⏹️ _stopped`; a decision post starts with

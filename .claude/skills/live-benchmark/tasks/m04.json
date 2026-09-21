@@ -1,0 +1,33 @@
+{
+  "id": "m04",
+  "title": "Reply to a received mail stays in its thread",
+  "channel": "bakeoff-team",
+  "agents": ["ds"],
+  "watch": ["ds"],
+  "steps": [
+    {
+      "post": "@{agent} reply to Priya Nair's email about the seminar room booking: confirm Hollis 224 for 3 October and say the projector is booked. Keep it to three sentences."
+    },
+    { "approval": { "decision": "approve" } },
+    { "watch": "loop-back announcement and turn", "timeoutMs": 300000 }
+  ],
+  "groundTruth": {
+    "original": "the m01 message, subject 'Seminar room booking for 3 October', from Priya Nair",
+    "spec": "§3.13 reading is ungated (list, search, open); a reply stays in its conversation because the provider threads it; every send discloses recipients, subject and body"
+  },
+  "pass": "tester-ds found the original with an ungated mail read (list, search or open), replied with mail::reply (not mail::send) under one approval whose prompt showed the recipient, subject and body; the loop-back arrival carries the In-Reply-To or a 'Re:' subject threading it to the original; the reply to the person says what was sent.",
+  "checks": [
+    {
+      "id": "m04-1",
+      "text": "The turn located the message with a mail read tool before replying; no send to a typed address."
+    },
+    { "id": "m04-2", "text": "mail::reply was used once, approval-gated, with the three sentences in the payload." },
+    {
+      "id": "m04-3",
+      "text": "The loop-back announcement shows the reply threaded to the original (Re: subject, quoted original under its header)."
+    },
+    { "id": "m04-4", "text": "The turn handling the loop-back resolved it and did not reply again." }
+  ],
+  "spec": "§3.13 reply",
+  "headline": { "kind": "pass-fail" }
+}

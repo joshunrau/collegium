@@ -23,6 +23,10 @@ const units = all(
   channelIds
 );
 const memories = all(`SELECT * FROM "Memory" WHERE "agentUsername" IN (${marks(agents)}) ORDER BY "createdAt"`, agents);
+const triggers = all(
+  `SELECT * FROM "Trigger" WHERE "targetChannelId" IN (${marks(channelIds)}) ORDER BY "createdAt"`,
+  channelIds
+);
 process.stdout.write(
   JSON.stringify({
     extractedAt: new Date().toISOString(),
@@ -32,6 +36,7 @@ process.stdout.write(
     approvals: byTurn('Approval'),
     asks: byTurn('Ask'),
     units,
-    memories
+    memories,
+    triggers
   })
 );

@@ -1,0 +1,35 @@
+{
+  "id": "m03",
+  "title": "Outbound send is gated and disclosed; the sent mail loops back",
+  "channel": "bakeoff-team",
+  "agents": ["ds"],
+  "watch": ["ds"],
+  "steps": [
+    {
+      "post": "@{agent} send an email to {MAILBOX} with the subject \"Round 3 m03\" saying that the seminar room for 3 October is confirmed as Hollis 224 and the projector has been requested. Sign it as the research office."
+    },
+    { "approval": { "decision": "approve" } },
+    { "watch": "loop-back announcement and turn", "timeoutMs": 300000 }
+  ],
+  "groundTruth": {
+    "spec": "§3.13 every send discloses the full recipient list, subject and entire body in the approval prompt; recipients are explicit arguments; a send is never retried; the mailbox is its own recipient here, so the sent mail arrives as inbound and is announced"
+  },
+  "pass": "Exactly one mail::send was called and it was approval-gated; the prompt showed the recipient, the subject and the whole body; after approval the reply says the mail was sent and to whom; the loop-back announcement was posted and tester-ds handled it (resolved, and recognised it as its own sent mail or reported it plainly) without sending again.",
+  "checks": [
+    {
+      "id": "m03-1",
+      "text": "One mail::send with the person's recipient, the exact subject, and a body carrying both facts; the approval payload shows all three."
+    },
+    { "id": "m03-2", "text": "No second send and no retry after the result." },
+    {
+      "id": "m03-3",
+      "text": "The reply after approval reports what left, to whom, and does not claim delivery it cannot know."
+    },
+    {
+      "id": "m03-4",
+      "text": "The loop-back announcement's turn called triggers::resolve and did not send or reply by mail; note how the reply describes receiving its own mail."
+    }
+  ],
+  "spec": "§3.13 send",
+  "headline": { "kind": "pass-fail" }
+}

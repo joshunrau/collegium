@@ -1,0 +1,32 @@
+{
+  "id": "d04",
+  "title": "Two agents in one post, then one agent naming the other",
+  "channel": "bakeoff-team",
+  "agents": ["ds"],
+  "watch": ["ds", "ds2"],
+  "steps": [
+    { "post": "@tester-ds @tester-ds2 which of you can read web pages?", "timeoutMs": 90000 },
+    { "post": "@{agent} which of you two can read web pages? Name the other without pinging them." }
+  ],
+  "groundTruth": {
+    "answer": "tester-ds holds web; tester-ds2 does not",
+    "spec": "§4.5 a post mentioning two agents present starts no turn; the system bot posts a mechanical correction naming the backtick form; a turn addresses at most one colleague"
+  },
+  "pass": "The first post started no turn for either agent and the system bot posted the correction; the second post produced one turn by tester-ds whose reply names tester-ds2 without a mention (backticks or plain text) and states correctly that only tester-ds reads pages.",
+  "checks": [
+    {
+      "id": "d04-1",
+      "text": "No status post and no reply followed the first post; a system-bot post did, saying to address one agent and how to name one without addressing it."
+    },
+    {
+      "id": "d04-2",
+      "text": "The second post produced exactly one turn; the reply does not contain @tester-ds2 and no second turn for tester-ds2 started."
+    },
+    {
+      "id": "d04-3",
+      "text": "The reply's account of who holds web is correct and drawn from the roster in the prompt, not guessed."
+    }
+  ],
+  "spec": "§4.5",
+  "headline": { "kind": "pass-fail" }
+}

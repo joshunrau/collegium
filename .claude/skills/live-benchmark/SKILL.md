@@ -32,7 +32,10 @@ Done when `server-changes.md` lists every change made so far and the container f
 ## 2. Drive
 
 Round 1 is `tasks/round-1.json` (twelve probes with fixed answers); round 2 is `tasks/round-2.json`
-(realistic tasks, one of them two turns apart). Every task runs on every test agent at once:
+(realistic tasks, one of them two turns apart); round 3 is `tasks/round-3.json` (delegation between
+two agents in a shared channel, mail, a webhook and a schedule, the operator commands, and posts
+arriving mid-turn; it needs the config and host changes `references/driving.md` lists, and a second
+agent). Rounds 1 and 2 run every task on every test agent at once; round 3 tasks name their agents:
 
 ```sh
 node scripts/driver.mjs task p01          # posts to every agent, decides prompts, waits, saves traces, writes run.json

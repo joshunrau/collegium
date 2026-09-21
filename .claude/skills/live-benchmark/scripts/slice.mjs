@@ -24,25 +24,37 @@ const sum = (rows, key) => rows.reduce((total, row) => total + (typeof row[key] 
 
 for (const entry of run.entries) {
   if (only && !only.includes(entry.task)) continue;
+  // A chain entry (one with `watch`) owns every turn its watched agents ran in the channel during
+  // its window, not only the turns its own posts triggered: a colleague's turn is triggered by the
+  // assignment post, and a trigger's by the system bot's announcement.
+  const watched = entry.watch ?? [entry.agent];
+  const chain = watched.length > 1;
   const from = ms(entry.startedAt) - 5_000;
-  const to = ms(entry.endedAt) + 5_000;
+  const to = ms(entry.endedAt) + (chain ? 30_000 : 5_000);
   const inWindow = (row, key) => {
     const t = typeof row[key] === 'number' ? row[key] : ms(row[key]);
     return t >= from && t <= to;
   };
-  const humanPostIds = new Set((entry.turns ?? []).map((t) => t.humanPostId));
+  const humanPostIds = new Set((entry.turns ?? []).map((t) => t.humanPostId).filter(Boolean));
   const byTrigger = raw.turns.filter((t) => t.channelId === entry.channel && humanPostIds.has(t.triggeringPostId));
-  const turns = (
-    byTrigger.length > 0
-      ? byTrigger
-      : raw.turns.filter((t) => t.channelId === entry.channel && inWindow(t, 'startedAt'))
-  ).map(parse);
+  const byWindow = raw.turns.filter(
+    (t) => t.channelId === entry.channel && inWindow(t, 'startedAt') && watched.includes(t.agentUsername)
+  );
+  const seen = new Set();
+  const turns = [...byTrigger, ...(chain || byTrigger.length === 0 ? byWindow : [])]
+    .filter((t) => !seen.has(t.id) && seen.add(t.id))
+    .sort((a, b) => ms(a.startedAt) - ms(b.startedAt))
+    .map(parse);
   const ids = new Set(turns.map((t) => t.id));
   const events = raw.events.filter((e) => ids.has(e.turnId)).map(parse);
   const posts = raw.posts.filter((p) => p.channelId === entry.channel && inWindow(p, 'createdAt')).map(parse);
   const approvals = raw.approvals.filter((a) => ids.has(a.turnId)).map(parse);
   const asks = raw.asks.filter((a) => ids.has(a.turnId)).map(parse);
-  const memories = raw.memories.filter((m) => m.agentUsername === entry.agent && inWindow(m, 'createdAt')).map(parse);
+  const memories = raw.memories.filter((m) => watched.includes(m.agentUsername) && inWindow(m, 'createdAt')).map(parse);
+  const units = (raw.units ?? []).filter((u) => u.channelId === entry.channel && inWindow(u, 'createdAt')).map(parse);
+  const triggers = (raw.triggers ?? [])
+    .filter((t) => t.targetChannelId === entry.channel && inWindow(t, 'createdAt'))
+    .map(parse);
   const dir = path.join(values.out, entry.task, entry.model);
   write(dir, 'turns.json', turns);
   write(dir, 'events.json', events);
@@ -50,6 +62,8 @@ for (const entry of run.entries) {
   write(dir, 'approvals.json', approvals);
   write(dir, 'asks.json', asks);
   write(dir, 'memories.json', memories);
+  write(dir, 'units.json', units);
+  write(dir, 'triggers.json', triggers);
   write(dir, 'driver.json', entry);
   write(dir, 'summary.json', {
     task: entry.task,
