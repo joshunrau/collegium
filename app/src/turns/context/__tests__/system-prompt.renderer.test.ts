@@ -117,7 +117,7 @@ describe('SystemPromptRenderer', () => {
     toolRegistry.listSupersedableFor.mockReturnValue(['web__fetch', 'workspace__read']);
     const prompt = await render();
     expect(prompt).toContain(
-      'results of web__fetch and workspace__read are kept word for word up to about 9600 tokens of them and never fewer than the 2 most recent'
+      'results of web__fetch and workspace__read are kept word for word up to about 10,000 tokens of them and never fewer than the 2 most recent'
     );
     expect(prompt).toContain('Text you write yourself is never replaced.');
     expect(prompt).not.toContain("Each tool result in a turn stays in that turn's context.");
@@ -174,7 +174,7 @@ describe('SystemPromptRenderer', () => {
     toolRegistry.listFor.mockReturnValue([{ gates: true, id: ['shell', 'run'] }]);
     const prompt = await render();
     expect(prompt).toContain(
-      'shell__run runs each command as your own OS user, starting in /home/collegium-mira. The shell runs under bash with pipefail. These commands are present: node and git. Anything not listed is not installed. The shell reaches the network under no address policy.'
+      'shell__run runs each command as your own OS user, starting in /home/collegium-mira. The shell runs under bash with pipefail. Beside the usual POSIX utilities, these commands are present: node and git. The shell reaches the network under no address policy.'
     );
     expect(prompt).not.toContain('cannot read or write');
   });
@@ -185,7 +185,7 @@ describe('SystemPromptRenderer', () => {
       { gates: false, id: ['workspace', 'read'] }
     ]);
     expect(await render()).toContain(
-      'workspace__read and workspace__write share one directory, /var/lib/collegium/workspaces/mira.\n\nshell__run runs each command as your own OS user, starting in /home/collegium-mira. That user cannot read or write /var/lib/collegium/workspaces/mira, and the workspace tools cannot reach /home/collegium-mira. A shell output too large for a result is written into /var/lib/collegium/workspaces/mira and named in the result. The shell runs under bash with pipefail.'
+      'workspace__read and workspace__write share one directory, /var/lib/collegium/workspaces/mira.\n\nshell__run runs each command as your own OS user, starting in /home/collegium-mira. That user cannot read or write /var/lib/collegium/workspaces/mira, and the workspace tools cannot reach /home/collegium-mira. Where a shell output is too large for a result, the framework, not your shell user, saves it into /var/lib/collegium/workspaces/mira and names the file in the result. The shell runs under bash with pipefail.'
     );
   });
 
@@ -220,7 +220,7 @@ describe('SystemPromptRenderer', () => {
     const prompt = await render();
     expect(prompt.slice(prompt.indexOf('## Skills'))).toBe(`## Skills
 
-Procedures written for situations you will meet here. skills__load returns one in full and spends no attempt; load one before acting when its description matches what you are about to do:
+Procedures written for situations you will meet here. Load one with skills__load before acting when the work in front of you is the situation its description names; a load you did not need still costs a round trip:
 
 - handing-work-to-a-peer: How to hand work over.
 
