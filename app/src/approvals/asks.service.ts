@@ -6,6 +6,7 @@ import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts'
 import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { EnvService } from '@/config/env/env.service.ts';
+import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
@@ -34,6 +35,7 @@ export class AsksService {
   constructor(
     @InjectModel('Ask') private readonly asks: Model<'Ask'>,
     private readonly callbackSigner: CallbackSigner,
+    private readonly conversationsService: ConversationsService,
     envService: EnvService,
     private readonly loggingService: LoggingService,
     private readonly multiMentionPolicy: MultiMentionPolicy,
@@ -256,6 +258,7 @@ export class AsksService {
     input: AskRequest,
     askId: string
   ): Promise<Result<{ postId: string }, PendingDecisionFailure.PromptUndeliverable>> {
+    const text = renderAskPrompt(AsksService.toPromptInput(input));
     const sent = await this.transportRegistry.get(input.agentUsername).send({
       attachments: renderAskActions({
         answerUrl: this.answerUrl,
@@ -264,11 +267,24 @@ export class AsksService {
         sign: (parts) => this.callbackSigner.sign(parts)
       }),
       channelId: input.channelId,
-      text: renderAskPrompt(AsksService.toPromptInput(input))
+      text
     });
     if (!sent.success) {
       return Result.err({ kind: 'prompt-undeliverable', message: sent.error.message });
     }
+    // §3.7a — the turn's own notice, as an approval prompt is (§3.7): left out of the agent's window, replayed through the call
+    await this.conversationsService.record(
+      {
+        attachments: [],
+        authorKind: 'agent',
+        authorUsername: input.agentUsername,
+        channelId: input.channelId,
+        createdAt: sent.value.createdAt,
+        id: sent.value.postId,
+        message: text
+      },
+      { kind: 'notice', turnId: input.turnId }
+    );
     return Result.ok({ postId: sent.value.postId });
   }
 
@@ -301,6 +317,8 @@ export class AsksService {
     });
     if (!updated.success) {
       this.loggingService.error(new Error(`failed to rewrite ask prompt ${promptPostId}: ${updated.error.message}`));
+      return;
     }
+    await this.conversationsService.updateAuthoredMessage(promptPostId, text);
   }
 }

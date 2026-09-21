@@ -7,6 +7,7 @@ import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts'
 import { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { EnvService } from '@/config/env/env.service.ts';
+import { ConversationsService } from '@/conversations/conversations.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -35,6 +36,7 @@ const RAW_TOKEN = 'r'.repeat(32);
 
 describe('ApprovalsService', () => {
   let approvalsService: ApprovalsService;
+  let conversationsService: MockedInstance<ConversationsService>;
   let events: TurnEventInput[];
   let loggingService: MockedInstance<LoggingService>;
   let rows: ApprovalRow[];
@@ -59,6 +61,9 @@ describe('ApprovalsService', () => {
       updates.push({ postId, text: update.text });
       return Promise.resolve(Result.ok());
     });
+    conversationsService = MockFactory.createMock(ConversationsService);
+    conversationsService.record.mockResolvedValue(true);
+    conversationsService.updateAuthoredMessage.mockResolvedValue(undefined);
     const envService = MockFactory.createMock(EnvService);
     envService.get.mockImplementation((key) => (key === 'CALLBACK_TOKEN' ? RAW_TOKEN : 'http://localhost:3000'));
     const transportRegistry = MockFactory.createMock(TransportRegistry);
@@ -71,6 +76,7 @@ describe('ApprovalsService', () => {
         ApprovalsService,
         ApprovalPendingRegistry,
         CallbackSigner,
+        { provide: ConversationsService, useValue: conversationsService },
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         { provide: EnvService, useValue: envService },
         { provide: LoggingService, useValue: loggingService },
@@ -119,6 +125,20 @@ describe('ApprovalsService', () => {
     expect(events.map((event) => 'callId' in event && event.callId)).toStrictEqual(['call-1', 'call-1']);
     expect(updates.at(-1)?.text).toContain('**Approved** by @casey');
     expect(events[0]).toMatchObject({ contextText: 'Action 7 of 25 · raised by a trigger' });
+  });
+
+  it('should record the prompt as the turn’s own notice and keep the stored copy current once resolved (§3.7)', async () => {
+    const { outcome: pending } = await request();
+    expect(conversationsService.record).toHaveBeenCalledWith(
+      expect.objectContaining({ authorKind: 'agent', authorUsername: 'mira', channelId: 'channel-1', id: 'prompt-1' }),
+      { kind: 'notice', turnId: 'turn-1' }
+    );
+    await approvalsService.resolve(rows[0]!.id, { byUsername: 'casey', kind: 'approved' });
+    await pending;
+    expect(conversationsService.updateAuthoredMessage).toHaveBeenCalledWith(
+      'prompt-1',
+      expect.stringContaining('**Approved** by @casey')
+    );
   });
 
   it('should post the prompt with the full payload and the three decision buttons (§6.2, §3.7)', async () => {

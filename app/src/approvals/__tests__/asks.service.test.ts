@@ -7,6 +7,7 @@ import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts'
 import { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { EnvService } from '@/config/env/env.service.ts';
+import { ConversationsService } from '@/conversations/conversations.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -32,6 +33,7 @@ const TURN = { agentUsername: 'mira', channelId: 'channel-1' };
 
 describe('AsksService', () => {
   let asksService: AsksService;
+  let conversationsService: MockedInstance<ConversationsService>;
   let events: TurnEventInput[];
   let rows: AskRow[];
   let transport: MockedInstance<ChatTransport>;
@@ -54,6 +56,9 @@ describe('AsksService', () => {
       updates.push({ postId, text: update.text });
       return Promise.resolve(Result.ok());
     });
+    conversationsService = MockFactory.createMock(ConversationsService);
+    conversationsService.record.mockResolvedValue(true);
+    conversationsService.updateAuthoredMessage.mockResolvedValue(undefined);
     const envService = MockFactory.createMock(EnvService);
     envService.get.mockImplementation((key) => (key === 'CALLBACK_TOKEN' ? 'r'.repeat(32) : 'http://localhost:3000'));
     const transportRegistry = MockFactory.createMock(TransportRegistry);
@@ -65,6 +70,7 @@ describe('AsksService', () => {
         AsksService,
         AskPendingRegistry,
         CallbackSigner,
+        { provide: ConversationsService, useValue: conversationsService },
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         { provide: EnvService, useValue: envService },
         { provide: LoggingService, useValue: MockFactory.createMock(LoggingService) },
@@ -106,6 +112,20 @@ describe('AsksService', () => {
     expect(rows[0]).toMatchObject({ answeredByUsername: 'casey', answerText: 'Gatwick', status: 'answered' });
     expect(events.map((event) => event.kind)).toStrictEqual(['ask_requested', 'ask_answered']);
     expect(updates.at(-1)?.text).toContain('**Answered** by @casey');
+  });
+
+  it('should record the question as the turn’s own notice and keep the stored copy current once answered (§3.7a)', async () => {
+    const { outcome: pending } = await request();
+    expect(conversationsService.record).toHaveBeenCalledWith(
+      expect.objectContaining({ authorKind: 'agent', authorUsername: 'mira', id: 'prompt-1' }),
+      { kind: 'notice', turnId: 'turn-1' }
+    );
+    await asksService.answer({ answerText: 'Gatwick', askId: rows[0]!.id, byUserId: 'casey-id' });
+    await pending;
+    expect(conversationsService.updateAuthoredMessage).toHaveBeenCalledWith(
+      'prompt-1',
+      expect.stringContaining('**Answered** by @casey')
+    );
   });
 
   it('should strip a peer mention from the question before it posts under the agent’s account (§4.5)', async () => {

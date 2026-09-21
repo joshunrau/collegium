@@ -7,6 +7,7 @@ import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts'
 import { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { EnvService } from '@/config/env/env.service.ts';
+import { ConversationsService } from '@/conversations/conversations.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import type { ApprovalStatus } from '@/prisma/prisma.types.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
@@ -196,11 +197,15 @@ describe('the approval decision state machine', () => {
     transportRegistry.get.mockReturnValue(transport);
     const multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
     multiMentionPolicy.stripAgentMentions.mockImplementation((text: string) => text.replaceAll('@owen', 'owen'));
+    const conversationsService = MockFactory.createMock(ConversationsService);
+    conversationsService.record.mockResolvedValue(true);
+    conversationsService.updateAuthoredMessage.mockResolvedValue(undefined);
     const moduleRef = await Test.createTestingModule({
       providers: [
         ApprovalsService,
         ApprovalPendingRegistry,
         CallbackSigner,
+        { provide: ConversationsService, useValue: conversationsService },
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         { provide: EnvService, useValue: envService },
         { provide: LoggingService, useValue: MockFactory.createMock(LoggingService) },

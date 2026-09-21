@@ -5,6 +5,7 @@ import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts'
 import { CallbackSigner } from '@/chat/callback-auth/callback-signer.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { EnvService } from '@/config/env/env.service.ts';
+import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
@@ -53,6 +54,7 @@ export class ApprovalsService {
   constructor(
     @InjectModel('Approval') private readonly approvals: Model<'Approval'>,
     private readonly callbackSigner: CallbackSigner,
+    private readonly conversationsService: ConversationsService,
     envService: EnvService,
     private readonly loggingService: LoggingService,
     private readonly multiMentionPolicy: MultiMentionPolicy,
@@ -319,6 +321,7 @@ export class ApprovalsService {
     if (!sent.success) {
       return Result.err({ kind: 'prompt-undeliverable', message: sent.error.message });
     }
+    await this.recordPrompt(input, { createdAt: sent.value.createdAt, postId: sent.value.postId, text: prompt.text });
     return Result.ok({ postId: sent.value.postId });
   }
 
@@ -382,6 +385,29 @@ export class ApprovalsService {
     );
   }
 
+  /**
+   * §3.7 — the prompt is the turn's own notice: recorded with the turn that raised it, so the
+   * agent's window leaves it out as it leaves out every post the turn authored (§3.8), and the
+   * decision reaches the model through the call's result rather than as its own words.
+   */
+  private async recordPrompt(
+    input: ApprovalRequest,
+    posted: { createdAt: Date; postId: string; text: string }
+  ): Promise<void> {
+    await this.conversationsService.record(
+      {
+        attachments: [],
+        authorKind: 'agent',
+        authorUsername: input.agentUsername,
+        channelId: input.channelId,
+        createdAt: posted.createdAt,
+        id: posted.postId,
+        message: posted.text
+      },
+      { kind: 'notice', turnId: input.turnId }
+    );
+  }
+
   private async rewritePrompt(agentUsername: string, promptPostId: null | string, text: string): Promise<void> {
     if (promptPostId === null) {
       return;
@@ -391,7 +417,9 @@ export class ApprovalsService {
       this.loggingService.error(
         new Error(`failed to rewrite approval prompt ${promptPostId}: ${updated.error.message}`)
       );
+      return;
     }
+    await this.conversationsService.updateAuthoredMessage(promptPostId, text);
   }
 
   private toPromptInput(source: {
