@@ -18,7 +18,8 @@ _ephemeral_ result is visible only to the person who ran it; the rest post to th
 - `/collegium approvals [{agent}]` — the approvals waiting on a person, for one agent or all.
   Ephemeral.
 - `/collegium triggers {agent}` — outstanding triggers. Ephemeral.
-- `/collegium units {agent}` — the open work units in this channel for an agent. Ephemeral.
+- `/collegium units {agent}` — the open work units in this channel for an agent, each line carrying
+  the unit's reference that `cancel` takes. Ephemeral.
 
 ## Changing what an agent sees
 
@@ -47,5 +48,5 @@ _ephemeral_ result is visible only to the person who ran it; the rest post to th
   until membership is fixed; an hourly-ceiling halt clears on the person's authority.
 
 Choosing between stop and kill: stop lets in-flight work finish and is the default; kill is for a
-turn that is wedged, and abandons whatever was in flight. Recommend stop unless the status post shows
-no progress.
+turn that is wedged, and abandons whatever was in flight. `stop` is right where the status post
+still shows progress.
