@@ -11,9 +11,14 @@ export function renderMemoryReference(id: string): string {
   return renderReference(id);
 }
 
-/** §3.6 — the body the model reads, with its age above it */
-export function renderMemoryBody(memory: { readonly body: string; readonly createdAt: Date }, now: Date): string {
-  return `written ${renderElapsed(now.getTime() - memory.createdAt.getTime())} ago\n\n${memory.body}`;
+/** §3.6 — the body the model reads, with its age and its written-at date above it */
+export function renderMemoryBody(
+  memory: { readonly body: string; readonly createdAt: Date },
+  now: Date,
+  formatDate: (date: Date) => string
+): string {
+  const age = renderElapsed(now.getTime() - memory.createdAt.getTime());
+  return `written ${age} ago, on ${formatDate(memory.createdAt)}\n\n${memory.body}`;
 }
 
 export function renderUnresolvedReference(failure: MemoryFailure.Unresolved): string {

@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import type { ModelRow } from '@/prisma/prisma.types.ts';
 
-import { MEMORY_SERVICE_TOKEN } from './memory.tokens.ts';
+import { MEMORY_DATE_FORMATTER_TOKEN, MEMORY_SERVICE_TOKEN } from './memory.tokens.ts';
 import {
   appendToBody,
   renderMemoryBody,
@@ -31,7 +31,7 @@ function toRevisionResult(revised: Result<MemoryRevisionReceipt<ModelRow<'Memory
 }
 
 export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
-  services: { memory: MEMORY_SERVICE_TOKEN },
+  services: { dateFormatter: MEMORY_DATE_FORMATTER_TOKEN, memory: MEMORY_SERVICE_TOKEN },
   tools: {
     // §3.6 — ungated like a write, and one step rather than a delete and a write
     append: {
@@ -81,7 +81,9 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
           return Result.err({ kind: 'invalid-arguments', message: renderUnresolvedReference(memory.error) });
         }
         await context.memory.markUsed(memory.value.id);
-        return Result.ok({ text: renderMemoryBody(memory.value, new Date()) });
+        return Result.ok({
+          text: renderMemoryBody(memory.value, new Date(), (date) => context.dateFormatter.format(date))
+        });
       },
       parameters: z.object({ reference: $Reference }),
       retryable: true,

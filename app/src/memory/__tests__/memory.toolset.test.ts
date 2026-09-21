@@ -2,6 +2,7 @@ import { $MemorySettings } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { describe, expect, it } from 'vitest';
 
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
 
@@ -11,13 +12,15 @@ import { MEMORY_TOOLSET } from '../memory.toolset.ts';
 const { append, delete: deleteTool, read, replace, write } = MEMORY_TOOLSET.tools;
 
 function buildContext() {
+  const dateFormatter = MockFactory.createMock(DateFormatter);
+  dateFormatter.format.mockReturnValue('September 18, 2026 at 9:04:00 AM EDT');
   const memory = MockFactory.createMock(MemoryService);
-  const context = { memory, settings: $MemorySettings.parse({}), turn: buildToolTurnScope() };
+  const context = { dateFormatter, memory, settings: $MemorySettings.parse({}), turn: buildToolTurnScope() };
   return { context, memory };
 }
 
 describe('MEMORY_TOOLSET', () => {
-  it('reads a memory body back by reference, with its age, and marks the entry used (§3.6)', async () => {
+  it('reads a memory body back under its age and its written-at date, marking the entry used (§3.6)', async () => {
     const { context, memory } = buildContext();
     const createdAt = new Date(Date.now() - (3 * 24 + 2) * 3_600_000 - 60_000);
     memory.read.mockResolvedValue(
@@ -26,7 +29,9 @@ describe('MEMORY_TOOLSET', () => {
     const result = await executeTool(read, { reference: 'mem-1' }, context);
     expect(memory.read).toHaveBeenCalledWith('mira', 'mem-1');
     expect(memory.markUsed).toHaveBeenCalledWith('mem-1-full-id');
-    expect(result.unwrap().text).toBe('written 3d 2h ago\n\nbullet points, always');
+    expect(result.unwrap().text).toBe(
+      'written 3d 2h ago, on September 18, 2026 at 9:04:00 AM EDT\n\nbullet points, always'
+    );
   });
 
   it('returns an unknown reference to the model as its own recoverable mistake', async () => {
