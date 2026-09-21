@@ -9,6 +9,8 @@ import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
 import { QueueService } from '@/queue/queue.service.ts';
+import type { QueueEntry } from '@/queue/queue.service.ts';
+import { TurnControlRegistry } from '@/turns/control/turn-control.registry.ts';
 
 import { STALL_SWEEP_MS } from './stalls.constants.ts';
 
@@ -18,18 +20,25 @@ type Episode = {
   readonly clockStartedAt: Date;
 };
 
+/** a long turn also remembers the queue entry standing behind it when it was last said: a different one re-arms it (§7.6) */
+type LongTurnEpisode = Episode & {
+  queuedBehindEntryId: string | undefined;
+};
+
 /**
  * §7.6 — announces a standing queue and a long turn, once per episode, and never clears either.
  *
  * Each sweep carries forward the episodes it still observes and drops the rest, which is what
  * re-arms one: a standing queue is keyed by its entry, so work queued after a drain or discard is a
- * new episode, and a long turn by the lock it holds, so the next turn starts its own. The standing
- * clock starts at the first sweep to find the entry with no turn running, never at the entry's
- * creation: an entry queued behind a long turn has stood only since that turn ended.
+ * new episode, and a long turn by the lock it holds, so the next turn starts its own. A long turn
+ * is re-armed once more when a post queues behind it, since work waiting is a new fact about an
+ * old episode. The standing clock starts at the first sweep to find the entry with no turn
+ * running, never at the entry's creation: an entry queued behind a long turn has stood only since
+ * that turn ended.
  */
 @Injectable()
 export class StallsService implements OnApplicationShutdown {
-  private longTurns = new Map<string, Episode>();
+  private longTurns = new Map<string, LongTurnEpisode>();
   private standingQueues = new Map<string, Episode>();
   private readonly thresholds: $StallThresholds;
   private timer: NodeJS.Timeout | undefined;
@@ -41,7 +50,8 @@ export class StallsService implements OnApplicationShutdown {
     private readonly loggingService: LoggingService,
     private readonly notificationsService: NotificationsService,
     private readonly pendingDecisionsService: PendingDecisionsService,
-    private readonly queueService: QueueService
+    private readonly queueService: QueueService,
+    private readonly turnControlRegistry: TurnControlRegistry
   ) {
     this.thresholds = configService.get('notifications.stalls');
   }
@@ -62,8 +72,9 @@ export class StallsService implements OnApplicationShutdown {
       return;
     }
     try {
-      await this.sweepLongTurns(now);
-      await this.sweepStandingQueues(now);
+      const queued = await this.queueService.listAll();
+      await this.sweepLongTurns(now, queued);
+      await this.sweepStandingQueues(now, queued);
     } catch (error) {
       this.loggingService.error(new Error('the stall sweep failed', { cause: error }));
     }
@@ -73,28 +84,46 @@ export class StallsService implements OnApplicationShutdown {
     return !episode.announced && now.getTime() - episode.clockStartedAt.getTime() >= thresholdMs;
   }
 
-  private async sweepLongTurns(now: Date): Promise<void> {
-    const observed = new Map<string, Episode>();
+  private async sweepLongTurns(now: Date, queued: readonly QueueEntry[]): Promise<void> {
+    const observed = new Map<string, LongTurnEpisode>();
     for (const { acquiredAt, agentUsername, channelId } of this.channelLockService.listHeld()) {
       const key = `${agentUsername}:${channelId}:${acquiredAt.getTime()}`;
       if (await this.pendingDecisionsService.isWaitingOnPerson(agentUsername, channelId)) {
-        observed.set(key, { announced: false, clockStartedAt: now });
+        observed.set(key, { announced: false, clockStartedAt: now, queuedBehindEntryId: undefined });
         continue;
       }
-      const episode = this.longTurns.get(key) ?? { announced: false, clockStartedAt: acquiredAt };
+      const episode = this.longTurns.get(key) ?? {
+        announced: false,
+        clockStartedAt: acquiredAt,
+        queuedBehindEntryId: undefined
+      };
       observed.set(key, episode);
+      const behind = queued.find((entry) => entry.agentUsername === agentUsername && entry.channelId === channelId);
+      if (episode.announced && behind !== undefined && behind.id !== episode.queuedBehindEntryId) {
+        episode.announced = false;
+      }
       if (this.isDue(episode, this.thresholds.longTurnMs, now)) {
         episode.announced = true;
+        episode.queuedBehindEntryId = behind?.id;
         const heldMs = now.getTime() - episode.clockStartedAt.getTime();
-        await this.notificationsService.notify({ agentUsername, channelId, heldMs, kind: 'long-turn' });
+        // §7.6 — surfaced before the notice, so the post the notice points at exists when it is read
+        const tracedNothing = await this.turnControlRegistry.surfaceStatusPosts(agentUsername, channelId);
+        await this.notificationsService.notify({
+          agentUsername,
+          channelId,
+          heldMs,
+          kind: 'long-turn',
+          postsWaiting: behind !== undefined,
+          tracedNothing
+        });
       }
     }
     this.longTurns = observed;
   }
 
-  private async sweepStandingQueues(now: Date): Promise<void> {
+  private async sweepStandingQueues(now: Date, queued: readonly QueueEntry[]): Promise<void> {
     const observed = new Map<string, Episode>();
-    for (const { agentUsername, channelId, id } of await this.queueService.listAll()) {
+    for (const { agentUsername, channelId, id } of queued) {
       if (this.channelLockService.isBusy(agentUsername, channelId)) {
         continue;
       }

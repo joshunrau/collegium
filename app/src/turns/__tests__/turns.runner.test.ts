@@ -11,6 +11,7 @@ import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import type {
@@ -81,7 +82,7 @@ describe('TurnRunner', () => {
   let conversationsService: MockedInstance<ConversationsService>;
   let multiMentionPolicy: MockedInstance<MultiMentionPolicy>;
   let sends: { channelId: string; text: string }[];
-  let statusHandle: { appendTrace: any; close: any; markTrace: any; setTransient: any };
+  let statusHandle: { appendTrace: any; close: any; markTrace: any; setTransient: any; surface: any };
   let tasksService: MockedInstance<TasksService>;
   let toolExecutor: MockedInstance<ToolExecutor>;
   let toolRegistry: MockedInstance<ToolRegistry>;
@@ -107,11 +108,13 @@ describe('TurnRunner', () => {
       appendTrace: vi.fn().mockReturnValue(0),
       close: vi.fn().mockResolvedValue(undefined),
       markTrace: vi.fn(),
-      setTransient: vi.fn().mockResolvedValue(undefined)
+      setTransient: vi.fn().mockResolvedValue(undefined),
+      surface: vi.fn().mockResolvedValue(true)
     };
     contextAssembler = MockFactory.createMock(ContextAssembler);
     contextAssembler.assemble.mockResolvedValue({
       assembledAt: new Date(0),
+      reachesBackTo: new Date('2026-09-21T12:00:00Z'),
       request: {
         cacheKey: 'mira:channel-1',
         messages: [{ content: '@casey: hi', role: 'user' }],
@@ -163,6 +166,7 @@ describe('TurnRunner', () => {
         { provide: ConfigService, useValue: createConfigServiceMock({ turns: { chainLengthLimit: 3 } }) },
         { provide: ContextAssembler, useValue: contextAssembler },
         { provide: ConversationsService, useValue: conversationsService },
+        DateFormatter,
         { provide: InferenceRegistry, useValue: inferenceRegistry },
         MockFactory.createForService(LoggingService),
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
@@ -239,7 +243,7 @@ describe('TurnRunner', () => {
       expect.objectContaining({ authorKind: 'agent', message: 'all done' }),
       { kind: 'reply', turnId: 'turn-1' }
     );
-    expect(statusHandle.close).toHaveBeenCalledWith('completed');
+    expect(statusHandle.close).toHaveBeenCalledWith('completed', undefined);
   });
 
   it('should discard the completion that only saw the first fragment and answer the whole message', async () => {
@@ -963,20 +967,83 @@ describe('TurnRunner', () => {
 
   it('should close as stopped at the next boundary after /stop, posting nothing further', async () => {
     complete.mockImplementationOnce(() => {
-      turnControlRegistry.abortChannel('channel-1', 'stopped');
+      turnControlRegistry.abortChannel('channel-1', 'stopped', 'casey');
       return Promise.resolve(Result.ok(text('discarded output')));
     });
     const outcome = await run();
     expect(outcome.status).toBe('stopped');
     expect(sends).toHaveLength(0);
-    expect(statusHandle.close).toHaveBeenCalledWith('stopped');
+    expect(statusHandle.close).toHaveBeenCalledWith('stopped', 'casey');
+  });
+
+  it('should record the usage of the completion a /stop discards (§8.2)', async () => {
+    complete.mockImplementationOnce(() => {
+      turnControlRegistry.abortChannel('channel-1', 'stopped', 'casey');
+      return Promise.resolve(
+        Result.ok(
+          text('discarded output', {
+            cachedPromptTokens: undefined,
+            completionTokens: 2,
+            costUsd: 0.25,
+            promptTokens: 3,
+            reasoningTokens: 1
+          })
+        )
+      );
+    });
+    await run();
+    expect(turnsService.close).toHaveBeenCalledWith(
+      'turn-1',
+      'stopped',
+      expect.objectContaining({ usage: expect.objectContaining({ completionTokens: 2, promptTokens: 3 }) })
+    );
+  });
+
+  it('should mark a call the command cancelled as one that did not run (§8.1)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['gated_fixture'])));
+    toolExecutor.execute.mockResolvedValue({
+      detail: 'the pending approval was cancelled by stop',
+      kind: 'terminal',
+      status: 'stopped'
+    } satisfies ToolAttempt);
+    await run();
+    expect(statusHandle.markTrace).toHaveBeenCalledWith(0, { ran: false, text: '⏹️ cancelled' });
+  });
+
+  it('should say how far back its context reached when the window missed the post it drained from (§5.2)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await turnRunner.run({
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 0,
+      drainedFromPostId: 'post-far-back',
+      profile: PROFILE,
+      rootPostId: 'post-0'
+    });
+    expect(statusHandle.appendTrace).toHaveBeenCalledWith({
+      kind: 'note',
+      text: '↧ _my context reaches back to September 21, 2026 at 12:00:00 PM UTC; the earliest post waiting is older_'
+    });
+  });
+
+  it('should trace nothing about a drain whose post the window reached (§5.2)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await turnRunner.run({
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 0,
+      drainedFromPostId: 'post-0',
+      profile: PROFILE,
+      rootPostId: 'post-0'
+    });
+    expect(statusHandle.appendTrace).not.toHaveBeenCalled();
   });
 
   it('should return killed immediately while a completion is still in flight', async () => {
     complete.mockImplementationOnce(() => new Promise(() => undefined));
     const running = run();
     await new Promise((resolve) => setImmediate(resolve));
-    turnControlRegistry.abortChannel('channel-1', 'killed');
+    turnControlRegistry.abortChannel('channel-1', 'killed', 'casey');
     const outcome = await running;
     expect(outcome.status).toBe('killed');
     expect(sends).toHaveLength(0);
@@ -999,7 +1066,7 @@ describe('TurnRunner', () => {
     turnsService.appendEvent.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
     const outcome = await run();
     expect(outcome.status).toBe('semantic_error');
-    expect(statusHandle.close).toHaveBeenCalledWith('semantic_error');
+    expect(statusHandle.close).toHaveBeenCalledWith('semantic_error', undefined);
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'semantic_error', expect.anything());
     expect(sends.at(-1)?.text).toContain('framework');
   });
@@ -1232,7 +1299,7 @@ describe('TurnRunner', () => {
   it('should abandon the rest of a completion’s tool batch once /stop lands mid-batch (§7.5)', async () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture', 'lookup_fixture'])));
     toolExecutor.execute.mockImplementationOnce(() => {
-      turnControlRegistry.abortChannel('channel-1', 'stopped');
+      turnControlRegistry.abortChannel('channel-1', 'stopped', 'casey');
       return Promise.resolve({ kind: 'continue', output: 'ok' } satisfies ToolAttempt);
     });
     const outcome = await run();
@@ -1245,9 +1312,9 @@ describe('TurnRunner', () => {
     toolExecutor.execute.mockImplementationOnce(() => new Promise(() => undefined));
     const running = run();
     await new Promise((resolve) => setImmediate(resolve));
-    turnControlRegistry.abortChannel('channel-1', 'killed');
+    turnControlRegistry.abortChannel('channel-1', 'killed', 'casey');
     expect((await running).status).toBe('killed');
-    expect(statusHandle.close).toHaveBeenCalledWith('killed');
+    expect(statusHandle.close).toHaveBeenCalledWith('killed', 'casey');
   });
 
   it('should end the turn as a delivery failure when the extension prompt cannot be delivered', async () => {
@@ -1275,7 +1342,7 @@ describe('TurnRunner', () => {
 
   it('should close as stopped rather than ask to extend when /stop lands at the budget ceiling', async () => {
     multiMentionPolicy.refuses.mockImplementationOnce(() => {
-      turnControlRegistry.abortChannel('channel-1', 'stopped');
+      turnControlRegistry.abortChannel('channel-1', 'stopped', 'casey');
       return true;
     });
     complete.mockResolvedValueOnce(Result.ok(toolUse(Array.from({ length: 10 }, () => 'lookup_fixture'))));
@@ -1317,7 +1384,7 @@ describe('TurnRunner', () => {
     conversationsService.record.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
     const outcome = await run();
     expect(outcome.status).toBe('provider_outage');
-    expect(statusHandle.close).toHaveBeenCalledWith('provider_outage');
+    expect(statusHandle.close).toHaveBeenCalledWith('provider_outage', undefined);
   });
 
   it('should accumulate reported usage, tokens and cost alike, across every completion in the turn', async () => {
@@ -1684,7 +1751,7 @@ describe('TurnRunner', () => {
     const running = run();
     await new Promise((resolve) => setImmediate(resolve));
     expect(signal?.aborted).toBe(false);
-    turnControlRegistry.abortChannel('channel-1', 'killed');
+    turnControlRegistry.abortChannel('channel-1', 'killed', 'casey');
     await running;
     expect(signal?.aborted).toBe(true);
   });

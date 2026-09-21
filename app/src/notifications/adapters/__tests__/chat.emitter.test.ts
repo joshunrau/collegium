@@ -125,10 +125,32 @@ describe('ChatEmitter', () => {
   });
 
   it('should post the §7.6 long-turn notice in the channel, naming the agent without a mention', async () => {
-    await chatEmitter.notify({ agentUsername: 'mira', channelId: 'channel-1', heldMs: 1_860_000, kind: 'long-turn' });
+    await chatEmitter.notify({
+      agentUsername: 'mira',
+      channelId: 'channel-1',
+      heldMs: 1_860_000,
+      kind: 'long-turn',
+      postsWaiting: false,
+      tracedNothing: false
+    });
     expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
       'channel-1',
       '⏳ `mira` has been in one turn here for 31m without waiting on anyone. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.'
+    );
+  });
+
+  it('should say a long turn has called no tool yet, and that a post waits behind it (§7.6)', async () => {
+    await chatEmitter.notify({
+      agentUsername: 'mira',
+      channelId: 'channel-1',
+      heldMs: 1_860_000,
+      kind: 'long-turn',
+      postsWaiting: true,
+      tracedNothing: true
+    });
+    expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
+      'channel-1',
+      '⏳ `mira` has been in one turn here for 31m without waiting on anyone, and has called no tool yet: its status post was opened just now and will show what it does next. /collegium kill ends the turn; a turn still thinking needs nothing. A post addressing `mira` is waiting behind this turn.'
     );
   });
 

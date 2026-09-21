@@ -65,11 +65,14 @@ export class ChatEmitter extends NotificationsEmitter {
               : `respond-to-all channel ${reason.channelId} now holds ${reason.agentUsernames.length} agents (${reason.agentUsernames.join(', ')})`;
           return `🛑 **Halted** — ${cause}. No agent will act until a human posts /collegium resume.`;
         })
-        .with(
-          { kind: 'long-turn' },
-          ({ agentUsername, heldMs }) =>
-            `⏳ \`${agentUsername}\` has been in one turn here for ${renderElapsed(heldMs)} without waiting on anyone. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.`
-        )
+        .with({ kind: 'long-turn' }, ({ agentUsername, heldMs, postsWaiting, tracedNothing }) => {
+          const held = `⏳ \`${agentUsername}\` has been in one turn here for ${renderElapsed(heldMs)} without waiting on anyone`;
+          const shown = tracedNothing
+            ? ', and has called no tool yet: its status post was opened just now and will show what it does next. /collegium kill ends the turn; a turn still thinking needs nothing.'
+            : '. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.';
+          const waiting = postsWaiting ? ` A post addressing \`${agentUsername}\` is waiting behind this turn.` : '';
+          return `${held}${shown}${waiting}`;
+        })
         // §4.5 — the refusal carries its remedy: a handle inside code is no mention in Mattermost's grammar
         .with({ kind: 'multi-mention-refusal' }, () => {
           return '⚠️ Address one agent per message. To name an agent without addressing it, put its handle in backticks: `@username`.';

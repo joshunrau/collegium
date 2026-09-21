@@ -11,6 +11,8 @@ import { SystemPromptRenderer } from './system-prompt.renderer.ts';
 export type AssembledContext = {
   /** §5.2 — taken before the store is read, so every post recorded earlier was there to be read */
   readonly assembledAt: Date;
+  /** §5.2 — how far back the window reached, for the line a draining turn owes when that fell short; absent for an empty window */
+  readonly reachesBackTo: Date | undefined;
   readonly request: CompletionRequest;
   /** which posts the window reached — how a draining turn learns its context fell short (§5.2) */
   readonly windowPostIds: ReadonlySet<string>;
@@ -45,6 +47,7 @@ export class ContextAssembler {
     });
     return {
       assembledAt,
+      reachesBackTo: oldestAt,
       request: {
         cacheKey: JSON.stringify([profile.username, channelId]),
         messages: toCompletionMessages(entries, profile.username),

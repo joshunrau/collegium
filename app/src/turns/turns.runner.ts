@@ -13,6 +13,7 @@ import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { TurnRequest } from '@/conversations/conversations.types.ts';
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import type {
@@ -59,6 +60,7 @@ import {
   renderDelegationLimitNotice,
   renderDeliveryFailureNotice,
   renderDenialNotice,
+  renderDrainLine,
   renderExtensionPrompt,
   renderFoldLine,
   renderOutputRefusedNotice,
@@ -252,6 +254,7 @@ export class TurnRunner {
     configService: ConfigService,
     private readonly contextAssembler: ContextAssembler,
     private readonly conversationsService: ConversationsService,
+    private readonly dateFormatter: DateFormatter,
     private readonly inferenceRegistry: InferenceRegistry,
     private readonly loggingService: LoggingService,
     private readonly multiMentionPolicy: MultiMentionPolicy,
@@ -298,13 +301,19 @@ export class TurnRunner {
       return opened;
     }
     const turn = opened.value;
+    const status = this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id });
     const state: TurnState = {
       addressedPeer: undefined,
       budget: new ActionBudget(profile.actionBudget),
       callTally: new Map(),
       consecutiveRejections: 0,
       contextAssembledAt: new Date(),
-      control: this.turnControlRegistry.register(turn.id, channelId),
+      control: this.turnControlRegistry.register({
+        agentUsername: profile.username,
+        channelId,
+        onSurface: () => status.surface(),
+        turnId: turn.id
+      }),
       fold: this.turnFoldRegistry.register({
         agentUsername: profile.username,
         authorUsername: input.foldAuthorUsername,
@@ -317,7 +326,7 @@ export class TurnRunner {
       recordedResults: 0,
       requestedBy: await this.resolveRequester(input.triggeringPostId),
       seenSupersedable: new Map(),
-      status: this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id }),
+      status,
       supersedable: [],
       traceHandles: new Map(),
       transport: this.transportRegistry.get(profile.username),
@@ -408,7 +417,7 @@ export class TurnRunner {
     // §7.5 — /stop means no further tool calls, including the rest of this completion's batch
     const aborted = state.control.aborted();
     if (aborted) {
-      return { kind: 'ended', outcome: await this.close(state, aborted) };
+      return { kind: 'ended', outcome: await this.close(state, aborted.kind) };
     }
     const isExempt = this.toolRegistry.isBudgetExempt(input.profile, identified.call.name);
     if (state.budget.trySpend(isExempt) === 'exhausted') {
@@ -502,9 +511,10 @@ export class TurnRunner {
     return Math.floor(profile.contextWindowTokens * TURN_PROMPT_CEILING_SHARE);
   }
 
-  /** every exit but a §7.1 failure, which closes through `closeWithFailureNotice` */
+  /** every exit but a §7.1 failure, which closes through `closeWithFailureNotice`; a command's exit names its invoker (§7.5) */
   private close(state: TurnState, status: Exclude<TurnStatus, 'running' | FailureStatus>): Promise<TurnOutcome> {
-    return this.writeClosingStatus(state, status);
+    const aborted = state.control.aborted();
+    return this.writeClosingStatus(state, status, aborted?.kind === status ? aborted.byUsername : undefined);
   }
 
   private async closeOnInferenceFailure(
@@ -552,12 +562,14 @@ export class TurnRunner {
     this.markTraceLine(
       state,
       identified,
-      match<TurnStatus, TraceMark | undefined>(attempt.status)
+      match<ToolAttempt.Terminal['status'], TraceMark>(attempt.status)
         .with('delivery_failure', () => ({ ran: false, text: '⚠️ undelivered' }))
         .with('denied', () => ({ ran: false, text: '🛑 denied' }))
+        // §8.1 — a call the command or halt cancelled did not run, and must not read as one that did
+        .with('halted', 'killed', 'stopped', () => ({ ran: false, text: '⏹️ cancelled' }))
         .with('semantic_error', () => ({ ran: true, text: '⚠️ error' }))
         .with('side_effect_ambiguous', () => ({ ran: true, text: '⚠️ unconfirmed' }))
-        .otherwise(() => undefined)
+        .exhaustive()
     );
     if (attempt.status === 'semantic_error' || attempt.status === 'side_effect_ambiguous') {
       await this.turnsService.appendEvent(state.turn.id, {
@@ -945,7 +957,7 @@ export class TurnRunner {
     // §7.5 — a stopped turn asks for nothing further, least of all an extension
     const aborted = state.control.aborted();
     if (aborted) {
-      return { kind: 'ended', outcome: await this.close(state, aborted) };
+      return { kind: 'ended', outcome: await this.close(state, aborted.kind) };
     }
     if (!state.budget.acceptsExtension) {
       await this.postNotice(input, state, renderBudgetExhaustedNotice(state.budget.limitCount));
@@ -1366,6 +1378,11 @@ export class TurnRunner {
     if (this.exceedsCeiling(input, state)) {
       return this.closeWithFailureNotice(input, state, 'context_exhausted', renderContextExhaustedNotice('initial'));
     }
+    if (input.drainedFromPostId !== undefined && !assembled.windowPostIds.has(input.drainedFromPostId)) {
+      // §5.2 — the drain is visible even when context is not
+      const reachesBackTo = assembled.reachesBackTo && this.dateFormatter.format(assembled.reachesBackTo);
+      state.status.appendTrace({ kind: 'note', text: renderDrainLine(reachesBackTo) });
+    }
     const client = this.inferenceRegistry.getClientForModel(profile.model);
     let folds = 0;
     for (;;) {
@@ -1377,17 +1394,18 @@ export class TurnRunner {
       if (completion === 'killed') {
         return this.close(state, 'killed');
       }
+      // §8.2 — the completion was paid for whatever the turn does with it, so its usage is recorded first
+      if (completion.success && completion.value.usage) {
+        state.usage = addCompletionUsage(state.usage, completion.value.usage);
+      }
       // §7.5 — checked after every await, before any dispatch: the honest guarantee of /stop is
       // "no further tool calls and no further posts", not "nothing happened"
       const aborted = state.control.aborted();
       if (aborted) {
-        return this.close(state, aborted);
+        return this.close(state, aborted.kind);
       }
       if (!completion.success) {
         return this.closeOnInferenceFailure(input, state, completion.error);
-      }
-      if (completion.value.usage) {
-        state.usage = addCompletionUsage(state.usage, completion.value.usage);
       }
       const folded = this.takeFurtherFragments(state, folds);
       if (folded.length > 0) {
@@ -1468,9 +1486,13 @@ export class TurnRunner {
   }
 
   /** best-effort on both writes: a close that itself fails must never leave the turn 'running' silently */
-  private async writeClosingStatus(state: TurnState, status: Exclude<TurnStatus, 'running'>): Promise<TurnOutcome> {
+  private async writeClosingStatus(
+    state: TurnState,
+    status: Exclude<TurnStatus, 'running'>,
+    abortedBy?: string
+  ): Promise<TurnOutcome> {
     try {
-      await state.status.close(status);
+      await state.status.close(status, abortedBy);
     } catch (error) {
       this.loggingService.error(new Error('failed to close the status post', { cause: error }));
     }

@@ -5,7 +5,7 @@ import { CommandHandler } from '../commands.handler.ts';
 
 import type { CommandInput, CommandResponse } from '../commands.types.ts';
 
-/** §7.5 — the shared shape of /stop and /kill: flag the running turns, cancel every parked decision */
+/** §7.5 — the shared shape of /stop and /kill: flag the running turns, cancel every parked decision, name what was reached */
 export abstract class ChannelInterruptHandler extends CommandHandler {
   protected abstract readonly abortStatus: 'killed' | 'stopped';
   protected abstract readonly cancellationReason: 'kill' | 'stop';
@@ -18,15 +18,15 @@ export abstract class ChannelInterruptHandler extends CommandHandler {
   }
 
   async handle(input: CommandInput): Promise<CommandResponse> {
-    const flagged = this.turnControlRegistry.abortChannel(input.channelId, this.abortStatus);
+    const flagged = this.turnControlRegistry.abortChannel(input.channelId, this.abortStatus, input.username);
     await this.pendingDecisionsService.cancelPendingIn(input.channelId, this.cancellationReason);
     return {
       audience: 'channel',
-      text: flagged === 0 ? this.renderNothingRunning() : this.renderInterrupted(flagged)
+      text: flagged.length === 0 ? this.renderNothingRunning() : this.renderInterrupted(flagged)
     };
   }
 
-  protected abstract renderInterrupted(flagged: number): string;
+  protected abstract renderInterrupted(agentUsernames: readonly string[]): string;
 
   protected abstract renderNothingRunning(): string;
 }

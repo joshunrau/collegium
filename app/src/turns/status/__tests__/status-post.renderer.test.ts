@@ -50,6 +50,13 @@ describe('renderStatusPost', () => {
     expect(renderStatusPost(state({ elapsedMs: 200_000, outcome: 'killed' }))).toBe(`⏹️ _killed (3m 20s)_`);
   });
 
+  it('should name who issued the command that ended the turn (§7.5)', () => {
+    expect(renderStatusPost(state({ abortedBy: 'casey', elapsedMs: 17_000, outcome: 'stopped' }))).toBe(
+      '⏹️ _stopped by @casey (17s)_'
+    );
+    expect(renderStatusPost(state({ abortedBy: 'casey', outcome: 'killed' }))).toBe('⏹️ _killed by @casey_');
+  });
+
   it('should omit an empty transient line', () => {
     expect(renderStatusPost(state({ transientText: '' }))).toBe('⏳ _working…_');
   });

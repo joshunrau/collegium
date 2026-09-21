@@ -36,10 +36,18 @@ function formatDuration(elapsedMs: number): string {
   return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
 }
 
-/** §8.1 — the closing line also states how long the turn ran; every phrase ends in the closing underscore */
-function renderOutcomeLine(outcome: Exclude<TurnStatus, 'running'>, elapsedMs: number | undefined): string {
-  const phrase = OUTCOME_PHRASES[outcome];
-  return elapsedMs === undefined ? phrase : `${phrase.slice(0, -1)} (${formatDuration(elapsedMs)})_`;
+/**
+ * §8.1 — the closing line also states how long the turn ran, and who issued the command that ended
+ * it (§7.5); every phrase ends in the closing underscore, which the additions go inside.
+ */
+function renderOutcomeLine(
+  outcome: Exclude<TurnStatus, 'running'>,
+  elapsedMs: number | undefined,
+  abortedBy: string | undefined
+): string {
+  const by = abortedBy === undefined ? '' : ` by @${abortedBy}`;
+  const elapsed = elapsedMs === undefined ? '' : ` (${formatDuration(elapsedMs)})`;
+  return `${OUTCOME_PHRASES[outcome].slice(0, -1)}${by}${elapsed}_`;
 }
 
 function sanitizeTraceText(text: string): string {
@@ -90,6 +98,8 @@ export type TraceEntry =
 export type TraceLine = TraceEntry & { mark?: TraceMark };
 
 export type StatusPostState = {
+  /** §7.5 — who issued the stop or kill the outcome records */
+  abortedBy?: string;
   /** wall-clock time the turn ran, approval waits included; absent where its end was never observed */
   elapsedMs?: number;
   outcome?: Exclude<TurnStatus, 'running'>;
@@ -103,7 +113,8 @@ export type StatusPostState = {
  * the turn ran.
  */
 export function renderStatusPost(state: StatusPostState, limitChars = Number.POSITIVE_INFINITY): string {
-  const head = state.outcome === undefined ? WORKING_LINE : renderOutcomeLine(state.outcome, state.elapsedMs);
+  const head =
+    state.outcome === undefined ? WORKING_LINE : renderOutcomeLine(state.outcome, state.elapsedMs, state.abortedBy);
   const groups = groupTraceLines(state.traceLines);
   const transient =
     state.outcome === undefined && state.transientText !== undefined && state.transientText !== ''
@@ -127,7 +138,7 @@ export function renderStatusPost(state: StatusPostState, limitChars = Number.POS
  */
 export function renderAbandonedStatusPost(storedText: string): string {
   const [, ...rest] = storedText.split('\n');
-  return [renderOutcomeLine('abandoned', undefined), ...rest].join('\n');
+  return [renderOutcomeLine('abandoned', undefined, undefined), ...rest].join('\n');
 }
 
 /**
@@ -156,6 +167,13 @@ export function renderSteeringLine(byUsername: string): string {
 /** §4.4 — a discarded completion was paid for; the status post says the turn started over, and the run of lines says how often (§8.1) */
 export function renderFoldLine(): string {
   return '↺ _started over to read a further post_';
+}
+
+/** §5.2 — the drain is visible even when context is not: how far back the window reached, where the earliest post waiting was older */
+export function renderDrainLine(reachesBackTo: string | undefined): string {
+  return reachesBackTo === undefined
+    ? '↧ _the earliest post waiting is beyond what my context reaches_'
+    : `↧ _my context reaches back to ${reachesBackTo}; the earliest post waiting is older_`;
 }
 
 export function renderBudgetExhaustedNotice(limit: number): string {

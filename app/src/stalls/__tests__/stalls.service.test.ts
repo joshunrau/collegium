@@ -12,6 +12,7 @@ import type { QueueEntry } from '@/queue/queue.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
+import { TurnControlRegistry } from '@/turns/control/turn-control.registry.ts';
 
 import { StallsService } from '../stalls.service.ts';
 
@@ -30,6 +31,8 @@ const entry = (id: string): QueueEntry => ({
   lastEnqueuedAt: STARTED_AT
 });
 
+const HELD = { acquiredAt: STARTED_AT, agentUsername: 'mira', channelId: 'channel-1' };
+
 describe('StallsService', () => {
   let channelLockService: MockedInstance<ChannelLockService>;
   let haltService: MockedInstance<HaltService>;
@@ -37,6 +40,7 @@ describe('StallsService', () => {
   let pendingDecisionsService: MockedInstance<PendingDecisionsService>;
   let queueService: MockedInstance<QueueService>;
   let stallsService: StallsService;
+  let turnControlRegistry: MockedInstance<TurnControlRegistry>;
 
   beforeEach(async () => {
     channelLockService = MockFactory.createMock(ChannelLockService);
@@ -50,6 +54,8 @@ describe('StallsService', () => {
     pendingDecisionsService.isWaitingOnPerson.mockResolvedValue(false);
     queueService = MockFactory.createMock(QueueService);
     queueService.listAll.mockResolvedValue([]);
+    turnControlRegistry = MockFactory.createMock(TurnControlRegistry);
+    turnControlRegistry.surfaceStatusPosts.mockResolvedValue(false);
     const moduleRef = await Test.createTestingModule({
       providers: [
         StallsService,
@@ -59,7 +65,8 @@ describe('StallsService', () => {
         MockFactory.createForService(LoggingService),
         { provide: NotificationsService, useValue: notificationsService },
         { provide: PendingDecisionsService, useValue: pendingDecisionsService },
-        { provide: QueueService, useValue: queueService }
+        { provide: QueueService, useValue: queueService },
+        { provide: TurnControlRegistry, useValue: turnControlRegistry }
       ]
     }).compile();
     stallsService = moduleRef.get(StallsService);
@@ -87,21 +94,41 @@ describe('StallsService', () => {
     expect(notificationsService.notify).toHaveBeenCalledTimes(2);
   });
 
-  it('should announce a long turn with how long it has held the channel (§7.6)', async () => {
-    channelLockService.listHeld.mockReturnValue([
-      { acquiredAt: STARTED_AT, agentUsername: 'mira', channelId: 'channel-1' }
-    ]);
+  it('should announce a long turn with how long it has held the channel, once its status post is surfaced (§7.6)', async () => {
+    channelLockService.listHeld.mockReturnValue([HELD]);
+    turnControlRegistry.surfaceStatusPosts.mockResolvedValue(true);
     await stallsService.sweep(at(29));
     await stallsService.sweep(at(31));
+    expect(turnControlRegistry.surfaceStatusPosts).toHaveBeenCalledExactlyOnceWith('mira', 'channel-1');
     expect(notificationsService.notify.mock.calls).toStrictEqual([
-      [{ agentUsername: 'mira', channelId: 'channel-1', heldMs: 31 * MINUTE_MS, kind: 'long-turn' }]
+      [
+        {
+          agentUsername: 'mira',
+          channelId: 'channel-1',
+          heldMs: 31 * MINUTE_MS,
+          kind: 'long-turn',
+          postsWaiting: false,
+          tracedNothing: true
+        }
+      ]
+    ]);
+  });
+
+  it('should announce a long turn again when a post queues behind it, and not for the same entry twice (§7.6)', async () => {
+    channelLockService.listHeld.mockReturnValue([HELD]);
+    channelLockService.isBusy.mockReturnValue(true);
+    await stallsService.sweep(at(31));
+    queueService.listAll.mockResolvedValue([entry('entry-1')]);
+    await stallsService.sweep(at(40));
+    await stallsService.sweep(at(41));
+    expect(notificationsService.notify.mock.calls).toStrictEqual([
+      [expect.objectContaining({ heldMs: 31 * MINUTE_MS, kind: 'long-turn', postsWaiting: false })],
+      [expect.objectContaining({ heldMs: 40 * MINUTE_MS, kind: 'long-turn', postsWaiting: true })]
     ]);
   });
 
   it('should restart the long-turn clock while a decision is pending (§7.6)', async () => {
-    channelLockService.listHeld.mockReturnValue([
-      { acquiredAt: STARTED_AT, agentUsername: 'mira', channelId: 'channel-1' }
-    ]);
+    channelLockService.listHeld.mockReturnValue([HELD]);
     pendingDecisionsService.isWaitingOnPerson.mockResolvedValue(true);
     await stallsService.sweep(at(25));
     pendingDecisionsService.isWaitingOnPerson.mockResolvedValue(false);
@@ -113,9 +140,7 @@ describe('StallsService', () => {
 
   it('should announce nothing while a global halt stands (§7.6)', async () => {
     haltService.isHalted.mockReturnValue(true);
-    channelLockService.listHeld.mockReturnValue([
-      { acquiredAt: STARTED_AT, agentUsername: 'mira', channelId: 'channel-1' }
-    ]);
+    channelLockService.listHeld.mockReturnValue([HELD]);
     queueService.listAll.mockResolvedValue([entry('entry-1')]);
     await stallsService.sweep(at(0));
     await stallsService.sweep(at(60));

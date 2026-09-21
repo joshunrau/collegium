@@ -212,6 +212,26 @@ describe('StatusPostService', () => {
     expect(transport.updatePost).not.toHaveBeenCalled();
   });
 
+  it('should open the post on demand for a turn that traced nothing, once, and then close it as any other (§7.6)', async () => {
+    const handle = statusPostService.open(OPEN_INPUT);
+
+    expect(await handle.surface()).toBe(true);
+    expect(await handle.surface()).toBe(false);
+    await handle.close('stopped', 'casey');
+
+    expect(transport.send).toHaveBeenCalledExactlyOnceWith({ channelId: 'channel-1', text: '⏳ _working…_' });
+    expect(turnsService.recordStatusPost).toHaveBeenCalledExactlyOnceWith('turn-1', 'status-1');
+    expect(editedTexts()).toStrictEqual([expect.stringMatching(/^⏹️ _stopped by @casey \(\d+s\)_$/u)]);
+  });
+
+  it('should leave a closing post alone when asked to surface it (§7.6)', async () => {
+    const handle = statusPostService.open(OPEN_INPUT);
+    await handle.close('completed');
+
+    expect(await handle.surface()).toBe(false);
+    expect(transport.send).not.toHaveBeenCalled();
+  });
+
   it('should give up on the post once opening it fails', async () => {
     transport.send.mockResolvedValue(Result.err(FAILURE));
     const handle = statusPostService.open(OPEN_INPUT);

@@ -14,12 +14,16 @@ export declare namespace SystemEvent {
     kind: 'halt';
     reason: HaltReason;
   };
-  /** §7.6 — how long the turn has gone since it started or last waited on a person */
+  /** §7.6 — how long the turn has gone since it started or last waited on a person, and what the framework knows of it */
   type LongTurn = {
     agentUsername: string;
     channelId: string;
     heldMs: number;
     kind: 'long-turn';
+    /** a post addressing the agent is queued behind this turn (§5.2) */
+    postsWaiting: boolean;
+    /** the turn had traced nothing, so its status post was opened by the sweep rather than by a call (§8.1) */
+    tracedNothing: boolean;
   };
   /** the §4.5 correction — a mechanical string in the offending post's own channel */
   type MultiMentionRefusal = {

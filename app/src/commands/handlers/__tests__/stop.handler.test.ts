@@ -6,9 +6,11 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { TurnControlRegistry } from '@/turns/control/turn-control.registry.ts';
 
+import { KillHandler } from '../kill.handler.ts';
 import { StopHandler } from '../stop.handler.ts';
 
 describe('StopHandler', () => {
+  let killHandler: KillHandler;
   let pendingDecisionsService: MockedInstance<PendingDecisionsService>;
   let stopHandler: StopHandler;
   let turnControlRegistry: MockedInstance<TurnControlRegistry>;
@@ -17,37 +19,40 @@ describe('StopHandler', () => {
     pendingDecisionsService = MockFactory.createMock(PendingDecisionsService);
     pendingDecisionsService.cancelPendingIn.mockResolvedValue(undefined);
     turnControlRegistry = MockFactory.createMock(TurnControlRegistry);
-    turnControlRegistry.abortChannel.mockReturnValue(2);
+    turnControlRegistry.abortChannel.mockReturnValue(['mira', 'tess']);
     const moduleRef = await Test.createTestingModule({
       providers: [
+        KillHandler,
         StopHandler,
         { provide: PendingDecisionsService, useValue: pendingDecisionsService },
         { provide: TurnControlRegistry, useValue: turnControlRegistry }
       ]
     }).compile();
+    killHandler = moduleRef.get(KillHandler);
     stopHandler = moduleRef.get(StopHandler);
   });
 
-  it('should flag every running turn and cancel every pending decision in the channel', async () => {
-    const response = await stopHandler.handle({
-      channelId: 'channel-1',
-      text: '',
-      userId: 'casey-id',
-      username: 'casey'
-    });
-    expect(turnControlRegistry.abortChannel).toHaveBeenCalledWith('channel-1', 'stopped');
+  const input = { channelId: 'channel-1', text: '', userId: 'casey-id', username: 'casey' };
+
+  it('should flag every running turn under the invoker’s name, cancel every pending decision, and name the agents reached (§7.5)', async () => {
+    const response = await stopHandler.handle(input);
+    expect(turnControlRegistry.abortChannel).toHaveBeenCalledWith('channel-1', 'stopped', 'casey');
     expect(pendingDecisionsService.cancelPendingIn).toHaveBeenCalledWith('channel-1', 'stop');
-    expect(response).toStrictEqual({ audience: 'channel', text: '⏹️ Stopped 2 turn(s) before any further tool call.' });
+    expect(response).toStrictEqual({
+      audience: 'channel',
+      text: '⏹️ Stopped `mira`, `tess` before any further tool call.'
+    });
+  });
+
+  it('should name the agents a kill reached (§7.5)', async () => {
+    const response = await killHandler.handle(input);
+    expect(turnControlRegistry.abortChannel).toHaveBeenCalledWith('channel-1', 'killed', 'casey');
+    expect(response).toStrictEqual({ audience: 'channel', text: '⏹️ Killed `mira`, `tess`.' });
   });
 
   it('should say nothing is running when no turn was flagged', async () => {
-    turnControlRegistry.abortChannel.mockReturnValue(0);
-    const response = await stopHandler.handle({
-      channelId: 'channel-1',
-      text: '',
-      userId: 'casey-id',
-      username: 'casey'
-    });
+    turnControlRegistry.abortChannel.mockReturnValue([]);
+    const response = await stopHandler.handle(input);
     expect(response).toStrictEqual({ audience: 'channel', text: '⏹️ Nothing running here to stop.' });
     expect(pendingDecisionsService.cancelPendingIn).toHaveBeenCalledWith('channel-1', 'stop');
   });

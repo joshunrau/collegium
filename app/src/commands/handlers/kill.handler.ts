@@ -4,6 +4,7 @@ import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions
 import { TurnControlRegistry } from '@/turns/control/turn-control.registry.ts';
 
 import { ChannelInterruptHandler } from './channel-interrupt.handler.ts';
+import { renderAgentNames } from './channel-interrupt.utils.ts';
 
 /** §7.5 — immediate abandonment: a tool already in flight may still land its side effect */
 @Injectable()
@@ -16,8 +17,8 @@ export class KillHandler extends ChannelInterruptHandler {
     super(pendingDecisionsService, turnControlRegistry);
   }
 
-  protected renderInterrupted(flagged: number): string {
-    return `⏹️ Killed ${flagged} turn(s).`;
+  protected renderInterrupted(agentUsernames: readonly string[]): string {
+    return `⏹️ Killed ${renderAgentNames(agentUsernames)}.`;
   }
 
   protected renderNothingRunning(): string {

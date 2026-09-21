@@ -39,20 +39,24 @@ export type TraceLineHandle = number;
  */
 export type StatusPostHandle = {
   appendTrace(entry: TraceEntry): TraceLineHandle;
-  close(outcome: Exclude<TurnStatus, 'running'>): Promise<void>;
+  /** §7.5 — a command's outcome names who issued it; every other outcome stands alone */
+  close(outcome: Exclude<TurnStatus, 'running'>, abortedBy?: string): Promise<void>;
   /** §8.1 — a call's disposition, set once its result is known: the line was written before the call ran */
   markTrace(handle: TraceLineHandle, mark: TraceMark): void;
   /** text alongside a tool call is transient status, replaced on the next edit (§3.3) */
   setTransient(text: string): void;
+  /** §7.6 — opens the post now where nothing has traced yet, and says whether it did; a closing post is left alone */
+  surface(): Promise<boolean>;
 };
 
 /**
  * The post is created on the first trace line rather than at turn start: a turn that never calls a
- * tool has no machinery worth a post, and its only output should be its reply (§8.1, A5). Every
- * mutation is best-effort — a turn that cannot open or edit its status post still runs, and a
- * failed bookkeeping write degrades supervision, never the work. The store's copy is kept current
- * with each edit, since SQLite is authoritative for conversation content (§8.2) and the agent's
- * own socket never observes its own posts.
+ * tool has no machinery worth a post, and its only output should be its reply (§8.1, A5) — until
+ * the §7.6 threshold, past which the sweep surfaces one so the minutes that follow are accounted
+ * for. Every mutation is best-effort — a turn that cannot open or edit its status post still runs,
+ * and a failed bookkeeping write degrades supervision, never the work. The store's copy is kept
+ * current with each edit, since SQLite is authoritative for conversation content (§8.2) and the
+ * agent's own socket never observes its own posts.
  */
 @Injectable()
 export class StatusPostService {
@@ -167,12 +171,13 @@ export class StatusPostService {
         void schedule();
         return state.traceLines.length - 1;
       },
-      close: (outcome) => {
+      close: (outcome, abortedBy) => {
+        closing = true;
         if (!touched) {
           return Promise.resolve();
         }
-        closing = true;
         wake?.();
+        state.abortedBy = abortedBy;
         state.elapsedMs = Date.now() - openedAt;
         state.outcome = outcome;
         state.transientText = undefined;
@@ -188,6 +193,13 @@ export class StatusPostService {
       setTransient: (text) => {
         state.transientText = text;
         void schedule();
+      },
+      surface: async () => {
+        if (touched || closing) {
+          return false;
+        }
+        await schedule();
+        return true;
       }
     };
   }
