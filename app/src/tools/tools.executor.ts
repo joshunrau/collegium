@@ -15,6 +15,7 @@ import type { ToolCall } from '@/inference/inference.types.ts';
 import type { TurnEventInput } from '@/turns/turns.types.ts';
 
 import { ToolRegistry } from './tools.registry.ts';
+import { renderAskAnswerResult, renderToolDenialResult } from './tools.renderer.ts';
 
 import type { RegisteredToolset, ResolvedTool } from './tools.registry.ts';
 import type { ToolAttempt } from './tools.types.ts';
@@ -105,7 +106,7 @@ export class ToolExecutor {
       }))
       .with({ kind: 'denied-with-reason' }, ({ byUsername, reason }): ToolAttempt => ({
         kind: 'continue',
-        output: `denied: ${reason}`,
+        output: renderToolDenialResult({ byUsername, displayName: tool.displayName, reason }),
         traceMark: `🛑 denied by @${byUsername}`
       }))
       .exhaustive();
@@ -156,7 +157,10 @@ export class ToolExecutor {
       return ToolExecutor.toAskFailureAttempt(decision.error);
     }
     return match(decision.value)
-      .with({ kind: 'answered' }, ({ answerText }): ToolAttempt => ({ kind: 'continue', output: answerText }))
+      .with({ kind: 'answered' }, ({ answerText, byUsername }): ToolAttempt => ({
+        kind: 'continue',
+        output: renderAskAnswerResult({ answerText, byUsername })
+      }))
       .with({ kind: 'cancelled' }, ({ reason }): ToolAttempt => ToolExecutor.toCancelledAttempt('question', reason))
       .exhaustive();
   }

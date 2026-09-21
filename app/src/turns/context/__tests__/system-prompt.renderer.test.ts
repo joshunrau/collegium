@@ -85,7 +85,7 @@ describe('SystemPromptRenderer', () => {
 
   it('should include the behavioral baseline without an optional personality', async () => {
     const prompt = await render();
-    expect(prompt.startsWith('You are Mira.\n\n## How you work\n\nBegin work when')).toBe(true);
+    expect(prompt.startsWith('You are Mira.\n\n## How you work\n\nBegin once')).toBe(true);
     expect(prompt.indexOf('## How this works')).toBeGreaterThan(prompt.indexOf('## How you work'));
     expect(prompt).not.toContain('## Personality');
     expect(prompt).not.toContain('## Skills');
@@ -98,17 +98,19 @@ describe('SystemPromptRenderer', () => {
       channelId: 'channel-1',
       profile: { ...PROFILE, personality: 'candid' }
     });
-    expect(prompt.startsWith('You are Mira.\n\n## How you work\n\nBegin work when')).toBe(true);
+    expect(prompt.startsWith('You are Mira.\n\n## How you work\n\nBegin once')).toBe(true);
     expect(prompt.indexOf('## Personality')).toBeGreaterThan(prompt.indexOf('## How you work'));
     expect(prompt.indexOf('## Personality')).toBeLessThan(prompt.indexOf('## How this works'));
+    expect(prompt).toContain('## Personality\n\nThe stance you take here:\n\n');
     expect(prompt).toContain('Never apologize for disagreeing.');
   });
 
   it('should state the configured budgets and the calls exempt from them in the preamble', async () => {
     const prompt = await render();
-    expect(prompt).toContain('fits your context to about 12000 tokens');
-    expect(prompt).toContain('Each turn has a budget of 7 tool calls.');
-    expect(prompt).toContain('Calls to builtins__now and skills__load do not.');
+    expect(prompt).toContain('fits the recent posts and records in this channel to about 12000 tokens');
+    expect(prompt).toContain('Each turn has 7 attempts.');
+    expect(prompt).toContain('Calls to builtins__now and skills__load spend none.');
+    expect(prompt).toContain('at most 20 of them, newest first');
   });
 
   it('should state the retention rule for the calls whose results fold, from the model window (§3.8)', async () => {
@@ -124,6 +126,32 @@ describe('SystemPromptRenderer', () => {
   it('should say every result stays for an agent holding no tool whose results fold (§3.8)', async () => {
     const prompt = await render();
     expect(prompt).toContain("Each tool result in a turn stays in that turn's context.");
+  });
+
+  it('should render the memory paragraphs only for an agent that holds memory (§3.8)', async () => {
+    const without = await render();
+    expect(without).not.toContain('Memory is for what a later turn will need');
+    expect(without).not.toContain('Your memories go with you between channels');
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['memory', 'write'] }]);
+    const held = await render();
+    expect(held).toContain('Memory is for what a later turn will need and cannot look up');
+    expect(held).toContain('Your memories go with you between channels');
+    expect(held).toContain('The text of a memory is not posted in the channel.');
+  });
+
+  it('should say how a post names its author, and that the line is not a mention (§3.8)', async () => {
+    const prompt = await render();
+    expect(prompt).toContain(
+      'as `username (person):`, `username (agent):` or `username (system):`. That line names the author and is not a mention.'
+    );
+  });
+
+  it('should state the options ask__human may offer only for an agent that holds it (§3.7a)', async () => {
+    expect(await render()).not.toContain('ask__human');
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['ask', 'human'] }]);
+    expect(await render()).toContain(
+      'It may offer two to six short answers as buttons; the person may type something else.'
+    );
   });
 
   it('should name no directory for an agent holding no file tool (§3.8)', async () => {
@@ -192,19 +220,19 @@ describe('SystemPromptRenderer', () => {
     const prompt = await render();
     expect(prompt.slice(prompt.indexOf('## Skills'))).toBe(`## Skills
 
-Procedures you can pull into context with skills__load when they apply:
+Procedures written for situations you will meet here. skills__load returns one in full and spends no attempt; load one before acting when its description matches what you are about to do:
 
 - handing-work-to-a-peer: How to hand work over.
 
 ## Memories
 
-Your saved memories; read a full body with memory__read when it matters:
+Your memories, by description, written by you in earlier turns. memory__read returns one body and spends no attempt; read one whose description matches the work in front of you:
 
 - [memory-1] casey prefers bullet points
 
 ## Peers
 
-Colleagues in this channel, with the toolsets each holds:
+Colleagues in this channel and what each is asked about. The toolsets say what each can do, not what should be handed over:
 
 - @tess — scheduling (toolsets: none)`);
   });
@@ -299,7 +327,7 @@ Colleagues in this channel, with the toolsets each holds:
     ]);
     const { dynamic } = await renderParts();
     expect(dynamic).toContain(
-      '## Open work\n\nUnits you handed over or were handed in this channel, oldest first; read one in full with tasks__read:\n\n- [abcd1234] to @tess · assigned · 2h 0m — a schedule for the offsite\n\n…and 1 more.'
+      '## Open work\n\nWork handed over in this channel and still open, oldest first. A line marked `to @name` is one you assigned and are waiting on; `from @name` is one you owe. Read one in full with tasks__read:\n\n- [abcd1234] to @tess · assigned · 2h 0m — a schedule for the offsite\n\n…and 1 more.'
     );
     expect(tasksService.listOpenFor).toHaveBeenCalledWith({ agentUsername: 'mira', channelId: 'channel-1' });
   });

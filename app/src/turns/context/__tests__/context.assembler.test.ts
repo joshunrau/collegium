@@ -121,7 +121,7 @@ describe('ContextAssembler', () => {
     });
     const request = await assemble();
     expect(request.messages).toStrictEqual([
-      { content: '@casey: hello @mira', role: 'user' },
+      { content: 'casey (person): hello @mira', role: 'user' },
       { content: 'on it', role: 'assistant' },
       { content: 'checking', role: 'assistant' }
     ]);

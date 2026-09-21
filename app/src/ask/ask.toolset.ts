@@ -14,7 +14,7 @@ export const ASK_TOOLSET = implementToolset(ASK_TOOLSET_DEF, {
     human: {
       ask: (args) => ({ ...(args.options && { options: args.options }), question: args.question }),
       description:
-        'Ask a person in this channel a question and wait for their answer. Use it for a fact or a preference only they have. It is not how you get permission to act: a tool that needs permission asks for it by itself when you call it. The answer comes back as this call’s result and the turn continues under the same budget.',
+        'Ask a person in this channel a question and wait for their answer. Use it for a fact or a preference only they have. It is not how you get permission to act: a tool that needs permission asks for it by itself when you call it. You may offer two to six short answers as buttons, and the person may type something else instead. The answer comes back as this call’s result and the turn continues under the same budget.',
       execute: () => {
         throw new Error('ask::human has no body: an ask-declared tool is resolved from its answer');
       },
@@ -24,7 +24,9 @@ export const ASK_TOOLSET = implementToolset(ASK_TOOLSET_DEF, {
           .min(2)
           .max(MAX_OFFERED_OPTIONS)
           .optional()
-          .describe('Short answers to offer as buttons. The person may still type something else.'),
+          .describe(
+            'Two to six short answers to offer as buttons; more than six is rejected. The person may still type something else.'
+          ),
         question: z.string().min(1).max(2000)
       }),
       traceDetail: (args) => args.question

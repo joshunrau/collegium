@@ -4,9 +4,9 @@
  * done about it. A model told only "denied" tries an adjacent path; one told the budget is closed
  * answers in words, which is exactly what "stop and tell me what you have" asked for.
  */
-export function renderExtensionDenialResult(reason: string): string {
+export function renderExtensionDenialResult(byUsername: string, reason: string): string {
   return [
-    `The request to continue was denied: ${reason}`,
+    `${byUsername} denied the request to continue: ${reason}`,
     '',
     'No action attempts remain and no further extension will be offered. Reply with what you have.'
   ].join('\n');

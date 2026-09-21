@@ -19,8 +19,10 @@ export const CONVERSATIONS_TOOLSET = implementToolset(CONVERSATIONS_TOOLSET_DEF,
       concurrent: true,
       description:
         'Search past posts by text, including your own replies, across the channels you are in whose readers ' +
-        'include everyone who can read this channel. Returns the newest matches first, each with its post id, ' +
-        'channel, author and time. Reaches back no further than the most recent reset in each channel.',
+        'include everyone who can read this channel. The query is one literal phrase matched as a substring, ' +
+        'without regard to case and with no stemming or synonyms, so a distinctive word or two finds what a ' +
+        'sentence does not. Returns the newest matches first, each with its post id, channel, author and time. ' +
+        'Reaches back no further than the most recent reset in each channel.',
       execute: async (args, context) => {
         const channels = context.roster.listReachableFrom(context.turn.agentUsername, context.turn.channelId);
         const hits = await context.search.find({
@@ -37,9 +39,16 @@ export const CONVERSATIONS_TOOLSET = implementToolset(CONVERSATIONS_TOOLSET_DEF,
       parameters: z.object({
         author: z.string().min(1).optional().describe('Only posts by this username, without the @'),
         count: $Count.describe('How many matches to return'),
-        from: $Day.optional().describe('Only posts on or after this day, as YYYY-MM-DD in UTC'),
-        query: z.string().min(1).describe('Text to find anywhere in a post, matched without regard to case'),
-        until: $Day.optional().describe('Only posts on or before this day, as YYYY-MM-DD in UTC')
+        from: $Day
+          .optional()
+          .describe('Only posts on or after this day, as YYYY-MM-DD in UTC; omit for no lower bound'),
+        query: z
+          .string()
+          .min(1)
+          .describe('Text to find anywhere in a post, as one literal phrase matched without regard to case'),
+        until: $Day
+          .optional()
+          .describe('Only posts on or before this day, as YYYY-MM-DD in UTC; omit for no upper bound')
       }),
       retryable: true,
       traceDetail: (args) => `"${args.query}"`

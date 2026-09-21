@@ -1,10 +1,11 @@
 import { match } from 'ts-pattern';
 
+import { renderDenialLine } from '@/approvals/approvals.renderer.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import { renderPostWithAttachments, replayTextOf } from '@/conversations/conversations.utils.ts';
 import type { CompletionMessage } from '@/inference/inference.types.ts';
 import { reasoningOf } from '@/inference/inference.utils.ts';
-import type { ModelRow } from '@/prisma/prisma.types.ts';
+import type { AuthorKind, ModelRow } from '@/prisma/prisma.types.ts';
 import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
 
 const FENCED_CODE_BLOCK = /```[\s\S]*?```/gu;
@@ -26,11 +27,12 @@ function isBareCallObject(text: string): boolean {
   }
 }
 
-function renderDenial(decision: { byUsername: string; reason?: string }): string {
-  return decision.reason === undefined
-    ? `denied by @${decision.byUsername}`
-    : `denied by @${decision.byUsername}: ${decision.reason}`;
-}
+/** §3.8 — what a post's author is, in the word the model reads beside the name */
+const AUTHOR_KIND_WORDS: { readonly [K in AuthorKind]: string } = {
+  agent: 'agent',
+  human: 'person',
+  system: 'system'
+};
 
 /**
  * What history can answer for each call: the tool's own result, or the human decision that refused
@@ -49,7 +51,10 @@ function collectCallResults(entries: readonly WindowEntry[]): ReadonlyMap<string
     if (payload.kind === 'tool_result') {
       results.set(payload.callId, replayTextOf(payload) ?? payload.output);
     } else if (payload.kind === 'approval_decided' && payload.callId !== undefined && payload.decision !== 'approved') {
-      denials.set(payload.callId, renderDenial(payload));
+      denials.set(
+        payload.callId,
+        renderDenialLine({ byUsername: payload.byUsername, reason: payload.reason, subject: 'the call' })
+      );
     }
   }
   for (const [callId, denial] of denials) {
@@ -121,7 +126,7 @@ function renderEvent(event: ModelRow<'TurnEvent'>, results: ReadonlyMap<string, 
       ])
       // §7.5 — a steer reads exactly as the post it resembles, so a later turn hears the human speaking
       .with({ kind: 'steering_received' }, (payload): CompletionMessage[] => [
-        { content: `@${payload.byUsername}: ${payload.text}`, role: 'user' }
+        { content: renderAuthoredMessage(payload.byUsername, 'human', payload.text), role: 'user' }
       ])
       .with({ kind: 'tool_result' }, (): CompletionMessage[] => [])
       .exhaustive()
@@ -133,7 +138,7 @@ function renderPost(post: ModelRow<'Post'>, selfUsername: string): CompletionMes
   if (post.authorUsername === selfUsername) {
     return { content, role: 'assistant' };
   }
-  return { content: `@${post.authorUsername}: ${content}`, role: 'user' };
+  return { content: renderAuthoredMessage(post.authorUsername, post.authorKind, content), role: 'user' };
 }
 
 export function toCompletionMessages(entries: readonly WindowEntry[], selfUsername: string): CompletionMessage[] {
@@ -156,4 +161,13 @@ export function containsToolCallTranscript(text: string): boolean {
   }
   const stripped = text.replace(FENCED_CODE_BLOCK, '').trim();
   return stripped !== '' && (stripped.startsWith('<tool_call>') || isBareCallObject(stripped));
+}
+
+/**
+ * §3.8 — a post by someone else, as the model reads it: the author's name and what they are, so a
+ * person is never mistaken for a colleague, and without the @ that read as a mention and was copied
+ * back into replies.
+ */
+export function renderAuthoredMessage(username: string, kind: AuthorKind, content: string): string {
+  return `${username} (${AUTHOR_KIND_WORDS[kind]}): ${content}`;
 }

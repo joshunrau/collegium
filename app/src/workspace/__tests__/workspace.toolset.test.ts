@@ -145,7 +145,7 @@ describe('WORKSPACE_TOOLSET', () => {
   describe('approval and trace', () => {
     it('always gates, showing the human the full content, not the intent (§6.2)', async () => {
       expect(await renderApproval(write, { content: 'line one\nline two', path: 'notes.md' })).toStrictEqual({
-        body: 'Write to `notes.md`:\n\n```\nline one\nline two\n```',
+        body: "Write to `notes.md` in this agent's workspace directory:\n\n```\nline one\nline two\n```",
         presentation: 'collapse'
       });
     });

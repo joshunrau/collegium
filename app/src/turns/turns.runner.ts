@@ -47,7 +47,7 @@ import { renderApprovalContext } from './approval-context/approval-context.rende
 import { ActionBudget } from './budget/action.budget.ts';
 import { renderExtensionDenialResult } from './budget/budget.renderer.ts';
 import { ContextAssembler } from './context/context.assembler.ts';
-import { containsToolCallTranscript } from './context/context.utils.ts';
+import { containsToolCallTranscript, renderAuthoredMessage } from './context/context.utils.ts';
 import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
 import { SUPERSEDABLE_RETENTION_FLOOR } from './retention/retention.constants.ts';
@@ -369,14 +369,20 @@ export class TurnRunner {
         }
       }
       await this.turnsService.appendEvent(state.turn.id, { kind: 'steering_received', ...steering });
-      this.pushMessage(state, { content: `@${steering.byUsername}: ${steering.text}`, role: 'user' });
+      this.pushMessage(state, {
+        content: renderAuthoredMessage(steering.byUsername, 'human', steering.text),
+        role: 'user'
+      });
       state.status.appendTrace(renderSteeringLine(steering.byUsername));
       state.consecutiveRejections = 0;
       if (denial !== undefined) {
         // the remaining steers are words the human said; they are heard, but no further attempt is spent
         for (const rest of taken.slice(index + 1)) {
           await this.turnsService.appendEvent(state.turn.id, { kind: 'steering_received', ...rest });
-          this.pushMessage(state, { content: `@${rest.byUsername}: ${rest.text}`, role: 'user' });
+          this.pushMessage(state, {
+            content: renderAuthoredMessage(rest.byUsername, 'human', rest.text),
+            role: 'user'
+          });
           state.status.appendTrace(renderSteeringLine(rest.byUsername));
         }
         this.pushMessage(state, { content: denial, role: 'user' });
@@ -967,9 +973,12 @@ export class TurnRunner {
           await this.postNotice(input, state, renderBudgetExhaustedNotice(state.budget.limitCount));
           return { kind: 'ended', outcome: await this.close(state, 'budget_exhausted') };
         })
-        .with({ kind: 'denied-with-reason' }, ({ reason }) => {
+        .with({ kind: 'denied-with-reason' }, ({ byUsername, reason }) => {
           state.budget.refuseFurtherExtensions();
-          return Promise.resolve<Exhaustion>({ kind: 'voice-only', text: renderExtensionDenialResult(reason) });
+          return Promise.resolve<Exhaustion>({
+            kind: 'voice-only',
+            text: renderExtensionDenialResult(byUsername, reason)
+          });
         })
         .exhaustive()
     );

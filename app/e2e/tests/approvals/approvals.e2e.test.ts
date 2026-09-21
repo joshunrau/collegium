@@ -208,7 +208,8 @@ describe('Approval resolution', () => {
     // earlier turns replay their tool results too, so the current turn's is the last one
     const retry = inference.requestsFor('mira').at(-1);
     const toolResult = retry?.messages.findLast((message) => message.role === 'tool');
-    expect(toolResult?.content).toBe('denied: use a different name');
+    expect(toolResult?.content).toContain('denied workspace::write: use a different name');
+    expect(toolResult?.content).toContain('The turn continues under the same budget');
   });
 
   it('counts a denial against the action budget (§5.4)', async () => {
@@ -355,7 +356,7 @@ describe('Per-agent action budget', () => {
     });
     expect(extension.text).toContain('Approving grants another 3');
     const [request] = inference.requestsFor('tess');
-    expect(request?.systemPrompt).toContain('Each turn has a budget of 3 tool calls.');
+    expect(request?.systemPrompt).toContain('Each turn has 3 attempts.');
     await channels.main.clickAction(extension, 'deny');
   });
 });

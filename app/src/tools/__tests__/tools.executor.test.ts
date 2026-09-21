@@ -166,7 +166,7 @@ describe('ToolExecutor', () => {
   it('should hand an answered question back as the call’s own result (§3.7a)', async () => {
     asksService.request.mockResolvedValue(Result.ok({ answerText: 'yes', byUsername: 'casey', kind: 'answered' }));
     const attempt = await execute('fixture__asker', { value: 'ship it?' });
-    expect(attempt).toStrictEqual({ kind: 'continue', output: 'yes' });
+    expect(attempt).toStrictEqual({ kind: 'continue', output: 'casey answered: yes' });
     expect(asksService.request).toHaveBeenCalledWith(
       expect.objectContaining({ options: ['yes', 'no'], question: 'ship it?' })
     );
@@ -247,14 +247,15 @@ describe('ToolExecutor', () => {
     });
   });
 
-  it('continues with the reason on a reasoned denial (§5.4)', async () => {
+  it('names the denier and says the turn continues, so a reasoned denial is not read as a tool error (§5.4)', async () => {
     approvalsService.request.mockResolvedValue(
       Result.ok({ byUsername: 'casey', kind: 'denied-with-reason', reason: 'not that host' })
     );
     const attempt = await execute('fixture__gated', { value: 'deploy' });
     expect(attempt).toStrictEqual({
       kind: 'continue',
-      output: 'denied: not that host',
+      output:
+        "casey denied fixture::gated: not that host\n\nThis is a person's decision, not a tool error. The turn continues under the same budget: you may act on the reason, including by making this call differently, or reply.",
       traceMark: '🛑 denied by @casey'
     });
   });

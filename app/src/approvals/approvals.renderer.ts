@@ -137,6 +137,15 @@ export function renderApprovalActions(input: {
   ];
 }
 
+/**
+ * §5.4 — a denial as the model reads it, in the turn that made the call and in every later window:
+ * a person's decision, named as a person and without the @ that would read as a mention (§3.8).
+ */
+export function renderDenialLine(input: { byUsername: string; reason?: string; subject: string }): string {
+  const reason = input.reason === undefined ? '' : `: ${input.reason}`;
+  return `${input.byUsername} denied ${input.subject}${reason}`;
+}
+
 export function renderDecisionRefusal(failure: DecisionFailure): string {
   return match(failure)
     .with({ kind: 'already-resolved' }, () => 'This approval has already been decided.')

@@ -188,7 +188,7 @@ export const WORKSPACE_TOOLSET = implementToolset(WORKSPACE_TOOLSET_DEF, {
     },
     write: {
       approval: (args) => ({
-        body: `Write to ${renderCodeSpan(args.path)}:\n\n${fenceCodeBlock(args.content)}`,
+        body: `Write to ${renderCodeSpan(args.path)} in this agent's workspace directory:\n\n${fenceCodeBlock(args.content)}`,
         presentation: 'collapse'
       }),
       description: 'Write a text file inside your workspace directory. Parent directories are created as needed.',
@@ -198,7 +198,10 @@ export const WORKSPACE_TOOLSET = implementToolset(WORKSPACE_TOOLSET_DEF, {
           return target;
         }
         await writeFileWhole(target.value.absolute, args.content);
-        return Result.ok({ text: `wrote ${args.path} (${Buffer.byteLength(args.content, 'utf8')} bytes)` });
+        const lines = args.content === '' ? 0 : args.content.split('\n').length;
+        return Result.ok({
+          text: `wrote ${args.path}: ${Buffer.byteLength(args.content, 'utf8')} bytes, ${lines} line${lines === 1 ? '' : 's'}`
+        });
       },
       parameters: z.object({
         content: z.string().describe('The full content the file will hold'),

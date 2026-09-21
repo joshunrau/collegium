@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
+import type { AuthorKind } from '@/prisma/prisma.types.ts';
 
 import { containsToolCallTranscript, toCompletionMessages } from '../context.utils.ts';
 
@@ -12,13 +13,14 @@ const event = (payload: PrismaJson.TurnEventPayload): WindowEntry => ({
 const post = (
   authorUsername: string,
   message: string,
-  attachments: null | PrismaJson.PostAttachments = null
+  attachments: null | PrismaJson.PostAttachments = null,
+  authorKind: AuthorKind = 'human'
 ): WindowEntry => ({
   kind: 'post',
   post: {
     attachments,
     authoringTurnId: null,
-    authorKind: 'human',
+    authorKind,
     authorUsername,
     channelId: 'channel-1',
     createdAt: new Date(0),
@@ -31,9 +33,15 @@ const post = (
 });
 
 describe('toCompletionMessages', () => {
-  it('should attribute a peer post and speak the agent own observed posts as the assistant', () => {
+  it('should name a post’s author as a person, an agent or the system, and speak the agent’s own posts as the assistant (§3.8)', () => {
+    const agentPost = post('tess', 'I can take it', null, 'agent');
+    const systemPost = post('collegium', '[trigger] mail', null, 'system');
+    expect(toCompletionMessages([agentPost, systemPost], 'mira')).toStrictEqual([
+      { content: 'tess (agent): I can take it', role: 'user' },
+      { content: 'collegium (system): [trigger] mail', role: 'user' }
+    ]);
     expect(toCompletionMessages([post('casey', 'hello @mira'), post('mira', 'on it')], 'mira')).toStrictEqual([
-      { content: '@casey: hello @mira', role: 'user' },
+      { content: 'casey (person): hello @mira', role: 'user' },
       { content: 'on it', role: 'assistant' }
     ]);
   });
@@ -42,7 +50,7 @@ describe('toCompletionMessages', () => {
     const files = [{ id: 'file-1', mimeType: 'application/pdf', name: 'q3-report.pdf', size: 421888 }];
     expect(toCompletionMessages([post('casey', 'what do you think?', { files })], 'mira')).toStrictEqual([
       {
-        content: '@casey: what do you think?\n[attached: q3-report.pdf (application/pdf, 421888 bytes)]',
+        content: 'casey (person): what do you think?\n[attached: q3-report.pdf (application/pdf, 421888 bytes)]',
         role: 'user'
       }
     ]);
@@ -170,7 +178,7 @@ describe('toCompletionMessages', () => {
   it('should replay a steering event as the human speaking (§7.5)', () => {
     expect(
       toCompletionMessages([event({ byUsername: 'casey', kind: 'steering_received', text: 'use staging' })], 'mira')
-    ).toStrictEqual([{ content: '@casey: use staging', role: 'user' }]);
+    ).toStrictEqual([{ content: 'casey (person): use staging', role: 'user' }]);
   });
 
   it('should fold a denial into the result of the call it refused, naming the human', () => {
@@ -196,7 +204,7 @@ describe('toCompletionMessages', () => {
         role: 'assistant',
         toolCalls: [{ arguments: { path: 'notes.md' }, id: 'c1', name: 'workspace__write' }]
       },
-      { content: 'denied by @casey', role: 'tool', toolCallId: 'c1' }
+      { content: 'casey denied the call', role: 'tool', toolCallId: 'c1' }
     ]);
   });
 

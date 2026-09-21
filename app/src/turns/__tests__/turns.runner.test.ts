@@ -839,7 +839,7 @@ describe('TurnRunner', () => {
       const outcome = await run();
       expect(outcome.status).toBe('completed');
       expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
-        content: '@casey: use staging',
+        content: 'casey (person): use staging',
         role: 'user'
       });
       expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
@@ -886,7 +886,7 @@ describe('TurnRunner', () => {
       await runFolding();
       expect(contextAssembler.assemble).toHaveBeenCalledTimes(2);
       expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
-        content: '@casey: use staging',
+        content: 'casey (person): use staging',
         role: 'user'
       });
       expect(sends.map((send) => send.text)).toStrictEqual(['all of it']);
