@@ -156,6 +156,13 @@ describe('RosterService', () => {
     expect(rosterService.isAgentIn('mira', 'channel-unknown')).toBe(false);
   });
 
+  it('should say which channels are direct messages, and nothing of one it does not know (§7.5)', async () => {
+    await rosterService.reconcile();
+    expect(rosterService.isDirectMessage('dm-casey-tess')).toBe(true);
+    expect(rosterService.isDirectMessage('channel-1')).toBe(false);
+    expect(rosterService.isDirectMessage('channel-unknown')).toBe(false);
+  });
+
   it('should count only registered agents among the members', async () => {
     await rosterService.reconcile();
     expect(rosterService.listAgentsIn('channel-1').map((agent) => agent.username)).toStrictEqual(['mira', 'tess']);

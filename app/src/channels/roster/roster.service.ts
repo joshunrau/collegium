@@ -47,6 +47,11 @@ export class RosterService {
     return this.channels.get(channelId)?.memberUsernames.has(agentUsername) ?? false;
   }
 
+  /** §7.5 — a notice in a DM is the agent's to post, which the roster knows rather than the substrate is asked */
+  isDirectMessage(channelId: string): boolean {
+    return this.channels.get(channelId)?.kind === 'direct';
+  }
+
   /** every agent present in the channel — what the §4.5 guard counts against */
   listAgentsIn(channelId: string): readonly AgentProfile[] {
     return [...(this.channels.get(channelId)?.memberUsernames ?? [])].flatMap((username) => {

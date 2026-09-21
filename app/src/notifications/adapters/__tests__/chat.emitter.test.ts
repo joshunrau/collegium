@@ -2,6 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ChatGateway } from '@/chat/chat.gateway.ts';
 import { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
@@ -16,6 +17,7 @@ import { ChatEmitter } from '../chat.emitter.ts';
 describe('ChatEmitter', () => {
   let chatEmitter: ChatEmitter;
   let chatGateway: MockedInstance<ChatGateway>;
+  let rosterService: MockedInstance<RosterService>;
   let transport: MockedInstance<ChatTransport>;
 
   beforeEach(async () => {
@@ -30,12 +32,15 @@ describe('ChatEmitter', () => {
     chatGateway.postAsSystemIn.mockResolvedValue(
       Result.ok({ authorUsername: 'collegium', createdAt: new Date(0), postId: 'post-1' })
     );
+    rosterService = MockFactory.createMock(RosterService);
+    rosterService.isDirectMessage.mockReturnValue(false);
     const moduleRef = await Test.createTestingModule({
       providers: [
         ChatEmitter,
         DateFormatter,
         { provide: ChatGateway, useValue: chatGateway },
         { provide: ConfigService, useValue: createConfigServiceMock() },
+        { provide: RosterService, useValue: rosterService },
         { provide: TransportRegistry, useValue: transportRegistry }
       ]
     }).compile();
@@ -152,6 +157,13 @@ describe('ChatEmitter', () => {
       'channel-1',
       '⏳ `mira` has been in one turn here for 31m without waiting on anyone, and has called no tool yet: its status post was opened just now and will show what it does next. /collegium kill ends the turn; a turn still thinking needs nothing. A post addressing `mira` is waiting behind this turn.'
     );
+  });
+
+  it('should post a §7.6 notice under the agent’s own account in a DM, without trying the system bot', async () => {
+    rosterService.isDirectMessage.mockReturnValue(true);
+    await chatEmitter.notify({ agentUsername: 'mira', channelId: 'dm-1', kind: 'standing-queue' });
+    expect(chatGateway.postAsSystemIn).not.toHaveBeenCalled();
+    expect(transport.send).toHaveBeenCalledWith({ channelId: 'dm-1', text: expect.stringContaining('`mira`') });
   });
 
   it('should post a §7.6 notice the system bot is refused under the agent’s own account, as in a DM', async () => {

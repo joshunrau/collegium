@@ -28,6 +28,7 @@ describe('ChannelAnnouncer', () => {
     chatGateway.updateSystemPost.mockResolvedValue(Result.ok());
     loggingService = MockFactory.createMock(LoggingService);
     rosterService = MockFactory.createMock(RosterService);
+    rosterService.isDirectMessage.mockReturnValue(false);
     rosterService.listAgentsIn.mockReturnValue([]);
     transport = MockFactory.createMock(ChatTransport);
     transport.send.mockResolvedValue(Result.ok({ createdAt: new Date(2000), postId: 'post-2' }));
@@ -54,7 +55,23 @@ describe('ChannelAnnouncer', () => {
     expect(chatGateway.updateSystemPost).toHaveBeenCalledWith('post-1', { text: '🟢 Resumed, twice' });
   });
 
-  // §7.5 — Mattermost admits no third party to a DM, so the system bot can never post there
+  it('should speak as the one agent present in a DM, without trying the system bot first (§7.5)', async () => {
+    rosterService.isDirectMessage.mockReturnValue(true);
+    rosterService.listAgentsIn.mockReturnValue([{ username: 'mira' } as AgentProfile]);
+    const announced = await channelAnnouncer.announce('dm-1', '⏹️ Stopped `mira` before any further tool call.');
+    expect(chatGateway.postAsSystemIn).not.toHaveBeenCalled();
+    expect(announced).toMatchObject({ authorKind: 'agent', authorUsername: 'mira', postId: 'post-2' });
+  });
+
+  it('should fall back to the system bot when the agent cannot post in its own DM', async () => {
+    rosterService.isDirectMessage.mockReturnValue(true);
+    rosterService.listAgentsIn.mockReturnValue([{ username: 'mira' } as AgentProfile]);
+    transport.send.mockResolvedValue(Result.err({ kind: 'api', message: 'socket down' }));
+    const announced = await channelAnnouncer.announce('dm-1', 'notice');
+    expect(announced).toMatchObject({ authorKind: 'system', postId: 'post-1' });
+    expect(loggingService.error).not.toHaveBeenCalled();
+  });
+
   it('should speak as the one agent present when the system bot cannot reach the channel', async () => {
     chatGateway.postAsSystemIn.mockResolvedValue(Result.err({ kind: 'api', message: 'not a member' }));
     rosterService.listAgentsIn.mockReturnValue([{ username: 'mira' } as AgentProfile]);

@@ -2,6 +2,7 @@ import type { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
 
+import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ChatGateway } from '@/chat/chat.gateway.ts';
 import type { ChatFailure } from '@/chat/chat.types.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
@@ -17,6 +18,7 @@ export class ChatEmitter extends NotificationsEmitter {
   constructor(
     private readonly chatGateway: ChatGateway,
     private readonly dateFormatter: DateFormatter,
+    private readonly rosterService: RosterService,
     private readonly transportRegistry: TransportRegistry
   ) {
     super();
@@ -33,20 +35,26 @@ export class ChatEmitter extends NotificationsEmitter {
   }
 
   /**
-   * §7.6 — a stall notice the system bot is refused goes under the agent's own account, which is
-   * how a DM is recognised, as `/collegium` announcements recognise one (§7.5): by whether the
-   * notice landed rather than by asking what kind of channel it is.
+   * §7.6 — a stall notice goes under the agent's own account in a DM, which the roster knows the
+   * channel to be (§3.11), and under it again where the system bot is refused elsewhere, as
+   * `/collegium` announcements do (§7.5): the answer that matters is whether the notice landed.
    */
   private async postIn(
     event: Extract<SystemEvent, { channelId: string }>,
     content: string
   ): Promise<Result<{ postId: string }, ChatFailure>> {
-    const posted = await this.chatGateway.postAsSystemIn(event.channelId, content);
     const isStall = event.kind === 'long-turn' || event.kind === 'standing-queue';
+    const asAgent = () => {
+      return this.transportRegistry.get(event.agentUsername).send({ channelId: event.channelId, text: content });
+    };
+    if (isStall && this.rosterService.isDirectMessage(event.channelId)) {
+      return asAgent();
+    }
+    const posted = await this.chatGateway.postAsSystemIn(event.channelId, content);
     if (posted.success || !isStall) {
       return posted;
     }
-    return this.transportRegistry.get(event.agentUsername).send({ channelId: event.channelId, text: content });
+    return asAgent();
   }
 
   private renderSystemEvent(event: SystemEvent): string {
