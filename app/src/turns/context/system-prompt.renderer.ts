@@ -261,7 +261,7 @@ export class SystemPromptRenderer {
         ...this.renderDirectories(profile),
         ...(holdsAsk
           ? [
-              "ask__human puts a question to the people in this channel and waits, with no timeout, for one of them to answer. Only a person in this channel can. It may offer two to six short answers as buttons; the person may type something else. The answer comes back as that call's result, with the person's name, and the turn goes on with the attempts it has left. It is not how you ask for permission: a tool that needs approval asks for it by itself when you call it."
+              "ask__human puts a question to the people in this channel and waits, with no timeout, for one of them to answer. Only a person in this channel can. It may offer two to six short answers as buttons; the person may type something else. Text you write beside the call is shown to them above the question. The answer comes back as that call's result, with the person's name, and the turn goes on with the attempts it has left. It is not how you ask for permission: a tool that needs approval asks for it by itself when you call it."
             ]
           : []),
         ...(holdsSearch
