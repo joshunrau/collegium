@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
-import { capMarkdown, renderWebFailure, renderWebSnapshot, toMarkdown, windowMarkdown } from '../web.utils.ts';
+import {
+  capMarkdown,
+  describeWebFailureOutcome,
+  renderWebFailure,
+  renderWebSnapshot,
+  toMarkdown,
+  windowMarkdown
+} from '../web.utils.ts';
 
 import type { WebSnapshot } from '../web.types.ts';
 
@@ -199,6 +206,26 @@ describe('renderWebFailure', () => {
 
   it('should name hover as the way out of a ref CSS hides', () => {
     expect(renderWebFailure({ kind: 'not-visible', ref: 'e12' })).toContain('web::hover');
+  });
+});
+
+describe('describeWebFailureOutcome', () => {
+  it('should mark a failed fetch with the status it got (§8.1)', () => {
+    expect(
+      describeWebFailureOutcome({
+        bodyChars: 0,
+        kind: 'http-error',
+        status: 404,
+        url: 'https://northmoor.example/gone'
+      })
+    ).toBe('⚠️ HTTP 404');
+  });
+
+  it('should mark a recoverable failure that has no status of its own (§8.1)', () => {
+    expect(describeWebFailureOutcome({ kind: 'stale-ref', ref: 'e7' })).toBe('⚠️ stale ref');
+    expect(
+      describeWebFailureOutcome({ kind: 'url-refused', reason: 'not-public-host', url: 'https://10.0.0.1/' })
+    ).toBe('⚠️ refused');
   });
 });
 

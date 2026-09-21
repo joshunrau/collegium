@@ -64,14 +64,30 @@ describe('WEB_TOOLSET', () => {
     );
   });
 
-  it('marks a click with the page it landed on, and a fetch with a status that is not success (§8.1)', async () => {
+  it('should name the page a click landed on rather than its address (§8.1)', async () => {
     const { context, web } = buildContext();
-    web.click.mockResolvedValue(Result.ok(SNAPSHOT));
+    web.click.mockResolvedValue(Result.ok({ ...SNAPSHOT, title: 'Directory — page 2' }));
+    const clicked = await executeTool(click, { ref: 'e1' }, context);
+    expect(clicked.unwrap().traceOutcome).toBe('→ Directory — page 2');
+  });
+
+  it('marks a click on an untitled page with its address, and a fetch with a status that is not success (§8.1)', async () => {
+    const { context, web } = buildContext();
+    web.click.mockResolvedValue(Result.ok({ ...SNAPSHOT, title: '' }));
     web.fetch.mockResolvedValue(Result.ok({ ...PAGE, status: 404 }));
     const clicked = await executeTool(click, { ref: 'e1' }, context);
     const fetched = await executeTool(fetch, { startChar: 0, url: 'https://example.org/' }, context);
     expect(clicked.unwrap().traceOutcome).toBe('→ https://example.org/');
     expect(fetched.unwrap().traceOutcome).toBe('HTTP 404');
+  });
+
+  it('should mark a 404 on its trace line (§8.1)', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(
+      Result.err({ bodyChars: 0, kind: 'http-error', status: 404, url: 'https://example.org/gone' })
+    );
+    const result = await executeTool(fetch, { startChar: 0, url: 'https://example.org/gone' }, context);
+    expect(result.unwrap().traceOutcome).toBe('⚠️ HTTP 404');
   });
 
   it('returns a page that needs client rendering as text pointing at navigate', async () => {

@@ -9,7 +9,7 @@ import { SEARCH_TIMEOUT_MS } from './search/search.constants.ts';
 import { renderSearchResults } from './search/search.utils.ts';
 import { FETCH_TIMEOUT_MS, MARKDOWN_CAP_CHARS } from './web.constants.ts';
 import { SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from './web.tokens.ts';
-import { renderWebFailure, renderWebPage, renderWebSnapshot } from './web.utils.ts';
+import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from './web.utils.ts';
 
 import type { SearchFailure, SearchResult } from './search/search.types.ts';
 import type { WebFailure, WebPage, WebSnapshot } from './web.types.ts';
@@ -39,7 +39,7 @@ function toPageResult<TPage extends WebPage>(
     if (result.error.kind === 'unreachable') {
       return Result.err({ kind: 'exception', message: result.error.message });
     }
-    return Result.ok({ text: renderWebFailure(result.error) });
+    return Result.ok({ text: renderWebFailure(result.error), traceOutcome: describeWebFailureOutcome(result.error) });
   }
   const { shown, url } = result.value;
   const text = render(result.value);
@@ -58,8 +58,8 @@ const httpStatusOutcome = (page: WebPage): string | undefined => {
   return page.status >= 300 ? `HTTP ${page.status}` : undefined;
 };
 
-/** §8.1 — where the action landed, since the line for a click names only a ref */
-const landingOutcome = (page: WebPage): string => `→ ${page.url}`;
+/** §8.1 — the page the action landed on, named rather than addressed: a client-rendered pager's URL never changes */
+const landingOutcome = (page: WebPage): string => `→ ${page.title === '' ? page.url : page.title}`;
 
 const toSnapshotResult = (
   result: Result<WebSnapshot, WebFailure>,

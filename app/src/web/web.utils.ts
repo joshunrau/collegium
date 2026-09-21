@@ -206,6 +206,22 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     .exhaustive();
 }
 
+/** §8.1 — the same failure as the status post's mark: a phrase short enough for a trace line, since a call that bought nothing must not read like one that worked */
+export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailure.Unreachable>): string {
+  return match(failure)
+    .with({ kind: 'busy' }, () => '⚠️ browser busy')
+    .with({ kind: 'empty-render' }, () => '⚠️ nothing rendered')
+    .with({ kind: 'http-error' }, ({ status }) => `⚠️ HTTP ${status}`)
+    .with({ kind: 'navigation' }, () => '⚠️ did not load')
+    .with({ kind: 'no-session' }, () => '⚠️ no page open')
+    .with({ kind: 'not-visible' }, () => '⚠️ hidden ref')
+    .with({ kind: 'no-static-content' }, () => '⚠️ no static content')
+    .with({ kind: 'stale-ref' }, () => '⚠️ stale ref')
+    .with({ kind: 'unsupported-content' }, () => '⚠️ not text')
+    .with({ kind: 'url-refused' }, () => '⚠️ refused')
+    .exhaustive();
+}
+
 export function renderWebPage(page: WebPage): string {
   return `${page.title} — ${page.url} (HTTP ${page.status})\n\n${page.markdown}`;
 }
