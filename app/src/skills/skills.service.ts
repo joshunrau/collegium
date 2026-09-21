@@ -94,7 +94,9 @@ export class SkillsService {
     const reference = skill.references.get(referenceName);
     if (!reference) {
       // §7.1 — naming what the skill does have would hand back the index it was already given
-      return Result.err({ message: `skill "${name}" lists no reference "${referenceName}"` });
+      return Result.err({
+        message: `skill "${name}" lists no reference "${referenceName}" — omit reference to load the skill itself`
+      });
     }
     return Result.ok(`# ${reference.title}\n\n${reference.body}`);
   }

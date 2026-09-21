@@ -125,17 +125,17 @@ describe('SkillsService', () => {
       );
     });
 
-    it('should refuse an unknown reference without enumerating the ones it has (§7.1)', async () => {
+    it('should name omission as the recovery path without listing the references (§7.1)', async () => {
       const skillsService = await buildService([]);
       expect(skillsService.getDocument('mira', 'bookmark::saving-bookmarks', 'pricing').error?.message).toBe(
-        'skill "bookmark::saving-bookmarks" lists no reference "pricing"'
+        'skill "bookmark::saving-bookmarks" lists no reference "pricing" — omit reference to load the skill itself'
       );
     });
 
     it('should refuse a reference of a skill that has none', async () => {
       const skillsService = await buildService([]);
       expect(skillsService.getDocument('mira', 'handing-work-to-a-peer', 'pricing').error?.message).toBe(
-        'skill "handing-work-to-a-peer" lists no reference "pricing"'
+        'skill "handing-work-to-a-peer" lists no reference "pricing" — omit reference to load the skill itself'
       );
     });
   });

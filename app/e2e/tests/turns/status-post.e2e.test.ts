@@ -57,7 +57,7 @@ describe('Status post', () => {
     await channels.main.awaitReplyFrom('mira', { text: reply });
   });
 
-  it('names a loaded reference as the path it is (§3.5)', async () => {
+  it('quotes a loaded reference so whitespace in it is visible (§3.5)', async () => {
     const { agents, channels, inference } = harness();
     const reply = `referenced-${randomUUID()}`;
     inference.willReply(
@@ -72,13 +72,13 @@ describe('Status post', () => {
       match: (post) => {
         return (
           post.authorId === agents.mira.userId &&
-          post.text.includes('→ `skills::load understanding-collegium/collegium-commands`')
+          post.text.includes('→ `skills::load understanding-collegium reference "collegium-commands"`')
         );
       }
     });
     await channels.main.awaitReplyFrom('mira', { text: reply });
 
-    expect(statusPost.text).toContain('→ `skills::load understanding-collegium/collegium-commands`');
+    expect(statusPost.text).toContain('→ `skills::load understanding-collegium reference "collegium-commands"`');
   });
 
   it('names a memory write as an ordinary call line, disclosing neither description nor body (§3.6)', async () => {

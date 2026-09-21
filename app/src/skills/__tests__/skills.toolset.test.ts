@@ -1,5 +1,6 @@
 import { Result } from '@collegium/core/utils';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
@@ -34,13 +35,21 @@ describe('SKILLS_TOOLSET', () => {
       'handing-work-to-a-peer',
       'escalation-paths'
     );
-    expect(result.unwrap().replaySubject).toBe('loaded reference handing-work-to-a-peer/escalation-paths');
+    expect(result.unwrap().replaySubject).toBe('loaded handing-work-to-a-peer reference "escalation-paths"');
   });
 
-  it('names a reference as the path it is in the trace', () => {
+  it('quotes a reference in the trace so whitespace is visible (§8.1)', () => {
     expect(load.traceDetail?.({ name: 'bookmark::saving-bookmarks' })).toBe('bookmark::saving-bookmarks');
-    expect(load.traceDetail?.({ name: 'bookmark::saving-bookmarks', reference: 'identifier-style' })).toBe(
-      'bookmark::saving-bookmarks/identifier-style'
+    expect(load.traceDetail?.({ name: 'bookmark::saving-bookmarks', reference: ' ' })).toBe(
+      'bookmark::saving-bookmarks reference " "'
+    );
+  });
+
+  it('rejects a whitespace-only reference at the perimeter, naming omission as the way out', () => {
+    const parsed = load.parameters.safeParse({ name: 'understanding-collegium', reference: ' ' });
+    expect(parsed.success).toBe(false);
+    expect(z.prettifyError(parsed.error ?? new z.ZodError([]))).toContain(
+      'reference must name a document, or be omitted to load the skill itself'
     );
   });
 
