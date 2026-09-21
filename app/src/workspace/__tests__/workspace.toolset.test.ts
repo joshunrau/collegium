@@ -85,6 +85,16 @@ describe('WORKSPACE_TOOLSET', () => {
       expect(fs.readFileSync(path.join(workspace, 'a/b/notes.md'), 'utf8')).toBe('hello');
     });
 
+    it('does not count the empty segment after a terminating newline', async () => {
+      const result = await execute({ content: 'a\n', path: 'notes.md' });
+      expect(result.value?.text).toBe('wrote notes.md: 2 bytes, 1 line, exactly as given');
+    });
+
+    it('says the bytes are on disk as given, so the write needs no read-back', async () => {
+      const result = await execute({ content: 'one\ntwo', path: 'notes.md' });
+      expect(result.value?.text).toBe('wrote notes.md: 7 bytes, 2 lines, exactly as given');
+    });
+
     it('leaves no temp file behind after a completed write', async () => {
       await execute({ content: 'clean', path: 'notes.md' });
       expect(fs.readdirSync(workspace)).toStrictEqual(['notes.md']);
@@ -145,7 +155,14 @@ describe('WORKSPACE_TOOLSET', () => {
   describe('approval and trace', () => {
     it('always gates, showing the human the full content, not the intent (§6.2)', async () => {
       expect(await renderApproval(write, { content: 'line one\nline two', path: 'notes.md' })).toStrictEqual({
-        body: "Write to `notes.md` in this agent's workspace directory:\n\n```\nline one\nline two\n```",
+        body: "Write 17 bytes to `notes.md` in this agent's workspace directory:\n\n```\nline one\nline two\n```",
+        presentation: 'collapse'
+      });
+    });
+
+    it('strips one trailing newline from the approved fence and states it in words', async () => {
+      expect(await renderApproval(write, { content: 'line one\n', path: 'notes.md' })).toStrictEqual({
+        body: "Write 9 bytes to `notes.md` in this agent's workspace directory, ending in a newline:\n\n```\nline one\n```",
         presentation: 'collapse'
       });
     });

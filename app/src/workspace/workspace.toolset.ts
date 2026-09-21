@@ -45,6 +45,11 @@ async function resolveTarget(
   return Result.ok({ absolute: resolved.value, relative: path.normalize(requested) });
 }
 
+/** the terminating newline ends the last line rather than starting another, so exactly one is dropped and never more */
+function stripOneTerminator(content: string): string {
+  return content.endsWith('\n') ? content.slice(0, -1) : content;
+}
+
 function toOutput(subject: string, text: string): ToolOutput {
   const replaySubject = replaySubjectWhenLong(subject, text);
   return { text, ...(replaySubject !== undefined && { replaySubject }) };
@@ -188,19 +193,20 @@ export const WORKSPACE_TOOLSET = implementToolset(WORKSPACE_TOOLSET_DEF, {
     },
     write: {
       approval: (args) => ({
-        body: `Write to ${renderCodeSpan(args.path)} in this agent's workspace directory:\n\n${fenceCodeBlock(args.content)}`,
+        body: `Write ${Buffer.byteLength(args.content, 'utf8')} bytes to ${renderCodeSpan(args.path)} in this agent's workspace directory${args.content.endsWith('\n') ? ', ending in a newline' : ''}:\n\n${fenceCodeBlock(stripOneTerminator(args.content))}`,
         presentation: 'collapse'
       }),
-      description: 'Write a text file inside your workspace directory. Parent directories are created as needed.',
+      description:
+        "Write a text file inside your workspace directory. Parent directories are created as needed. The result is the framework's confirmation that the bytes you sent are the bytes on disk; reading the file back adds nothing.",
       execute: async (args, context) => {
         const target = await resolveTarget(context, args.path);
         if (!target.success) {
           return target;
         }
         await writeFileWhole(target.value.absolute, args.content);
-        const lines = args.content === '' ? 0 : args.content.split('\n').length;
+        const lines = args.content === '' ? 0 : stripOneTerminator(args.content).split('\n').length;
         return Result.ok({
-          text: `wrote ${args.path}: ${Buffer.byteLength(args.content, 'utf8')} bytes, ${lines} line${lines === 1 ? '' : 's'}`
+          text: `wrote ${args.path}: ${Buffer.byteLength(args.content, 'utf8')} bytes, ${lines} line${lines === 1 ? '' : 's'}, exactly as given`
         });
       },
       parameters: z.object({
