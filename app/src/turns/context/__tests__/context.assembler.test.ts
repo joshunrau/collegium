@@ -115,7 +115,8 @@ describe('ContextAssembler', () => {
         post('casey', 'hello @mira', 1000),
         post('mira', 'on it', 2000),
         event({ content: 'checking', kind: 'assistant_message', toolCalls: [] }, 3000),
-        event({ callId: 'c1', kind: 'tool_result', output: 'the body', toolName: 'read_memory' }, 4000)
+        event({ callId: 'c1', kind: 'tool_result', output: 'the body', toolName: 'read_memory' }, 4000),
+        post('casey', 'thanks', 5000)
       ],
       oldestAt: new Date(1000)
     });
@@ -123,7 +124,8 @@ describe('ContextAssembler', () => {
     expect(request.messages).toStrictEqual([
       { content: 'casey (person): hello @mira', role: 'user' },
       { content: 'on it', role: 'assistant' },
-      { content: 'checking', role: 'assistant' }
+      { content: 'checking', role: 'assistant' },
+      { content: 'casey (person): thanks', role: 'user' }
     ]);
   });
 

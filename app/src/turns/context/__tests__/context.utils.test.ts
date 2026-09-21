@@ -32,6 +32,10 @@ const post = (
   }
 });
 
+/** the replay of the agent's own trace alone: a peer's post closes the window so the §5.2 line never appears, then is dropped */
+const replayOf = (entries: WindowEntry[]) =>
+  toCompletionMessages([...entries, post('casey', 'next')], 'mira').slice(0, -1);
+
 describe('toCompletionMessages', () => {
   it('should name a post’s author as a person, an agent or the system, and speak the agent’s own posts as the assistant (§3.8)', () => {
     const agentPost = post('tess', 'I can take it', null, 'agent');
@@ -40,10 +44,34 @@ describe('toCompletionMessages', () => {
       { content: 'tess (agent): I can take it', role: 'user' },
       { content: 'collegium (system): [trigger] mail', role: 'user' }
     ]);
-    expect(toCompletionMessages([post('casey', 'hello @mira'), post('mira', 'on it')], 'mira')).toStrictEqual([
+    expect(
+      toCompletionMessages([post('casey', 'hello @mira'), post('mira', 'on it'), post('casey', 'thanks')], 'mira')
+    ).toStrictEqual([
       { content: 'casey (person): hello @mira', role: 'user' },
-      { content: 'on it', role: 'assistant' }
+      { content: 'on it', role: 'assistant' },
+      { content: 'casey (person): thanks', role: 'user' }
     ]);
+  });
+
+  it('should close a window that ends on the agent’s own turn with the line marking where it ended (§5.2)', () => {
+    const turnEnded = {
+      content: '[your previous turn ended here; this turn is for what arrived while you were busy]',
+      role: 'user'
+    };
+    const reply = event({ content: 'done, see above', kind: 'assistant_message', toolCalls: [] });
+    expect(toCompletionMessages([post('casey', 'hello @mira'), reply], 'mira').at(-1)).toStrictEqual(turnEnded);
+
+    const call = event({
+      content: '',
+      kind: 'assistant_message',
+      toolCalls: [{ args: {}, callId: 'c1', toolName: ['builtins', 'now'] }]
+    });
+    const result = event({ callId: 'c1', kind: 'tool_result', output: 'noon', toolName: ['builtins', 'now'] });
+    expect(toCompletionMessages([call, result], 'mira').at(-1)).toStrictEqual(turnEnded);
+    expect(toCompletionMessages([reply, post('casey', 'thanks')], 'mira').at(-1)).toStrictEqual({
+      content: 'casey (person): thanks',
+      role: 'user'
+    });
   });
 
   it("should append a post's attachment lines after its text", () => {
@@ -67,7 +95,7 @@ describe('toCompletionMessages', () => {
       event({ callId: 'c1', kind: 'tool_result', output: '# Handing work to a peer', toolName: ['skills', 'load'] })
     ];
 
-    expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
+    expect(replayOf(entries)).toStrictEqual([
       {
         content: 'checking',
         reasoningContent: 'the skill says how',
@@ -94,7 +122,7 @@ describe('toCompletionMessages', () => {
       })
     ];
 
-    expect(toCompletionMessages(entries, 'mira').at(-1)).toStrictEqual({
+    expect(replayOf(entries).at(-1)).toStrictEqual({
       content: '[loaded skill managing-prospects]',
       role: 'tool',
       toolCallId: 'c1'
@@ -117,7 +145,7 @@ describe('toCompletionMessages', () => {
       })
     ];
 
-    expect(toCompletionMessages(entries, 'mira').at(-1)).toStrictEqual({
+    expect(replayOf(entries).at(-1)).toStrictEqual({
       content:
         '[page https://x.example/, 8 characters — from an earlier turn; its text is not shown. Make the call again if you need it.]',
       role: 'tool',
@@ -139,7 +167,7 @@ describe('toCompletionMessages', () => {
       event({ content: '', kind: 'assistant_message', toolCalls: [{ args: {}, callId: 'c3', toolName: 'ghost' }] })
     ];
 
-    expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
+    expect(replayOf(entries)).toStrictEqual([
       {
         content: 'two things',
         role: 'assistant',
@@ -165,7 +193,7 @@ describe('toCompletionMessages', () => {
       })
     ];
 
-    expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
+    expect(replayOf(entries)).toStrictEqual([
       { content: '', role: 'assistant', toolCalls: [{ arguments: {}, id: 'c1', name: 'workspace__write' }] },
       {
         content: 'the arguments to this call were not valid JSON, so the call did not run',
@@ -198,7 +226,7 @@ describe('toCompletionMessages', () => {
       event({ approvalId: 'a1', byUsername: 'casey', callId: 'c1', decision: 'denied', kind: 'approval_decided' })
     ];
 
-    expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
+    expect(replayOf(entries)).toStrictEqual([
       {
         content: '',
         role: 'assistant',

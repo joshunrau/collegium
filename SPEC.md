@@ -458,6 +458,8 @@ An unaddressed fragment the running turn absorbs (§4.4) is neither queued nor a
 
 **What the finished turn already read is consumed, not drained.** A post can be queued and still be read by the turn it queued behind, when it arrives before that turn's context is assembled. When such a turn completes normally and nothing has been recorded in the channel since its context was assembled, the queue entry is consumed and no turn starts, because a second turn would assemble the same window and say the same thing again. A post recorded after the assembly began was never read and drains as before. Any exit but normal completion drains as before too, since a turn that stopped or failed did not finish answering what it read.
 
+**A draining turn never continues its own last message.** Its window ends on the trace of the turn it drains behind, and a model handed its own message as the last thing said continues it rather than answering; the framework closes the window with a line saying the turn ended there, so the completion that follows is a new message.
+
 **The drain is visible even when context is not.** When the window cannot reach back as far as the earliest unprocessed post, the draining turn's status post says how far back context actually reached — detection, not prevention, the same posture as memory-write disclosure (§3.6). What the window could not reach, the agent can search for (§3.8).
 
 **The queue holds pointers, not content.** It records, per agent and channel, that unprocessed work exists and where context must reach back to; the content arrives through the normal context path. Delete the queue and it rebuilds from posts, which is why it does not violate A1.

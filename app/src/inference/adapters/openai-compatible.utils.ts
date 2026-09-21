@@ -14,11 +14,11 @@ const RETRY_AFTER_SECONDS = /^\d+(?:\.\d+)?$/u;
 /**
  * A DeepSeek thinking model refuses a request whose tail it must continue from — a trailing
  * assistant message, or a tool-call round still awaiting the model — when that message carries no
- * `reasoning_content`; earlier rounds are accepted without it. A trailing assistant message is what
- * a queued turn sees when the agent's own reply landed after the post it drains from, so every
- * assistant message is sent with the field, a single space standing in where none was kept, which
- * the Pro model is reported to require over an empty string. OpenRouter instead takes back the
- * structured blocks it returned, exactly as returned, and only where any were kept.
+ * `reasoning_content`; earlier rounds are accepted without it. The window never ends on the
+ * agent's own message (§5.2), so the tail that matters is this turn's own last round; every
+ * assistant message is sent with the field regardless, a single space standing in where none was
+ * kept, which the Pro model is reported to require over an empty string. OpenRouter instead takes
+ * back the structured blocks it returned, exactly as returned, and only where any were kept.
  */
 const REASONING_PLACEHOLDER = ' ';
 

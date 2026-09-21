@@ -139,7 +139,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         const { addressee, prepared: transition, text } = prepared.value;
         return Result.ok({
           post: { addressee, onPublished: (postId) => context.tasks.commitTransition(transition, postId), text },
-          text: `unit ${args.reference} reported ${args.state}`
+          text: `unit ${args.reference} reported ${args.state}; the report is posted, so your reply need not repeat it`
         });
       },
       parameters: z.object({

@@ -11,6 +11,9 @@ import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
 const FENCED_CODE_BLOCK = /```[\s\S]*?```/gu;
 const TOOL_CALL_TRANSCRIPT = /^\[called [^\s(]+\([\s\S]*\)\]$/mu;
 
+/** §5.2 — what closes a window that ends on the agent's own turn, so the model begins a message rather than continuing one */
+const TURN_ENDED_LINE = '[your previous turn ended here; this turn is for what arrived while you were busy]';
+
 /** a provider that dropped its structured `tool_calls` field leaves the call as a bare object in the text */
 function isBareCallObject(text: string): boolean {
   try {
@@ -141,11 +144,21 @@ function renderPost(post: ModelRow<'Post'>, selfUsername: string): CompletionMes
   return { content: renderAuthoredMessage(post.authorUsername, post.authorKind, content), role: 'user' };
 }
 
+/**
+ * §5.2 — a draining turn's window ends on the trace of the turn it drains behind, and a model
+ * handed its own message as the last thing said continues it; the closing line makes the next
+ * completion a new message.
+ */
 export function toCompletionMessages(entries: readonly WindowEntry[], selfUsername: string): CompletionMessage[] {
   const results = collectCallResults(entries);
-  return entries.flatMap((entry) => {
+  const messages = entries.flatMap((entry) => {
     return entry.kind === 'post' ? [renderPost(entry.post, selfUsername)] : renderEvent(entry.event, results);
   });
+  const last = messages.at(-1);
+  if (last === undefined || last.role === 'user') {
+    return messages;
+  }
+  return [...messages, { content: TURN_ENDED_LINE, role: 'user' }];
 }
 
 /**
