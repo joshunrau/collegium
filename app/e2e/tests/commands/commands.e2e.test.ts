@@ -159,7 +159,7 @@ describe('/collegium stop', () => {
   const harness = setupHarness(SCENARIO);
 
   it('ends current turns in the channel at the next iteration boundary (§7.5)', async () => {
-    const { channels, inference } = harness();
+    const { agents, channels, inference } = harness();
     const discarded = `discarded-${randomUUID()}`;
     const blocked = inference.willBlock({ agent: 'mira', contains: 'work forever' }, textResponse(discarded));
 
@@ -168,7 +168,7 @@ describe('/collegium stop', () => {
     await channels.main.runCommand('/collegium stop');
     await channels.main.awaitPost({
       description: 'the stop acknowledgement',
-      match: (post) => post.text.includes('Stopped 1 turn')
+      match: (post) => post.text.includes(`Stopped \`${agents.mira.username}\` before any further tool call`)
     });
 
     blocked.release();
@@ -209,7 +209,7 @@ describe('/collegium kill', () => {
   const harness = setupHarness(SCENARIO);
 
   it('ends current turns in the channel immediately and releases the lock (§7.5)', async () => {
-    const { channels, inference } = harness();
+    const { agents, channels, inference } = harness();
     const reply = `fresh-${randomUUID()}`;
     const blocked = inference.willBlock({ agent: 'mira', contains: 'wedge' }, textResponse('never delivered'));
 
@@ -218,7 +218,7 @@ describe('/collegium kill', () => {
     await channels.main.runCommand('/collegium kill');
     await channels.main.awaitPost({
       description: 'the kill acknowledgement',
-      match: (post) => post.text.includes('Killed 1 turn')
+      match: (post) => post.text.includes(`Killed \`${agents.mira.username}\`.`)
     });
 
     inference.willReply({ agent: 'mira', contains: 'again' }, textResponse(reply));
@@ -302,7 +302,7 @@ describe('Intervention scope', () => {
   const harness = setupHarness(SCENARIO);
 
   it('/collegium stop and /collegium kill apply to every agent in the issuing channel (§7.5)', async () => {
-    const { channels, inference } = harness();
+    const { agents, channels, inference } = harness();
     const miraDiscarded = `mira-discarded-${randomUUID()}`;
     const owenDiscarded = `owen-discarded-${randomUUID()}`;
     const miraBlocked = inference.willBlock({ agent: 'mira', contains: 'dig in' }, textResponse(miraDiscarded));
@@ -314,8 +314,12 @@ describe('Intervention scope', () => {
     await owenBlocked.arrived;
     await channels.main.runCommand('/collegium stop');
     await channels.main.awaitPost({
-      description: 'a stop acknowledgement covering both turns',
-      match: (post) => post.text.includes('Stopped 2 turn')
+      description: 'a stop acknowledgement naming both agents',
+      match: (post) => {
+        return post.text.includes(
+          `Stopped \`${agents.mira.username}\`, \`${agents.owen.username}\` before any further tool call`
+        );
+      }
     });
 
     miraBlocked.release();
@@ -345,7 +349,7 @@ describe('Intervention scope', () => {
   });
 
   it('accepts /collegium stop and /collegium kill from any human in the channel (§7.5)', async () => {
-    const { channels, inference } = harness();
+    const { agents, channels, inference } = harness();
     const discarded = `bystander-discarded-${randomUUID()}`;
     const human = await channels.main.joinAsHuman(`human-${randomUUID().slice(0, 8)}`);
     const blocked = inference.willBlock({ agent: 'mira', contains: 'keep working' }, textResponse(discarded));
@@ -355,7 +359,7 @@ describe('Intervention scope', () => {
     await channels.main.runCommandAs(human, '/collegium kill');
     await channels.main.awaitPost({
       description: 'the kill acknowledgement issued by a non-admin human',
-      match: (post) => post.text.includes('Killed 1 turn')
+      match: (post) => post.text.includes(`Killed \`${agents.mira.username}\`.`)
     });
 
     blocked.release();
