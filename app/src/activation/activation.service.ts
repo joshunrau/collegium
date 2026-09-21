@@ -132,10 +132,13 @@ export class ActivationService {
       channelId: post.channelId
     };
     if (!this.agentRegistry.isAddressedBy(profile, post, mode)) {
-      // §4.4 — a fragment rarely repeats the mention, so this is the only post that continues a
-      // sentence rather than starting a request. Whichever of the two is live takes it; neither
-      // creates itself, so an unaddressed post in a quiet channel stays inert.
-      this.offerToLiveTurn(profile, post);
+      // §4.4 — a fragment rarely repeats the mention, so a post addressing nobody is the only one
+      // that continues a sentence rather than starting a request; one addressing a peer is a
+      // request being made. Whichever of the two is live takes it; neither creates itself, so an
+      // unaddressed post in a quiet channel stays inert.
+      if (this.multiMentionPolicy.addresseesOf(post).length === 0) {
+        this.offerToLiveTurn(profile, post);
+      }
       if (this.debounceService.touch(batch)) {
         this.signalTyping(profile, post.channelId);
       }

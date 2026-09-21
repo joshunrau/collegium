@@ -264,6 +264,35 @@ describe('TurnRunner', () => {
     expect(outcome.status).toBe('completed');
   });
 
+  it('should quote the newest fragment on the approval prompt after a fold, and trace the fold (§3.7, §4.4)', async () => {
+    conversationsService.findRequester.mockImplementation((postId: string) =>
+      Promise.resolve({ kind: 'human' as const, message: `request in ${postId}`, username: 'casey' })
+    );
+    complete.mockImplementationOnce(() => {
+      offerFragment('post-2');
+      offerFragment('post-3');
+      return Promise.resolve(Result.ok(text('answering half a question')));
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await turnRunner.run({
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 0,
+      foldAuthorUsername: 'casey',
+      profile: PROFILE,
+      rootPostId: 'post-1',
+      triggeringPostId: 'post-1'
+    });
+    expect(toolExecutor.execute.mock.calls[0]?.[0].contextText).toBe(
+      'Action 1 of 10 · requested by @casey: "request in post-3"'
+    );
+    expect(statusHandle.appendTrace).toHaveBeenCalledWith({
+      kind: 'note',
+      text: '↺ _started over to read a further post_'
+    });
+  });
+
   it('should stop absorbing once it has acted on a completion', async () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['shell'])));
     complete.mockImplementationOnce(() => {

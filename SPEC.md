@@ -404,7 +404,7 @@ People type in fragments seconds apart. Context is assembled once, at turn start
 
 **During the turn: the running turn absorbs.** A fragment from the same human arriving while that turn is still on its first model call is handed to the turn rather than queued. The turn discards the completion that only saw the first sentence, re-assembles its context, and calls again. Waiting longer costs a human real time; absorbing costs only a discarded completion.
 
-**Only an unaddressed post is absorbed.** A fragment rarely repeats the mention, so this is what separates a sentence being finished from a request being made; the distinction cannot be drawn on elapsed time, since a model call may run for minutes. A post that names the agent again is queued and acknowledged exactly as §5.2 says, because absorbing it would silently drop work — nothing about absorption is durable.
+**Only a post addressing nobody is absorbed.** A fragment rarely repeats the mention, so this is what separates a sentence being finished from a request being made; the distinction cannot be drawn on elapsed time, since a model call may run for minutes. A post that names the agent again is queued and acknowledged exactly as §5.2 says, because absorbing it would silently drop work — nothing about absorption is durable. A post that names a colleague instead is a request being made of that colleague, not a sentence being finished here: it is recorded as ordinary history and costs the running turn nothing. Each fold is a line on the status post (§8.1), since the completion it discarded was paid for, and the approval prompt then quotes the newest fragment rather than the one the turn began on (§3.7).
 
 **Absorption ends at the first action.** Once a tool has run or a post exists, discarding would throw away work that already had effects, so the turn stops absorbing and anything later takes the queue path. A **fold limit** bounds it from the other side, so a human typing steadily reaches an answer instead of paying for one completion per sentence. Past that point the human's route into the running turn is `/collegium steer` (§7.5).
 
@@ -671,7 +671,7 @@ _Why notices and not timeouts:_ each of these was a common way a long run died s
 
 _Why not stream every tool call as a separate post:_ a ten-call turn would produce ten posts of machinery around one post of substance, and approval prompts live in the same channel — noise in the supervision channel degrades the gate (A5).
 
-A memory write, its evictions, and a memory delete appear here as ordinary tool-call lines; what was written, evicted, or removed is in `/collegium trace` (§3.6).
+A memory write, its evictions, and a memory delete appear here as ordinary tool-call lines; what was written, evicted, or removed is in `/collegium trace` (§3.6). Beside the calls sit the framework's own notes on the turn: a steer and who gave it (§7.5), a fold that started the turn over (§4.4), and a drain whose earliest post the window could not reach (§5.2).
 
 Queued messages are acknowledged with a 👀 reaction (§5.2). This and the typing indicator below are the only signals the framework emits without posting.
 

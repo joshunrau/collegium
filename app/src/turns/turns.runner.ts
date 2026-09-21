@@ -60,6 +60,7 @@ import {
   renderDeliveryFailureNotice,
   renderDenialNotice,
   renderExtensionPrompt,
+  renderFoldLine,
   renderOutputRefusedNotice,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
@@ -213,8 +214,8 @@ type TurnState = {
   readonly reasonedDenials: Map<string, { byUsername: string; reason: string }>;
   /** §7.1 — results this turn recorded; a turn that recorded none accumulated nothing a fresh one would not rebuild */
   recordedResults: number;
-  /** §3.7 — resolved once, at turn setup, and quoted on every approval prompt the turn raises */
-  readonly requestedBy: TurnRequest | undefined;
+  /** §3.7 — resolved at turn setup and again at every fold (§4.4), and quoted on every approval prompt the turn raises */
+  requestedBy: TurnRequest | undefined;
   /** §3.8 — the text of every supersedable result this turn produced, by hash, and where it was last pushed verbatim */
   readonly seenSupersedable: Map<string, number>;
   readonly status: StatusPostHandle;
@@ -314,7 +315,7 @@ export class TurnRunner {
       promptTokens: 0,
       reasonedDenials: new Map(),
       recordedResults: 0,
-      requestedBy: await this.resolveRequester(input),
+      requestedBy: await this.resolveRequester(input.triggeringPostId),
       seenSupersedable: new Map(),
       status: this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id }),
       supersedable: [],
@@ -1324,14 +1325,15 @@ export class TurnRunner {
   }
 
   /**
-   * §3.7 — who asked, read once per turn. Peer mentions lose their @ before the words can be
-   * quoted back, because an approval prompt repeating one would address that peer (§4.5).
+   * §3.7 — who asked, read at turn setup and again at every fold. Peer mentions lose their @
+   * before the words can be quoted back, because an approval prompt repeating one would address
+   * that peer (§4.5).
    */
-  private async resolveRequester(input: RunInput): Promise<TurnRequest | undefined> {
-    if (input.triggeringPostId === undefined) {
+  private async resolveRequester(postId: string | undefined): Promise<TurnRequest | undefined> {
+    if (postId === undefined) {
       return undefined;
     }
-    const request = await this.conversationsService.findRequester(input.triggeringPostId);
+    const request = await this.conversationsService.findRequester(postId);
     if (request?.kind !== 'human') {
       return request;
     }
@@ -1387,8 +1389,12 @@ export class TurnRunner {
       if (completion.value.usage) {
         state.usage = addCompletionUsage(state.usage, completion.value.usage);
       }
-      if (this.takesFurtherFragments(state, folds)) {
+      const folded = this.takeFurtherFragments(state, folds);
+      if (folded.length > 0) {
         folds += 1;
+        // §3.7 — the newest fragment is the request the prompt should quote, not the one it began on
+        state.requestedBy = await this.resolveRequester(folded.at(-1));
+        state.status.appendTrace({ kind: 'note', text: renderFoldLine() });
         assembled = await this.contextAssembler.assemble({ channelId, profile });
         this.loadAssembledContext(state, assembled);
         if (this.exceedsCeiling(input, state)) {
@@ -1443,20 +1449,22 @@ export class TurnRunner {
   }
 
   /**
-   * §4.4 — consumes whatever activation handed this turn while the model was generating, and says
-   * whether the completion just received is discarded for it. Sitting between the completion and
-   * every branch that acts on one is what makes "folding only before the first action" structural:
-   * past this point a tool has run or a post exists, and re-assembling would throw away work.
+   * §4.4 — consumes whatever activation handed this turn while the model was generating, and
+   * returns the posts the completion just received is discarded for, none where it stands. Sitting
+   * between the completion and every branch that acts on one is what makes "folding only before
+   * the first action" structural: past this point a tool has run or a post exists, and
+   * re-assembling would throw away work.
    *
    * Absorption closes the moment this turn declines to fold or reaches the last one it will take,
    * so a later fragment finds the §5.2 queue rather than a buffer nothing will read again.
    */
-  private takesFurtherFragments(state: TurnState, folds: number): boolean {
-    const takes = state.fold.takeOffered().length > 0 && folds < this.limits.foldLimit;
+  private takeFurtherFragments(state: TurnState, folds: number): readonly string[] {
+    const offered = state.fold.takeOffered();
+    const takes = offered.length > 0 && folds < this.limits.foldLimit;
     if (!takes || folds + 1 >= this.limits.foldLimit) {
       state.fold.stopAbsorbing();
     }
-    return takes;
+    return takes ? offered : [];
   }
 
   /** best-effort on both writes: a close that itself fails must never leave the turn 'running' silently */

@@ -77,6 +77,7 @@ describe('ActivationService', () => {
     haltService.admitTurnStart.mockResolvedValue(true);
     loggingService = MockFactory.createMock(LoggingService);
     multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
+    multiMentionPolicy.addresseesOf.mockReturnValue([]);
     multiMentionPolicy.refuses.mockReturnValue(false);
     notificationsService = MockFactory.createMock(NotificationsService);
     notificationsService.notify.mockResolvedValue(undefined);
@@ -251,6 +252,20 @@ describe('ActivationService', () => {
     agentRegistry.isAddressedBy.mockReturnValue(false);
     await activationService.onPost(PROFILE, post({ authorUsername: 'owen', mentionedUsernames: [] }));
     expect(fold.takeOffered()).toStrictEqual([]);
+  });
+
+  it('should record a post the same person addresses to a colleague as history, folding nothing (§4.4)', async () => {
+    const fold = turnFoldRegistry.register({
+      agentUsername: 'mira',
+      authorUsername: 'casey',
+      channelId: 'channel-1'
+    });
+    agentRegistry.isAddressedBy.mockReturnValue(false);
+    multiMentionPolicy.addresseesOf.mockReturnValue(['tess']);
+    await activationService.onPost(PROFILE, post({ mentionedUsernames: ['tess'], message: '@tess run it' }));
+    expect(fold.takeOffered()).toStrictEqual([]);
+    expect(conversationsService.record).toHaveBeenCalledTimes(1);
+    expect(queueService.enqueue).not.toHaveBeenCalled();
   });
 
   it('should signal typing the moment it starts debouncing, so the window is not dark', async () => {

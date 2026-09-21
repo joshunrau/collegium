@@ -153,6 +153,11 @@ export function renderSteeringLine(byUsername: string): string {
   return `↩ _steered by @${byUsername}_`;
 }
 
+/** §4.4 — a discarded completion was paid for; the status post says the turn started over, and the run of lines says how often (§8.1) */
+export function renderFoldLine(): string {
+  return '↺ _started over to read a further post_';
+}
+
 export function renderBudgetExhaustedNotice(limit: number): string {
   return `I used all ${limit} of my action attempts and stopped.`;
 }
