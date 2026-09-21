@@ -46,7 +46,7 @@ describe('Conversation search', () => {
 
     const result = lastToolResult();
     expect(result).toContain(`in ${channels.side.name}`);
-    expect(result).toContain(`> the Budget figure is ${marker}`);
+    expect(result).toContain(`the Budget figure is ${marker}\n>>>`);
   });
 
   it('finds the agent’s own earlier reply but not its status text (§3.8)', async () => {
@@ -66,7 +66,7 @@ describe('Conversation search', () => {
     await channels.main.awaitReplyFrom('mira', { text: reply });
 
     const result = lastToolResult();
-    expect(result).toContain(`> I will: ${promise}`);
+    expect(result).toContain(`I will: ${promise}\n>>>`);
     expect(result).not.toContain('conversations::search');
   });
 
@@ -88,7 +88,7 @@ describe('Conversation search', () => {
     inference.willReply({ agent: 'mira' }, textResponse(publicReply));
     await channels.main.mention('mira', 'search from public');
     await channels.main.awaitReplyFrom('mira', { text: publicReply });
-    expect(lastToolResult()).toBe('no posts matched');
+    expect(lastToolResult()).toContain(`no posts matched "${secret}"`);
 
     const dmReply = `dm-${randomUUID()}`;
     inference.willReply(
@@ -98,6 +98,6 @@ describe('Conversation search', () => {
     inference.willReply({ agent: 'mira' }, textResponse(dmReply));
     await channels.dm.say('search from dm');
     await channels.dm.awaitReplyFrom('mira', { text: dmReply });
-    expect(lastToolResult()).toContain(`> for everyone: ${open}`);
+    expect(lastToolResult()).toContain(`for everyone: ${open}\n>>>`);
   });
 });
