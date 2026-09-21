@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { replayWhenLong } from '@collegium/core/tools';
+import { describeReplaySubject, replaySubjectWhenLong } from '@collegium/core/tools';
 import type { ToolFailure, ToolOutput, ToolTurnScope } from '@collegium/core/tools';
 import { implementToolset, WORKSPACE_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
@@ -46,8 +46,8 @@ async function resolveTarget(
 }
 
 function toOutput(subject: string, text: string): ToolOutput {
-  const replay = replayWhenLong(subject, text);
-  return { text, ...(replay !== undefined && { replay }) };
+  const replaySubject = replaySubjectWhenLong(subject, text);
+  return { text, ...(replaySubject !== undefined && { replaySubject }) };
 }
 
 /**
@@ -144,8 +144,8 @@ export const WORKSPACE_TOOLSET = implementToolset(WORKSPACE_TOOLSET_DEF, {
         if (!target.success) {
           return target;
         }
-        const { bytes, text } = await readLines(target.value, { endLine: args.endLine, startLine: args.startLine });
-        return Result.ok({ replay: `[read ${args.path} (${bytes} bytes)]`, text });
+        const { text } = await readLines(target.value, { endLine: args.endLine, startLine: args.startLine });
+        return Result.ok({ replaySubject: describeReplaySubject(`read ${args.path}`, text), text });
       },
       parameters: z.object({
         endLine: z

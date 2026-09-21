@@ -93,6 +93,30 @@ describe('toCompletionMessages', () => {
     });
   });
 
+  it('should replay a result by the subject the tool named, rendered as the later-turn line (§3.8)', () => {
+    const entries = [
+      event({
+        content: '',
+        kind: 'assistant_message',
+        toolCalls: [{ args: { url: 'https://x.example/' }, callId: 'c1', toolName: ['web', 'fetch'] }]
+      }),
+      event({
+        callId: 'c1',
+        kind: 'tool_result',
+        output: '# A page',
+        replaySubject: 'page https://x.example/, 8 characters',
+        toolName: ['web', 'fetch']
+      })
+    ];
+
+    expect(toCompletionMessages(entries, 'mira').at(-1)).toStrictEqual({
+      content:
+        '[page https://x.example/, 8 characters — from an earlier turn; its text is not shown. Make the call again if you need it.]',
+      role: 'tool',
+      toolCallId: 'c1'
+    });
+  });
+
   it('should drop a call history cannot answer, and the message when nothing of it remains', () => {
     const entries = [
       event({

@@ -22,7 +22,7 @@ describe('SKILLS_TOOLSET', () => {
     const result = await executeTool(load, { name: 'handing-work-to-a-peer' }, context);
     expect(skills.getDocument).toHaveBeenCalledWith(context.turn.agentUsername, 'handing-work-to-a-peer', undefined);
     expect(result.unwrap().text).toContain('# Handing Work To A Peer');
-    expect(result.unwrap().replay).toBe('[loaded skill handing-work-to-a-peer]');
+    expect(result.unwrap().replaySubject).toBe('loaded skill handing-work-to-a-peer');
   });
 
   it('loads a named reference of that skill', async () => {
@@ -34,7 +34,7 @@ describe('SKILLS_TOOLSET', () => {
       'handing-work-to-a-peer',
       'escalation-paths'
     );
-    expect(result.unwrap().replay).toBe('[loaded reference handing-work-to-a-peer/escalation-paths]');
+    expect(result.unwrap().replaySubject).toBe('loaded reference handing-work-to-a-peer/escalation-paths');
   });
 
   it('names a reference as the path it is in the trace', () => {

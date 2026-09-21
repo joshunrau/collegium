@@ -66,8 +66,10 @@ type TurnEventPayloadByKind = {
     output: string;
     /** §7.2 — the head of argument text that never parsed, for the trace alone */
     rawArgumentsPreview?: string;
-    /** what the window replays in place of the output; the trace still shows the output */
+    /** the line the window replays in place of the output, as a plugin tool or a row from before `replaySubject` wrote it; the trace still shows the output */
     replay?: string;
+    /** what the output was, from which the window renders its replay line (§3.8) */
+    replaySubject?: string;
     toolName: PrismaJson.RecordedToolName;
   };
 };

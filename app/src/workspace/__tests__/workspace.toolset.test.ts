@@ -117,10 +117,10 @@ describe('WORKSPACE_TOOLSET', () => {
       expect(escaping.error).toMatchObject({ kind: 'invalid-arguments' });
     });
 
-    it('reads back a file the write tool wrote, with a replay line in place of the text (§3.8)', async () => {
+    it('reads back a file the write tool wrote, naming what was read and its size for its replay (§3.8)', async () => {
       await execute({ content: 'one\ntwo', path: 'a/notes.md' });
       const result = await run(read, { path: 'a/notes.md' });
-      expect(result.value).toStrictEqual({ replay: '[read a/notes.md (7 bytes)]', text: 'one\ntwo' });
+      expect(result.value).toStrictEqual({ replaySubject: 'read a/notes.md, 7 characters', text: 'one\ntwo' });
     });
 
     it('lists and stats what the write tool left behind', async () => {

@@ -5,7 +5,7 @@ import { match } from 'ts-pattern';
 import { MARKDOWN_CAP_CHARS } from './web.constants.ts';
 
 import type { FormElement } from './snapshot/snapshot.types.ts';
-import type { WebFailure, WebPage, WebSnapshot } from './web.types.ts';
+import type { MarkdownWindow, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
 
 const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 
@@ -131,12 +131,43 @@ export function toMarkdown(html: string, pageUrl?: string): string {
   return converter.translate(html.replace(DOCTYPE, '')).split('\n').map(collapseTableRow).join('\n').trim();
 }
 
-/** A page past the guard is cut and says so — a truncation the model cannot see is one it reasons past. */
-export function capMarkdown(markdown: string): string {
+export type CappedMarkdown = {
+  readonly markdown: string;
+  readonly shown?: MarkdownWindow;
+};
+
+/** A page past the guard is cut and says how much of the whole it holds — a truncation the model cannot see is one it reasons past. */
+export function capMarkdown(markdown: string): CappedMarkdown {
   if (markdown.length <= MARKDOWN_CAP_CHARS) {
-    return markdown;
+    return { markdown };
   }
-  return `${markdown.slice(0, MARKDOWN_CAP_CHARS)}\n…page truncated at ${MARKDOWN_CAP_CHARS} characters`;
+  return {
+    markdown: `${markdown.slice(0, MARKDOWN_CAP_CHARS)}\n…page truncated at ${MARKDOWN_CAP_CHARS} of ${markdown.length} characters`,
+    shown: { from: 0, to: MARKDOWN_CAP_CHARS, total: markdown.length }
+  };
+}
+
+/**
+ * §3.8 — a fetched page read from an offset: what is past the guard says where to read on, so a
+ * page larger than one result holds can be finished in parts rather than re-read from the top.
+ */
+export function windowMarkdown(markdown: string, startChar: number): CappedMarkdown {
+  const total = markdown.length;
+  if (startChar === 0 && total <= MARKDOWN_CAP_CHARS) {
+    return { markdown };
+  }
+  if (startChar >= total) {
+    return {
+      markdown: `…startChar ${startChar} is past the end of this page, which has ${total} characters`,
+      shown: { from: total, to: total, total }
+    };
+  }
+  const to = Math.min(startChar + MARKDOWN_CAP_CHARS, total);
+  const readOn = to < total ? `; read on with web::fetch startChar=${to}` : '';
+  return {
+    markdown: `${markdown.slice(startChar, to)}\n…showing characters ${startChar}–${to} of ${total}${readOn}`,
+    shown: { from: startChar, to, total }
+  };
 }
 
 /** a recoverable browsing failure as the model hears it; `unreachable` is infrastructure and never rendered */

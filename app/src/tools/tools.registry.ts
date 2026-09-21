@@ -188,6 +188,13 @@ export class ToolRegistry {
       .toSorted();
   }
 
+  /** §3.8 — the wire names whose results a turn collapses past the retention share, so the prompt states the rule from the flags the runner folds by */
+  listSupersedableFor(profile: AgentProfile): string[] {
+    return Array.from(this.toolsFor(profile).values())
+      .filter((tool) => tool.definition.supersedable === true)
+      .map((tool) => tool.wireName);
+  }
+
   /** §3.14 — the tools of the named toolsets that no agent's expanded grants include, which no turn can ever call */
   listUngrantedIn(namespaces: ReadonlySet<string>): ToolId[] {
     const granted = new Set(Array.from(this.agentTools.values()).flatMap((tools) => Array.from(tools.keys())));

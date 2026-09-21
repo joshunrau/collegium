@@ -1,3 +1,5 @@
+import { renderReplayLine } from '@collegium/core/tools';
+
 import type { ModelRow } from '@/prisma/prisma.types.ts';
 
 function renderAttachmentLine(file: PrismaJson.PostAttachments['files'][number]): string {
@@ -21,4 +23,16 @@ export function renderPostWithAttachments(post: Pick<ModelRow<'Post'>, 'attachme
   ]
     .filter((line) => line !== '')
     .join('\n');
+}
+
+/**
+ * §3.8 — what a later turn reads in place of a result: the line rendered from the subject the tool
+ * named, else the line the tool wrote itself (a plugin's, or a row from before subjects were
+ * stored), else nothing, for a result short enough to be kept as it was.
+ */
+export function replayTextOf(payload: PrismaJson.TurnEventPayload): string | undefined {
+  if (payload.kind !== 'tool_result') {
+    return undefined;
+  }
+  return payload.replaySubject === undefined ? payload.replay : renderReplayLine(payload.replaySubject);
 }

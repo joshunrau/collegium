@@ -247,7 +247,8 @@ export class ToolExecutor {
       ...(tool.definition.retryable !== true && { mayHaveTakenEffect: true }),
       ...(output.disclosure && { disclosure: output.disclosure }),
       ...(output.post && { post: output.post }),
-      ...(output.replay !== undefined && { replay: output.replay })
+      ...(output.replay !== undefined && { replay: output.replay }),
+      ...(output.replaySubject !== undefined && { replaySubject: output.replaySubject })
     };
   }
 

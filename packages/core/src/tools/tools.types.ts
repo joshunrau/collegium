@@ -62,18 +62,23 @@ export type ToolPost = {
   readonly text: string;
 };
 
+/**
+ * §3.8 — `replay` or `replaySubject` stands in for `text` once the model has moved past it: a
+ * document the agent will load again anyway, or a page it has already acted on, need not be paid
+ * for on every turn whose window still holds the result. Either the line itself, which a tool owns
+ * and later turns see verbatim, or the subject alone (`page https://…, 18432 characters`), from
+ * which the framework renders the later-turn line and the in-turn collapse line each in its own
+ * words. Never both.
+ */
 export type ToolOutput = {
   readonly disclosure?: ToolDisclosure;
   /** §3.15 — framework tools only; a plugin's output type carries no post */
   readonly post?: ToolPost;
-  /**
-   * What later turns replay in place of `text`. The turn that made the call reads the text in
-   * full; a document the agent will load again anyway, or a page it has already acted on, need
-   * not be paid for on every turn whose window still holds the result.
-   */
-  readonly replay?: string;
   readonly text: string;
-};
+} & (
+  | { readonly replay?: never; readonly replaySubject?: string }
+  | { readonly replay?: string; readonly replaySubject?: never }
+);
 
 export declare namespace ToolFailure {
   /** the tool body threw — a semantic failure that terminates the turn (§7.1, §7.2) */

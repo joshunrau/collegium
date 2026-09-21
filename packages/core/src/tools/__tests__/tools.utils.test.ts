@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { TOOL_SEGMENT_PATTERN } from '../tools.constants.ts';
+import { REPLAY_VERBATIM_MAX_CHARS, TOOL_SEGMENT_PATTERN } from '../tools.constants.ts';
 import {
   assertToolSegment,
   assertWireNameWithinLimit,
+  describeReplaySubject,
+  renderDuplicateLine,
+  renderReplayLine,
+  renderSupersededLine,
   renderToolDisplayName,
-  renderToolWireName
+  renderToolWireName,
+  replaySubjectWhenLong
 } from '../tools.utils.ts';
 
 describe('TOOL_SEGMENT_PATTERN', () => {
@@ -40,5 +45,39 @@ describe('grammar assertions', () => {
   it('refuses a wire name over the provider limit', () => {
     expect(() => assertWireNameWithinLimit(['mail', 'a'.repeat(60)])).toThrow('provider limit');
     expect(() => assertWireNameWithinLimit(['mail', 'send'])).not.toThrow();
+  });
+});
+
+describe('replay subjects and lines (§3.8)', () => {
+  it('names a result by what it was and how big, never by what it said', () => {
+    expect(describeReplaySubject('page https://x.example/', 'hello')).toBe('page https://x.example/, 5 characters');
+  });
+
+  it('gives a subject only to a result long enough to be worth replacing', () => {
+    expect(replaySubjectWhenLong('shell output', 'x'.repeat(REPLAY_VERBATIM_MAX_CHARS))).toBeUndefined();
+    expect(replaySubjectWhenLong('shell output', 'x'.repeat(REPLAY_VERBATIM_MAX_CHARS + 1))).toBe(
+      `shell output, ${REPLAY_VERBATIM_MAX_CHARS + 1} characters`
+    );
+  });
+
+  it('tells a later turn where the text went and that the call can be made again', () => {
+    const line = renderReplayLine('page https://x.example/, 5 characters');
+    expect(line).toBe(
+      '[page https://x.example/, 5 characters — from an earlier turn; its text is not shown. Make the call again if you need it.]'
+    );
+  });
+
+  it('tells the turn that made the call what a re-read costs, and gives no instruction to call again', () => {
+    const line = renderSupersededLine('page https://x.example/, 5 characters');
+    expect(line).toContain('read earlier this turn');
+    expect(line).toContain('may displace another result');
+    expect(line).toContain('copy what you need into your own text first');
+    expect(line).not.toContain('call the tool again');
+  });
+
+  it('says a repeat changed nothing', () => {
+    expect(renderDuplicateLine('page https://x.example/, 5 characters')).toBe(
+      '[page https://x.example/, 5 characters — identical to the result above; nothing changed.]'
+    );
   });
 });

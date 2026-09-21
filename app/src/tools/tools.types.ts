@@ -13,8 +13,10 @@ export declare namespace ToolAttempt {
     output: string;
     /** §3.15 — published under the agent's account by the runner, never by the tool (§3.3) */
     post?: ToolPost;
-    /** what later turns replay in place of the output */
+    /** the line later turns replay in place of the output, owned by the tool (§3.8) */
     replay?: string;
+    /** what the output was, from which the framework renders the in-turn and later-turn lines (§3.8) */
+    replaySubject?: string;
   };
   /**
    * The turn ends with this status: a §7.1 semantic error, an unconfirmed mutation (§7.2), a §5.4

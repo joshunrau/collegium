@@ -1,4 +1,4 @@
-import { renderReplayLine } from '@collegium/core/tools';
+import { describeReplaySubject } from '@collegium/core/tools';
 import type { ToolResult } from '@collegium/core/tools';
 import { implementToolset, WEB_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
@@ -27,7 +27,8 @@ const DESCRIPTION_PREAMBLE =
 
 /**
  * The browser being down is infrastructure, not something the model can reason its way past. A
- * page read is acted on in the turn that made it, so later turns replay it as a line (§3.8).
+ * page read is acted on in the turn that made it, so its replay subject names the page, and the
+ * part of it the result held when the whole did not fit (§3.8).
  */
 function toPageResult<TPage extends WebPage>(
   result: Result<TPage, WebFailure>,
@@ -39,8 +40,11 @@ function toPageResult<TPage extends WebPage>(
     }
     return Result.ok({ text: renderWebFailure(result.error) });
   }
+  const { shown, url } = result.value;
   const text = render(result.value);
-  return Result.ok({ replay: renderReplayLine(`page ${result.value.url}`, text), text });
+  const name =
+    shown === undefined ? `page ${url}` : `page ${url} (characters ${shown.from}–${shown.to} of ${shown.total})`;
+  return Result.ok({ replaySubject: describeReplaySubject(name, text), text });
 }
 
 const toSnapshotResult = (result: Result<WebSnapshot, WebFailure>): ToolResult => {
@@ -90,9 +94,16 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         'Fetch a URL over plain HTTP and read it as markdown — no browser, no JavaScript, no session; ' +
         "this turn's browser page is untouched. Cheaper and faster than navigate: use it first for articles, " +
         'documentation, and static pages, and switch to navigate when the result says the page has no static content ' +
-        'or when the task needs a click, a search, or a sign-in.',
-      execute: async (args, context) => toPageResult(await context.web.fetch(args.url), renderWebPage),
+        'or when the task needs a click, a search, or a sign-in. A page too long for one result is cut and says ' +
+        'where to read on from; each call fetches the page again.',
+      execute: async (args, context) => toPageResult(await context.web.fetch(args.url, args.startChar), renderWebPage),
       parameters: z.object({
+        startChar: z
+          .number()
+          .int()
+          .min(0)
+          .default(0)
+          .describe('Where in the page to start reading, in characters; use it to read on past a truncated result'),
         url: z.url().describe('The absolute http(s) URL of a public web page or text resource to fetch')
       }),
       retryable: true,

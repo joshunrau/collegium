@@ -28,17 +28,35 @@ export function assertWireNameWithinLimit(id: ToolId): void {
   }
 }
 
-/**
- * What a later turn reads in place of a result the model already acted on: what it was and how big,
- * never the text (§3.8). Worded as history, because a bare size reads to a model as a call that
- * returned nothing useful, and it reports the page unreadable instead of calling again.
- */
-export function renderReplayLine(subject: string, text?: string): string {
-  const size = text === undefined ? '' : `: ${text.length} characters`;
-  return `[${subject}${size}, already read and no longer shown — call the tool again to reread it]`;
+/** §3.8 — the noun phrase a result replays as: what it was and how big, never what it said */
+export function describeReplaySubject(name: string, text: string): string {
+  return `${name}, ${text.length} characters`;
 }
 
-/** the replay line for a result worth replacing, or nothing for one short enough to keep verbatim */
-export function replayWhenLong(subject: string, text: string): string | undefined {
-  return text.length > REPLAY_VERBATIM_MAX_CHARS ? renderReplayLine(subject, text) : undefined;
+/** the replay subject for a result worth replacing, or nothing for one short enough to keep verbatim */
+export function replaySubjectWhenLong(name: string, text: string): string | undefined {
+  return text.length > REPLAY_VERBATIM_MAX_CHARS ? describeReplaySubject(name, text) : undefined;
+}
+
+/**
+ * What a later turn reads in place of a result the model already acted on (§3.8). Worded as
+ * history with the text's whereabouts, because a bare size reads to a model as a call that returned
+ * nothing useful, and it reports the page unreadable instead of calling again.
+ */
+export function renderReplayLine(subject: string): string {
+  return `[${subject} — from an earlier turn; its text is not shown. Make the call again if you need it.]`;
+}
+
+/**
+ * What the turn that made the call reads once the result is collapsed (§3.8). It states the cost
+ * of a re-read rather than inviting one: told only that the text is gone, a model re-reads, which
+ * evicts the next page, and the two chase each other until the budget runs out.
+ */
+export function renderSupersededLine(subject: string): string {
+  return `[${subject} — read earlier this turn; its text is no longer shown. Reading it again may displace another result; copy what you need into your own text first.]`;
+}
+
+/** §3.8 — a repeat of a result still shown costs no context and says so, so a re-read is never mistaken for a changed page */
+export function renderDuplicateLine(subject: string): string {
+  return `[${subject} — identical to the result above; nothing changed.]`;
 }

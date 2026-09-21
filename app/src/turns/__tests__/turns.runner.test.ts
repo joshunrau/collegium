@@ -1,4 +1,4 @@
-import { renderReplayLine } from '@collegium/core/tools';
+import { describeReplaySubject, renderDuplicateLine, renderSupersededLine } from '@collegium/core/tools';
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -1441,7 +1441,7 @@ describe('TurnRunner', () => {
       toolExecutor.execute.mockResolvedValueOnce({
         kind: 'continue',
         output: `page ${page} ${'x'.repeat(8_000)}`,
-        replay: `[page ${page}]`
+        replaySubject: `page ${page}`
       });
     }
     complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
@@ -1449,7 +1449,8 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
     const results = complete.mock.calls[2]![0].messages.filter((message) => message.role === 'tool');
-    expect(results.map((message) => message.content.slice(0, 10))).toStrictEqual(['[page one]', 'page two x']);
+    expect(results[0]?.content).toBe(renderSupersededLine('page one'));
+    expect(results[1]?.content.startsWith('page two x')).toBe(true);
     expect(results[1]?.content).not.toContain('truncated');
   });
 
@@ -1487,62 +1488,99 @@ describe('TurnRunner', () => {
     expect(complete).not.toHaveBeenCalled();
   });
 
+  // the profile's 4,000-token window retains 1,200 tokens of pages (§3.8); a page this size is about 700
+  const pageText = (name: string) => `page ${name} ${'x'.repeat(2_800)}`;
+
+  const toolMessagesOf = (request: CompletionRequest) => {
+    return request.messages.filter((message) => message.role === 'tool').map((message) => message.content);
+  };
+
   it('should keep every result of one completion verbatim until the model has read it (§3.8)', async () => {
     toolRegistry.isSupersedable.mockReturnValue(true);
     toolRegistry.isConcurrent.mockReturnValue(true);
-    toolExecutor.execute.mockImplementation(({ call }) => {
-      return Promise.resolve({ kind: 'continue', output: `page ${call.id}` });
-    });
+    let read = 0;
+    toolExecutor.execute.mockImplementation(() => Promise.resolve({ kind: 'continue', output: pageText(`${read++}`) }));
     const seen: string[][] = [];
-    const snapshot = (request: CompletionRequest) => {
-      seen.push(request.messages.filter((message) => message.role === 'tool').map((message) => message.content));
-    };
     complete.mockImplementationOnce((request) => {
-      snapshot(request);
+      seen.push(toolMessagesOf(request));
       return Promise.resolve(Result.ok(toolUse(['workspace__read', 'workspace__read', 'workspace__read'])));
     });
     complete.mockImplementationOnce((request) => {
-      snapshot(request);
+      seen.push(toolMessagesOf(request));
       return Promise.resolve(Result.ok(toolUse(['workspace__read'])));
     });
     complete.mockImplementationOnce((request) => {
-      snapshot(request);
+      seen.push(toolMessagesOf(request));
       return Promise.resolve(Result.ok(text('done')));
     });
     await run();
-    expect(seen[1]).toStrictEqual(['page call-0', 'page call-1', 'page call-2']);
+    expect(seen[1]).toStrictEqual([pageText('0'), pageText('1'), pageText('2')]);
     expect(seen[2]).toStrictEqual([
-      renderReplayLine('earlier workspace__read result'),
-      renderReplayLine('earlier workspace__read result'),
-      'page call-2',
-      'page call-0'
+      renderSupersededLine(describeReplaySubject('workspace__read result', pageText('0'))),
+      renderSupersededLine(describeReplaySubject('workspace__read result', pageText('1'))),
+      pageText('2'),
+      pageText('3')
     ]);
   });
 
-  it('should retire an earlier page result to its replay line once two newer ones exist (§3.8)', async () => {
+  const readPages = (names: string[]) => {
     toolRegistry.isSupersedable.mockImplementation((_profile, name: string) => name === 'web__fetch');
-    for (const page of ['one', 'two', 'three']) {
+    for (const name of names) {
       toolExecutor.execute.mockResolvedValueOnce({
         kind: 'continue',
-        output: `page ${page}`,
-        replay: `[page ${page}]`
+        output: pageText(name),
+        replaySubject: `page ${name}`
       });
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
     }
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+  };
+
+  it('should keep every page verbatim while they fit the retention share (§3.8)', async () => {
+    toolRegistry.isSupersedable.mockImplementation((_profile, name: string) => name === 'web__fetch');
+    for (const name of ['one', 'two', 'three', 'four', 'five']) {
+      toolExecutor.execute.mockResolvedValueOnce({
+        kind: 'continue',
+        output: `page ${name}`,
+        replaySubject: `page ${name}`
+      });
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
+    }
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
-    const followUp = complete.mock.calls[3]![0].messages;
-    expect(followUp.filter((message) => message.role === 'tool').map((message) => message.content)).toStrictEqual([
-      '[page one]',
+    expect(toolMessagesOf(complete.mock.calls[5]![0])).toStrictEqual([
+      'page one',
       'page two',
-      'page three'
+      'page three',
+      'page four',
+      'page five'
+    ]);
+  });
+
+  it('should collapse the oldest read page to its in-turn line past the share, never below two (§3.8)', async () => {
+    readPages(['one', 'two', 'three']);
+    await run();
+    expect(toolMessagesOf(complete.mock.calls[3]![0])).toStrictEqual([
+      renderSupersededLine('page one'),
+      pageText('two'),
+      pageText('three')
     ]);
     expect(turnsService.appendEvent).toHaveBeenCalledWith(
       'turn-1',
-      expect.objectContaining({ kind: 'tool_result', output: 'page one', replay: '[page one]' })
+      expect.objectContaining({ kind: 'tool_result', output: pageText('one'), replaySubject: 'page one' })
     );
+  });
+
+  it('should answer a byte-identical repeat without evicting a sibling (§3.8)', async () => {
+    readPages(['one', 'two', 'three', 'two', 'one']);
+    await run();
+    expect(toolMessagesOf(complete.mock.calls[5]![0])).toStrictEqual([
+      renderSupersededLine('page one'),
+      pageText('two'),
+      pageText('three'),
+      renderDuplicateLine('page two'),
+      `[identical to a result you read earlier this turn; nothing changed]\n\n${pageText('one')}`
+    ]);
   });
 
   it('should hand the completion a signal that aborts on /kill', async () => {

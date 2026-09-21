@@ -16,6 +16,8 @@ import { TasksService } from '@/tasks/tasks.service.ts';
 import { renderOpenUnitLine } from '@/tasks/tasks.utils.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
+import { SUPERSEDABLE_RETENTION_FLOOR } from '../retention/retention.constants.ts';
+import { retentionBudgetFor } from '../retention/retention.utils.ts';
 import { RECENT_ACTION_LINES } from './context.constants.ts';
 import { collapseRepeatedLines } from './system-prompt.utils.ts';
 
@@ -193,11 +195,15 @@ export class SystemPromptRenderer {
     const granted = this.toolRegistry.listFor(profile);
     const holdsAsk = granted.some(({ id: [namespace, tool] }) => namespace === 'ask' && tool === 'human');
     const holdsSearch = granted.some(({ id: [namespace, tool] }) => namespace === 'conversations' && tool === 'search');
+    const foldingCalls = this.toolRegistry.listSupersedableFor(profile);
     return this.textFormatter.formatParagraphs(
       [
         '## How this works',
         "You are one of a group of agents. You work with people in a shared Mattermost workspace. Your context is the recent posts in this channel and the framework's record of your own recent actions here. A post starts with its author name, as `@username:`. Your own past tool calls and their results appear as calls and results, not as posts. A line in square brackets is a note from the framework: an approval it requested, a person's decision on one, or a memory you wrote. There are no threads.",
-        "The framework fits your context to about {contextBudgetTokens} tokens of recent posts and records, newest first; older ones fall outside it. Each tool result in a turn stays in that turn's context.",
+        'The framework fits your context to about {contextBudgetTokens} tokens of recent posts and records, newest first; older ones fall outside it.',
+        foldingCalls.length === 0
+          ? "Each tool result in a turn stays in that turn's context."
+          : 'In one turn, results of {foldingCalls} are kept word for word up to about {retainedResultTokens} tokens of them and never fewer than the {retainedResultFloor} most recent. An earlier one is replaced by a line naming what was read and its size. Making the call again returns the text and may replace another result the same way; a result identical to one still shown is not kept twice. Results of calls made together in one response arrive together. Text you write yourself is never replaced.',
         'Lines under Earlier in this channel are your own past actions that your context no longer reaches. They say what you did, not what you learned or what a result said. To read a result again, make the call again.',
         "The framework posts your reply. Text with no tool call is your final message. It goes to the channel and the turn stops. Text with a tool call is shown while the tool runs. Then it is removed. When your turn stops, the framework starts no further turn in this channel by itself. A person's post, a colleague's mention, or a trigger the framework posts starts the next one.",
         'Mattermost renders the text of your posts as Markdown.',
@@ -224,6 +230,9 @@ export class SystemPromptRenderer {
         actionBudget: profile.actionBudget,
         budgetExemptCalls: this.textFormatter.formatConjunction(this.toolRegistry.listBudgetExemptFor(profile)),
         contextBudgetTokens: profile.contextBudgetTokens,
+        foldingCalls: this.textFormatter.formatConjunction(foldingCalls),
+        retainedResultFloor: SUPERSEDABLE_RETENTION_FLOOR,
+        retainedResultTokens: retentionBudgetFor(profile),
         shellHomeDir: deriveShellHomeDir(profile.username),
         workspaceDir: profile.workspaceDir
       }

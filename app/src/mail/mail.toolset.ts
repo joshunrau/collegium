@@ -1,4 +1,4 @@
-import { replayWhenLong } from '@collegium/core/tools';
+import { replaySubjectWhenLong } from '@collegium/core/tools';
 import type { ToolFailure, ToolResult, ToolTurnScope } from '@collegium/core/tools';
 import { implementToolset, MAIL_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
@@ -43,12 +43,12 @@ function withMailbox(
 function toReadResult<TValue>(
   result: Result<TValue, MailFailure.Read>,
   render: (value: TValue) => string,
-  replaySubject: string
+  subject: string
 ): ToolResult {
   if (result.success) {
     const text = render(result.value);
-    const replay = replayWhenLong(replaySubject, text);
-    return Result.ok({ text, ...(replay !== undefined && { replay }) });
+    const replaySubject = replaySubjectWhenLong(subject, text);
+    return Result.ok({ text, ...(replaySubject !== undefined && { replaySubject }) });
   }
   const failure = match(result.error)
     .with({ kind: 'not-found' }, ({ ref }): ToolFailure => ({

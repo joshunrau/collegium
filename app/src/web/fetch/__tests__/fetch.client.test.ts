@@ -154,8 +154,10 @@ describe('FetchClient', () => {
     });
     pinnedGetMock.mockResolvedValueOnce(respond(endless, { headers: { 'content-type': 'text/plain' } }));
     const body = (await client.get('https://northmoor.example/log')).value?.body;
-    expect(body?.length).toBe(FETCH_BODY_CAP_BYTES + `\n…body truncated at ${FETCH_BODY_CAP_BYTES} bytes`.length);
-    expect(body?.endsWith(`…body truncated at ${FETCH_BODY_CAP_BYTES} bytes`)).toBe(true);
+    expect(body?.length).toBe(
+      FETCH_BODY_CAP_BYTES + `\n…body truncated at ${FETCH_BODY_CAP_BYTES} bytes; the server was still sending`.length
+    );
+    expect(body?.endsWith(`…body truncated at ${FETCH_BODY_CAP_BYTES} bytes; the server was still sending`)).toBe(true);
     expect(endless.destroyed).toBe(true);
   });
 

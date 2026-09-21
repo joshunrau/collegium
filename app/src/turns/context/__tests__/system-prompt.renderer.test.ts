@@ -46,6 +46,7 @@ describe('SystemPromptRenderer', () => {
     skillsService.renderManifest.mockReturnValue('');
     toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listBudgetExemptFor.mockReturnValue(['builtins__now', 'skills__load']);
+    toolRegistry.listSupersedableFor.mockReturnValue([]);
     toolRegistry.listFor.mockReturnValue([]);
     toolRegistry.listGrantedNamespacesFor.mockReturnValue([]);
     windowService = MockFactory.createMock(WindowService);
@@ -103,6 +104,21 @@ describe('SystemPromptRenderer', () => {
     expect(prompt).toContain('fits your context to about 12000 tokens');
     expect(prompt).toContain('Each turn has a budget of 7 tool calls.');
     expect(prompt).toContain('Calls to builtins__now and skills__load do not.');
+  });
+
+  it('should state the retention rule for the calls whose results fold, from the model window (§3.8)', async () => {
+    toolRegistry.listSupersedableFor.mockReturnValue(['web__fetch', 'workspace__read']);
+    const prompt = await render();
+    expect(prompt).toContain(
+      'results of web__fetch and workspace__read are kept word for word up to about 9600 tokens of them and never fewer than the 2 most recent'
+    );
+    expect(prompt).toContain('Text you write yourself is never replaced.');
+    expect(prompt).not.toContain("Each tool result in a turn stays in that turn's context.");
+  });
+
+  it('should say every result stays for an agent holding no tool whose results fold (§3.8)', async () => {
+    const prompt = await render();
+    expect(prompt).toContain("Each tool result in a turn stays in that turn's context.");
   });
 
   it('should name no directory for an agent holding no file tool (§3.8)', async () => {

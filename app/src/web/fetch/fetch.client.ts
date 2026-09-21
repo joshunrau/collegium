@@ -98,7 +98,10 @@ export class FetchClient {
         chunks.push(decoder.decode(bytes, { stream: true }));
         if (received >= FETCH_BODY_CAP_BYTES) {
           body.destroy();
-          chunks.push(decoder.decode(), `\n…body truncated at ${FETCH_BODY_CAP_BYTES} bytes`);
+          chunks.push(
+            decoder.decode(),
+            `\n…body truncated at ${FETCH_BODY_CAP_BYTES} bytes; the server was still sending`
+          );
           return Result.ok(chunks.join(''));
         }
       }

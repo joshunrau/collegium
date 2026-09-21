@@ -2,7 +2,7 @@ import { estimateTokens } from '@collegium/core/utils';
 
 import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
 
-import { renderPostWithAttachments } from '../conversations.utils.ts';
+import { renderPostWithAttachments, replayTextOf } from '../conversations.utils.ts';
 
 import type { WindowEntry } from '../conversations.types.ts';
 
@@ -19,7 +19,7 @@ export function entryText(entry: WindowEntry): string {
     return renderPostWithAttachments(entry.post);
   }
   const { payload } = entry.event;
-  return payload.kind === 'tool_result' && payload.replay !== undefined ? payload.replay : JSON.stringify(payload);
+  return replayTextOf(payload) ?? JSON.stringify(payload);
 }
 
 /**
@@ -31,7 +31,7 @@ export function replayLineOf(payload: PrismaJson.TurnEventPayload): string | und
   if (payload.kind !== 'tool_result') {
     return undefined;
   }
-  return payload.replay ?? `[${renderRecordedToolName(payload.toolName)}]`;
+  return replayTextOf(payload) ?? `[${renderRecordedToolName(payload.toolName)}]`;
 }
 
 export function costOf(entries: readonly WindowEntry[]): number {

@@ -31,9 +31,18 @@ export type AddressPolicy = {
   readonly vet: (url: URL) => Promise<undefined | VettedAddress>;
 };
 
+/** §3.8 — the part of a page a result holds when the whole did not fit, in characters of its markdown */
+export type MarkdownWindow = {
+  readonly from: number;
+  readonly to: number;
+  readonly total: number;
+};
+
 /** one page, in the shape a model reads — what a plain fetch yields */
 export type WebPage = {
   readonly markdown: string;
+  /** absent when the result holds the whole page */
+  readonly shown?: MarkdownWindow;
   readonly status: number;
   readonly title: string;
   /** after redirects — not necessarily what was asked for */

@@ -1,4 +1,4 @@
-import { renderReplayLine } from '@collegium/core/tools';
+import { describeReplaySubject, renderDuplicateLine, renderSupersededLine } from '@collegium/core/tools';
 import type { ToolPost, ToolTurnScope } from '@collegium/core/tools';
 import { CHARS_PER_TOKEN, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
@@ -50,6 +50,8 @@ import { ContextAssembler } from './context/context.assembler.ts';
 import { containsToolCallTranscript } from './context/context.utils.ts';
 import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
+import { SUPERSEDABLE_RETENTION_FLOOR } from './retention/retention.constants.ts';
+import { hashResult, retentionBudgetFor } from './retention/retention.utils.ts';
 import {
   renderBudgetExhaustedNotice,
   renderChainLengthLimitNotice,
@@ -76,8 +78,8 @@ import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle } from './status/status-post.service.ts';
 import type { Steering, Turn, TurnOpenFailure, TurnOutcome } from './turns.types.ts';
 
-/** §3.8 — how many of a turn's supersedable results stay verbatim; the rest read as their replay line */
-const RETAINED_SUPERSEDABLE_RESULTS = 2;
+/** §3.8 — what a re-read of a result already collapsed opens with, so the model learns the page did not change without paying to compare */
+const REPEATED_READ_NOTE = '[identical to a result you read earlier this turn; nothing changed]';
 
 /** §7.1 — what a completion cut at the output limit hears; the loop it re-enters is the rejected post's (§4.5) */
 const TRUNCATED_OUTPUT_REJECTION =
@@ -201,9 +203,11 @@ type TurnState = {
   recordedResults: number;
   /** §3.7 — resolved once, at turn setup, and quoted on every approval prompt the turn raises */
   readonly requestedBy: TurnRequest | undefined;
+  /** §3.8 — the text of every supersedable result this turn produced, by hash, and where it was last pushed verbatim */
+  readonly seenSupersedable: Map<string, number>;
   readonly status: StatusPostHandle;
   /** the supersedable results still verbatim in `messages`, oldest first (§3.8) */
-  readonly supersedable: { messageIndex: number; replay: string }[];
+  readonly supersedable: { messageIndex: number; subject: string }[];
   readonly transport: ChatTransport;
   readonly turn: Turn;
   /** §7.2 — calls with unparseable arguments this turn has already forgiven */
@@ -286,6 +290,7 @@ export class TurnRunner {
       promptTokens: 0,
       recordedResults: 0,
       requestedBy: await this.resolveRequester(input),
+      seenSupersedable: new Map(),
       status: this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id }),
       supersedable: [],
       transport: this.transportRegistry.get(profile.username),
@@ -565,11 +570,11 @@ export class TurnRunner {
     return this.close(state, 'completed');
   }
 
-  /** §3.8 — the oldest verbatim page reads as its replay line for the rest of the turn; the event keeps the text */
+  /** §3.8 — the oldest verbatim page reads as its in-turn line for the rest of the turn; the event keeps the text */
   private collapseOldestSupersedable(state: TurnState): void {
     const stale = state.supersedable.shift()!;
     const message = state.messages[stale.messageIndex]!;
-    const collapsed = { ...message, content: stale.replay };
+    const collapsed = { ...message, content: renderSupersededLine(stale.subject) };
     state.messages[stale.messageIndex] = collapsed;
     state.promptTokens += estimateMessageTokens(collapsed) - estimateMessageTokens(message);
   }
@@ -1081,11 +1086,15 @@ export class TurnRunner {
       kind: 'tool_result',
       output: result.output,
       toolName: identified.recordedName,
-      ...(result.replay !== undefined && { replay: result.replay })
+      ...(result.replay !== undefined && { replay: result.replay }),
+      ...(result.replaySubject !== undefined && { replaySubject: result.replaySubject })
     });
-    this.pushMessage(state, { content: result.output, role: 'tool', toolCallId: identified.call.id });
+    if (this.toolRegistry.isSupersedable(input.profile, identified.call.name)) {
+      this.recordSupersedableResult(input, state, identified, result);
+    } else {
+      this.pushMessage(state, { content: result.output, role: 'tool', toolCallId: identified.call.id });
+    }
     state.recordedResults += 1;
-    this.supersedeStaleResults(input, state, identified, result.replay);
     if (published?.kind === 'published' && attempt.post) {
       await attempt.post.onPublished(published.postId);
     }
@@ -1101,6 +1110,38 @@ export class TurnRunner {
       );
     }
     return undefined;
+  }
+
+  /**
+   * §3.8 — a supersedable result joins the retained set, and the oldest read ones past the share
+   * collapse to their lines; the event keeps the text, so the trace and the window's own replay are
+   * untouched. A repeat of a result still shown is answered with one line and joins nothing, and a
+   * repeat of one already collapsed is kept without collapsing another: a re-read never evicts a
+   * sibling, which is the cycle a fixed count produced. Only the backstop in
+   * `relieveContextPressure` bounds a re-read, and a later fresh read collapses it like any other.
+   */
+  private recordSupersedableResult(
+    input: RunInput,
+    state: TurnState,
+    identified: IdentifiedCall,
+    result: ToolAttempt.Continue
+  ): void {
+    const subject = result.replaySubject ?? describeReplaySubject(`${identified.displayName} result`, result.output);
+    const hash = hashResult(result.output);
+    const earlier = state.seenSupersedable.get(hash);
+    const toolCallId = identified.call.id;
+    if (earlier !== undefined && state.supersedable.some((entry) => entry.messageIndex === earlier)) {
+      this.pushMessage(state, { content: renderDuplicateLine(subject), role: 'tool', toolCallId });
+      return;
+    }
+    const content = earlier === undefined ? result.output : `${REPEATED_READ_NOTE}\n\n${result.output}`;
+    this.pushMessage(state, { content, role: 'tool', toolCallId });
+    const messageIndex = state.messages.length - 1;
+    state.seenSupersedable.set(hash, messageIndex);
+    state.supersedable.push({ messageIndex, subject });
+    if (earlier === undefined) {
+      this.retireSupersedablePastShare(input, state);
+    }
   }
 
   /** why a post the framework publishes for the turn may not post (§4.5), or nothing */
@@ -1206,6 +1247,24 @@ export class TurnRunner {
     return { ...request, message: this.multiMentionPolicy.stripAgentMentions(request.message) };
   }
 
+  /** §3.8 — oldest read first, past the share and never below the floor; measured from the messages themselves, since a cut can shrink one after it was pushed */
+  private retireSupersedablePastShare(input: RunInput, state: TurnState): void {
+    const budget = retentionBudgetFor(input.profile);
+    const verbatimTokens = () => {
+      return state.supersedable.reduce(
+        (sum, entry) => sum + estimateMessageTokens(state.messages[entry.messageIndex]!),
+        0
+      );
+    };
+    while (
+      state.supersedable.length > SUPERSEDABLE_RETENTION_FLOOR &&
+      verbatimTokens() > budget &&
+      this.hasReadSupersedable(state)
+    ) {
+      this.collapseOldestSupersedable(state);
+    }
+  }
+
   /** everything here may throw; run() owns the boundary so no exit can leave the turn 'running' */
   private async runLoop(input: RunInput, state: TurnState): Promise<TurnOutcome> {
     const { channelId, profile } = input;
@@ -1268,28 +1327,6 @@ export class TurnRunner {
       if (outcome) {
         return outcome;
       }
-    }
-  }
-
-  /**
-   * §3.8 — past the retained few, an earlier page reads as its replay line for the rest of the
-   * turn; the event keeps the text, so the trace and the window's own replay are untouched.
-   */
-  private supersedeStaleResults(
-    input: RunInput,
-    state: TurnState,
-    identified: IdentifiedCall,
-    replay: string | undefined
-  ): void {
-    if (!this.toolRegistry.isSupersedable(input.profile, identified.call.name)) {
-      return;
-    }
-    state.supersedable.push({
-      messageIndex: state.messages.length - 1,
-      replay: replay ?? renderReplayLine(`earlier ${identified.call.name} result`)
-    });
-    while (state.supersedable.length > RETAINED_SUPERSEDABLE_RESULTS && this.hasReadSupersedable(state)) {
-      this.collapseOldestSupersedable(state);
     }
   }
 

@@ -6,7 +6,7 @@ import { FetchClient } from './fetch/fetch.client.ts';
 import { extractTitle, needsClientRendering } from './fetch/fetch.utils.ts';
 import { MAX_LIVE_SESSIONS } from './web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
-import { capMarkdown, toMarkdown } from './web.utils.ts';
+import { capMarkdown, toMarkdown, windowMarkdown } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
 import type { AddressPolicy, RenderedCapture, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
@@ -60,9 +60,10 @@ export class WebService {
     }
   }
 
-  /** no session and no slot: one GET, converted by the same rules a rendered page is */
+  /** no session and no slot: one GET, converted by the same rules a rendered page is, read from `startChar` on (§3.8) */
   async fetch(
-    url: string
+    url: string,
+    startChar = 0
   ): Promise<
     Result<
       WebPage,
@@ -75,13 +76,18 @@ export class WebService {
     }
     const { body, kind, status, url: finalUrl } = fetched.value;
     if (kind === 'text') {
-      return Result.ok({ markdown: capMarkdown(body), status, title: new URL(finalUrl).pathname, url: finalUrl });
+      return Result.ok({
+        ...windowMarkdown(body, startChar),
+        status,
+        title: new URL(finalUrl).pathname,
+        url: finalUrl
+      });
     }
     const markdown = toMarkdown(body, finalUrl);
     if (needsClientRendering(markdown)) {
       return Result.err({ kind: 'no-static-content', url: finalUrl });
     }
-    return Result.ok({ markdown: capMarkdown(markdown), status, title: extractTitle(body), url: finalUrl });
+    return Result.ok({ ...windowMarkdown(markdown, startChar), status, title: extractTitle(body), url: finalUrl });
   }
 
   async fill(
@@ -161,15 +167,15 @@ export class WebService {
     if (!rendered.success) {
       return rendered;
     }
-    const markdown = capMarkdown(toMarkdown(rendered.value.html, rendered.value.url));
+    const capped = capMarkdown(toMarkdown(rendered.value.html, rendered.value.url));
     // a page that rendered nothing is indistinguishable from a page with nothing on it, and the
     // model cannot tell them apart — so it is never returned as content
-    if (!markdown) {
+    if (!capped.markdown) {
       return Result.err({ kind: 'empty-render', url: rendered.value.url });
     }
     return Result.ok({
+      ...capped,
       formElements: rendered.value.formElements,
-      markdown,
       openedUrls: rendered.value.openedUrls,
       status: rendered.value.status,
       title: rendered.value.title,

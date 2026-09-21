@@ -22,7 +22,12 @@ const NOTES_TOOLSET = defineToolset({
       parameters: z.object({ text: z.string() }),
       traceDetail: (args) => args.text
     },
-    list: { description: 'List notes.', execute: () => Result.ok({ text: 'none' }), parameters: z.object({}) }
+    list: {
+      description: 'List notes.',
+      execute: () => Result.ok({ text: 'none' }),
+      parameters: z.object({}),
+      supersedable: true
+    }
   }
 });
 
@@ -233,6 +238,12 @@ describe('ToolRegistry', () => {
     const profile = buildAgentProfile();
     const registry = new ToolRegistry(LIBRARY, [profile]);
     expect(registry.listBudgetExemptFor(profile)).toStrictEqual(['skills__load']);
+  });
+
+  it('lists the calls whose results fold by wire name from the same flags (§3.8)', () => {
+    const profile = buildAgentProfile({ tools: ['notes'] });
+    const registry = new ToolRegistry(LIBRARY, [profile]);
+    expect(registry.listSupersedableFor(profile)).toStrictEqual(['notes__list']);
   });
 
   it('lists granted namespaces alphabetically, a single-tool grant by its namespace, core left out (§3.11)', () => {

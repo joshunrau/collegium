@@ -1,7 +1,7 @@
 import { match } from 'ts-pattern';
 
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
-import { renderPostWithAttachments } from '@/conversations/conversations.utils.ts';
+import { renderPostWithAttachments, replayTextOf } from '@/conversations/conversations.utils.ts';
 import type { CompletionMessage } from '@/inference/inference.types.ts';
 import { reasoningOf } from '@/inference/inference.utils.ts';
 import type { ModelRow } from '@/prisma/prisma.types.ts';
@@ -47,7 +47,7 @@ function collectCallResults(entries: readonly WindowEntry[]): ReadonlyMap<string
     }
     const { payload } = entry.event;
     if (payload.kind === 'tool_result') {
-      results.set(payload.callId, payload.replay ?? payload.output);
+      results.set(payload.callId, replayTextOf(payload) ?? payload.output);
     } else if (payload.kind === 'approval_decided' && payload.callId !== undefined && payload.decision !== 'approved') {
       denials.set(payload.callId, renderDenial(payload));
     }

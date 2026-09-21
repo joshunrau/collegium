@@ -40,6 +40,19 @@ describe('replayLineOf', () => {
     expect(replayLineOf(payload)).toBe('[read notes.md (12 bytes)]');
   });
 
+  it('should render the line from the subject a tool named, in the later-turn words (§3.8)', () => {
+    const payload = {
+      callId: 'c1',
+      kind: 'tool_result',
+      output: 'x',
+      replaySubject: 'read notes.md, 12 characters',
+      toolName: ['workspace', 'read']
+    } as const;
+    expect(replayLineOf(payload)).toBe(
+      '[read notes.md, 12 characters — from an earlier turn; its text is not shown. Make the call again if you need it.]'
+    );
+  });
+
   it('should read a result that declared none as its own name (§3.8)', () => {
     const payload = { callId: 'c1', kind: 'tool_result', output: 'sent', toolName: ['mail', 'send'] } as const;
     expect(replayLineOf(payload)).toBe('[mail__send]');

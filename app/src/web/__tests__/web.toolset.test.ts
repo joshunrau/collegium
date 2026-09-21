@@ -45,9 +45,23 @@ describe('WEB_TOOLSET', () => {
   it('fetches a page without a session and renders it with its header line', async () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.ok(PAGE));
-    const result = await executeTool(fetch, { url: 'https://example.org/' }, context);
-    expect(web.fetch).toHaveBeenCalledWith('https://example.org/');
-    expect(result.unwrap().text).toBe('Example — https://example.org/ (HTTP 200)\n\n# Example Domain');
+    const result = await executeTool(fetch, { startChar: 0, url: 'https://example.org/' }, context);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 0);
+    const text = 'Example — https://example.org/ (HTTP 200)\n\n# Example Domain';
+    expect(result.unwrap()).toStrictEqual({
+      replaySubject: `page https://example.org/, ${text.length} characters`,
+      text
+    });
+  });
+
+  it('reads on from an offset, and names the part of the page the result holds (§3.8)', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 1000, to: 2000, total: 5000 } }));
+    const result = await executeTool(fetch, { startChar: 1000, url: 'https://example.org/' }, context);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 1000);
+    expect(result.unwrap().replaySubject).toMatch(
+      /^page https:\/\/example\.org\/ \(characters 1000–2000 of 5000\), \d+ characters$/u
+    );
   });
 
   it('returns a page that needs client rendering as text pointing at navigate', async () => {
@@ -83,7 +97,7 @@ describe('WEB_TOOLSET', () => {
   it('leaves fetch ungated and retryable, since a scriptless GET commits nothing', () => {
     expect('approval' in fetch).toBe(false);
     expect(fetch.retryable).toBe(true);
-    expect(fetch.traceDetail?.({ url: 'https://example.org/' })).toBe('https://example.org/');
+    expect(fetch.traceDetail?.({ startChar: 0, url: 'https://example.org/' })).toBe('https://example.org/');
   });
 
   it('hovers a ref and returns the snapshot that reveals what the hover exposed', async () => {

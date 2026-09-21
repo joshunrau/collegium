@@ -128,7 +128,10 @@ describe('WebService', () => {
     it('should cut a page past the guard rather than shortening it silently', async () => {
       session.navigate.mockResolvedValue(Result.ok(rendered({ html: `<p>${'x'.repeat(MARKDOWN_CAP_CHARS + 1)}</p>` })));
       const result = await webService.navigate('turn-1', 'https://northmoor.example/huge');
-      expect(result.value?.markdown).toContain(`…page truncated at ${MARKDOWN_CAP_CHARS} characters`);
+      expect(result.value?.markdown).toContain(
+        `…page truncated at ${MARKDOWN_CAP_CHARS} of ${MARKDOWN_CAP_CHARS + 1} characters`
+      );
+      expect(result.value?.shown).toStrictEqual({ from: 0, to: MARKDOWN_CAP_CHARS, total: MARKDOWN_CAP_CHARS + 1 });
     });
 
     it('should refuse an address that resolves privately as a typed refusal, never a failed page (§3.4)', async () => {
@@ -168,6 +171,17 @@ describe('WebService', () => {
       );
       expect(result.value?.title).toBe('Full-Time Faculty — Department of Psychology — Northmoor University');
       expect(browserClient.createSession).not.toHaveBeenCalled();
+    });
+
+    it('should read on from an offset so a page past the cap can be finished (§3.8)', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
+      const whole = await webService.fetch('https://northmoor.example/people/');
+      const total = whole.value!.markdown.length;
+      const result = await webService.fetch('https://northmoor.example/people/', 10);
+      expect(result.value?.markdown).toBe(
+        `${whole.value!.markdown.slice(10)}\n…showing characters 10–${total} of ${total}`
+      );
+      expect(result.value?.shown).toStrictEqual({ from: 10, to: total, total });
     });
 
     it('should refuse a page that needs client rendering, naming the tool that can', async () => {

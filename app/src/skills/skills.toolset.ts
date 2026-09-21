@@ -26,7 +26,7 @@ export const SKILLS_TOOLSET = implementToolset(SKILLS_TOOLSET_DEF, {
         // the agent loads a skill every turn it needs one, so an earlier load replays as a line
         const subject = args.reference === undefined ? 'skill' : 'reference';
         return Result.ok({
-          replay: `[loaded ${subject} ${renderPath(args.name, args.reference)}]`,
+          replaySubject: `loaded ${subject} ${renderPath(args.name, args.reference)}`,
           text: document.value
         });
       },
