@@ -1365,12 +1365,6 @@ export class TurnRunner {
       .exhaustive();
   }
 
-  private stripRequestOrigin<TOrigin extends TurnRequestOrigin | undefined>(origin: TOrigin): TOrigin {
-    return origin?.kind === 'human'
-      ? { ...origin, message: this.multiMentionPolicy.stripAgentMentions(origin.message) }
-      : origin;
-  }
-
   /** §3.8 — oldest read first, past the share and never below the floor; measured from the messages themselves, since a cut can shrink one after it was pushed */
   private retireSupersedablePastShare(input: RunInput, state: TurnState): void {
     const budget = retentionBudgetFor(input.profile);
@@ -1462,6 +1456,12 @@ export class TurnRunner {
         return outcome;
       }
     }
+  }
+
+  private stripRequestOrigin<TOrigin extends TurnRequestOrigin | undefined>(origin: TOrigin): TOrigin {
+    return origin?.kind === 'human'
+      ? { ...origin, message: this.multiMentionPolicy.stripAgentMentions(origin.message) }
+      : origin;
   }
 
   /**

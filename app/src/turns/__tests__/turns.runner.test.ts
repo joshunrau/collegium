@@ -275,9 +275,9 @@ describe('TurnRunner', () => {
   });
 
   it('should quote the newest fragment on the approval prompt after a fold, and trace the fold (§3.7, §4.4)', async () => {
-    conversationsService.findRequester.mockImplementation((postId: string) =>
-      Promise.resolve({ kind: 'human' as const, message: `request in ${postId}`, username: 'casey' })
-    );
+    conversationsService.findRequester.mockImplementation((postId: string) => {
+      return Promise.resolve({ kind: 'human' as const, message: `request in ${postId}`, username: 'casey' });
+    });
     complete.mockImplementationOnce(() => {
       offerFragment('post-2');
       offerFragment('post-3');
@@ -1632,6 +1632,7 @@ describe('TurnRunner', () => {
 
   const assembledWith = (content: string) => ({
     assembledAt: new Date(0),
+    reachesBackTo: undefined,
     request: {
       cacheKey: 'mira:channel-1',
       messages: [{ content, role: 'user' as const }],

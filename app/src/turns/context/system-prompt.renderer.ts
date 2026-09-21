@@ -300,8 +300,8 @@ export class SystemPromptRenderer {
         actionBudget: profile.actionBudget,
         budgetExemptCalls: this.textFormatter.formatConjunction(this.toolRegistry.listBudgetExemptFor(profile)),
         contextBudgetTokens: profile.contextBudgetTokens,
-        foldLimit: this.foldLimit,
         foldingCalls: this.textFormatter.formatConjunction(foldingCalls),
+        foldLimit: this.foldLimit,
         mailAddress: mailbox?.provider.address ?? '',
         mailAnnouncementChannel:
           (mailbox && this.rosterService.nameOf(mailbox.announcementChannelId, profile.username)) ??

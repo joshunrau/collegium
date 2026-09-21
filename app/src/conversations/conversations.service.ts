@@ -188,6 +188,17 @@ export class ConversationsService {
     await this.posts.updateMany({ data: { message }, where: { id: postId } });
   }
 
+  private async findDelegator(triggeringPostId: null | string | undefined): Promise<DelegatingTurn | undefined> {
+    if (triggeringPostId === null || triggeringPostId === undefined) {
+      return undefined;
+    }
+    const triggeringPost = await this.posts.findUnique({
+      include: { authoringTurn: { select: { agentUsername: true, depth: true } } },
+      where: { id: triggeringPostId }
+    });
+    return triggeringPost?.authoringTurn ?? undefined;
+  }
+
   /** §7.4 — the chain's root is a person's or the system bot's post by construction; an agent's, left by a restart, names nobody */
   private async findRequestOrigin(rootPostId: null | string | undefined): Promise<TurnRequestOrigin | undefined> {
     if (rootPostId === null || rootPostId === undefined) {
@@ -206,16 +217,5 @@ export class ConversationsService {
       }))
       .with({ authorKind: 'system' }, (): TurnRequestOrigin => ({ kind: 'system' }))
       .exhaustive();
-  }
-
-  private async findDelegator(triggeringPostId: null | string | undefined): Promise<DelegatingTurn | undefined> {
-    if (triggeringPostId === null || triggeringPostId === undefined) {
-      return undefined;
-    }
-    const triggeringPost = await this.posts.findUnique({
-      include: { authoringTurn: { select: { agentUsername: true, depth: true } } },
-      where: { id: triggeringPostId }
-    });
-    return triggeringPost?.authoringTurn ?? undefined;
   }
 }

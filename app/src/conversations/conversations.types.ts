@@ -60,8 +60,8 @@ export type TurnRequestOrigin =
 
 /** who asked for a turn's work, read off the triggering post: a person's words, a colleague's name and whose request it relays, or the system bot (§3.7) */
 export type TurnRequest =
-  | { readonly kind: 'agent'; readonly onBehalfOf: TurnRequestOrigin | undefined; readonly username: string }
-  | TurnRequestOrigin;
+  | TurnRequestOrigin
+  | { readonly kind: 'agent'; readonly onBehalfOf: TurnRequestOrigin | undefined; readonly username: string };
 
 /** the turn whose post activated the turn that authored a post — who a mention would be returning to (§7.4) */
 export type DelegatingTurn = {

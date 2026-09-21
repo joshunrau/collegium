@@ -50,6 +50,11 @@ export class TriggersService {
     });
   }
 
+  /** the trigger this system post announced, so the turn it started can say what raised it (§3.7); undefined for any other post */
+  async findAnnouncedBy(postId: string): Promise<Trigger | undefined> {
+    return (await this.triggers.findFirst({ where: { postId } })) ?? undefined;
+  }
+
   listOutstanding(agentUsername: string): Promise<Trigger[]> {
     return this.triggers.findMany({
       orderBy: { createdAt: 'asc' },
@@ -220,11 +225,6 @@ export class TriggersService {
       data: { resolvedAt: new Date(), status: 'resolved' },
       where: { dedupeKey: { startsWith: dedupeKeyPrefix }, id: { not: trigger.id }, status: { not: 'resolved' } }
     });
-  }
-
-  /** the trigger this system post announced, so the turn it started can say what raised it (§3.7); undefined for any other post */
-  async findAnnouncedBy(postId: string): Promise<Trigger | undefined> {
-    return (await this.triggers.findFirst({ where: { postId } })) ?? undefined;
   }
 
   /** whether this system post announced a trigger — its turn was already started by the flush that posted it */

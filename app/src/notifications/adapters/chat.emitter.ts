@@ -43,18 +43,17 @@ export class ChatEmitter extends NotificationsEmitter {
     event: Extract<SystemEvent, { channelId: string }>,
     content: string
   ): Promise<Result<{ postId: string }, ChatFailure>> {
-    const isStall = event.kind === 'long-turn' || event.kind === 'standing-queue';
+    if (event.kind !== 'long-turn' && event.kind !== 'standing-queue') {
+      return this.chatGateway.postAsSystemIn(event.channelId, content);
+    }
     const asAgent = () => {
       return this.transportRegistry.get(event.agentUsername).send({ channelId: event.channelId, text: content });
     };
-    if (isStall && this.rosterService.isDirectMessage(event.channelId)) {
+    if (this.rosterService.isDirectMessage(event.channelId)) {
       return asAgent();
     }
     const posted = await this.chatGateway.postAsSystemIn(event.channelId, content);
-    if (posted.success || !isStall) {
-      return posted;
-    }
-    return asAgent();
+    return posted.success ? posted : asAgent();
   }
 
   private renderSystemEvent(event: SystemEvent): string {

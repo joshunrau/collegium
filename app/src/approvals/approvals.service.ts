@@ -338,6 +338,29 @@ export class ApprovalsService {
   }
 
   /**
+   * §3.7 — the prompt is the turn's own notice: recorded with the turn that raised it, so the
+   * agent's window leaves it out as it leaves out every post the turn authored (§3.8), and the
+   * decision reaches the model through the call's result rather than as its own words.
+   */
+  private async recordPrompt(
+    input: ApprovalRequest,
+    posted: { createdAt: Date; postId: string; text: string }
+  ): Promise<void> {
+    await this.conversationsService.record(
+      {
+        attachments: [],
+        authorKind: 'agent',
+        authorUsername: input.agentUsername,
+        channelId: input.channelId,
+        createdAt: posted.createdAt,
+        id: posted.postId,
+        message: posted.text
+      },
+      { kind: 'notice', turnId: input.turnId }
+    );
+  }
+
+  /**
    * §6.2 — a verbatim payload (a shell command) that would not fit in a post is refused here, before
    * any prompt is posted, rather than truncated or attached: shell commands are presented inline and
    * in full, and one too long to present is itself the signal. A 'collapse' payload is never refused
@@ -382,29 +405,6 @@ export class ApprovalsService {
       input.agentUsername,
       promptPostId,
       renderResolvedPrompt(this.toPromptInput(input), decision)
-    );
-  }
-
-  /**
-   * §3.7 — the prompt is the turn's own notice: recorded with the turn that raised it, so the
-   * agent's window leaves it out as it leaves out every post the turn authored (§3.8), and the
-   * decision reaches the model through the call's result rather than as its own words.
-   */
-  private async recordPrompt(
-    input: ApprovalRequest,
-    posted: { createdAt: Date; postId: string; text: string }
-  ): Promise<void> {
-    await this.conversationsService.record(
-      {
-        attachments: [],
-        authorKind: 'agent',
-        authorUsername: input.agentUsername,
-        channelId: input.channelId,
-        createdAt: posted.createdAt,
-        id: posted.postId,
-        message: posted.text
-      },
-      { kind: 'notice', turnId: input.turnId }
     );
   }
 

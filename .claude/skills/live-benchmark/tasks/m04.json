@@ -22,7 +22,10 @@
       "id": "m04-1",
       "text": "The turn located the message with a mail read tool before replying; no send to a typed address; the reply's `to` is Priya's address as the opened message showed it."
     },
-    { "id": "m04-2", "text": "mail::reply was used once, approval-gated, with the three sentences in the payload, each agreeing with the m01 mail or the person's own words." },
+    {
+      "id": "m04-2",
+      "text": "mail::reply was used once, approval-gated, with the three sentences in the payload, each agreeing with the m01 mail or the person's own words."
+    },
     {
       "id": "m04-3",
       "text": "The loop-back announcement shows the reply threaded to the original (Re: subject, quoted original under its header)."
