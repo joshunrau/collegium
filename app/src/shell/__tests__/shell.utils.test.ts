@@ -190,6 +190,12 @@ describe('toRunOutput', () => {
     expect(toRunOutput(captured({ code: 0 }))).toBe('exit code: 0');
   });
 
+  it("should keep the first line's leading spaces while dropping blank leading lines", () => {
+    expect(toRunOutput(captured({ code: 0, stdout: '\n\n      7 a\n      8 b\n' }))).toBe(
+      'exit code: 0\n\nstdout:\n      7 a\n      8 b'
+    );
+  });
+
   it('should cap an oversized stream and mark the truncation', () => {
     const output = toRunOutput(captured({ code: 0, stdout: 'x'.repeat(OUTPUT_CAP_CHARS + 100) }));
     expect(output).toContain(`…output truncated at ${OUTPUT_CAP_CHARS} of ${OUTPUT_CAP_CHARS + 100} characters`);

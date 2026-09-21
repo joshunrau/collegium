@@ -40,12 +40,17 @@ function deriveShellOsUserId(agentUsername: string): number {
   return SHELL_OS_USER_ID_BASE + (digest.readUInt32BE(0) % SHELL_OS_USER_ID_COUNT);
 }
 
+/** trailing whitespace and leading blank lines only: the first line's own indentation is data a column-aligned stream carries */
+function trimStream(text: string): string {
+  return text.replace(/^(?:[ \t]*\r?\n)+/u, '').trimEnd();
+}
+
 function exceedsResultCap(text: string): boolean {
-  return text.trim().length > OUTPUT_CAP_CHARS;
+  return trimStream(text).length > OUTPUT_CAP_CHARS;
 }
 
 function capStream(text: string, droppedChars: number): string {
-  const trimmed = text.trim();
+  const trimmed = trimStream(text);
   if (trimmed.length <= OUTPUT_CAP_CHARS) {
     return trimmed;
   }
