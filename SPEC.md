@@ -219,7 +219,7 @@ The prompt must show the full payload, not just the intent. Where a payload exce
 
 ### **3.7a Ask**
 
-A tool may declare `ask` instead of `approval`: a blocking request for a fact only a human has, rendered under the agent's own account like an approval, with the same no-timeout and channel-presence rules as §3.7, but resolved by a text answer rather than approve or deny. The answer is fed back as the tool's result and the turn continues under the same budget — there is no denial, because there is no action to refuse. A tool that would gate on consent uses `approval`; a tool that would solicit information uses `ask`; no tool declares both.
+A tool may declare `ask` instead of `approval`: a blocking request for a fact only a human has, rendered under the agent's own account like an approval, with the same no-timeout and channel-presence rules as §3.7, but resolved by a text answer rather than approve or deny. The answer is fed back as the tool's result and the turn continues under the same budget — there is no denial, because there is no action to refuse. A tool that would gate on consent uses `approval`; a tool that would solicit information uses `ask`; no tool declares both. Where the turn wrote text alongside the call, that text leads the prompt, so the person deciding reads the agent's own reason for asking.
 
 `ask::human` is the one framework tool that uses it: a question, and optionally a few short answers offered as buttons alongside free text. It is not a substitute for approval — a tool that needs permission still gates, and the framework preamble tells the model so.
 

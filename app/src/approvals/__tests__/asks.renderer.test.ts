@@ -17,6 +17,16 @@ describe('renderAskPrompt', () => {
     );
   });
 
+  it('should lead the question with the turn’s own preface (§3.7a)', () => {
+    expect(renderAskPrompt({ ...PROMPT, preface: 'Two airports serve the city.' })).toBe(
+      '❓ **Answer needed: `ask::human`**\nAction 3 of 25 · requested by @casey: "book the flight"\n\nTwo airports serve the city.\n\nWhich airport?'
+    );
+  });
+
+  it('should elide a preface longer than the question’s own cap (§3.7a)', () => {
+    expect(renderAskPrompt({ ...PROMPT, preface: 'x'.repeat(2001) })).toContain(`${'x'.repeat(2000)}…`);
+  });
+
   it('should name the answers it offered, so the record survives the buttons', () => {
     expect(renderAskPrompt({ ...PROMPT, options: ['Heathrow', 'Gatwick'] })).toContain(
       'Offered answers: Heathrow · Gatwick'

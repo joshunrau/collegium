@@ -34,6 +34,8 @@ export type AskRequest = {
   readonly contextText?: string;
   /** the short answers offered as buttons beside free text; at most six, per the tool's own schema */
   readonly options?: readonly string[];
+  /** §3.7a — the text the turn wrote in the completion that made this call, leading the prompt */
+  readonly preface?: string;
   readonly question: string;
   readonly toolName: string;
   readonly toolNamespace: string;

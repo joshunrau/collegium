@@ -780,9 +780,12 @@ export class TurnRunner {
       ...reasoning
     });
     state.unreadFrom = state.messages.length;
-    if (completion.content !== '') {
-      state.lastInterimText = this.multiMentionPolicy.stripAgentMentions(completion.content);
-      state.status.setTransient(state.lastInterimText);
+    // §3.7a — this completion's own text, which an earlier completion's must not stand in for
+    const interimText =
+      completion.content === '' ? undefined : this.multiMentionPolicy.stripAgentMentions(completion.content);
+    if (interimText !== undefined) {
+      state.lastInterimText = interimText;
+      state.status.setTransient(interimText);
     }
     for (let position = 0; position < calls.length;) {
       const first = calls[position]!;
@@ -814,6 +817,7 @@ export class TurnRunner {
               appendEvent: (event) => this.turnsService.appendEvent(state.turn.id, event),
               call: identified.call,
               contextText: renderApprovalContext(this.assembleApprovalContext(state, identified, positions[index]!)),
+              ...(interimText !== undefined && { preface: interimText }),
               profile: input.profile,
               turn: this.createTurnScope(input, state)
             });

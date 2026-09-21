@@ -46,6 +46,7 @@ export class AsksService {
   private static toPromptInput(source: {
     contextText?: string;
     options?: null | readonly string[];
+    preface?: string;
     question: string;
     toolName: string;
     toolNamespace: string;
@@ -54,6 +55,7 @@ export class AsksService {
       actionName: renderToolDisplayName([source.toolNamespace, source.toolName]),
       ...(source.contextText !== undefined && { contextText: source.contextText }),
       ...(source.options && { options: source.options }),
+      ...(source.preface !== undefined && { preface: source.preface }),
       question: source.question
     };
   }
@@ -136,6 +138,7 @@ export class AsksService {
       ...(request.options && {
         options: request.options.map((option) => this.multiMentionPolicy.stripAgentMentions(option))
       }),
+      ...(request.preface !== undefined && { preface: this.multiMentionPolicy.stripAgentMentions(request.preface) }),
       question: this.multiMentionPolicy.stripAgentMentions(request.question)
     };
     const askId = createRecordId();

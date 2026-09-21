@@ -6,10 +6,13 @@ import type { AskDecision } from './asks.types.ts';
 import type { DecisionFailure } from './decisions/decisions.types.ts';
 
 /**
- * A question has no §6.2 payload, so nothing here caps, attaches or refuses over `MaxPostSize` the
- * way `approvals.renderer.ts` does: the tool's own schema bounds the question and every option, so
- * a prompt that will not fit in a post cannot be constructed. The omission is the design.
+ * A question has no §6.2 payload, so nothing here attaches or refuses over `MaxPostSize` the way
+ * `approvals.renderer.ts` does: the tool's own schema bounds the question and every option, and the
+ * preface is bounded here, so a prompt that will not fit in a post cannot be constructed.
  */
+
+/** §3.7a — the preface is model prose under no schema, so it is held to the question's own bound */
+const MAX_PREFACE_CHARS = 2000;
 
 /** the label of the button that opens the free-text dialog, offered whether or not options were */
 const FREE_TEXT_ACTION_NAME = 'Answer…';
@@ -17,22 +20,36 @@ const FREE_TEXT_ACTION_NAME = 'Answer…';
 /** Mattermost's action route rejects a hyphenated action id, so the ids are plain alphanumerics */
 const FREE_TEXT_ACTION_ID = 'answer';
 
+function capPreface(preface: string): string {
+  const trimmed = preface.trim();
+  if (trimmed.length <= MAX_PREFACE_CHARS) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, MAX_PREFACE_CHARS)}…`;
+}
+
 export type AskPromptInput = {
   /** already in display form: `ns::tool` */
   readonly actionName: string;
   /** §3.7a — the turn's own line above the question, authored by the turn */
   readonly contextText?: string;
   readonly options?: readonly string[];
+  /** §3.7a — what the turn wrote alongside the call: the agent's own reason for asking, in its words */
+  readonly preface?: string;
   readonly question: string;
 };
 
 /** §3.7a — the question as the channel reads it, under the agent's own account and styled like an approval */
 export function renderAskPrompt(input: AskPromptInput): string {
   const lead = `❓ **Answer needed: \`${input.actionName}\`**`;
+  const preface = input.preface === undefined ? [] : [capPreface(input.preface)];
   const offered = input.options === undefined ? [] : [`Offered answers: ${input.options.join(' · ')}`];
-  return [input.contextText === undefined ? lead : `${lead}\n${input.contextText}`, input.question, ...offered].join(
-    '\n\n'
-  );
+  return [
+    input.contextText === undefined ? lead : `${lead}\n${input.contextText}`,
+    ...preface,
+    input.question,
+    ...offered
+  ].join('\n\n');
 }
 
 /** once answered or cancelled, the prompt is rewritten into a terminal state and its buttons removed (§3.7a) */

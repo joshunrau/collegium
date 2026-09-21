@@ -26,6 +26,8 @@ type ExecuteInput = {
   readonly call: ToolCall;
   /** §3.7 — the line the approval prompt shows above the payload, worded by the turn this call belongs to */
   readonly contextText: string;
+  /** §3.7a — what the turn wrote in the completion that made this call; leads an ask prompt, and nothing else */
+  readonly preface?: string;
   readonly profile: AgentProfile;
   readonly turn: ToolTurnScope;
 };
@@ -149,6 +151,7 @@ export class ToolExecutor {
       channelId: input.turn.channelId,
       contextText: input.contextText,
       ...(payload.options && { options: payload.options }),
+      ...(input.preface !== undefined && { preface: input.preface }),
       question: payload.question,
       toolName: tool.id[1],
       toolNamespace: tool.id[0],
