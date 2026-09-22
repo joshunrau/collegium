@@ -1,5 +1,5 @@
 import { NodeHtmlMarkdown } from 'node-html-markdown';
-import type { TranslatorConfigObject } from 'node-html-markdown';
+import type { TranslatorConfigFactory, TranslatorConfigObject } from 'node-html-markdown';
 import { match } from 'ts-pattern';
 
 import { MARKDOWN_CAP_CHARS } from './web.constants.ts';
@@ -28,6 +28,18 @@ const NAMED_REFERENCES = new Map([
 const CHARACTER_REFERENCE = /&(#\d+|#x[0-9a-f]+|[a-z]+);/giu;
 
 const MAX_CODE_POINT = 0x10_ff_ff;
+
+const CLOUDFLARE_CIPHER = /^(?:[0-9a-f]{2}){2,}$/i;
+
+/** what Cloudflare's decoder script looks for in a link's address, and what it rewrites to `mailto:` */
+const CLOUDFLARE_LINK_MARKER = '/cdn-cgi/l/email-protection#';
+
+/** the class Cloudflare's decoder script replaces with the address it decodes, whatever the element */
+const CLOUDFLARE_CLOAK_CLASS = '__cf_email__';
+
+const PLAUSIBLE_ADDRESS = /^[^\s@]+@[^\s@]+$/u;
+
+const STRICT_UTF8 = new TextDecoder('utf-8', { fatal: true });
 
 // not redundant: node-html-markdown reads a doctype with a public identifier as text, and Zoho
 // still writes one (HTML 4.01 Transitional)
@@ -81,20 +93,44 @@ function resolveBase(html: string, pageUrl: string | undefined): undefined | URL
   }
 }
 
+type TranslatedElement = Parameters<TranslatorConfigFactory>[0]['node'];
+
+/** an element Cloudflare cloaked, read as the address its script would have written in its place */
+function decodeCloakedElement(node: TranslatedElement): string | undefined {
+  if (!node.classList.contains(CLOUDFLARE_CLOAK_CLASS)) {
+    return undefined;
+  }
+  return decodeCloudflareEmail(node.getAttribute('data-cfemail') ?? '');
+}
+
+/** a link Cloudflare cloaked, read as the `mailto:` its script would have rewritten it to */
+function decodeProtectedLink(href: string): string | undefined {
+  const marker = href.indexOf(CLOUDFLARE_LINK_MARKER);
+  return marker === -1 ? undefined : decodeCloudflareEmail(href.slice(marker + CLOUDFLARE_LINK_MARKER.length));
+}
+
 /**
- * node-html-markdown's link and image translators, re-stated with one addition: an address is
+ * node-html-markdown's link and image translators, re-stated with two additions: an address is
  * resolved against the page it came from, so a relative link the model reads is one it can hand
- * straight to `web::fetch`. The library keeps its defaults private, so they are restated rather
- * than wrapped.
+ * straight to `web::fetch`; and an address Cloudflare cloaked reads as its decoder script would
+ * have left it (§3.4). The library keeps its defaults private, so they are restated rather than
+ * wrapped.
  */
 function linkTranslators(base: undefined | URL): TranslatorConfigObject {
   return {
     a: ({ node, options }) => {
+      const cloaked = decodeCloakedElement(node);
+      if (cloaked !== undefined) {
+        return { content: cloaked, recurse: false };
+      }
       const href = node.getAttribute('href');
       if (!href) {
         return {};
       }
-      const target = encodeHref(resolveAgainst(base, href));
+      const protectedAddress = decodeProtectedLink(href);
+      const target = encodeHref(
+        protectedAddress === undefined ? resolveAgainst(base, href) : `mailto:${protectedAddress}`
+      );
       const title = node.getAttribute('title');
       if (node.textContent === href && options.useInlineLinks) {
         return { content: `<${target}>` };
@@ -113,6 +149,10 @@ function linkTranslators(base: undefined | URL): TranslatorConfigObject {
       const alt = node.getAttribute('alt') ?? '';
       const title = node.getAttribute('title') ?? '';
       return { content: `![${alt}](${resolveAgainst(base, src)}${title && ` "${title}"`})`, recurse: false };
+    },
+    span: ({ node }) => {
+      const cloaked = decodeCloakedElement(node);
+      return cloaked === undefined ? {} : { content: cloaked, recurse: false };
     }
   };
 }
@@ -162,16 +202,40 @@ export function decodeHtmlEntities(text: string): string {
 }
 
 /**
+ * Cloudflare's email cloak undone as its decoder script undoes it, so a fetch without script reads
+ * the address a browser would (§3.4): the first byte is a key XORed into each byte after it, and
+ * what that spells is UTF-8. Anything that does not come out as an address is refused rather than
+ * guessed at — a wrong address copied into a record is the harm this exists to prevent.
+ */
+export function decodeCloudflareEmail(hex: string): string | undefined {
+  if (!CLOUDFLARE_CIPHER.test(hex)) {
+    return undefined;
+  }
+  const bytes = Uint8Array.from({ length: hex.length / 2 }, (_, index) => {
+    return Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+  });
+  const key = bytes[0]!;
+  let decoded: string;
+  try {
+    decoded = STRICT_UTF8.decode(bytes.subarray(1).map((byte) => byte ^ key));
+  } catch {
+    return undefined;
+  }
+  return PLAUSIBLE_ADDRESS.test(decoded) ? decoded : undefined;
+}
+
+/**
  * Cleaned, post-render HTML to the markdown a model reads. Tables survive as tables (§3.4), and
  * with the page's URL given, every link and image address is absolute. The library builds its
- * table-cell translators from a private list that custom ones do not reach, so the link
- * translator is set on that collection by hand — or a directory's email links would stay relative.
+ * table-cell translators from a private list that custom ones do not reach, so each translator is
+ * set on that collection by hand — or a directory's email links would stay relative.
  */
 export function toMarkdown(html: string, pageUrl?: string): string {
   const translators = linkTranslators(resolveBase(html, pageUrl));
   const converter = new NodeHtmlMarkdown({}, translators);
-  converter.tableCellTranslators.set('a', translators.a!, true);
-  converter.tableCellTranslators.set('img', translators.img!, true);
+  for (const [tags, translator] of Object.entries(translators)) {
+    converter.tableCellTranslators.set(tags, translator, true);
+  }
   return converter.translate(html.replace(DOCTYPE, '')).split('\n').map(collapseTableRow).join('\n').trim();
 }
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
 import {
   capMarkdown,
+  decodeCloudflareEmail,
   describeWebFailureOutcome,
   renderWebFailure,
   renderWebSnapshot,
@@ -30,6 +31,13 @@ const STATIC_DIRECTORY = `<!doctype html><html><head><title>Faculty</title></hea
     </tbody>
   </table>
 </body></html>`;
+
+/** Cloudflare's cloak as its edge writes it: a key byte, then each byte of the address XORed with that key */
+function cloak(address: string, key = 0x5a): string {
+  return [key, ...new TextEncoder().encode(address).map((byte) => byte ^ key)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 /** a shell whose every word arrives by script: nothing for markdown to carry */
 const CLIENT_RENDERED_PAGES = {
@@ -105,6 +113,44 @@ describe('toMarkdown', () => {
       expect(toMarkdown(html)).toBe('');
     }
   );
+});
+
+describe('decodeCloudflareEmail', () => {
+  it('should decode a cloaked address as the decoder script would', () => {
+    expect(decodeCloudflareEmail(cloak('duval@northmoor.example'))).toBe('duval@northmoor.example');
+  });
+
+  it.each([
+    ['an odd-length cipher', cloak('duval@northmoor.example').slice(0, -1)],
+    ['a cipher that is not hex', 'zz'.repeat(8)],
+    ['a cipher that decodes to no address', cloak('not an address')]
+  ])('should refuse %s rather than guess', (_name, hex) => {
+    expect(decodeCloudflareEmail(hex)).toBeUndefined();
+  });
+});
+
+describe('toMarkdown with Cloudflare-cloaked addresses (§3.4)', () => {
+  const hex = cloak('duval@northmoor.example');
+  const PAGE_URL = 'https://northmoor.example/people/';
+
+  it('should read a protected mailto link as the address it hides', () => {
+    const html = `<p>Write to <a href="/cdn-cgi/l/email-protection#${hex}"><span class="__cf_email__" data-cfemail="${hex}">[email&#160;protected]</span></a>.</p>`;
+    expect(toMarkdown(html, PAGE_URL)).toBe(
+      'Write to [duval@northmoor.example](mailto:duval@northmoor.example).'
+    );
+  });
+
+  it('should read a cloaked address in a table cell, where a directory keeps it', () => {
+    const html = `<table><tr><th>Name</th><th>Email</th></tr><tr><td>Duval, P.</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="${hex}">[email&#160;protected]</a></td></tr></table>`;
+    expect(toMarkdown(html, PAGE_URL)).toContain('| Duval, P. | duval@northmoor.example |');
+  });
+
+  it('should leave a link it cannot decode as it was served', () => {
+    const html = '<a href="/cdn-cgi/l/email-protection#zz">[email&#160;protected]</a>';
+    const markdown = toMarkdown(html, PAGE_URL);
+    expect(markdown).toContain('(https://northmoor.example/cdn-cgi/l/email-protection#zz)');
+    expect(markdown).not.toContain('mailto:');
+  });
 });
 
 describe('capMarkdown', () => {
