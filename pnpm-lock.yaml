@@ -149,6 +149,9 @@ importers:
       node-html-markdown:
         specifier: ^2.0.0
         version: 2.0.0
+      node-html-parser:
+        specifier: ^6.1.13
+        version: 6.1.13
       nodemailer:
         specifier: ^9.0.3
         version: 9.0.5
