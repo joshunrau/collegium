@@ -35,6 +35,13 @@ const FACULTY_DIRECTORY = `<!doctype html><html><head>
   </table>
 </body></html>`;
 
+/** the directory inside the site's chrome, as a CMS template serves it */
+const TEMPLATED_DIRECTORY = `<!doctype html><html><head><title>Faculty</title></head><body>
+  <header><a href="/">Northmoor University</a><nav><a href="/admissions">Admissions</a><a href="/research">Research</a></nav></header>
+  <main><h1>Faculty</h1><p>Duval, P. — duval@northmoor.example</p></main>
+  <footer><p>Northmoor University, 1 College Road — accessibility — privacy</p></footer>
+</body></html>`;
+
 /** nothing here survives conversion: the shell is the whole document until a script fills it */
 const SPA_MARKETING_SITE = `<!doctype html><html><head>
   <title>Northmoor Institute — Advancing What Comes Next</title>
@@ -53,7 +60,7 @@ const CLIENT_RENDERED_DIRECTORY = `<!doctype html><html><head>
   <script src="/directory.js"></script>
 </body></html>`;
 
-const FROM_THE_TOP: PageRead = { kind: 'window', startChar: 0 };
+const FROM_THE_TOP: PageRead = { kind: 'window', startChar: 0, wholePage: false };
 
 const rendered = (over: Partial<RenderedCapture>): RenderedCapture => ({
   formElements: [],
@@ -183,7 +190,11 @@ describe('WebService', () => {
     it('should read on from an offset so a page past the cap can be finished (§3.8)', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
       const page = pageToMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
-      const result = await webService.fetch('https://northmoor.example/people/', { kind: 'window', startChar: 10 });
+      const result = await webService.fetch('https://northmoor.example/people/', {
+        kind: 'window',
+        startChar: 10,
+        wholePage: false
+      });
       expect(result.value?.markdown).toBe(`${page.slice(10)}\n…showing characters 10–${page.length} of ${page.length}`);
       expect(result.value?.shown).toStrictEqual({ from: 10, to: page.length, total: page.length });
     });
@@ -193,12 +204,31 @@ describe('WebService', () => {
       const page = pageToMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
       const result = await webService.fetch('https://northmoor.example/people/', {
         kind: 'find',
-        phrases: ['Duval', 'fax']
+        phrases: ['Duval', 'fax'],
+        wholePage: false
       });
       expect(result.value?.matches).toBe(3);
       expect(result.value?.markdown).toContain(`"Duval" — 3 matches\nat ${page.indexOf('Duval')}: `);
       expect(result.value?.markdown).toContain('"fax" — no match');
       expect(result.value?.shown).toBeUndefined();
+    });
+
+    it('should read a page without its chrome, saying how much that left out and how to include it (§3.4)', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: TEMPLATED_DIRECTORY })));
+      const whole = pageToMarkdown(TEMPLATED_DIRECTORY, 'https://northmoor.example/people/');
+      const main = '# Faculty\n\nDuval, P. — duval@northmoor.example';
+      const result = await webService.fetch('https://northmoor.example/people/', FROM_THE_TOP);
+      expect(result.value?.markdown).toBe(
+        `…${whole.length - main.length} characters outside the page's main content (navigation, header, footer) ` +
+          'are left out, and offsets count without them; pass wholePage=true to include them\n\n' +
+          `${main}\n…end of page, ${main.length} characters in all`
+      );
+    });
+
+    it('should read the whole page when asked', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: TEMPLATED_DIRECTORY })));
+      const result = await webService.fetch('https://northmoor.example/people/', { ...FROM_THE_TOP, wholePage: true });
+      expect(result.value?.markdown).toMatch(/^\[Northmoor University\].*Admissions/su);
     });
 
     it('should refuse a page that needs client rendering, naming the tool that can', async () => {

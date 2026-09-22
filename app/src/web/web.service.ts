@@ -4,12 +4,21 @@ import { Inject, Injectable } from '@nestjs/common';
 import { BrowserClient } from './browser/browser.client.ts';
 import { FetchClient } from './fetch/fetch.client.ts';
 import { extractTitle, needsClientRendering } from './fetch/fetch.utils.ts';
+import { stripPageChrome } from './fetch/page-chrome.utils.ts';
 import { MAX_LIVE_SESSIONS } from './web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
 import { capMarkdown, pageToMarkdown, readPage } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
-import type { AddressPolicy, FetchedPage, PageRead, RenderedCapture, WebFailure, WebSnapshot } from './web.types.ts';
+import type {
+  AddressPolicy,
+  FetchedPage,
+  PageRead,
+  PageView,
+  RenderedCapture,
+  WebFailure,
+  WebSnapshot
+} from './web.types.ts';
 
 /**
  * The web seam: turn-scoped browsing sessions, one page each, driven by refs the model read in
@@ -81,7 +90,7 @@ export class WebService {
     const { body, kind, status, url: finalUrl } = fetched.value;
     if (kind === 'text') {
       return Result.ok({
-        ...readPage(body, read),
+        ...readPage({ leftOutChars: 0, markdown: body }, read),
         status,
         title: new URL(finalUrl).pathname,
         url: finalUrl
@@ -94,8 +103,9 @@ export class WebService {
         ? Result.err({ bodyChars: body.length, kind: 'http-error', status, url: finalUrl })
         : Result.err({ kind: 'no-static-content', status, url: finalUrl });
     }
+    const view = read.wholePage ? { leftOutChars: 0, markdown } : this.viewMainContent(body, finalUrl, markdown);
     return Result.ok({
-      ...readPage(markdown, read),
+      ...readPage(view, read),
       status,
       title: extractTitle(body),
       url: finalUrl
@@ -193,5 +203,18 @@ export class WebService {
       title: rendered.value.title,
       url: rendered.value.url
     });
+  }
+
+  /**
+   * §3.4 — the page less its chrome, converted by the same rules. A page whose main content is
+   * empty without script, or whose chrome is all there is, is read whole: leaving the chrome out
+   * would leave nothing.
+   */
+  private viewMainContent(html: string, pageUrl: string, whole: string): PageView {
+    const stripped = stripPageChrome(html);
+    const main = stripped === undefined ? '' : pageToMarkdown(stripped, pageUrl);
+    return main === ''
+      ? { leftOutChars: 0, markdown: whole }
+      : { leftOutChars: whole.length - main.length, markdown: main };
   }
 }

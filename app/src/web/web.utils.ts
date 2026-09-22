@@ -6,7 +6,7 @@ import { findPhrases, renderFoundPhrases } from './fetch/find.utils.ts';
 import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS } from './web.constants.ts';
 
 import type { FormElement } from './snapshot/snapshot.types.ts';
-import type { FetchedPage, MarkdownWindow, PageRead, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
+import type { FetchedPage, MarkdownWindow, PageRead, PageView, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
 
 const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 
@@ -172,6 +172,17 @@ function renderOpenedTab(url: string): string {
   return `The page opened a new tab to ${address}; it was closed — open it with web::navigate or web::fetch if it matters.`;
 }
 
+function readMarkdown(markdown: string, read: PageRead): Pick<FetchedPage, 'markdown' | 'matches' | 'shown'> {
+  if (read.kind === 'window') {
+    return windowMarkdown(markdown, read.startChar, read.maxChars);
+  }
+  const found = findPhrases(markdown, read.phrases);
+  return {
+    markdown: renderFoundPhrases(found, markdown.length),
+    matches: found.reduce((total, { count }) => total + count, 0)
+  };
+}
+
 /**
  * An image as its author described it, since its address is a read the model cannot make (§3.4).
  * One described as nothing is decoration by HTML's own convention, and is left out.
@@ -290,16 +301,20 @@ export function windowMarkdown(markdown: string, startChar: number, maxChars?: n
   };
 }
 
-/** §3.4 — a fetched page read as the call asked: a window of it, or the places its phrases occur */
-export function readPage(markdown: string, read: PageRead): Pick<FetchedPage, 'markdown' | 'matches' | 'shown'> {
-  if (read.kind === 'window') {
-    return windowMarkdown(markdown, read.startChar, read.maxChars);
+/**
+ * §3.4 — a fetched page read as the call asked: a window of it, or the places its phrases occur,
+ * headed by what the view left out, since data a page keeps in its footer would otherwise be lost
+ * without a word.
+ */
+export function readPage(view: PageView, read: PageRead): Pick<FetchedPage, 'markdown' | 'matches' | 'shown'> {
+  const result = readMarkdown(view.markdown, read);
+  if (view.leftOutChars <= 0) {
+    return result;
   }
-  const found = findPhrases(markdown, read.phrases);
-  return {
-    markdown: renderFoundPhrases(found, markdown.length),
-    matches: found.reduce((total, { count }) => total + count, 0)
-  };
+  const leftOut =
+    `…${view.leftOutChars} characters outside the page's main content (navigation, header, footer) are left ` +
+    'out, and offsets count without them; pass wholePage=true to include them';
+  return { ...result, markdown: `${leftOut}\n\n${result.markdown}` };
 }
 
 /** a recoverable browsing failure as the model hears it; `unreachable` is infrastructure and never rendered */

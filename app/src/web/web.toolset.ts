@@ -45,7 +45,14 @@ const $FetchArgs = z
       .int()
       .default(0)
       .describe('Where in the page to start reading, in characters; a negative value counts back from the end'),
-    url: z.url().describe('The absolute http(s) URL of a page or text resource to fetch')
+    url: z.url().describe('The absolute http(s) URL of a page or text resource to fetch'),
+    wholePage: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Include the page's navigation, header and footer, which are otherwise left out; offsets and lengths " +
+          'from a read with it do not apply to one without'
+      )
   })
   .refine(
     (args) => args.find === undefined || (args.startChar === 0 && args.maxChars === undefined),
@@ -54,8 +61,8 @@ const $FetchArgs = z
 
 function toPageRead(args: $FetchArgs): PageRead {
   return args.find === undefined
-    ? { kind: 'window', maxChars: args.maxChars, startChar: args.startChar }
-    : { kind: 'find', phrases: args.find };
+    ? { kind: 'window', maxChars: args.maxChars, startChar: args.startChar, wholePage: args.wholePage }
+    : { kind: 'find', phrases: args.find, wholePage: args.wholePage };
 }
 
 function renderPhrases(phrases: readonly string[]): string {
@@ -165,10 +172,11 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         'Fetch a URL over plain HTTP and read it as markdown — no browser, no JavaScript, no session; ' +
         "this turn's browser page is untouched. Cheaper and faster than navigate: use it first for articles, " +
         'documentation, and static pages, and switch to navigate when the result says the page has no static content ' +
-        `or when the task needs a click, a search, or a sign-in. A result holds the first ${DEFAULT_WINDOW_CHARS} ` +
-        'characters of the page and says where to read on from. To find a field in a long page — an email, a phone ' +
-        'number, a heading — pass find with a few phrases instead: the result is where each occurs, with the text ' +
-        'around it and an offset to read from. Each call fetches the page again.',
+        "or when the task needs a click, a search, or a sign-in. The page's navigation, header and footer are left " +
+        'out unless wholePage is set, and the result says how many characters that left out. A result holds the first ' +
+        `${DEFAULT_WINDOW_CHARS} characters and says where to read on from. To find a field in a long page, such as ` +
+        'an email, a phone number or a heading, pass find with a few phrases instead: the result is where each ' +
+        'occurs, with the text around it and an offset to read from. Each call fetches the page again.',
       execute: async (args, context) => {
         const read = toPageRead(args);
         return toPageResult(
@@ -185,11 +193,13 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       supersedable: true,
       timeoutMs: FETCH_TIMEOUT_MS + 5_000,
       traceDetail: (args) => {
+        const scope = args.wholePage ? ' (whole page)' : '';
         if (args.find !== undefined) {
-          return `${args.url} find ${renderPhrases(args.find)}`;
+          return `${args.url} find ${renderPhrases(args.find)}${scope}`;
         }
         const width = args.maxChars === undefined ? '' : ` for ${args.maxChars}`;
-        return args.startChar === 0 ? `${args.url}${width}` : `${args.url} from ${args.startChar}${width}`;
+        const from = args.startChar === 0 ? '' : ` from ${args.startChar}`;
+        return `${args.url}${from}${width}${scope}`;
       }
     },
     fill: {

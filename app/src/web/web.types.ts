@@ -50,9 +50,19 @@ export type WebPage = {
 };
 
 /** §3.4 — what one fetch reads of a page: a window of it, or where phrases occur in it */
-export type PageRead =
+export type PageRead = {
+  /** the page as served, navigation and all, rather than its main content */
+  readonly wholePage: boolean;
+} & (
   | { readonly kind: 'find'; readonly phrases: readonly string[] }
-  | { readonly kind: 'window'; readonly maxChars?: number; readonly startChar: number };
+  | { readonly kind: 'window'; readonly maxChars?: number; readonly startChar: number }
+);
+
+/** §3.4 — the markdown a fetch reads from, and how much of the whole page it leaves out */
+export type PageView = {
+  readonly leftOutChars: number;
+  readonly markdown: string;
+};
 
 /** one fetched page as read */
 export type FetchedPage = WebPage & {
