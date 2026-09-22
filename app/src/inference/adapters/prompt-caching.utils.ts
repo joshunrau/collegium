@@ -3,8 +3,6 @@ import { createHash } from 'node:crypto';
 import { DEEPSEEK_MODELS } from '@collegium/core/common';
 import { match, P } from 'ts-pattern';
 
-import { renderSystemPrompt } from '../inference.utils.ts';
-
 import type { CompletionRequest } from '../inference.types.ts';
 
 function cachingPolicy(model: CompletionRequest['model']['name']) {
@@ -30,10 +28,10 @@ export function toPromptCaching(request: CompletionRequest) {
     .with('openai', () => ({ prompt_cache_breakpoint: { mode: 'explicit' } as const }))
     .otherwise(() => undefined);
   const content = breakpoint
-    ? [request.systemPrompt.stable, request.systemPrompt.memories, request.systemPrompt.dynamic]
+    ? [request.systemPrompt]
         .filter((text) => text !== '')
         .map((text) => ({ text, type: 'text' as const, ...breakpoint }))
-    : renderSystemPrompt(request.systemPrompt);
+    : request.systemPrompt;
   return {
     options: {
       ...(policy !== 'deepseek' && { session_id: key }),

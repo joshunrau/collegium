@@ -8,7 +8,7 @@ const completionRequest: CompletionRequest = {
   cacheKey: 'mira:channel-1',
   messages: [{ content: 'Hello', role: 'user' }],
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
-  systemPrompt: { dynamic: '', memories: '', stable: 'Be helpful' },
+  systemPrompt: 'Be helpful',
   tools: []
 };
 
@@ -347,7 +347,7 @@ describe('OpenAICompatibleClient', () => {
         { content: 'the document', role: 'tool', toolCallId: 'call-1' }
       ],
       model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
-      systemPrompt: { dynamic: '', memories: '', stable: 'Be helpful' },
+      systemPrompt: 'Be helpful',
       tools: [{ description: 'Load a skill', name: 'load_skill', parameters: { type: 'object' } }]
     });
 

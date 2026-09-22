@@ -40,7 +40,7 @@ describe('Context assembly', () => {
     expect(request?.systemPrompt).toContain('handing-work-to-a-peer');
   });
 
-  it('carries memory descriptions in the system prompt once a memory exists (§3.6)', async () => {
+  it('carries memory descriptions after the window once a memory exists (§3.6, §3.8)', async () => {
     const { channels, inference } = harness();
     const description = `casey-prefers-${randomUUID()}`;
     const firstReply = `saved-${randomUUID()}`;
@@ -53,13 +53,16 @@ describe('Context assembly', () => {
     await channels.main.awaitReplyFrom('mira', { text: firstReply });
 
     const request = await completeTurn('memory check');
-    expect(request?.systemPrompt).toContain(description);
+    expect(request?.tail).toContain(description);
+    expect(request?.systemPrompt).not.toContain(description);
   });
 
-  it('carries the peer roster in the system prompt (§3.11)', async () => {
+  it('carries the peer roster after the window, as the last message of the first request (§3.8, §3.11)', async () => {
     const { agents } = harness();
     const request = await completeTurn('roster check');
-    expect(request?.systemPrompt).toContain(`@${agents.owen.username}`);
-    expect(request?.systemPrompt).toContain('Research and information gathering');
+    expect(request?.tail).toContain(`@${agents.owen.username}`);
+    expect(request?.tail).toContain('Research and information gathering');
+    expect(request?.systemPrompt).not.toContain('## Peers');
+    expect(request?.messages.at(-1)).toStrictEqual({ content: request?.tail, role: 'user' });
   });
 });

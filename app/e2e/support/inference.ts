@@ -4,6 +4,8 @@ import type { Server as HttpServer, IncomingMessage, ServerResponse } from 'node
 
 import { z } from 'zod';
 
+import { TAIL_OPENING_LINE } from '@/turns/context/context.constants.ts';
+
 import { createDeferred } from './utils/deferred.utils.ts';
 import { listenOn } from './utils/port.utils.ts';
 import { PENDING, waitFor } from './utils/wait.utils.ts';
@@ -161,12 +163,20 @@ function respondWithCompletion(
   return respondWithJson(response, 200, toCompletionBody(scripted));
 }
 
+function isTail(message: $CompletionMessage): boolean {
+  return message.role === 'user' && message.content.startsWith(TAIL_OPENING_LINE);
+}
+
 function toLatestInput({ messages }: { messages: $CompletionMessage[] }): string {
-  return messages.findLast((message) => message.role !== 'system')?.content ?? '';
+  return messages.findLast((message) => message.role !== 'system' && !isTail(message))?.content ?? '';
 }
 
 function toSystemPrompt({ messages }: { messages: $CompletionMessage[] }): string {
   return messages.find((message) => message.role === 'system')?.content ?? '';
+}
+
+function toTail({ messages }: { messages: $CompletionMessage[] }): string {
+  return messages.find(isTail)?.content ?? '';
 }
 
 /** §7.3 — boot's credential probe: no system prompt, no tools, one trivial user message */
@@ -215,6 +225,8 @@ declare namespace InferenceStub {
     messages: $CompletionMessage[];
     model: string;
     systemPrompt: string;
+    /** the framework's message after the window (§3.8); empty where the request carried none */
+    tail: string;
     toolNames: string[];
   };
   type Response =
@@ -420,6 +432,7 @@ class InferenceStub {
       messages: completionRequest.messages,
       model: completionRequest.model,
       systemPrompt: toSystemPrompt(completionRequest),
+      tail: toTail(completionRequest),
       toolNames: toToolNames(completionRequest)
     });
 

@@ -96,7 +96,7 @@ function renderSummary(report: InspectReport): string {
     ...(report.tools.length > 0 ? [renderSection('Tools', renderTools(report.tools))] : []),
     ...(report.skills.length > 0 ? [renderSection('Skills', renderSkills(report.skills))] : []),
     ...(report.schedules.length > 0 ? [renderSection('Schedules', renderSchedules(report.schedules))] : []),
-    '#### System Prompt in This Channel'
+    '#### Prompt in This Channel'
   ].join('\n\n');
 }
 

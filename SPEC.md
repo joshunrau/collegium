@@ -184,7 +184,7 @@ Where a procedure is load-bearing, encode it as a single hand-written tool rathe
 
 A per-agent store, reachable by agents only through tools. Each entry has a **description** (the trigger) and a **body** (the content).
 
-- **Descriptions are loaded into the system prompt on every turn.** Bodies are loaded on demand.
+- **Descriptions are in context on every turn**, after the window (§3.8). Bodies are loaded on demand.
 - **Writes, revisions and deletes are ungated** — the single exception to A5.
 - Entry count, description size, and body size are all capped by the memory toolset's settings (§3.4). An over-length description or body is refused, never truncated; a write at the entry cap evicts the entry whose body was read longest ago, since the store already knows which entries an agent keeps needing.
 - Every entry carries provenance: written-at timestamp and originating post ID. Entries are shown to the agent, in the trace, and to `/collegium memory` by a short **reference**, which the store resolves back, refusing rather than guessing if it ever matched two.
@@ -229,12 +229,14 @@ Each turn assembles context fresh from the store:
 
 1. System prompt
 2. Skill manifest (§3.5)
-3. Memory descriptions (§3.6)
-4. Peer roster (§3.11)
-5. Tool definitions
-6. **Channel window** — recent posts from the current channel, interleaved with the trace of this agent's own turns there (§8.2), walked backwards until a token budget is exhausted. The trace is never a peer's: an agent reads its colleagues through their posts alone — never their status posts, which are their trace rendered.
-7. **Earlier actions** — a fixed number of lines naming what this agent itself did in this channel before the window reaches, newest first, in the replay form defined below. Its own turns only, never back past the channel's episode boundary. Mechanical and derived: nothing is stored, nothing is summarised, and no model decides what was worth keeping.
+3. Tool definitions
+4. **Channel window** — recent posts from the current channel, interleaved with the trace of this agent's own turns there (§8.2), walked backwards until a token budget is exhausted. The trace is never a peer's: an agent reads its colleagues through their posts alone — never their status posts, which are their trace rendered.
+5. Memory descriptions (§3.6)
+6. **Earlier actions** — a fixed number of lines naming what this agent itself did in this channel before the window reaches, newest first, in the replay form defined below. Its own turns only, never back past the channel's episode boundary. Mechanical and derived: nothing is stored, nothing is summarised, and no model decides what was worth keeping.
+7. Peer roster (§3.11)
 8. **Open work** — the units this agent created or was assigned in this channel and has not closed (§3.15), oldest first, one line each, or a line saying none is open, so that absence reads as a fact and not as an omission. Read on demand for the rest, as a memory's body is.
+
+**Nothing whose text can differ between two turns of the same agent in the same channel precedes the window.** The first three items change only with the deployment. The last four follow the window as one message, rendered afresh each turn and opened by a line saying it is the framework's and not a post; the turn's own calls and results follow that message. It is sent in the user's role, because a system message part-way through a conversation is one a provider may move back ahead of the window. An age, the memory listing and a channel's membership all change between turns, so a section that carries any of them goes after the window, however seldom it changes.
 
 **The window names each post's author and what they are** — a person, an agent, or the system bot — from what the store recorded when the post was observed, and without an @: a name that read as a mention was copied back into replies. **A post's attached files are named in the window**, one line each — name, type and size — whether or not anything can read them. A file an agent cannot read is a fact it states, not a fact it is spared: an agent that answers the caption as though it were the whole message is wrong in a way nobody can see.
 
@@ -246,7 +248,7 @@ _What is deliberately not there:_ the time, and the host's operating system, git
 
 The behavioral baseline is rendered for every agent on every turn: task intent, routine autonomy, scope changes, recovery from failure, proportionate verification, untrusted content wherever it arrives (tool results, mail, webhook and quoted text in the channel), collaboration and a colleague's authority, reply discipline, what is worth keeping in memory and what to believe when a memory disagrees with what the agent can see now, and disagreement. The memory paragraphs render only for an agent that holds memory. The baseline is held to a budget rather than a list: an instruction added is paid for by one removed, since compliance with all of them at once falls with their count. These are advisory instructions about how the model should work, separate from runtime facts and optional tone. A personality adds a stance to that baseline, selected per agent or by default from a fixed set the framework ships.
 
-The preamble describes runtime behavior in Simplified Technical English, using the deployment's actual budgets and exemptions: the shape of the window and who authored what, context retention within a turn, interim text and the status post's audience, posting and what starts the next turn, steering, approvals and the shape of the prompt, the budget, memory, the file directories and the shell environment, peers and the one-colleague rule, triggers and the quoted bodies they carry, and the prohibition on self-modification. Every sentence states a runtime fact that holds whether or not the model complies. Additional deployment guidance belongs in a personality or an agent's own prompt.
+The preamble describes runtime behavior in Simplified Technical English, using the deployment's actual budgets and exemptions: the shape of the window and who authored what, the framework's message after the window, context retention within a turn, interim text and the status post's audience, posting and what starts the next turn, steering, approvals and the shape of the prompt, the budget, memory, the file directories and the shell environment, peers and the one-colleague rule, triggers and the quoted bodies they carry, and the prohibition on self-modification. Every sentence states a runtime fact that holds whether or not the model complies. Additional deployment guidance belongs in a personality or an agent's own prompt.
 
 An agent's context budget is the one it declares, else the deployment default, else a fixed share of its model's window; a model cannot be offered without a recorded window.
 
@@ -258,7 +260,7 @@ There is no threading. All posts are channel-level, so **context is pure recency
 
 **A turn's own context is bounded too.** The budget above bounds what a turn starts with; its model's whole window bounds what it may accumulate. A turn whose results push it toward that window retires its stale pages first, but never the result it has just received and not yet read. A single result that will not fit is cut to what fits, with a visible marker saying so and how much of the whole it holds, and the trace keeps the whole of it; a silent cut is what §A4 forbids. A page cut this way can be read on from where the cut fell, so a long page is finished in parts rather than re-read from the top. A turn that still does not fit ends, saying so, and the queue drains into a fresh turn, which starts from a window the budget bounds rather than from the results that overflowed.
 
-**Prompt caching.** Context is ordered so that what changes least comes first, and the sections that change per turn come last, so providers that cache prompt prefixes can reuse them. Caching never changes what the window contains or preserves stale context. `/collegium usage` reports cache reads where the provider supplies them.
+**Prompt caching.** What precedes the window changes only with the deployment, and the window's oldest entry holds still, so a provider that caches prompt prefixes can reuse, at each turn start, everything up to where the previous turn's window ended; the turn pays afresh only for what was recorded since and for the message after the window. Caching never changes what the window contains or preserves stale context. `/collegium usage` reports cache reads where the provider supplies them, and each turn records them beside its prompt tokens.
 
 **Search reaches what recency cannot.** `conversations::search` is a read over the post store — a case-insensitive substring over post text, optionally bounded by author and date — returning each match as post ID, channel, author, time, and text: the text delimited rather than requoted, and bounded per hit around the match, with the whole post readable by its ID. Reading a post by its ID is the same read under the same bounds, so a post out of reach reads exactly as one that was never written, and the post that triggered the turn is never among the matches, being already in context verbatim. It returns posts alone: never a trace, which is per-agent and need-to-know (§8.3), never stored reasoning (§3.12), and never a status post or a notice — and the tool's own description and its empty result both say so, since a bound the model cannot see is one it searches around. An agent's own replies are posts like any other, and are found. It is ungated, as reads are, and billed against the action budget (§5.3): a search that can run forty times is the case the ceiling exists for.
 
@@ -290,7 +292,7 @@ In respond-to-all channels, agent-authored and system-bot posts must not trigger
 
 ### **3.11 Peer Roster**
 
-**The set of other agents present in the current channel**, injected into the system prompt each turn, excluding the agent itself and the system bot. This is how an agent knows which peers it can reach.
+**The set of other agents present in the current channel**, rendered into every turn's context after the window (§3.8), excluding the agent itself and the system bot. This is how an agent knows which peers it can reach.
 
 **Each peer is listed with what it can do: its expertise, and the toolsets it was granted, by namespace** — never its individual tools and never their settings. An agent that sees a colleague's name and nothing of its reach plans against capability it cannot see. The namespaces are the grants configuration states (§3.4), which A2 already makes enumerable, so listing them tells the agent nothing an operator could not. The core namespaces every agent holds are left out.
 
@@ -354,7 +356,7 @@ A unit of operator-supplied capability living outside the framework: a directory
 
 **The assignee cannot close.** `tasks::report` reaches `review` and `blocked` and nothing else; `tasks::close` reaches `done` and `cancelled` and is refused for anyone but the unit's creator. A report is a claim and a close is a judgement, and one agent never makes both about one unit. A unit in `review` its creator judges incomplete is handed back as a fresh unit with corrected criteria, or closed as cancelled with the reason. The authority is read off the record: creator and assignee are fields, so no agent holds a role and there is no `lead` or `worker` anywhere in the configuration. `blocked` is for a blocker nobody in the channel can answer; an assignee held up by a question a person there can answer asks it (§3.7a) and keeps the unit.
 
-**The open units are in the prompt, not in the scrollback.** Each turn's system prompt lists the units the agent created or was assigned in this channel and has not closed, oldest first, one line each; the full criteria and context are read on demand with `tasks::read`. This is how a supervisor remembers what it handed out and how a stalled unit surfaces, with nothing scheduling and nothing waking (A3). The list is capped by the toolset's settings; a unit is never truncated, the list is, and the remainder is stated as a count.
+**The open units are in the prompt, not in the scrollback.** Each turn's context lists, after the window (§3.8), the units the agent created or was assigned in this channel and has not closed, oldest first, one line each; the full criteria and context are read on demand with `tasks::read`. This is how a supervisor remembers what it handed out and how a stalled unit surfaces, with nothing scheduling and nothing waking (A3). The list is capped by the toolset's settings; a unit is never truncated, the list is, and the remainder is stated as a count.
 
 **A unit whose assignee runs out of context is reported blocked by the framework.** When a turn ends as context exhausted while its agent is the assignee of a unit in `assigned` in this channel, the framework reports that unit `blocked` through the path `tasks::report` takes, so the creator is activated. The unit is the one whose assignment post started the turn, or otherwise the agent's only assigned unit in the channel; where it holds several and none started the turn, none is reported, since the framework does not guess which work a turn was doing. The reason is fixed text, not the model's, because the model has just run out of room.
 
@@ -725,7 +727,7 @@ Every command is a subcommand of one slash command, `/collegium`, so typing `/co
 - **`/collegium memory {agent}`** — inspect and prune an agent's memories. Ephemeral.
 - **`/collegium units {agent}`** — list an agent's open work units in this channel, with age and state (§3.15). Ephemeral.
 - **`/collegium units {agent} cancel {reference}`** — close a unit as cancelled on a human's authority, for one whose creator will never reach it. Posts.
-- **`/collegium inspect {agent}`** — show an agent's model, tools (marking which need a human on every call), skills, schedules with their next occurrence in the operator timezone, and system prompt. Ephemeral.
+- **`/collegium inspect {agent}`** — show an agent's model, tools (marking which need a human on every call), skills, schedules with their next occurrence in the operator timezone, and the prompt a turn in this channel would be given: the system prompt, then the message that follows the window (§3.8). Ephemeral.
 - **`/collegium usage`** — show token usage per agent and model, with cached-prompt and reasoning breakdowns and the cost the provider charged where it reports them, over turns that ended in the last 24 hours in any channel. Ephemeral.
 
 A bare `/collegium`, or a subcommand nothing declares, answers the invoker with the list above.

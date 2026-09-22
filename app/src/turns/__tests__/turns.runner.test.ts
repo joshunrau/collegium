@@ -122,7 +122,7 @@ describe('TurnRunner', () => {
         cacheKey: 'mira:channel-1',
         messages: [{ content: '@casey: hi', role: 'user' }],
         model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
-        systemPrompt: { dynamic: '', memories: '', stable: 'sys' },
+        systemPrompt: 'sys',
         tools: []
       },
       windowPostIds: new Set(['post-0'])
@@ -1637,7 +1637,7 @@ describe('TurnRunner', () => {
       cacheKey: 'mira:channel-1',
       messages: [{ content, role: 'user' as const }],
       model: { name: 'deepseek-v4-flash' as const, provider: 'deepseek' as const },
-      systemPrompt: { dynamic: '', memories: '', stable: 'sys' },
+      systemPrompt: 'sys',
       tools: []
     },
     windowPostIds: new Set(['post-0'])

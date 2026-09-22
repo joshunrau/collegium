@@ -5,7 +5,7 @@ import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { SchedulesRegistry } from '@/schedules/schedules.registry.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
-import { SystemPromptRenderer } from '@/turns/context/system-prompt.renderer.ts';
+import { PromptRenderer } from '@/turns/context/prompt.renderer.ts';
 
 import { renderUsage } from '../commands.definitions.ts';
 import { CommandHandler } from '../commands.handler.ts';
@@ -14,7 +14,7 @@ import { renderInspectResponse } from './inspect.utils.ts';
 
 import type { CommandInput, CommandResponse } from '../commands.types.ts';
 
-/** §8.4 — what an agent is and what it is given: its model, effective tools, skills and schedules, and the prompt a turn here would assemble */
+/** §8.4 — what an agent is and what it is given: its model, effective tools, skills and schedules, and the prompt a turn here would be given */
 @Injectable()
 export class InspectHandler extends CommandHandler {
   readonly trigger = 'inspect';
@@ -22,9 +22,9 @@ export class InspectHandler extends CommandHandler {
   constructor(
     private readonly agentRegistry: AgentRegistry,
     private readonly dateFormatter: DateFormatter,
+    private readonly promptRenderer: PromptRenderer,
     private readonly schedulesRegistry: SchedulesRegistry,
     private readonly skillsService: SkillsService,
-    private readonly systemPromptRenderer: SystemPromptRenderer,
     private readonly toolRegistry: ToolRegistry
   ) {
     super();
@@ -40,7 +40,7 @@ export class InspectHandler extends CommandHandler {
       return named.error;
     }
     const profile = named.value;
-    const prompt = await this.systemPromptRenderer.render({ channelId: input.channelId, profile });
+    const prompt = await this.promptRenderer.render({ channelId: input.channelId, profile });
     return {
       audience: 'invoker',
       text: renderInspectResponse({
