@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
+import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS } from '../web.constants.ts';
 import {
   capMarkdown,
   decodeCloudflareEmail,
@@ -189,16 +189,21 @@ describe('windowMarkdown (§3.8)', () => {
     expect(windowMarkdown('short', 0)).toStrictEqual({ markdown: 'short\n…end of page, 5 characters in all' });
   });
 
-  it('should cut a page past the guard and say where to read on from, and how to reach the end', () => {
-    const total = MARKDOWN_CAP_CHARS + 10;
+  it('should read a page past the default window in parts, saying where to read on and how to reach the end', () => {
+    const total = DEFAULT_WINDOW_CHARS + 10;
     const windowed = windowMarkdown('x'.repeat(total), 0);
     expect(windowed.markdown).toMatch(
       new RegExp(
-        `x\\n…showing characters 0–${MARKDOWN_CAP_CHARS} of ${total}; read on with startChar=${MARKDOWN_CAP_CHARS}, or startChar=-20000 for the end$`,
+        `x\\n…showing characters 0–${DEFAULT_WINDOW_CHARS} of ${total}; read on with startChar=${DEFAULT_WINDOW_CHARS}, or startChar=-20000 for the end$`,
         'u'
       )
     );
-    expect(windowed.shown).toStrictEqual({ from: 0, to: MARKDOWN_CAP_CHARS, total });
+    expect(windowed.shown).toStrictEqual({ from: 0, to: DEFAULT_WINDOW_CHARS, total });
+  });
+
+  it('should never read past the guard, whatever width is asked for', () => {
+    const total = MARKDOWN_CAP_CHARS + 10;
+    expect(windowMarkdown('x'.repeat(total), 0, total).shown).toStrictEqual({ from: 0, to: MARKDOWN_CAP_CHARS, total });
   });
 
   it('should return only the requested window and still say where to read on', () => {

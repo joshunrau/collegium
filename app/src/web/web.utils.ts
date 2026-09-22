@@ -2,10 +2,11 @@ import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { TranslatorConfigFactory, TranslatorConfigObject } from 'node-html-markdown';
 import { match } from 'ts-pattern';
 
-import { MARKDOWN_CAP_CHARS } from './web.constants.ts';
+import { findPhrases, renderFoundPhrases } from './fetch/find.utils.ts';
+import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS } from './web.constants.ts';
 
 import type { FormElement } from './snapshot/snapshot.types.ts';
-import type { MarkdownWindow, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
+import type { FetchedPage, MarkdownWindow, PageRead, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
 
 const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 
@@ -263,14 +264,14 @@ export function capMarkdown(markdown: string): CappedMarkdown {
 }
 
 /**
- * §3.8 — a fetched page read as a window: what is past the guard says where to read on and how to
+ * §3.8 — a fetched page read as a window: a result that stops short says where to read on and how to
  * reach the end, so a page larger than one result holds is finished in parts rather than re-read
  * from the top. A page that fits says where it ends, since completeness inferred from a missing
  * marker cannot be told from a marker that was forgotten.
  */
 export function windowMarkdown(markdown: string, startChar: number, maxChars?: number): CappedMarkdown {
   const total = markdown.length;
-  const width = Math.min(maxChars ?? MARKDOWN_CAP_CHARS, MARKDOWN_CAP_CHARS);
+  const width = Math.min(maxChars ?? DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS);
   const from = startChar < 0 ? Math.max(0, total + startChar) : startChar;
   if (from === 0 && total <= width) {
     return { markdown: `${markdown}\n…end of page, ${total} characters in all` };
@@ -286,6 +287,18 @@ export function windowMarkdown(markdown: string, startChar: number, maxChars?: n
   return {
     markdown: `${markdown.slice(from, to)}\n…showing characters ${from}–${to} of ${total}${readOn}`,
     shown: { from, to, total }
+  };
+}
+
+/** §3.4 — a fetched page read as the call asked: a window of it, or the places its phrases occur */
+export function readPage(markdown: string, read: PageRead): Pick<FetchedPage, 'markdown' | 'matches' | 'shown'> {
+  if (read.kind === 'window') {
+    return windowMarkdown(markdown, read.startChar, read.maxChars);
+  }
+  const found = findPhrases(markdown, read.phrases);
+  return {
+    markdown: renderFoundPhrases(found, markdown.length),
+    matches: found.reduce((total, { count }) => total + count, 0)
   };
 }
 

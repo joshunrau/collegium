@@ -8,6 +8,19 @@
  */
 export const MARKDOWN_CAP_CHARS = 1_000_000;
 
+/**
+ * How much of a page one fetch returns when it names no width. Most pages fit whole; a longer one
+ * is read on in windows or searched with `find`, since what a result holds past what the model
+ * needed is paid for again at each later step of the turn (§3.4).
+ */
+export const DEFAULT_WINDOW_CHARS = 30_000;
+
+/** how much of the page a `find` hit shows on each side of the match: a label and the field beside it */
+export const FIND_CONTEXT_CHARS = 250;
+
+/** how many places a `find` shows for one phrase; the rest are counted, since a narrower phrase finds them */
+export const FIND_HITS_PER_PHRASE = 5;
+
 /** the ceiling on one navigation — generous, because slow public sites are the normal case, not the exception */
 export const NAVIGATION_TIMEOUT_MS = 30_000;
 

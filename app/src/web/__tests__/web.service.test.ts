@@ -15,7 +15,7 @@ import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
 import { pageToMarkdown } from '../web.utils.ts';
 
 import type { FetchedResource } from '../fetch/fetch.types.ts';
-import type { AddressPolicy, RenderedCapture, WebFailure } from '../web.types.ts';
+import type { AddressPolicy, PageRead, RenderedCapture, WebFailure } from '../web.types.ts';
 
 /** the strict scheme rule, with the resolved half scripted per test */
 const policy = {
@@ -52,6 +52,8 @@ const CLIENT_RENDERED_DIRECTORY = `<!doctype html><html><head>
   <noscript>This directory requires JavaScript.</noscript>
   <script src="/directory.js"></script>
 </body></html>`;
+
+const FROM_THE_TOP: PageRead = { kind: 'window', startChar: 0 };
 
 const rendered = (over: Partial<RenderedCapture>): RenderedCapture => ({
   formElements: [],
@@ -170,7 +172,7 @@ describe('WebService', () => {
   describe('fetch', () => {
     it('should convert a fetched directory by the same rules as a rendered one, without a session', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
-      const result = await webService.fetch('https://northmoor.example/people/');
+      const result = await webService.fetch('https://northmoor.example/people/', FROM_THE_TOP);
       expect(result.value?.markdown).toContain(
         '| Duval, P. | 217 BSB | — | [duval@northmoor.example](mailto:duval@northmoor.example) |'
       );
@@ -181,14 +183,27 @@ describe('WebService', () => {
     it('should read on from an offset so a page past the cap can be finished (§3.8)', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
       const page = pageToMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
-      const result = await webService.fetch('https://northmoor.example/people/', 10);
+      const result = await webService.fetch('https://northmoor.example/people/', { kind: 'window', startChar: 10 });
       expect(result.value?.markdown).toBe(`${page.slice(10)}\n…showing characters 10–${page.length} of ${page.length}`);
       expect(result.value?.shown).toStrictEqual({ from: 10, to: page.length, total: page.length });
     });
 
+    it('should answer a find with where each phrase occurs in the page, and how often (§3.4)', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
+      const page = pageToMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
+      const result = await webService.fetch('https://northmoor.example/people/', {
+        kind: 'find',
+        phrases: ['Duval', 'fax']
+      });
+      expect(result.value?.matches).toBe(3);
+      expect(result.value?.markdown).toContain(`"Duval" — 3 matches\nat ${page.indexOf('Duval')}: `);
+      expect(result.value?.markdown).toContain('"fax" — no match');
+      expect(result.value?.shown).toBeUndefined();
+    });
+
     it('should refuse a page that needs client rendering, naming the tool that can', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: CLIENT_RENDERED_DIRECTORY })));
-      const result = await webService.fetch('https://northmoor.example/people/');
+      const result = await webService.fetch('https://northmoor.example/people/', FROM_THE_TOP);
       expect(result.error).toStrictEqual({
         kind: 'no-static-content',
         status: 200,
@@ -198,7 +213,7 @@ describe('WebService', () => {
 
     it('should report a 404 whose body reads as nothing as the status it is, not as a page needing JavaScript', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: '<html></html>', status: 404 })));
-      const result = await webService.fetch('https://northmoor.example/gone');
+      const result = await webService.fetch('https://northmoor.example/gone', FROM_THE_TOP);
       expect(result.error).toStrictEqual({
         bodyChars: 13,
         kind: 'http-error',
@@ -209,7 +224,7 @@ describe('WebService', () => {
 
     it('should hand back an HTTP error as a page', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: '<h1>Not Found</h1>', status: 404 })));
-      const result = await webService.fetch('https://northmoor.example/gone');
+      const result = await webService.fetch('https://northmoor.example/gone', FROM_THE_TOP);
       expect(result.value).toMatchObject({
         markdown: '# Not Found\n…end of page, 11 characters in all',
         status: 404,
@@ -221,7 +236,7 @@ describe('WebService', () => {
       fetchClient.get.mockResolvedValue(
         Result.ok(fetched({ body: '{"a":1}', kind: 'text', url: 'https://northmoor.example/api/people.json' }))
       );
-      const result = await webService.fetch('https://northmoor.example/api/people.json');
+      const result = await webService.fetch('https://northmoor.example/api/people.json', FROM_THE_TOP);
       expect(result.value).toMatchObject({
         markdown: '{"a":1}\n…end of page, 7 characters in all',
         title: '/api/people.json'
@@ -230,7 +245,7 @@ describe('WebService', () => {
 
     it('should surface a transport failure untouched', async () => {
       fetchClient.get.mockResolvedValue(Result.err({ kind: 'url-refused', reason: 'not-web-scheme', url: 'ftp://x' }));
-      const result = await webService.fetch('ftp://x');
+      const result = await webService.fetch('ftp://x', FROM_THE_TOP);
       expect(result.error).toStrictEqual({ kind: 'url-refused', reason: 'not-web-scheme', url: 'ftp://x' });
     });
   });

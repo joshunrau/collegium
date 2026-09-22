@@ -46,7 +46,7 @@ describe('WEB_TOOLSET', () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.ok(PAGE));
     const result = await executeTool(fetch, { startChar: 0, url: 'https://example.org/' }, context);
-    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 0, undefined);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', { kind: 'window', startChar: 0 });
     const text = 'Example — https://example.org/ (HTTP 200)\n\n# Example Domain';
     expect(result.unwrap()).toStrictEqual({
       replaySubject: `page https://example.org/, ${text.length} characters`,
@@ -58,7 +58,7 @@ describe('WEB_TOOLSET', () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 1000, to: 2000, total: 5000 } }));
     const result = await executeTool(fetch, { startChar: 1000, url: 'https://example.org/' }, context);
-    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 1000, undefined);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', { kind: 'window', startChar: 1000 });
     expect(result.unwrap().replaySubject).toMatch(
       /^page https:\/\/example\.org\/ \(characters 1000–2000 of 5000\), \d+ characters$/u
     );
@@ -136,7 +136,23 @@ describe('WEB_TOOLSET', () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 0, to: 2000, total: 5000 } }));
     await executeTool(fetch, { maxChars: 2000, startChar: 0, url: 'https://example.org/' }, context);
-    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 0, 2000);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', { kind: 'window', maxChars: 2000, startChar: 0 });
+  });
+
+  it('finds phrases in a page instead of reading it, naming them in the trace and the replay (§3.4)', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, markdown: '"Email" — no match', matches: 0 }));
+    const args = { find: ['Email'], startChar: 0, url: 'https://example.org/' };
+    const result = await executeTool(fetch, args, context);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', { kind: 'find', phrases: ['Email'] });
+    expect(result.unwrap().traceOutcome).toBe('⚠️ no matches');
+    expect(result.unwrap().replaySubject).toMatch(/^places of "Email" in page https:\/\/example\.org\/, \d+ characters$/u);
+    expect(fetch.traceDetail?.(args)).toBe('https://example.org/ find "Email"');
+  });
+
+  it('refuses a find that also names a window, since the two read the page differently', () => {
+    const parsed = fetch.parameters.safeParse({ find: ['Email'], startChar: 4000, url: 'https://example.org/' });
+    expect(parsed.success).toBe(false);
   });
 
   it('hovers a ref and returns the snapshot that reveals what the hover exposed', async () => {

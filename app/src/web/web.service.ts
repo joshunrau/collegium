@@ -6,10 +6,10 @@ import { FetchClient } from './fetch/fetch.client.ts';
 import { extractTitle, needsClientRendering } from './fetch/fetch.utils.ts';
 import { MAX_LIVE_SESSIONS } from './web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
-import { capMarkdown, pageToMarkdown, windowMarkdown } from './web.utils.ts';
+import { capMarkdown, pageToMarkdown, readPage } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
-import type { AddressPolicy, RenderedCapture, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
+import type { AddressPolicy, FetchedPage, PageRead, RenderedCapture, WebFailure, WebSnapshot } from './web.types.ts';
 
 /**
  * The web seam: turn-scoped browsing sessions, one page each, driven by refs the model read in
@@ -60,14 +60,13 @@ export class WebService {
     }
   }
 
-  /** no session and no slot: one GET, converted by the same rules a rendered page is, read as the window `startChar` and `maxChars` name (§3.8) */
+  /** no session and no slot: one GET, converted by the same rules a rendered page is, and read as the call asked (§3.4) */
   async fetch(
     url: string,
-    startChar = 0,
-    maxChars?: number
+    read: PageRead
   ): Promise<
     Result<
-      WebPage,
+      FetchedPage,
       | WebFailure.HttpError
       | WebFailure.Navigation
       | WebFailure.NoStaticContent
@@ -82,7 +81,7 @@ export class WebService {
     const { body, kind, status, url: finalUrl } = fetched.value;
     if (kind === 'text') {
       return Result.ok({
-        ...windowMarkdown(body, startChar, maxChars),
+        ...readPage(body, read),
         status,
         title: new URL(finalUrl).pathname,
         url: finalUrl
@@ -96,7 +95,7 @@ export class WebService {
         : Result.err({ kind: 'no-static-content', status, url: finalUrl });
     }
     return Result.ok({
-      ...windowMarkdown(markdown, startChar, maxChars),
+      ...readPage(markdown, read),
       status,
       title: extractTitle(body),
       url: finalUrl

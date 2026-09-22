@@ -7,12 +7,12 @@ import { z } from 'zod';
 
 import { SEARCH_TIMEOUT_MS } from './search/search.constants.ts';
 import { renderSearchResults } from './search/search.utils.ts';
-import { FETCH_TIMEOUT_MS, MARKDOWN_CAP_CHARS } from './web.constants.ts';
+import { DEFAULT_WINDOW_CHARS, FETCH_TIMEOUT_MS, MARKDOWN_CAP_CHARS } from './web.constants.ts';
 import { SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from './web.tokens.ts';
 import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from './web.utils.ts';
 
 import type { SearchFailure, SearchResult } from './search/search.types.ts';
-import type { WebFailure, WebPage, WebSnapshot } from './web.types.ts';
+import type { FetchedPage, PageRead, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
 
 const REF_SHAPE = /^e\d+$/;
 
@@ -21,19 +21,66 @@ const WEB_TIMEOUT_MS = 45_000;
 
 const $Ref = z.string().regex(REF_SHAPE);
 
+type $FetchArgs = z.infer<typeof $FetchArgs>;
+const $FetchArgs = z
+  .object({
+    find: z
+      .array(z.string().trim().min(1).max(200))
+      .min(1)
+      .max(5)
+      .optional()
+      .describe(
+        'Up to five phrases to look for, each matched without regard to case; the result is where each occurs, ' +
+          'with the text around it and its offset, instead of the page. Give this or startChar and maxChars, not both'
+      ),
+    maxChars: z
+      .number()
+      .int()
+      .min(1_000)
+      .max(MARKDOWN_CAP_CHARS)
+      .optional()
+      .describe(`How much of the page to return, in characters; omit for ${DEFAULT_WINDOW_CHARS}`),
+    startChar: z
+      .number()
+      .int()
+      .default(0)
+      .describe('Where in the page to start reading, in characters; a negative value counts back from the end'),
+    url: z.url().describe('The absolute http(s) URL of a page or text resource to fetch')
+  })
+  .refine(
+    (args) => args.find === undefined || (args.startChar === 0 && args.maxChars === undefined),
+    'give find to search the page, or startChar and maxChars to read part of it, not both'
+  );
+
+function toPageRead(args: $FetchArgs): PageRead {
+  return args.find === undefined
+    ? { kind: 'window', maxChars: args.maxChars, startChar: args.startChar }
+    : { kind: 'find', phrases: args.find };
+}
+
+function renderPhrases(phrases: readonly string[]): string {
+  return phrases.map((phrase) => `"${phrase}"`).join(', ');
+}
+
+/** §3.8 — the page, and the part of it the result held when the whole did not fit */
+function describePageSubject({ shown, url }: WebPage): string {
+  return shown === undefined ? `page ${url}` : `page ${url} (characters ${shown.from}–${shown.to} of ${shown.total})`;
+}
+
 const DESCRIPTION_PREAMBLE =
   'Browse the web in a real rendered browser (JavaScript runs). One page per turn, shared by the web tools; every ' +
   'action returns a fresh snapshot of the page as markdown with ⟨eN⟩ element refs. ';
 
 /**
  * The browser being down is infrastructure, not something the model can reason its way past. A
- * page read is acted on in the turn that made it, so its replay subject names the page, and the
- * part of it the result held when the whole did not fit (§3.8).
+ * page read is acted on in the turn that made it, so its replay subject names what the result held
+ * of the page (§3.8).
  */
 function toPageResult<TPage extends WebPage>(
   result: Result<TPage, WebFailure>,
   render: (page: TPage) => string,
-  describeOutcome: (page: TPage) => string | undefined
+  describeOutcome: (page: TPage) => string | undefined,
+  describeSubject: (page: TPage) => string = describePageSubject
 ): ToolResult {
   if (!result.success) {
     if (result.error.kind === 'unreachable') {
@@ -41,13 +88,10 @@ function toPageResult<TPage extends WebPage>(
     }
     return Result.ok({ text: renderWebFailure(result.error), traceOutcome: describeWebFailureOutcome(result.error) });
   }
-  const { shown, url } = result.value;
   const text = render(result.value);
-  const name =
-    shown === undefined ? `page ${url}` : `page ${url} (characters ${shown.from}–${shown.to} of ${shown.total})`;
   const traceOutcome = describeOutcome(result.value);
   return Result.ok({
-    replaySubject: describeReplaySubject(name, text),
+    replaySubject: describeReplaySubject(describeSubject(result.value), text),
     text,
     ...(traceOutcome !== undefined && { traceOutcome })
   });
@@ -56,6 +100,16 @@ function toPageResult<TPage extends WebPage>(
 /** §8.1 — a status worth a mark is one that is not success: a 403 listed like a success is what the bare line hid */
 const httpStatusOutcome = (page: WebPage): string | undefined => {
   return page.status >= 300 ? `HTTP ${page.status}` : undefined;
+};
+
+/** §8.1 — and what a find came to, since one that matched nothing must not trace like one that did */
+const fetchOutcome = (page: FetchedPage): string | undefined => {
+  const status = httpStatusOutcome(page);
+  if (page.matches === undefined) {
+    return status;
+  }
+  const found = page.matches === 0 ? '⚠️ no matches' : `${page.matches} match${page.matches === 1 ? '' : 'es'}`;
+  return status === undefined ? found : `${status}, ${found}`;
 };
 
 /** §8.1 — the page the action landed on, named rather than addressed: a client-rendered pager's URL never changes */
@@ -111,34 +165,29 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         'Fetch a URL over plain HTTP and read it as markdown — no browser, no JavaScript, no session; ' +
         "this turn's browser page is untouched. Cheaper and faster than navigate: use it first for articles, " +
         'documentation, and static pages, and switch to navigate when the result says the page has no static content ' +
-        'or when the task needs a click, a search, or a sign-in. A page too long for one result is cut and says ' +
-        'where to read on from; each call fetches the page again.',
+        `or when the task needs a click, a search, or a sign-in. A result holds the first ${DEFAULT_WINDOW_CHARS} ` +
+        'characters of the page and says where to read on from. To find a field in a long page — an email, a phone ' +
+        'number, a heading — pass find with a few phrases instead: the result is where each occurs, with the text ' +
+        'around it and an offset to read from. Each call fetches the page again.',
       execute: async (args, context) => {
+        const read = toPageRead(args);
         return toPageResult(
-          await context.web.fetch(args.url, args.startChar, args.maxChars),
+          await context.web.fetch(args.url, read),
           renderWebPage,
-          httpStatusOutcome
+          fetchOutcome,
+          read.kind === 'find'
+            ? ({ url }) => `places of ${renderPhrases(read.phrases)} in page ${url}`
+            : describePageSubject
         );
       },
-      parameters: z.object({
-        maxChars: z
-          .number()
-          .int()
-          .min(1_000)
-          .max(MARKDOWN_CAP_CHARS)
-          .optional()
-          .describe('How much of the page to return, in characters; omit for as much as one result holds'),
-        startChar: z
-          .number()
-          .int()
-          .default(0)
-          .describe('Where in the page to start reading, in characters; a negative value counts back from the end'),
-        url: z.url().describe('The absolute http(s) URL of a page or text resource to fetch')
-      }),
+      parameters: $FetchArgs,
       retryable: true,
       supersedable: true,
       timeoutMs: FETCH_TIMEOUT_MS + 5_000,
       traceDetail: (args) => {
+        if (args.find !== undefined) {
+          return `${args.url} find ${renderPhrases(args.find)}`;
+        }
         const width = args.maxChars === undefined ? '' : ` for ${args.maxChars}`;
         return args.startChar === 0 ? `${args.url}${width}` : `${args.url} from ${args.startChar}${width}`;
       }

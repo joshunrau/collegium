@@ -49,6 +49,17 @@ export type WebPage = {
   readonly url: string;
 };
 
+/** §3.4 — what one fetch reads of a page: a window of it, or where phrases occur in it */
+export type PageRead =
+  | { readonly kind: 'find'; readonly phrases: readonly string[] }
+  | { readonly kind: 'window'; readonly maxChars?: number; readonly startChar: number };
+
+/** one fetched page as read */
+export type FetchedPage = WebPage & {
+  /** how many times the phrases occur; present when the read was a find */
+  readonly matches?: number;
+};
+
 /** one rendered page state: a page plus the controls a later action may target */
 export type WebSnapshot = WebPage & {
   readonly formElements: readonly FormElement[];
