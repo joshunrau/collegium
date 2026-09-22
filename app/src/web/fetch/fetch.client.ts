@@ -5,7 +5,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { FETCH_BODY_CAP_BYTES, FETCH_TIMEOUT_MS, FETCH_USER_AGENT, MAX_REDIRECTS } from '../web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
-import { charsetOf, classifyContentType, describeFetchError, toDecoder } from './fetch.utils.ts';
+import { charsetOf, classifyContentType, classifyFetchError, describeFetchError, toDecoder } from './fetch.utils.ts';
 import { pinnedGet } from './pinned-request.utils.ts';
 
 import type { AddressPolicy, WebFailure } from '../web.types.ts';
@@ -28,7 +28,9 @@ export class FetchClient {
 
   async get(
     url: string
-  ): Promise<Result<FetchedResource, WebFailure.Navigation | WebFailure.UnsupportedContent | WebFailure.UrlRefused>> {
+  ): Promise<
+    Result<FetchedResource, WebFailure.Navigation | WebFailure.Tls | WebFailure.UnsupportedContent | WebFailure.UrlRefused>
+  > {
     const followed = await this.follow(url);
     if (!followed.success) {
       return followed;
@@ -49,7 +51,9 @@ export class FetchClient {
 
   private async follow(
     url: string
-  ): Promise<Result<{ response: PinnedResponse; url: string }, WebFailure.Navigation | WebFailure.UrlRefused>> {
+  ): Promise<
+    Result<{ response: PinnedResponse; url: string }, WebFailure.Navigation | WebFailure.Tls | WebFailure.UrlRefused>
+  > {
     let current = url;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
       const refused = this.addressPolicy.refuse(current);
@@ -68,7 +72,7 @@ export class FetchClient {
           userAgent: FETCH_USER_AGENT
         });
       } catch (error) {
-        return Result.err({ kind: 'navigation', message: describeFetchError(error) });
+        return Result.err(classifyFetchError(error));
       }
       const location = response.headers.get('location');
       if (!REDIRECT_STATUSES.has(response.status) || location === null) {

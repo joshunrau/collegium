@@ -1,5 +1,5 @@
 import { Result } from '@collegium/core/utils';
-import type { BrowserContext, Locator, Page } from 'playwright-core';
+import type { BrowserContext, Locator, Page, Response } from 'playwright-core';
 
 import { waitForDomSettled } from '../settle/settle.script.ts';
 import { captureSnapshot } from '../snapshot/snapshot.script.ts';
@@ -12,9 +12,15 @@ import {
   NETWORK_IDLE_TIMEOUT_MS,
   OPENED_TAB_URL_TIMEOUT_MS
 } from '../web.constants.ts';
-import { describeNavigationError } from './browser.utils.ts';
+import { classifyNavigationError } from './browser.utils.ts';
 
 import type { RenderedCapture, WebFailure } from '../web.types.ts';
+
+/** what can go wrong loading a page, whatever started the load */
+type LoadFailure = WebFailure.Navigation | WebFailure.Tls | WebFailure.Unreachable;
+
+/** and what can go wrong acting on a ref besides */
+type ActionFailure = LoadFailure | WebFailure.NotVisible | WebFailure.StaleRef;
 
 /**
  * One live page and its ref numbering. The counter is held here — not in the page — so it
@@ -36,16 +42,16 @@ export class BrowserSession {
     context.on('page', (popup) => {
       this.opened.push(popup);
     });
+    page.on('response', (response) => {
+      if (this.isMainFrameDocument(response)) {
+        this.lastStatus = response.status();
+      }
+    });
   }
 
   async click(
     ref: string
-  ): Promise<
-    Result<
-      RenderedCapture,
-      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
-    >
-  > {
+  ): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, (locator) => locator.click({ timeout: ACTION_TIMEOUT_MS }));
   }
 
@@ -62,12 +68,7 @@ export class BrowserSession {
     ref: string,
     text: string,
     pressEnter = false
-  ): Promise<
-    Result<
-      RenderedCapture,
-      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
-    >
-  > {
+  ): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, async (locator) => {
       await locator.fill(text, { timeout: ACTION_TIMEOUT_MS });
       if (pressEnter) {
@@ -78,23 +79,17 @@ export class BrowserSession {
 
   async hover(
     ref: string
-  ): Promise<
-    Result<
-      RenderedCapture,
-      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
-    >
-  > {
+  ): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, (locator) => locator.hover({ timeout: ACTION_TIMEOUT_MS }));
   }
 
-  async navigate(url: string): Promise<Result<RenderedCapture, WebFailure.Navigation | WebFailure.Unreachable>> {
+  async navigate(url: string): Promise<Result<RenderedCapture, LoadFailure>> {
     try {
       const response = await this.page.goto(url, { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'load' });
       const contentType = (await response?.headerValue('content-type')) ?? '';
       if (contentType && !contentType.includes('text/html')) {
         return Result.err({ kind: 'navigation', message: `not an HTML page: ${contentType}` });
       }
-      this.lastStatus = response?.status() ?? this.lastStatus;
     } catch (error) {
       return Result.err(this.asFailure(error));
     }
@@ -104,12 +99,7 @@ export class BrowserSession {
   private async act(
     ref: string,
     action: (locator: Locator) => Promise<void>
-  ): Promise<
-    Result<
-      RenderedCapture,
-      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
-    >
-  > {
+  ): Promise<Result<RenderedCapture, ActionFailure>> {
     const locator = this.page.locator(`[data-collegium-ref="${ref}"]`);
     try {
       if ((await locator.count()) === 0) {
@@ -127,15 +117,15 @@ export class BrowserSession {
     return this.capture();
   }
 
-  private asFailure(error: unknown): WebFailure.Navigation | WebFailure.Unreachable {
+  private asFailure(error: unknown): LoadFailure {
     const message = error instanceof Error ? error.message : String(error);
     if (this.page.isClosed() || this.context.browser()?.isConnected() === false) {
       return { kind: 'unreachable', message };
     }
-    return { kind: 'navigation', message: describeNavigationError(message) };
+    return classifyNavigationError(message);
   }
 
-  private async capture(): Promise<Result<RenderedCapture, WebFailure.Navigation | WebFailure.Unreachable>> {
+  private async capture(): Promise<Result<RenderedCapture, LoadFailure>> {
     try {
       await this.settle(this.page);
       const openedUrls = await this.closeOpenedTabs();
@@ -170,6 +160,27 @@ export class BrowserSession {
       await tab.close().catch(() => undefined);
     }
     return urls;
+  }
+
+  /**
+   * §3.4 — a snapshot reports the status of the document the page shows, which is not always the
+   * one `goto` answered with: a bot check that clears itself, or a script that moves the page on,
+   * loads another after it. A redirect is a hop on the way to a document, not one. This runs in an
+   * event handler, where a throw would take the process down, so a frame Playwright cannot yet name
+   * — one still being created, never the main one — is simply not it.
+   */
+  private isMainFrameDocument(response: Response): boolean {
+    const request = response.request();
+    const status = response.status();
+    const isRedirect = status >= 300 && status < 400 && response.headers().location !== undefined;
+    if (!request.isNavigationRequest() || isRedirect) {
+      return false;
+    }
+    try {
+      return request.frame() === this.page.mainFrame();
+    } catch {
+      return false;
+    }
   }
 
   private async settle(page: Page): Promise<void> {

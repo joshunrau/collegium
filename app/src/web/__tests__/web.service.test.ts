@@ -252,6 +252,15 @@ describe('WebService', () => {
       });
     });
 
+    it('should refuse a page the site refused to a read without a browser, and never render it instead (§3.4)', async () => {
+      fetchClient.get.mockResolvedValue(
+        Result.ok(fetched({ body: '<h1>403 Forbidden</h1><p>Request forbidden by administrative rules.</p>', status: 403 }))
+      );
+      const result = await webService.fetch('https://northmoor.example/people/', FROM_THE_TOP);
+      expect(result.error).toStrictEqual({ kind: 'blocked', status: 403, url: 'https://northmoor.example/people/' });
+      expect(browserClient.createSession).not.toHaveBeenCalled();
+    });
+
     it('should hand back an HTTP error as a page', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: '<h1>Not Found</h1>', status: 404 })));
       const result = await webService.fetch('https://northmoor.example/gone', FROM_THE_TOP);

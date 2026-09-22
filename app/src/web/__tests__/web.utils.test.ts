@@ -7,6 +7,7 @@ import {
   describeWebFailureOutcome,
   pageToMarkdown,
   renderWebFailure,
+  renderWebPage,
   renderWebSnapshot,
   toMarkdown,
   windowMarkdown
@@ -239,7 +240,7 @@ describe('renderWebFailure', () => {
     );
   });
 
-  it('should not name web::navigate for a page the server said is not there', () => {
+  it('should not name web::navigate for a page the server said is not there, nor take it for an absence (§3.4)', () => {
     const line = renderWebFailure({
       bodyChars: 0,
       kind: 'http-error',
@@ -247,14 +248,39 @@ describe('renderWebFailure', () => {
       url: 'https://northmoor.example/gone'
     });
     expect(line).toBe(
-      'https://northmoor.example/gone answered HTTP 404 with 0 characters of body and nothing readable in it; there is no page there, and a browser will not find one'
+      'https://northmoor.example/gone answered HTTP 404 with 0 characters of body and nothing readable in it; ' +
+        'there is no page at this address, and a browser will not find one. If you built this URL rather than read ' +
+        "it off a page, this says nothing about the page you were after; use the site's index or search to find it."
     );
     expect(line).not.toContain('web::navigate');
   });
 
+  it('should say only what an empty error page shows when its status is not 404 or 410', () => {
+    expect(
+      renderWebFailure({ bodyChars: 0, kind: 'http-error', status: 500, url: 'https://northmoor.example/people/' })
+    ).toBe('https://northmoor.example/people/ answered HTTP 500 with 0 characters of body and nothing readable in it');
+  });
+
+  it('should name web::navigate for a page the site refused to a read without a browser (§3.4)', () => {
+    expect(renderWebFailure({ kind: 'blocked', status: 403, url: 'https://northmoor.example/people/' })).toContain(
+      'web::navigate may get through'
+    );
+  });
+
+  it("should lay a certificate's failure on the site only where the error establishes it (§3.4)", () => {
+    expect(renderWebFailure({ code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', kind: 'tls', reason: 'incomplete-chain' })).toBe(
+      'the page could not be loaded securely: the site sends its certificate without the intermediates that link ' +
+        "it to a trusted authority — a fault in the site's TLS configuration, which retrying will not fix " +
+        '(UNABLE_TO_VERIFY_LEAF_SIGNATURE)'
+    );
+    expect(
+      renderWebFailure({ code: 'SEC_ERROR_UNKNOWN_ISSUER', kind: 'tls', reason: 'untrusted-issuer' })
+    ).toContain("the site's configuration or this deployment's trust store may be at fault");
+  });
+
   it('should carry the status on a page that rendered nothing', () => {
-    expect(renderWebFailure({ kind: 'empty-render', status: 404, url: 'https://northmoor.example/gone' })).toBe(
-      'the page at https://northmoor.example/gone answered HTTP 404 and rendered no readable content'
+    expect(renderWebFailure({ kind: 'empty-render', status: 500, url: 'https://northmoor.example/gone' })).toBe(
+      'the page at https://northmoor.example/gone answered HTTP 500 and rendered no readable content'
     );
   });
 
@@ -290,6 +316,16 @@ describe('describeWebFailureOutcome', () => {
     expect(
       describeWebFailureOutcome({ kind: 'url-refused', reason: 'not-public-host', url: 'https://10.0.0.1/' })
     ).toBe('⚠️ refused');
+  });
+});
+
+describe('renderWebPage', () => {
+  it('should caution that a 404 on an address the model built says nothing about the page (§3.4)', () => {
+    const page = { markdown: '# Not Found', status: 404, title: 'Not Found', url: 'https://northmoor.example/dr-duval' };
+    expect(renderWebPage(page)).toBe(
+      'Not Found — https://northmoor.example/dr-duval (HTTP 404)\nIf you built this URL rather than read it off a ' +
+        "page, this says nothing about the page you were after; use the site's index or search to find it.\n\n# Not Found"
+    );
   });
 });
 

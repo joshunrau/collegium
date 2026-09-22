@@ -172,7 +172,8 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         'Fetch a URL over plain HTTP and read it as markdown — no browser, no JavaScript, no session; ' +
         "this turn's browser page is untouched. Cheaper and faster than navigate: use it first for articles, " +
         'documentation, and static pages, and switch to navigate when the result says the page has no static content ' +
-        "or when the task needs a click, a search, or a sign-in. The page's navigation, header and footer are left " +
+        'or the site refused a read without a browser, or when the task needs a click, a search, or a sign-in. ' +
+        "The page's navigation, header and footer are left " +
         'out unless wholePage is set, and the result says how many characters that left out. A result holds the first ' +
         `${DEFAULT_WINDOW_CHARS} characters and says where to read on from. To find a field in a long page, such as ` +
         'an email, a phone number or a heading, pass find with a few phrases instead: the result is where each ' +

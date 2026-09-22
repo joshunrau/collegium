@@ -16,3 +16,13 @@ export type PinnedResponse = {
   readonly headers: Headers;
   readonly status: number;
 };
+
+/** a fetched HTML page beside its conversion — what the verdict on reading it without a browser weighs (§3.4) */
+export type ConvertedPage = {
+  readonly body: string;
+  readonly markdown: string;
+  readonly status: number;
+  readonly title: string;
+  /** after redirects — not necessarily what was asked for */
+  readonly url: string;
+};

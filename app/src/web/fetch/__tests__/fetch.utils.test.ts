@@ -1,25 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { toMarkdown } from '../../web.utils.ts';
 import {
   charsetOf,
   classifyContentType,
+  classifyFetchError,
   describeFetchError,
   extractTitle,
-  needsClientRendering,
   toDecoder
 } from '../fetch.utils.ts';
 
 const STATIC_PAGE =
   '<!doctype html><html><head><title>Research Themes — Northmoor University</title></head><body><h1>Research Themes</h1><p>Enquiries go to research@northmoor.example.</p></body></html>';
-
-/** a shell whose every word arrives by script: nothing for markdown to carry */
-const CLIENT_RENDERED_PAGES = {
-  'client-rendered-directory':
-    '<!doctype html><html><head><title>Faculty</title></head><body><div id="directory"></div><script src="/directory.js"></script></body></html>',
-  'spa-marketing-site':
-    '<!doctype html><html><head><title>Northmoor</title></head><body><div id="app"></div><script src="/app.js"></script></body></html>'
-};
 
 describe('classifyContentType', () => {
   it.each(['text/html; charset=utf-8', 'application/xhtml+xml', ''])('should read %s as html', (contentType) => {
@@ -77,12 +68,25 @@ describe('describeFetchError', () => {
   });
 });
 
-describe('needsClientRendering', () => {
-  it.each(Object.entries(CLIENT_RENDERED_PAGES))('should refuse %s, which reads as nothing', (_name, html) => {
-    expect(needsClientRendering(toMarkdown(html))).toBe(true);
+describe('classifyFetchError', () => {
+  const failed = (code: string) => Object.assign(new Error(`${code} message`), { code });
+
+  it.each([
+    ['UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'incomplete-chain'],
+    ['UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'untrusted-issuer'],
+    ['SELF_SIGNED_CERT_IN_CHAIN', 'untrusted-issuer'],
+    ['DEPTH_ZERO_SELF_SIGNED_CERT', 'self-signed'],
+    ['CERT_HAS_EXPIRED', 'expired'],
+    ['ERR_TLS_CERT_ALTNAME_INVALID', 'name-mismatch'],
+    ['CERT_REVOKED', 'unclassified']
+  ])('should classify %s as %s by its code alone (§3.4)', (code, reason) => {
+    expect(classifyFetchError(failed(code))).toStrictEqual({ code, kind: 'tls', reason });
   });
 
-  it('should admit a page with static content', () => {
-    expect(needsClientRendering(toMarkdown(STATIC_PAGE))).toBe(false);
+  it('should leave a failure that is not TLS as a page that did not load', () => {
+    expect(classifyFetchError(failed('ECONNREFUSED'))).toStrictEqual({
+      kind: 'navigation',
+      message: 'ECONNREFUSED message'
+    });
   });
 });

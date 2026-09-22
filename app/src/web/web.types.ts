@@ -76,7 +76,20 @@ export type WebSnapshot = WebPage & {
   readonly openedUrls: readonly string[];
 };
 
+/**
+ * §3.4 — why a certificate did not verify, as far as the error establishes it. Only an incomplete
+ * chain, an expiry, a name mismatch and a self-signed leaf are the site's fault on their face; an
+ * issuer nobody here trusts is as likely a gap in this deployment's own trust store.
+ */
+export type TlsReason = 'expired' | 'incomplete-chain' | 'name-mismatch' | 'self-signed' | 'unclassified' | 'untrusted-issuer';
+
 export declare namespace WebFailure {
+  /** the site answered a read without a browser with a refusal or a bot check instead of the page (§3.4) */
+  type Blocked = {
+    kind: 'blocked';
+    status: number;
+    url: string;
+  };
   /** every live-session slot is taken by other turns — try again once one ends */
   type Busy = {
     kind: 'busy';
@@ -87,7 +100,7 @@ export declare namespace WebFailure {
     status: number;
     url: string;
   };
-  /** the server answered with an error status and nothing readable — the page is not there, not unrendered */
+  /** the server answered with an error status and nothing readable — an error, not a page left unrendered */
   type HttpError = {
     bodyChars: number;
     kind: 'http-error';
@@ -119,6 +132,12 @@ export declare namespace WebFailure {
     kind: 'stale-ref';
     ref: string;
   };
+  /** the connection was refused at its TLS handshake, so nothing was read; `code` is the runtime's own name for it */
+  type Tls = {
+    code: string;
+    kind: 'tls';
+    reason: TlsReason;
+  };
   /** the browser did not answer: unprovisioned or failed to launch, never the page's fault */
   type Unreachable = {
     kind: 'unreachable';
@@ -137,6 +156,7 @@ export declare namespace WebFailure {
     url: string;
   };
   type Any =
+    | Blocked
     | Busy
     | EmptyRender
     | HttpError
@@ -145,6 +165,7 @@ export declare namespace WebFailure {
     | NoStaticContent
     | NotVisible
     | StaleRef
+    | Tls
     | Unreachable
     | UnsupportedContent
     | UrlRefused;

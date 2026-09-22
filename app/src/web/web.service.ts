@@ -3,8 +3,9 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { BrowserClient } from './browser/browser.client.ts';
 import { FetchClient } from './fetch/fetch.client.ts';
-import { extractTitle, needsClientRendering } from './fetch/fetch.utils.ts';
+import { extractTitle } from './fetch/fetch.utils.ts';
 import { stripPageChrome } from './fetch/page-chrome.utils.ts';
+import { refuseUnreadablePage } from './fetch/readability.utils.ts';
 import { MAX_LIVE_SESSIONS } from './web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
 import { capMarkdown, pageToMarkdown, readPage } from './web.utils.ts';
@@ -27,7 +28,8 @@ import type {
  *
  * An HTTP error is not a failure — a 404 is a page with content and a status, and the model
  * reasons about it, exactly as `shell` hands back a non-zero exit as `ok`. `Result.err` is
- * reserved for having nothing to say about the page at all.
+ * reserved for having nothing to say about the page at all, which a site's refusal to serve it
+ * is too: its body describes the refusal, never the page.
  */
 @Injectable()
 export class WebService {
@@ -69,16 +71,22 @@ export class WebService {
     }
   }
 
-  /** no session and no slot: one GET, converted by the same rules a rendered page is, and read as the call asked (§3.4) */
+  /**
+   * No session and no slot: one GET, converted by the same rules a rendered page is, and read as
+   * the call asked. A page that cannot be read this way is refused, never rendered in its place —
+   * whether a browser is worth its slot is the model's call (§3.4).
+   */
   async fetch(
     url: string,
     read: PageRead
   ): Promise<
     Result<
       FetchedPage,
+      | WebFailure.Blocked
       | WebFailure.HttpError
       | WebFailure.Navigation
       | WebFailure.NoStaticContent
+      | WebFailure.Tls
       | WebFailure.UnsupportedContent
       | WebFailure.UrlRefused
     >
@@ -97,19 +105,13 @@ export class WebService {
       });
     }
     const markdown = pageToMarkdown(body, finalUrl);
-    if (needsClientRendering(markdown)) {
-      // an error status with nothing readable is a page that is not there; a browser will not find one either
-      return status >= 400
-        ? Result.err({ bodyChars: body.length, kind: 'http-error', status, url: finalUrl })
-        : Result.err({ kind: 'no-static-content', status, url: finalUrl });
+    const title = extractTitle(body);
+    const unreadable = refuseUnreadablePage({ body, markdown, status, title, url: finalUrl });
+    if (unreadable) {
+      return Result.err(unreadable);
     }
     const view = read.wholePage ? { leftOutChars: 0, markdown } : this.viewMainContent(body, finalUrl, markdown);
-    return Result.ok({
-      ...readPage(view, read),
-      status,
-      title: extractTitle(body),
-      url: finalUrl
-    });
+    return Result.ok({ ...readPage(view, read), status, title, url: finalUrl });
   }
 
   async fill(

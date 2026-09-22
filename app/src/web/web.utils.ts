@@ -6,7 +6,16 @@ import { findPhrases, renderFoundPhrases } from './fetch/find.utils.ts';
 import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS } from './web.constants.ts';
 
 import type { FormElement } from './snapshot/snapshot.types.ts';
-import type { FetchedPage, MarkdownWindow, PageRead, PageView, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
+import type {
+  FetchedPage,
+  MarkdownWindow,
+  PageRead,
+  PageView,
+  TlsReason,
+  WebFailure,
+  WebPage,
+  WebSnapshot
+} from './web.types.ts';
 
 const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 
@@ -50,6 +59,26 @@ const BASE_HREF = /<base\b[^>]*\bhref\s*=\s*["']([^"']+)["']/i;
 
 /** the tail the read-on footer offers, wide enough to hold a closing section without re-reading the page */
 const TAIL_WINDOW_CHARS = 20_000;
+
+/** §3.4 — the statuses that say nothing is at an address, which says nothing about a page at another */
+const GONE_STATUSES: ReadonlySet<number> = new Set([404, 410]);
+
+const BUILT_URL_CAVEAT =
+  "If you built this URL rather than read it off a page, this says nothing about the page you were after; use the site's index or search to find it.";
+
+const SITE_TLS_FAULT = "a fault in the site's TLS configuration, which retrying will not fix";
+
+/** §3.4 — each reason in the app's words; only a fault the error itself establishes is laid on the site */
+const TLS_FAILURES: { readonly [Reason in TlsReason]: string } = {
+  expired: `the site's certificate has expired — ${SITE_TLS_FAULT}`,
+  'incomplete-chain': `the site sends its certificate without the intermediates that link it to a trusted authority — ${SITE_TLS_FAULT}`,
+  'name-mismatch': `the site's certificate is for a different host name — ${SITE_TLS_FAULT}`,
+  'self-signed': `the site's certificate is self-signed, so no authority vouches for it — ${SITE_TLS_FAULT}`,
+  unclassified: 'the TLS handshake with the site failed',
+  'untrusted-issuer':
+    "the site's certificate was issued by an authority this deployment does not trust; the site's configuration or " +
+    "this deployment's trust store may be at fault, and retrying will not fix it"
+};
 
 function toCodePoint(body: string): number {
   return body[1]?.toLowerCase() === 'x' ? Number.parseInt(body.slice(2), 16) : Number(body.slice(1));
@@ -320,12 +349,22 @@ export function readPage(view: PageView, read: PageRead): Pick<FetchedPage, 'mar
 /** a recoverable browsing failure as the model hears it; `unreachable` is infrastructure and never rendered */
 export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreachable>): string {
   return match(failure)
+    .with({ kind: 'blocked' }, ({ status, url }) => {
+      return (
+        `${url} answered HTTP ${status} with a refusal or a bot check instead of the page: the site turned away a ` +
+        'read without a browser. web::navigate may get through, though some sites refuse a browser too'
+      );
+    })
     .with({ kind: 'busy' }, () => 'the browser is at its concurrent-session limit; try again shortly')
     .with({ kind: 'empty-render' }, ({ status, url }) => {
-      return `the page at ${url} answered HTTP ${status} and rendered no readable content`;
+      const rendered = `the page at ${url} answered HTTP ${status} and rendered no readable content`;
+      return GONE_STATUSES.has(status) ? `${rendered}. ${BUILT_URL_CAVEAT}` : rendered;
     })
     .with({ kind: 'http-error' }, ({ bodyChars, status, url }) => {
-      return `${url} answered HTTP ${status} with ${bodyChars} characters of body and nothing readable in it; there is no page there, and a browser will not find one`;
+      const answered = `${url} answered HTTP ${status} with ${bodyChars} characters of body and nothing readable in it`;
+      return GONE_STATUSES.has(status)
+        ? `${answered}; there is no page at this address, and a browser will not find one. ${BUILT_URL_CAVEAT}`
+        : answered;
     })
     .with({ kind: 'navigation' }, ({ message }) => `the page could not be loaded: ${message}`)
     .with({ kind: 'no-session' }, () => 'no page is open in this turn — navigate to a URL first')
@@ -338,6 +377,9 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     .with({ kind: 'stale-ref' }, ({ ref }) => {
       return `⟨${ref}⟩ is not on the current page; the page has changed since that snapshot — use refs from the latest one`;
     })
+    .with({ kind: 'tls' }, ({ code, reason }) => {
+      return `the page could not be loaded securely: ${TLS_FAILURES[reason]} (${code})`;
+    })
     .with({ kind: 'unsupported-content' }, ({ contentType, url }) => {
       return `${url} is ${contentType}, which this tool cannot read as text`;
     })
@@ -349,6 +391,7 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
 /** §8.1 — the same failure as the status post's mark: a phrase short enough for a trace line, since a call that bought nothing must not read like one that worked */
 export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailure.Unreachable>): string {
   return match(failure)
+    .with({ kind: 'blocked' }, ({ status }) => `⚠️ blocked (HTTP ${status})`)
     .with({ kind: 'busy' }, () => '⚠️ browser busy')
     .with({ kind: 'empty-render' }, () => '⚠️ nothing rendered')
     .with({ kind: 'http-error' }, ({ status }) => `⚠️ HTTP ${status}`)
@@ -357,13 +400,16 @@ export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailur
     .with({ kind: 'not-visible' }, () => '⚠️ hidden ref')
     .with({ kind: 'no-static-content' }, () => '⚠️ no static content')
     .with({ kind: 'stale-ref' }, () => '⚠️ stale ref')
+    .with({ kind: 'tls' }, () => '⚠️ TLS failed')
     .with({ kind: 'unsupported-content' }, () => '⚠️ not text')
     .with({ kind: 'url-refused' }, () => '⚠️ refused')
     .exhaustive();
 }
 
 export function renderWebPage(page: WebPage): string {
-  return `${page.title} — ${page.url} (HTTP ${page.status})\n\n${page.markdown}`;
+  const header = `${page.title} — ${page.url} (HTTP ${page.status})`;
+  const caveat = GONE_STATUSES.has(page.status) ? `\n${BUILT_URL_CAVEAT}` : '';
+  return `${header}${caveat}\n\n${page.markdown}`;
 }
 
 export function renderWebSnapshot(snapshot: WebSnapshot): string {

@@ -149,9 +149,22 @@ const SEARCHABLE_DIRECTORY = `<!doctype html>
   </body>
 </html>`;
 
+/** a bot check that clears itself: refused at first, then moved on by its own script to the page it guarded */
+const SELF_CLEARING_CHECK = `<!doctype html>
+<html lang="en">
+  <head><title>Just a moment...</title></head>
+  <body>
+    <h1>Verifying you are human.</h1>
+    <script>
+      window.addEventListener('load', () => window.setTimeout(() => window.location.replace('/cleared'), 200));
+    </script>
+  </body>
+</html>`;
+
 /** `/` and `/people` both serve the SPA: the roster route deliberately deep-links to the shell */
 const DOCUMENT_BY_ROUTE: { [key: string]: string } = {
   '/': SPA_MARKETING_SITE,
+  '/cleared': MEMBER_DATABASE,
   '/gated-login': GATED_LOGIN,
   '/member-database': MEMBER_DATABASE,
   '/people': SPA_MARKETING_SITE,
@@ -206,6 +219,11 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
       if (request.url === '/redirect') {
         response.writeHead(302, { location: `${elsewhereUrl}/` });
         response.end();
+        return;
+      }
+      if (request.url === '/challenge') {
+        response.writeHead(403, { 'content-type': 'text/html; charset=utf-8' });
+        response.end(SELF_CLEARING_CHECK);
         return;
       }
       if (request.url === '/outbound') {
@@ -388,6 +406,12 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     const roster = (await session.navigate(after.openedUrls[0]!)).unwrap();
     expect(roster.openedUrls).toStrictEqual([]);
     expect(toMarkdown(roster.html)).toContain('lachance@northmoor.example');
+  });
+
+  it('should report the status of the document the page settled on, not the first one served (§3.4)', async () => {
+    const capture = (await session.navigate(`${baseUrl}/challenge`)).unwrap();
+    expect(capture.status).toBe(200);
+    expect(toMarkdown(capture.html)).toContain('lachance@northmoor.example');
   });
 
   it('should hand back a 404 as a page with a status, not a failure', async () => {

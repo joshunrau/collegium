@@ -133,6 +133,22 @@ describe('FetchClient', () => {
     expect(result.error).toStrictEqual({ kind: 'navigation', message: 'connect ECONNREFUSED 203.0.113.7:443' });
   });
 
+  it('should report a certificate that did not verify as a TLS failure, in its own terms (§3.4)', async () => {
+    const unverified = Object.assign(
+      new Error(
+        'unable to verify the first certificate; if the root CA is installed locally, try running Node.js with --use-system-ca'
+      ),
+      { code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' }
+    );
+    pinnedGetMock.mockRejectedValueOnce(unverified);
+    const result = await client.get('https://northmoor.example/');
+    expect(result.error).toStrictEqual({
+      code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+      kind: 'tls',
+      reason: 'incomplete-chain'
+    });
+  });
+
   it('should decode the body in the charset the server declared', async () => {
     pinnedGetMock.mockResolvedValueOnce(
       respond(Readable.from([Buffer.from([0xe9])]), { headers: { 'content-type': 'text/plain; charset=iso-8859-1' } })

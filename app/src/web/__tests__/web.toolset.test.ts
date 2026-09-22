@@ -105,6 +105,14 @@ describe('WEB_TOOLSET', () => {
     expect(result.unwrap().text).toContain('open it with web::navigate instead');
   });
 
+  it('returns a blocked fetch as text pointing at navigate, marked on its trace line (§3.4, §8.1)', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.err({ kind: 'blocked', status: 403, url: 'https://example.org/' }));
+    const result = await executeTool(fetch, { url: 'https://example.org/' }, context);
+    expect(result.unwrap().text).toContain('web::navigate may get through');
+    expect(result.unwrap().traceOutcome).toBe('⚠️ blocked (HTTP 403)');
+  });
+
   it('returns a stale ref as page text the model can recover from', async () => {
     const { context, web } = buildContext();
     web.click.mockResolvedValue(Result.err({ kind: 'stale-ref', ref: 'e7' }));
