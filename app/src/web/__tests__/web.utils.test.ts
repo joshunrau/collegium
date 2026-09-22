@@ -5,6 +5,7 @@ import {
   capMarkdown,
   decodeCloudflareEmail,
   describeWebFailureOutcome,
+  pageToMarkdown,
   renderWebFailure,
   renderWebSnapshot,
   toMarkdown,
@@ -73,7 +74,7 @@ describe('toMarkdown', () => {
     expect(toMarkdown(html)).toBe('Hello');
   });
 
-  it('should resolve link and image addresses against the page, leaving the rest as authored', () => {
+  it('should resolve link addresses against the page, leaving the rest as authored', () => {
     const html = `<html><body>
       <a href="/people/duval">Duval</a>
       <a href="//cdn.northmoor.example/cv.pdf">CV</a>
@@ -82,10 +83,9 @@ describe('toMarkdown', () => {
       <a href="mailto:duval@northmoor.example">Mail</a>
       <a href="javascript:Fiche(37)">Fiche</a>
       <a href="http://[bad">Broken</a>
-      <img src="../img/duval.jpg" alt="Portrait" />
       <table><tr><td><a href="profile?id=7">Row link</a></td></tr></table>
     </body></html>`;
-    const markdown = toMarkdown(html, 'https://northmoor.example/dept/psychology/');
+    const markdown = pageToMarkdown(html, 'https://northmoor.example/dept/psychology/');
     expect(markdown).toContain('[Duval](https://northmoor.example/people/duval)');
     expect(markdown).toContain('[CV](https://cdn.northmoor.example/cv.pdf)');
     expect(markdown).toContain('[Top](https://northmoor.example/dept/psychology/#top)');
@@ -93,17 +93,32 @@ describe('toMarkdown', () => {
     expect(markdown).toContain('[Mail](mailto:duval@northmoor.example)');
     expect(markdown).toContain('[Fiche](javascript:Fiche%2837%29)');
     expect(markdown).toContain('[Broken](http://[bad)');
-    expect(markdown).toContain('![Portrait](https://northmoor.example/dept/img/duval.jpg)');
     expect(markdown).toContain('[Row link](https://northmoor.example/dept/psychology/profile?id=7)');
   });
 
-  it('should resolve against a declared base, and leave addresses alone with no page URL', () => {
+  it('should resolve against a declared base, and leave addresses alone with no page behind the HTML', () => {
     const html =
       '<html><head><base href="https://cdn.northmoor.example/site/"></head><body><a href="a.html">A</a></body></html>';
-    expect(toMarkdown(html, 'https://northmoor.example/dept/')).toContain(
+    expect(pageToMarkdown(html, 'https://northmoor.example/dept/')).toContain(
       '[A](https://cdn.northmoor.example/site/a.html)'
     );
     expect(toMarkdown('<a href="a.html">A</a>')).toContain('[A](a.html)');
+  });
+
+  it('should read a page image as its alt text, and leave out one described as nothing (§3.4)', () => {
+    const html =
+      '<p><img src="/img/duval.jpg" alt="Portrait of P. Duval" /><img src="/img/rule.png" alt="" /></p>' +
+      '<table><tr><td><img src="/img/lab.jpg" alt="The lab" /></td></tr></table>';
+    const markdown = pageToMarkdown(html, 'https://northmoor.example/people/');
+    expect(markdown).toContain('[image: Portrait of P. Duval]');
+    expect(markdown).toContain('| [image: The lab] |');
+    expect(markdown).not.toContain('/img/');
+  });
+
+  it('should keep a mail body’s images as authored', () => {
+    expect(toMarkdown('<img src="https://northmoor.example/logo.png" alt="Logo" />')).toBe(
+      '![Logo](https://northmoor.example/logo.png)'
+    );
   });
 
   /** the empty string is why the render assertion exists: an unrendered page reads as "no results" */
@@ -129,25 +144,25 @@ describe('decodeCloudflareEmail', () => {
   });
 });
 
-describe('toMarkdown with Cloudflare-cloaked addresses (§3.4)', () => {
+describe('pageToMarkdown with Cloudflare-cloaked addresses (§3.4)', () => {
   const hex = cloak('duval@northmoor.example');
   const PAGE_URL = 'https://northmoor.example/people/';
 
   it('should read a protected mailto link as the address it hides', () => {
     const html = `<p>Write to <a href="/cdn-cgi/l/email-protection#${hex}"><span class="__cf_email__" data-cfemail="${hex}">[email&#160;protected]</span></a>.</p>`;
-    expect(toMarkdown(html, PAGE_URL)).toBe(
+    expect(pageToMarkdown(html, PAGE_URL)).toBe(
       'Write to [duval@northmoor.example](mailto:duval@northmoor.example).'
     );
   });
 
   it('should read a cloaked address in a table cell, where a directory keeps it', () => {
     const html = `<table><tr><th>Name</th><th>Email</th></tr><tr><td>Duval, P.</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="${hex}">[email&#160;protected]</a></td></tr></table>`;
-    expect(toMarkdown(html, PAGE_URL)).toContain('| Duval, P. | duval@northmoor.example |');
+    expect(pageToMarkdown(html, PAGE_URL)).toContain('| Duval, P. | duval@northmoor.example |');
   });
 
   it('should leave a link it cannot decode as it was served', () => {
     const html = '<a href="/cdn-cgi/l/email-protection#zz">[email&#160;protected]</a>';
-    const markdown = toMarkdown(html, PAGE_URL);
+    const markdown = pageToMarkdown(html, PAGE_URL);
     expect(markdown).toContain('(https://northmoor.example/cdn-cgi/l/email-protection#zz)');
     expect(markdown).not.toContain('mailto:');
   });

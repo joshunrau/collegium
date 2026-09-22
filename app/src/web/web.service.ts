@@ -6,7 +6,7 @@ import { FetchClient } from './fetch/fetch.client.ts';
 import { extractTitle, needsClientRendering } from './fetch/fetch.utils.ts';
 import { MAX_LIVE_SESSIONS } from './web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
-import { capMarkdown, toMarkdown, windowMarkdown } from './web.utils.ts';
+import { capMarkdown, pageToMarkdown, windowMarkdown } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
 import type { AddressPolicy, RenderedCapture, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
@@ -88,7 +88,7 @@ export class WebService {
         url: finalUrl
       });
     }
-    const markdown = toMarkdown(body, finalUrl);
+    const markdown = pageToMarkdown(body, finalUrl);
     if (needsClientRendering(markdown)) {
       // an error status with nothing readable is a page that is not there; a browser will not find one either
       return status >= 400
@@ -180,7 +180,7 @@ export class WebService {
     if (!rendered.success) {
       return rendered;
     }
-    const capped = capMarkdown(toMarkdown(rendered.value.html, rendered.value.url));
+    const capped = capMarkdown(pageToMarkdown(rendered.value.html, rendered.value.url));
     // a page that rendered nothing is indistinguishable from a page with nothing on it, and the
     // model cannot tell them apart — so it is never returned as content
     if (!capped.markdown) {

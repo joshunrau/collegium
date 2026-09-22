@@ -12,7 +12,7 @@ import { MARKDOWN_CAP_CHARS, MAX_LIVE_SESSIONS } from '../web.constants.ts';
 import { refuseUnbrowsableUrl } from '../web.policy.ts';
 import { WebService } from '../web.service.ts';
 import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
-import { toMarkdown } from '../web.utils.ts';
+import { pageToMarkdown } from '../web.utils.ts';
 
 import type { FetchedResource } from '../fetch/fetch.types.ts';
 import type { AddressPolicy, RenderedCapture, WebFailure } from '../web.types.ts';
@@ -180,7 +180,7 @@ describe('WebService', () => {
 
     it('should read on from an offset so a page past the cap can be finished (§3.8)', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
-      const page = toMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
+      const page = pageToMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
       const result = await webService.fetch('https://northmoor.example/people/', 10);
       expect(result.value?.markdown).toBe(`${page.slice(10)}\n…showing characters 10–${page.length} of ${page.length}`);
       expect(result.value?.shown).toStrictEqual({ from: 10, to: page.length, total: page.length });

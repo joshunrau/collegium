@@ -72,10 +72,7 @@ function resolveAgainst(base: undefined | URL, href: string): string {
 }
 
 /** the page's own address, or the one its `<base>` names instead, since that is what a browser resolves against */
-function resolveBase(html: string, pageUrl: string | undefined): undefined | URL {
-  if (pageUrl === undefined) {
-    return undefined;
-  }
+function resolveBase(html: string, pageUrl: string): undefined | URL {
   let page: URL;
   try {
     page = new URL(pageUrl);
@@ -110,11 +107,10 @@ function decodeProtectedLink(href: string): string | undefined {
 }
 
 /**
- * node-html-markdown's link and image translators, re-stated with two additions: an address is
- * resolved against the page it came from, so a relative link the model reads is one it can hand
- * straight to `web::fetch`; and an address Cloudflare cloaked reads as its decoder script would
- * have left it (§3.4). The library keeps its defaults private, so they are restated rather than
- * wrapped.
+ * node-html-markdown's link translator, re-stated with two additions: an address is resolved
+ * against the page it came from, so a relative link the model reads is one it can hand straight to
+ * `web::fetch`; and an address Cloudflare cloaked reads as its decoder script would have left it
+ * (§3.4). The library keeps its defaults private, so they are restated rather than wrapped.
  */
 function linkTranslators(base: undefined | URL): TranslatorConfigObject {
   return {
@@ -140,15 +136,6 @@ function linkTranslators(base: undefined | URL): TranslatorConfigObject {
         postprocess: ({ content }) => content.replaceAll(/(?:\r?\n)+/g, ' '),
         prefix: '['
       };
-    },
-    img: ({ node, options }) => {
-      const src = node.getAttribute('src') ?? '';
-      if (!src || (!options.keepDataImages && /^data:/i.test(src))) {
-        return { ignore: true };
-      }
-      const alt = node.getAttribute('alt') ?? '';
-      const title = node.getAttribute('title') ?? '';
-      return { content: `![${alt}](${resolveAgainst(base, src)}${title && ` "${title}"`})`, recurse: false };
     },
     span: ({ node }) => {
       const cloaked = decodeCloakedElement(node);
@@ -182,6 +169,28 @@ function collapseTableRow(line: string): string {
 function renderOpenedTab(url: string): string {
   const address = url === 'about:blank' ? 'an address it had not yet loaded' : url;
   return `The page opened a new tab to ${address}; it was closed — open it with web::navigate or web::fetch if it matters.`;
+}
+
+/**
+ * An image as its author described it, since its address is a read the model cannot make (§3.4).
+ * One described as nothing is decoration by HTML's own convention, and is left out.
+ */
+const imageAsDescribed: TranslatorConfigFactory = ({ node }) => {
+  const alt = (node.getAttribute('alt') ?? '').replaceAll(/\s+/g, ' ').trim();
+  return alt === '' ? { ignore: true } : { content: `[image: ${alt}]`, recurse: false };
+};
+
+/**
+ * Cleaned HTML to markdown by the given translators. Tables survive as tables (§3.4). The library
+ * builds its table-cell translators from a private list that custom ones do not reach, so each
+ * translator is set on that collection by hand — or a directory's email links would stay relative.
+ */
+function convertToMarkdown(html: string, translators: TranslatorConfigObject): string {
+  const converter = new NodeHtmlMarkdown({}, translators);
+  for (const [tags, translator] of Object.entries(translators)) {
+    converter.tableCellTranslators.set(tags, translator, true);
+  }
+  return converter.translate(html.replace(DOCTYPE, '')).split('\n').map(collapseTableRow).join('\n').trim();
 }
 
 /**
@@ -224,19 +233,17 @@ export function decodeCloudflareEmail(hex: string): string | undefined {
   return PLAUSIBLE_ADDRESS.test(decoded) ? decoded : undefined;
 }
 
+/** HTML with no page behind it — a mail body — to markdown, every address and image as authored */
+export function toMarkdown(html: string): string {
+  return convertToMarkdown(html, linkTranslators(undefined));
+}
+
 /**
- * Cleaned, post-render HTML to the markdown a model reads. Tables survive as tables (§3.4), and
- * with the page's URL given, every link and image address is absolute. The library builds its
- * table-cell translators from a private list that custom ones do not reach, so each translator is
- * set on that collection by hand — or a directory's email links would stay relative.
+ * A web page, fetched or rendered, to the markdown a model reads (§3.4): every link address
+ * absolute against the page, and every image its alt text alone.
  */
-export function toMarkdown(html: string, pageUrl?: string): string {
-  const translators = linkTranslators(resolveBase(html, pageUrl));
-  const converter = new NodeHtmlMarkdown({}, translators);
-  for (const [tags, translator] of Object.entries(translators)) {
-    converter.tableCellTranslators.set(tags, translator, true);
-  }
-  return converter.translate(html.replace(DOCTYPE, '')).split('\n').map(collapseTableRow).join('\n').trim();
+export function pageToMarkdown(html: string, pageUrl: string): string {
+  return convertToMarkdown(html, { ...linkTranslators(resolveBase(html, pageUrl)), img: imageAsDescribed });
 }
 
 export type CappedMarkdown = {
