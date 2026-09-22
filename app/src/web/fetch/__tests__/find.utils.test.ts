@@ -15,7 +15,9 @@ describe('findPhrases (§3.4)', () => {
   it('should bound the text around a hit, on one line, and mark only the end it cut', () => {
     const [hit] = findPhrases(PROFILE, ['contact information'])[0]!.hits;
     expect(hit?.snippet).toMatch(/^….+ #### Contact Information Email: p\\_duval@northmoor\.example$/u);
-    expect(hit?.snippet.length).toBeLessThanOrEqual(FIND_CONTEXT_CHARS + PROFILE.length - PROFILE.indexOf('Contact') + 1);
+    expect(hit?.snippet.length).toBeLessThanOrEqual(
+      FIND_CONTEXT_CHARS + PROFILE.length - PROFILE.indexOf('Contact') + 1
+    );
   });
 
   it('should count every occurrence, show a bounded few, and not repeat one its neighbour already shows', () => {
@@ -37,6 +39,8 @@ describe('renderFoundPhrases', () => {
   });
 
   it('should say so when nothing matched, rather than return an empty list', () => {
-    expect(renderFoundPhrases(findPhrases(PROFILE, ['Fax:']), PROFILE.length)).toMatch(/^None of these phrases occurs/u);
+    expect(renderFoundPhrases(findPhrases(PROFILE, ['Fax:']), PROFILE.length)).toMatch(
+      /^None of these phrases occurs/u
+    );
   });
 });

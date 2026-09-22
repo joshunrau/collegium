@@ -150,9 +150,7 @@ describe('pageToMarkdown with Cloudflare-cloaked addresses (§3.4)', () => {
 
   it('should read a protected mailto link as the address it hides', () => {
     const html = `<p>Write to <a href="/cdn-cgi/l/email-protection#${hex}"><span class="__cf_email__" data-cfemail="${hex}">[email&#160;protected]</span></a>.</p>`;
-    expect(pageToMarkdown(html, PAGE_URL)).toBe(
-      'Write to [duval@northmoor.example](mailto:duval@northmoor.example).'
-    );
+    expect(pageToMarkdown(html, PAGE_URL)).toBe('Write to [duval@northmoor.example](mailto:duval@northmoor.example).');
   });
 
   it('should read a cloaked address in a table cell, where a directory keeps it', () => {
