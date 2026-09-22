@@ -496,12 +496,17 @@ function readManifest(file) {
 }
 
 /**
+ * An absent key and a known-absent value are different facts, and `JSON.stringify` renders both by
+ * dropping the key — so a reader of the manifest cannot tell "this turn reported no duration" from
+ * "this file was written by a version that had no such field". Optional values are written as null.
+ *
  * @param {string} file
  * @param {readonly unknown[]} rows
  * @returns {void}
  */
 function writeJsonLines(file, rows) {
-  fs.writeFileSync(file, rows.map((row) => `${JSON.stringify(row)}\n`).join(''));
+  const asNull = (/** @type {string} */ _key, /** @type {unknown} */ value) => value ?? null;
+  fs.writeFileSync(file, rows.map((row) => `${JSON.stringify(row, asNull)}\n`).join(''));
 }
 
 /**
