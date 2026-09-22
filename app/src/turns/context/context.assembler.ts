@@ -5,8 +5,15 @@ import { WindowService } from '@/conversations/window/window.service.ts';
 import type { CompletionRequest } from '@/inference/inference.types.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
-import { toCompletionMessages } from './context.utils.ts';
+import { estimateWindowTokens, toCompletionMessages } from './context.utils.ts';
 import { PromptRenderer } from './prompt.renderer.ts';
+
+type AssembleInput = {
+  readonly channelId: string;
+  readonly profile: AgentProfile;
+  /** the turn in progress: its own rounds are the only ones handed back with their reasoning (§3.12) */
+  readonly turnId: string;
+};
 
 export type AssembledContext = {
   /** §5.2 — taken before the store is read, so every post recorded earlier was there to be read */
@@ -33,13 +40,14 @@ export class ContextAssembler {
     private readonly windowService: WindowService
   ) {}
 
-  async assemble(input: { channelId: string; profile: AgentProfile }): Promise<AssembledContext> {
-    const { channelId, profile } = input;
+  async assemble(input: AssembleInput): Promise<AssembledContext> {
+    const { channelId, profile, turnId } = input;
     const assembledAt = new Date();
     const { entries, oldestAt } = await this.windowService.build({
       agentUsername: profile.username,
       budgetTokens: profile.contextBudgetTokens,
-      channelId
+      channelId,
+      costOf: (candidates) => estimateWindowTokens(candidates, profile.username)
     });
     const { stable, tail } = await this.promptRenderer.renderParts({
       channelId,
@@ -53,7 +61,7 @@ export class ContextAssembler {
         cacheKey: JSON.stringify([profile.username, channelId]),
         // §3.8 — a user-role message, since a provider may hoist a system message ahead of the window
         messages: [
-          ...toCompletionMessages(entries, profile.username),
+          ...toCompletionMessages(entries, profile.username, turnId),
           ...(tail === undefined ? [] : [{ content: tail, role: 'user' as const }])
         ],
         model: profile.model,

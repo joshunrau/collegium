@@ -9,6 +9,8 @@ import { createModelTable } from '@/testing/factories/model-table.factory.ts';
 import { EpisodesService } from '../../episodes/episodes.service.ts';
 import { WindowService } from '../window.service.ts';
 
+import type { WindowEntry } from '../../conversations.types.ts';
+
 type PostRow = {
   authoringTurnId: null | string;
   authorUsername: string;
@@ -43,20 +45,25 @@ const post = (id: string, at: number, overrides: Partial<PostRow> = {}): PostRow
   ...overrides
 });
 
-const event = (id: string, at: number, turn: TurnRef, sequence = 0): EventRow => ({
-  createdAt: new Date(at),
-  id,
-  kind: 'tool_result',
-  payload: {
+const event = (
+  id: string,
+  at: number,
+  turn: TurnRef,
+  payload: PrismaJson.TurnEventPayload = {
     callId: id,
     kind: 'tool_result',
     output: 'output',
     replay: `[did ${id}]`,
     toolName: ['workspace', 'write']
-  },
-  sequence,
-  turn
-});
+  }
+): EventRow => ({ createdAt: new Date(at), id, kind: payload.kind, payload, sequence: 0, turn });
+
+const reply = (content: string): PrismaJson.TurnEventPayload => {
+  return { content, kind: 'assistant_message', toolCalls: [] };
+};
+
+/** every entry costs four tokens, so a budget reads as a count of entries; what an entry renders to is the caller's measure */
+const costOf = (entries: readonly WindowEntry[]) => entries.length * 4;
 
 const createTables = (posts: PostRow[], events: EventRow[]) => {
   const postTable = createModelTable<PostRow>();
@@ -81,7 +88,9 @@ describe('WindowService', () => {
     }).compile();
     const service = moduleRef.get(WindowService);
     return {
-      build: (budgetTokens = 1000) => service.build({ agentUsername: 'mira', budgetTokens, channelId: 'channel-1' }),
+      build: (budgetTokens = 1000) => {
+        return service.build({ agentUsername: 'mira', budgetTokens, channelId: 'channel-1', costOf });
+      },
       readRecentActions: (before: number, take = 20) => {
         return service.readRecentActions({
           agentUsername: 'mira',
@@ -140,7 +149,11 @@ describe('WindowService', () => {
     const mira = { agentUsername: 'mira', channelId: 'channel-1' };
     const tess = { agentUsername: 'tess', channelId: 'channel-1' };
     const posts = [post('post-1', 1000), post('post-2', 4000)];
-    const events = [event('event-1', 2000, mira, 0), event('event-2', 3000, mira, 1), event('peer-1', 2500, tess)];
+    const events = [
+      event('event-1', 2000, mira, reply('checking')),
+      event('event-2', 3000, mira, reply('done')),
+      event('peer-1', 2500, tess, reply('elsewhere'))
+    ];
     const entries = await build(posts, events);
     expect(identify(entries)).toStrictEqual(['post-1', 'event-1', 'event-2', 'post-2']);
   });
@@ -161,21 +174,29 @@ describe('WindowService', () => {
     expect(identify(entries)).toStrictEqual(['post-2', 'post-3']);
   });
 
-  it('should charge a replayed tool result at its replay line, not its output', async () => {
+  it('should admit a call with the results answering it as one unit, and stop at the first unit that does not fit (§3.8)', async () => {
     const mira = { agentUsername: 'mira', channelId: 'channel-1' };
-    const replayed = event('event-1', 2000, mira);
-    replayed.payload = {
-      callId: 'c',
-      kind: 'tool_result',
-      output: 'x'.repeat(4000),
-      replay: '[loaded]',
-      toolName: 't'
+    const call: PrismaJson.TurnEventPayload = {
+      content: '',
+      kind: 'assistant_message',
+      toolCalls: [
+        { args: {}, callId: 'c1', toolName: ['builtins', 'now'] },
+        { args: {}, callId: 'c2', toolName: ['builtins', 'now'] }
+      ]
     };
-    const entries = await build([post('post-1', 1000)], [replayed], 20);
-    expect(identify(entries)).toStrictEqual(['post-1', 'event-1']);
+    const result = (callId: string): PrismaJson.TurnEventPayload => {
+      return { callId, kind: 'tool_result', output: 'noon', toolName: ['builtins', 'now'] };
+    };
+    const posts = [post('post-1', 1000), post('post-2', 3000)];
+    const events = [
+      event('call', 2000, mira, call),
+      event('result-1', 2500, mira, result('c1')),
+      event('result-2', 2600, mira, result('c2'))
+    ];
+    expect(identify(await build(posts, events, 12))).toStrictEqual(['post-2']);
+    expect(identify(await build(posts, events, 16))).toStrictEqual(['call', 'result-1', 'result-2', 'post-2']);
   });
 
-  // each fixture post costs four tokens
   it('should hold the oldest entry fixed while everything since it still fits the budget', async () => {
     const { build: rebuild, tables } = await createService([post('post-1', 1000), post('post-2', 2000)], []);
     expect(identify(await rebuild(12))).toStrictEqual(['post-1', 'post-2']);

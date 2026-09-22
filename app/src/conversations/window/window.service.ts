@@ -1,11 +1,10 @@
-import { estimateTokens } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow, PostKind } from '@/prisma/prisma.types.ts';
 
 import { EpisodesService } from '../episodes/episodes.service.ts';
-import { costOf, createPagedSource, entryText, instantOf, replayLineOf } from './window.utils.ts';
+import { createPagedSource, createUnitCollector, instantOf, replayLineOf } from './window.utils.ts';
 
 import type { EpisodeBoundary, WindowEntry, WindowResult } from '../conversations.types.ts';
 
@@ -13,6 +12,8 @@ type WindowInput = {
   agentUsername: string;
   budgetTokens: number;
   channelId: string;
+  /** what entries cost the model that reads them, measured on what they render to, so the budget and the window cannot disagree (§3.8) */
+  costOf: (entries: readonly WindowEntry[]) => number;
 };
 
 type RecentActionsInput = {
@@ -65,7 +66,7 @@ export class WindowService {
     const anchor = this.anchors.get(key);
     if (anchor !== undefined) {
       const anchored = await this.readSince(input, boundary, anchor);
-      if (costOf(anchored) <= input.budgetTokens) {
+      if (input.costOf(anchored) <= input.budgetTokens) {
         return { entries: anchored.toReversed(), oldestAt: anchor };
       }
     }
@@ -144,7 +145,7 @@ export class WindowService {
 
   /**
    * A post the reading agent's own turn authored is left out: the turn's final `assistant_message`
-   * event already carries that text with the reasoning behind it, and a notice is the framework speaking.
+   * event already carries that text, and a notice is the framework speaking.
    */
   private readPosts(
     input: WindowInput,
@@ -195,7 +196,11 @@ export class WindowService {
     return entries;
   }
 
-  /** the newest-first walk under a token budget, reading each source a page at a time */
+  /**
+   * The newest-first walk under a token budget, reading each source a page at a time. A unit is
+   * costed before it is admitted, and the first that does not fit ends the walk: skipping it for
+   * something older would leave a gap the model cannot see (§3.8).
+   */
   private async walkNewestFirst(
     input: WindowInput,
     boundary: EpisodeBoundary | undefined,
@@ -203,9 +208,11 @@ export class WindowService {
   ): Promise<WindowEntry[]> {
     const posts = createPagedSource((skip) => this.readPosts(input, boundary, { skip, take: PAGE_SIZE }), PAGE_SIZE);
     const events = createPagedSource((skip) => this.readEvents(input, boundary, { skip, take: PAGE_SIZE }), PAGE_SIZE);
-    const entries: WindowEntry[] = [];
+    const units = createUnitCollector();
+    const walked: WindowEntry[] = [];
+    const admitted = new Set<WindowEntry>();
     let spentTokens = 0;
-    while (spentTokens < budgetTokens) {
+    for (;;) {
       const [post, event] = await Promise.all([posts.peek(), events.peek()]);
       // posts carry Mattermost's clock in createdAt and this host's in observedAt, while events
       // carry only this host's — so the cross-source comparison uses observedAt, or skew between
@@ -220,9 +227,20 @@ export class WindowService {
       } else {
         break;
       }
-      entries.push(entry);
-      spentTokens += estimateTokens(entryText(entry));
+      walked.push(entry);
+      const unit = units.take(entry);
+      if (unit === undefined) {
+        continue;
+      }
+      const cost = input.costOf(unit);
+      if (spentTokens + cost > budgetTokens) {
+        break;
+      }
+      spentTokens += cost;
+      for (const member of unit) {
+        admitted.add(member);
+      }
     }
-    return entries;
+    return walked.filter((entry) => admitted.has(entry));
   }
 }

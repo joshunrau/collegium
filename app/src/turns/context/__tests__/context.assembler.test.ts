@@ -91,7 +91,9 @@ describe('ContextAssembler', () => {
   });
 
   const assemble = () => {
-    return contextAssembler.assemble({ channelId: 'channel-1', profile: PROFILE }).then(({ request }) => request);
+    return contextAssembler
+      .assemble({ channelId: 'channel-1', profile: PROFILE, turnId: 'turn-2' })
+      .then(({ request }) => request);
   };
 
   it('should put the stable prompt and the tool definitions on the request', async () => {
@@ -118,10 +120,15 @@ describe('ContextAssembler', () => {
     const initial = await assemble();
     windowService.build.mockResolvedValue({ entries: [post('casey', 'new message', 1000)], oldestAt: new Date(1000) });
     expect((await assemble()).cacheKey).toBe(initial.cacheKey);
-    const otherChannel = await contextAssembler.assemble({ channelId: 'channel-2', profile: PROFILE });
+    const otherChannel = await contextAssembler.assemble({
+      channelId: 'channel-2',
+      profile: PROFILE,
+      turnId: 'turn-2'
+    });
     const otherAgent = await contextAssembler.assemble({
       channelId: 'channel-1',
-      profile: { ...PROFILE, username: 'tess' }
+      profile: { ...PROFILE, username: 'tess' },
+      turnId: 'turn-2'
     });
     expect(otherChannel.request.cacheKey).not.toBe(initial.cacheKey);
     expect(otherAgent.request.cacheKey).not.toBe(initial.cacheKey);
@@ -262,7 +269,11 @@ describe('ContextAssembler across two turns', () => {
     'should send $name the same bytes through the window when memories, peers and ages change (§3.8)',
     async (model) => {
       const wireBody = async () => {
-        const { request } = await contextAssembler.assemble({ channelId: 'channel-1', profile: { ...PROFILE, model } });
+        const { request } = await contextAssembler.assemble({
+          channelId: 'channel-1',
+          profile: { ...PROFILE, model },
+          turnId: 'turn-2'
+        });
         return toCompletionBody(request);
       };
       const first = await wireBody();

@@ -1,30 +1,51 @@
 import { describe, expect, it } from 'vitest';
 
-import { costOf, replayLineOf } from '../window.utils.ts';
+import { createUnitCollector, replayLineOf } from '../window.utils.ts';
 
 import type { WindowEntry } from '../../conversations.types.ts';
 
-const post = (attachments: null | PrismaJson.PostAttachments): WindowEntry => ({
-  kind: 'post',
-  post: {
-    attachments,
-    authoringTurnId: null,
-    authorKind: 'human',
-    authorUsername: 'casey',
-    channelId: 'channel-1',
+const event = (payload: PrismaJson.TurnEventPayload): WindowEntry => ({
+  event: {
     createdAt: new Date(0),
-    id: 'post-1',
-    isForgotten: false,
-    kind: 'message',
-    message: 'what do you think?',
-    observedAt: new Date(0)
-  }
+    id: `event-${payload.kind}`,
+    kind: payload.kind,
+    payload,
+    sequence: 0,
+    turnId: 'turn-1'
+  },
+  kind: 'event'
 });
 
-describe('costOf', () => {
-  it("should cost a post's attachment lines as well as its text", () => {
-    const files = [{ id: 'file-1', mimeType: 'application/pdf', name: 'q3-report.pdf', size: 421888 }];
-    expect(costOf([post({ files })])).toBeGreaterThan(costOf([post(null)]));
+describe('createUnitCollector', () => {
+  it('should hold what answers a call until the call arrives, then return them as one unit (§3.8)', () => {
+    const units = createUnitCollector();
+    const result = event({ callId: 'c1', kind: 'tool_result', output: 'noon', toolName: ['builtins', 'now'] });
+    const decision = event({
+      approvalId: 'a1',
+      byUsername: 'casey',
+      callId: 'c1',
+      decision: 'approved',
+      kind: 'approval_decided'
+    });
+    const call = event({
+      content: '',
+      kind: 'assistant_message',
+      toolCalls: [{ args: {}, callId: 'c1', toolName: ['builtins', 'now'] }]
+    });
+    expect(units.take(result)).toBeUndefined();
+    expect(units.take(decision)).toBeUndefined();
+    expect(units.take(call)).toStrictEqual([call, result, decision]);
+  });
+
+  it('should return an entry that answers no call alone', () => {
+    const record = event({
+      body: 'bullet points',
+      description: 'casey on formatting',
+      kind: 'record_written',
+      reference: 'memory-1',
+      supersededDescriptions: []
+    });
+    expect(createUnitCollector().take(record)).toStrictEqual([record]);
   });
 });
 

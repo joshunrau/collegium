@@ -3,12 +3,17 @@ import { describe, expect, it } from 'vitest';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import type { AuthorKind } from '@/prisma/prisma.types.ts';
 
-import { containsToolCallTranscript, toCompletionMessages } from '../context.utils.ts';
+import { containsToolCallTranscript, estimateWindowTokens, toCompletionMessages } from '../context.utils.ts';
 
-const event = (payload: PrismaJson.TurnEventPayload): WindowEntry => ({
-  event: { createdAt: new Date(0), id: 'event-1', kind: payload.kind, payload, sequence: 0, turnId: 'turn-1' },
+const event = (payload: PrismaJson.TurnEventPayload, turnId = 'turn-1'): WindowEntry => ({
+  event: { createdAt: new Date(0), id: 'event-1', kind: payload.kind, payload, sequence: 0, turnId },
   kind: 'event'
 });
+
+/** the turn being assembled for; the fixture events belong to an earlier one unless a test says otherwise */
+const CURRENT_TURN_ID = 'turn-2';
+
+const render = (entries: WindowEntry[]) => toCompletionMessages(entries, 'mira', CURRENT_TURN_ID);
 
 const post = (
   authorUsername: string,
@@ -33,20 +38,19 @@ const post = (
 });
 
 /** the replay of the agent's own trace alone: a peer's post closes the window so the §5.2 line never appears, then is dropped */
-const replayOf = (entries: WindowEntry[]) =>
-  toCompletionMessages([...entries, post('casey', 'next')], 'mira').slice(0, -1);
+const replayOf = (entries: WindowEntry[]) => {
+  return render([...entries, post('casey', 'next')]).slice(0, -1);
+};
 
 describe('toCompletionMessages', () => {
   it('should name a post’s author as a person, an agent or the system, and speak the agent’s own posts as the assistant (§3.8)', () => {
     const agentPost = post('tess', 'I can take it', null, 'agent');
     const systemPost = post('collegium', '[trigger] mail', null, 'system');
-    expect(toCompletionMessages([agentPost, systemPost], 'mira')).toStrictEqual([
+    expect(render([agentPost, systemPost])).toStrictEqual([
       { content: 'tess (agent): I can take it', role: 'user' },
       { content: 'collegium (system): [trigger] mail', role: 'user' }
     ]);
-    expect(
-      toCompletionMessages([post('casey', 'hello @mira'), post('mira', 'on it'), post('casey', 'thanks')], 'mira')
-    ).toStrictEqual([
+    expect(render([post('casey', 'hello @mira'), post('mira', 'on it'), post('casey', 'thanks')])).toStrictEqual([
       { content: 'casey (person): hello @mira', role: 'user' },
       { content: 'on it', role: 'assistant' },
       { content: 'casey (person): thanks', role: 'user' }
@@ -59,7 +63,7 @@ describe('toCompletionMessages', () => {
       role: 'user'
     };
     const reply = event({ content: 'done, see above', kind: 'assistant_message', toolCalls: [] });
-    expect(toCompletionMessages([post('casey', 'hello @mira'), reply], 'mira').at(-1)).toStrictEqual(turnEnded);
+    expect(render([post('casey', 'hello @mira'), reply]).at(-1)).toStrictEqual(turnEnded);
 
     const call = event({
       content: '',
@@ -67,8 +71,8 @@ describe('toCompletionMessages', () => {
       toolCalls: [{ args: {}, callId: 'c1', toolName: ['builtins', 'now'] }]
     });
     const result = event({ callId: 'c1', kind: 'tool_result', output: 'noon', toolName: ['builtins', 'now'] });
-    expect(toCompletionMessages([call, result], 'mira').at(-1)).toStrictEqual(turnEnded);
-    expect(toCompletionMessages([reply, post('casey', 'thanks')], 'mira').at(-1)).toStrictEqual({
+    expect(render([call, result]).at(-1)).toStrictEqual(turnEnded);
+    expect(render([reply, post('casey', 'thanks')]).at(-1)).toStrictEqual({
       content: 'casey (person): thanks',
       role: 'user'
     });
@@ -76,7 +80,7 @@ describe('toCompletionMessages', () => {
 
   it("should append a post's attachment lines after its text", () => {
     const files = [{ id: 'file-1', mimeType: 'application/pdf', name: 'q3-report.pdf', size: 421888 }];
-    expect(toCompletionMessages([post('casey', 'what do you think?', { files })], 'mira')).toStrictEqual([
+    expect(render([post('casey', 'what do you think?', { files })])).toStrictEqual([
       {
         content: 'casey (person): what do you think?\n[attached: q3-report.pdf (application/pdf, 421888 bytes)]',
         role: 'user'
@@ -84,26 +88,32 @@ describe('toCompletionMessages', () => {
     ]);
   });
 
-  it('should replay a call beside its result in native form, carrying the reasoning that produced it', () => {
-    const entries = [
-      event({
-        content: 'checking',
-        kind: 'assistant_message',
-        reasoningContent: 'the skill says how',
-        toolCalls: [{ args: { name: 'handing-work-to-a-peer' }, callId: 'c1', toolName: ['skills', 'load'] }]
-      }),
-      event({ callId: 'c1', kind: 'tool_result', output: '# Handing work to a peer', toolName: ['skills', 'load'] })
+  it('should replay a call beside its result in native form, with its reasoning only in the turn in progress (§3.12)', () => {
+    const entries = (turnId: string) => [
+      event(
+        {
+          content: 'checking',
+          kind: 'assistant_message',
+          reasoningContent: 'the skill says how',
+          toolCalls: [{ args: { name: 'handing-work-to-a-peer' }, callId: 'c1', toolName: ['skills', 'load'] }]
+        },
+        turnId
+      ),
+      event(
+        { callId: 'c1', kind: 'tool_result', output: '# Handing work to a peer', toolName: ['skills', 'load'] },
+        turnId
+      )
     ];
 
-    expect(replayOf(entries)).toStrictEqual([
+    expect(replayOf(entries('turn-1'))).toStrictEqual([
       {
         content: 'checking',
-        reasoningContent: 'the skill says how',
         role: 'assistant',
         toolCalls: [{ arguments: { name: 'handing-work-to-a-peer' }, id: 'c1', name: 'skills__load' }]
       },
       { content: '# Handing work to a peer', role: 'tool', toolCallId: 'c1' }
     ]);
+    expect(replayOf(entries(CURRENT_TURN_ID))[0]).toMatchObject({ reasoningContent: 'the skill says how' });
   });
 
   it('should replay a result by its replay text when the tool gave one', () => {
@@ -148,6 +158,24 @@ describe('toCompletionMessages', () => {
     expect(replayOf(entries).at(-1)).toStrictEqual({
       content:
         '[page https://x.example/, 8 characters — from an earlier turn; its text is not shown. Make the call again if you need it.]',
+      role: 'tool',
+      toolCallId: 'c1'
+    });
+  });
+
+  it("should replay a long result whose tool gave no line as the tool's name and size (§3.8)", () => {
+    const entries = [
+      event({
+        content: '',
+        kind: 'assistant_message',
+        toolCalls: [{ args: { reference: 'memory-1' }, callId: 'c1', toolName: ['memory', 'read'] }]
+      }),
+      event({ callId: 'c1', kind: 'tool_result', output: 'x'.repeat(40_000), toolName: ['memory', 'read'] })
+    ];
+
+    expect(replayOf(entries).at(-1)).toStrictEqual({
+      content:
+        '[memory__read result, 40000 characters — from an earlier turn; its text is not shown. Make the call again if you need it.]',
       role: 'tool',
       toolCallId: 'c1'
     });
@@ -204,9 +232,9 @@ describe('toCompletionMessages', () => {
   });
 
   it('should replay a steering event as the human speaking (§7.5)', () => {
-    expect(
-      toCompletionMessages([event({ byUsername: 'casey', kind: 'steering_received', text: 'use staging' })], 'mira')
-    ).toStrictEqual([{ content: 'casey (person): use staging', role: 'user' }]);
+    expect(render([event({ byUsername: 'casey', kind: 'steering_received', text: 'use staging' })])).toStrictEqual([
+      { content: 'casey (person): use staging', role: 'user' }
+    ]);
   });
 
   it('should fold a denial into the result of the call it refused, naming the human', () => {
@@ -248,7 +276,7 @@ describe('toCompletionMessages', () => {
       })
     ];
 
-    expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
+    expect(render(entries)).toStrictEqual([
       { content: '[approval requested: extend_budget]', role: 'user' },
       { content: '[approval denied_with_reason: wrap up]', role: 'user' }
     ]);
@@ -265,9 +293,43 @@ describe('toCompletionMessages', () => {
       })
     ];
 
-    expect(toCompletionMessages(entries, 'mira')).toStrictEqual([
-      { content: '[recorded: casey on formatting]', role: 'user' }
-    ]);
+    expect(render(entries)).toStrictEqual([{ content: '[recorded: casey on formatting]', role: 'user' }]);
+  });
+});
+
+describe('estimateWindowTokens', () => {
+  const call = (reasoningContent?: string) => {
+    return event({
+      content: 'checking',
+      kind: 'assistant_message',
+      ...(reasoningContent !== undefined && { reasoningContent }),
+      toolCalls: [{ args: { reference: 'memory-1' }, callId: 'c1', toolName: ['memory', 'read'] }]
+    });
+  };
+  const result = event({ callId: 'c1', kind: 'tool_result', output: 'x'.repeat(40_000), toolName: ['memory', 'read'] });
+
+  it("should charge a call its text, name and arguments beside its result's replay line, never its reasoning (§3.8, §3.12)", () => {
+    const cost = estimateWindowTokens([call(), result], 'mira');
+    expect(cost).toBeLessThan(60);
+    expect(estimateWindowTokens([call('y'.repeat(40_000)), result], 'mira')).toBe(cost);
+  });
+
+  it('should charge a written memory its one line, not its body', () => {
+    const record = event({
+      body: 'x'.repeat(16_000),
+      description: 'casey on formatting',
+      kind: 'record_written',
+      reference: 'memory-1',
+      supersededDescriptions: []
+    });
+    expect(estimateWindowTokens([record], 'mira')).toBe(Math.ceil('[recorded: casey on formatting]'.length / 4));
+  });
+
+  it("should charge a post's attachment lines as well as its text", () => {
+    const files = [{ id: 'file-1', mimeType: 'application/pdf', name: 'q3-report.pdf', size: 421888 }];
+    expect(estimateWindowTokens([post('casey', 'hi', { files })], 'mira')).toBeGreaterThan(
+      estimateWindowTokens([post('casey', 'hi')], 'mira')
+    );
   });
 });
 

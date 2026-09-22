@@ -39,6 +39,17 @@ describe('StreamAssembler', () => {
     ]);
   });
 
+  it('should keep both the reasoning text and its blocks when a stream carries both, as OpenRouter may', () => {
+    const assembler = new StreamAssembler();
+    assembler.absorb(
+      delta({ reasoning: 'why', reasoning_details: [{ index: 0, text: 'why', type: 'reasoning.text' }] })
+    );
+    expect(assembler.finish()).toMatchObject({
+      reasoningContent: 'why',
+      reasoningDetails: [{ index: 0, text: 'why', type: 'reasoning.text' }]
+    });
+  });
+
   it('should take usage from the chunk that carries it and report a mid-stream error', () => {
     const assembler = new StreamAssembler();
     assembler.absorb({ choices: [], usage: { completionTokens: 2, promptTokens: 3 } as never });

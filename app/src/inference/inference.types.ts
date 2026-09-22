@@ -32,11 +32,12 @@ export type UnparsedToolCall = {
 };
 
 /**
- * Reasoning travels with the assistant message it produced, in memory within the turn and through
- * the `assistant_message` event across turns, because a thinking-mode provider rejects a replayed
- * assistant message without it. DeepSeek hands it back as text; OpenRouter as structured blocks
- * carrying a signature, replayed exactly as they came. §3.12 keeps it off every other surface:
- * never a post, a prompt, a trace, or a log line.
+ * Reasoning travels with the assistant message it produced for the rest of its turn, because a
+ * thinking-mode provider rejects continuing from an assistant message without it; the
+ * `assistant_message` event keeps it, and a later turn's window hands none of it back (§3.12).
+ * DeepSeek hands it back as text; OpenRouter as structured blocks carrying a signature, replayed
+ * exactly as they came. §3.12 keeps it off every other surface: never a post, a prompt, a trace,
+ * or a log line.
  */
 export type CompletionReasoning = {
   reasoningContent?: string;
