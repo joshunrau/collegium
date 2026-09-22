@@ -59,6 +59,12 @@ describe('extractTitle', () => {
     expect(extractTitle('<html><head><title>\n  Faculty \n</title></head></html>')).toBe('Faculty');
     expect(extractTitle('<h1>No title</h1>')).toBe('');
   });
+
+  it('should decode the character references a title is written with', () => {
+    expect(extractTitle('<title>Faculty &amp; Staff &ndash; Northmoor&#8217;s Psychology</title>')).toBe(
+      'Faculty & Staff – Northmoor’s Psychology'
+    );
+  });
 });
 
 describe('describeFetchError', () => {

@@ -9,6 +9,26 @@ import type { MarkdownWindow, WebFailure, WebPage, WebSnapshot } from './web.typ
 
 const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 
+const NAMED_REFERENCES = new Map([
+  ['amp', '&'],
+  ['apos', "'"],
+  ['gt', '>'],
+  ['hellip', '…'],
+  ['ldquo', '“'],
+  ['lsquo', '‘'],
+  ['lt', '<'],
+  ['mdash', '—'],
+  ['nbsp', '\u00A0'],
+  ['ndash', '–'],
+  ['quot', '"'],
+  ['rdquo', '”'],
+  ['rsquo', '’']
+]);
+
+const CHARACTER_REFERENCE = /&(#\d+|#x[0-9a-f]+|[a-z]+);/giu;
+
+const MAX_CODE_POINT = 0x10_ff_ff;
+
 // not redundant: node-html-markdown reads a doctype with a public identifier as text, and Zoho
 // still writes one (HTML 4.01 Transitional)
 const DOCTYPE = /^\s*<!DOCTYPE[^>]*>/i;
@@ -17,6 +37,10 @@ const BASE_HREF = /<base\b[^>]*\bhref\s*=\s*["']([^"']+)["']/i;
 
 /** the tail the read-on footer offers, wide enough to hold a closing section without re-reading the page */
 const TAIL_WINDOW_CHARS = 20_000;
+
+function toCodePoint(body: string): number {
+  return body[1]?.toLowerCase() === 'x' ? Number.parseInt(body.slice(2), 16) : Number(body.slice(1));
+}
 
 /** node-html-markdown's own escaping of a link target, so a resolved address renders as an authored one does */
 function encodeHref(href: string): string {
@@ -118,6 +142,23 @@ function collapseTableRow(line: string): string {
 function renderOpenedTab(url: string): string {
   const address = url === 'about:blank' ? 'an address it had not yet loaded' : url;
   return `The page opened a new tab to ${address}; it was closed — open it with web::navigate or web::fetch if it matters.`;
+}
+
+/**
+ * Text lifted out of HTML without a parser — a document's title, a search provider's snippet —
+ * still carries its character references, so `&#x27;` would reach the model where an apostrophe
+ * belongs. A reference this does not know is left as it arrived rather than guessed at.
+ */
+export function decodeHtmlEntities(text: string): string {
+  return text.replaceAll(CHARACTER_REFERENCE, (reference: string, body: string) => {
+    if (!body.startsWith('#')) {
+      return NAMED_REFERENCES.get(body.toLowerCase()) ?? reference;
+    }
+    const codePoint = toCodePoint(body);
+    return Number.isInteger(codePoint) && codePoint > 0 && codePoint <= MAX_CODE_POINT
+      ? String.fromCodePoint(codePoint)
+      : reference;
+  });
 }
 
 /**

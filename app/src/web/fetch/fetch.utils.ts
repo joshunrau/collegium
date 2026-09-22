@@ -1,3 +1,5 @@
+import { decodeHtmlEntities } from '../web.utils.ts';
+
 const HTML_TYPES: ReadonlySet<string> = new Set(['application/xhtml+xml', 'text/html']);
 
 const TEXT_TYPES: ReadonlySet<string> = new Set(['application/json', 'application/xml']);
@@ -31,7 +33,7 @@ export function charsetOf(contentType: string): string {
 }
 
 export function extractTitle(html: string): string {
-  return TITLE_PATTERN.exec(html)?.[1]?.trim() ?? '';
+  return decodeHtmlEntities(TITLE_PATTERN.exec(html)?.[1]?.trim() ?? '');
 }
 
 /**
