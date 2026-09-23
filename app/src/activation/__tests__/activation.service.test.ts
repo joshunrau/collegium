@@ -7,13 +7,14 @@ import type { AgentProfile } from '@/agents/agents.types.ts';
 import { ChannelsService } from '@/channels/channels.service.ts';
 import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
+import { RosterService } from '@/channels/roster/roster.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { ObservedPost } from '@/conversations/conversations.types.ts';
 import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
-import type { TurnStatus } from '@/prisma/prisma.types.ts';
+import type { ModelRow, TurnStatus } from '@/prisma/prisma.types.ts';
 import { QueueService } from '@/queue/queue.service.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -72,6 +73,7 @@ describe('ActivationService', () => {
     channelsService.getTriggeringMode.mockReturnValue('mention-required');
     conversationsService = MockFactory.createMock(ConversationsService);
     conversationsService.hasPostsObservedSince.mockResolvedValue(false);
+    conversationsService.listPersonPostsFrom.mockResolvedValue([]);
     conversationsService.record.mockResolvedValue(true);
     debounceService = MockFactory.createMock(DebounceService);
     debounceService.schedule.mockImplementation((_key, onMature) => onMature());
@@ -92,6 +94,8 @@ describe('ActivationService', () => {
     queueService.listAll.mockResolvedValue([]);
     queueService.pointAt.mockResolvedValue(undefined);
     reactions = [];
+    const rosterService = MockFactory.createMock(RosterService);
+    rosterService.isDirectMessage.mockReturnValue(false);
     typingSignals = [];
     transportRegistry = MockFactory.createMock(TransportRegistry);
     transportRegistry.get.mockReturnValue({
@@ -122,6 +126,7 @@ describe('ActivationService', () => {
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         { provide: NotificationsService, useValue: notificationsService },
         { provide: QueueService, useValue: queueService },
+        { provide: RosterService, useValue: rosterService },
         { provide: TransportRegistry, useValue: transportRegistry },
         { provide: TriggersService, useValue: triggersService },
         TurnFoldRegistry,
@@ -318,6 +323,88 @@ describe('ActivationService', () => {
       releaseHeldActivation: expect.any(Function),
       rootPostId: 'post-7',
       triggeringPostId: 'post-7'
+    });
+  });
+
+  describe("a drain covering a person's post (§5.2, §7.4)", () => {
+    const LATEST_START = new Date(2_000);
+
+    const personPost = (id: string, message: string): ModelRow<'Post'> => ({
+      attachments: null,
+      authoringTurnId: null,
+      authorKind: 'human',
+      authorUsername: 'casey',
+      channelId: 'channel-1',
+      createdAt: new Date(3_000),
+      id,
+      isForgotten: false,
+      kind: 'message',
+      message,
+      observedAt: new Date(3_000)
+    });
+
+    beforeEach(() => {
+      queueService.drain.mockResolvedValueOnce(undefined);
+      queueService.peek.mockResolvedValue({ earliestUnprocessedPostId: 'post-5' } as never);
+      queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-5' } as never);
+      conversationsService.findActivationSource.mockImplementation((postId) => {
+        return Promise.resolve(
+          postId === 'post-5'
+            ? {
+                authorKind: 'agent',
+                authorUsername: 'owen',
+                delegator: undefined,
+                parentChainLength: 4,
+                parentDepth: 1,
+                parentRootPostId: 'post-root'
+              }
+            : {
+                authorKind: 'human',
+                authorUsername: 'casey',
+                delegator: undefined,
+                parentChainLength: undefined,
+                parentDepth: undefined,
+                parentRootPostId: undefined
+              }
+        );
+      });
+      turnsService.findLatestStartIn.mockResolvedValue(LATEST_START);
+      agentRegistry.isAddressedBy.mockImplementation((_profile, observed) =>
+        { return observed.mentionedUsernames.includes('mira'); }
+      );
+    });
+
+    it("should answer the newest person's post addressing the agent since its last turn began, in a fresh chain", async () => {
+      conversationsService.listPersonPostsFrom.mockResolvedValue([
+        personPost('post-9', '@tess over to you'),
+        personPost('post-8', '@mira and this too'),
+        personPost('post-6', '@mira first')
+      ]);
+      await activationService.onPost(PROFILE, post());
+      await settle();
+      expect(conversationsService.listPersonPostsFrom).toHaveBeenCalledWith({
+        channelId: 'channel-1',
+        fromPostId: 'post-5',
+        observedSince: LATEST_START
+      });
+      expect(turnRunner.run).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          chainLength: 1,
+          depth: 0,
+          drainedFromPostId: 'post-5',
+          foldAuthorUsername: 'casey',
+          rootPostId: 'post-8',
+          triggeringPostId: 'post-8'
+        })
+      );
+    });
+
+    it('should answer the earliest queued post when looking for a person’s fails, logging it', async () => {
+      conversationsService.listPersonPostsFrom.mockRejectedValue(new Error('database is locked'));
+      await activationService.onPost(PROFILE, post());
+      await settle();
+      expect(turnRunner.run).toHaveBeenLastCalledWith(expect.objectContaining({ triggeringPostId: 'post-5' }));
+      expect(loggingService.error).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -22,6 +22,24 @@ const SCENARIO = defineScenario({
   channels: [{ name: 'main' }, { name: 'side' }]
 });
 
+const LINEAGE_SCENARIO = defineScenario({
+  agents: [
+    {
+      expertise: 'End-to-end testing',
+      systemPrompt: 'You are Mira. Reply clearly and briefly.',
+      tools: ['workspace'],
+      username: 'mira'
+    },
+    {
+      expertise: 'End-to-end testing',
+      systemPrompt: 'You are Owen. Reply clearly and briefly.',
+      tools: [],
+      username: 'owen'
+    }
+  ],
+  channels: [{ name: 'main' }]
+});
+
 describe('Queue', () => {
   const harness = setupHarness(SCENARIO);
 
@@ -203,5 +221,42 @@ describe('Channel concurrency', () => {
     await channels.main.clickAction(prompt, 'approve');
     await channels.main.awaitReplyFrom('mira', { text: firstReply });
     await channels.main.awaitReplyFrom('mira', { text: drainReply });
+  });
+});
+
+describe('Drain lineage', () => {
+  const harness = setupHarness(LINEAGE_SCENARIO);
+
+  it("answers a person's post queued behind a colleague's as that person's request (§5.2, §7.4)", async () => {
+    const { agents, channels, inference } = harness();
+    const request = `please file the minutes ${randomUUID()}`;
+    const marker = `minutes-${randomUUID()}`;
+    const handOff = `over to you ${randomUUID()}`;
+    const blocked = inference.willBlock({ agent: 'mira', contains: 'long task' }, textResponse(`done-${randomUUID()}`));
+    inference.willReply({ agent: 'owen' }, textResponse(`@${agents.mira.username} ${handOff}`));
+
+    await channels.main.mention('mira', 'long task');
+    await blocked.arrived;
+    await channels.main.mention('owen', 'pass this to mira');
+    const fromOwen = await channels.main.awaitPost({
+      description: "owen's post to mira",
+      match: (post) => post.authorId === agents.owen.userId && post.text.includes(handOff)
+    });
+    await channels.main.awaitReaction(fromOwen, QUEUED_ACKNOWLEDGEMENT_EMOJI);
+    const queued = await channels.main.mention('mira', request);
+    await channels.main.awaitReaction(queued, QUEUED_ACKNOWLEDGEMENT_EMOJI);
+
+    inference.willReply(
+      { agent: 'mira' },
+      toolCallResponse('workspace__write', { content: marker, path: 'minutes.md' })
+    );
+    blocked.release();
+    const prompt = await channels.main.awaitPost({
+      description: 'the approval prompt of the drained turn',
+      match: (post) => post.text.includes('Approval required') && post.text.includes(marker)
+    });
+    expect(prompt.text).toContain('requested by @');
+    expect(prompt.text).toContain(request);
+    await channels.main.clickAction(prompt, 'deny');
   });
 });

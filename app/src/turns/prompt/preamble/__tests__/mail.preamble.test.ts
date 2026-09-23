@@ -12,7 +12,7 @@ describe('renderMailPreamble', () => {
         buildStablePromptInput({ mailbox: { address: 'mira@example.com', announcementChannelName: 'Mail Room' } })
       )
     ).toContain(
-      'Your mailbox is mira@example.com, and mail arriving there is announced in Mail Room and nowhere else. A ⟨ref⟩ names one message inside that mailbox'
+      'Your mailbox is mira@example.com, and mail arriving there is announced in Mail Room and nowhere else. A mail ref names one message inside that mailbox'
     );
   });
 });

@@ -78,4 +78,27 @@ describe('TASKS_TOOLSET', () => {
     expect(report.value?.post?.text).toMatch(/^@mira /);
     expect(close.value?.post?.text).not.toContain('@');
   });
+
+  it('should close for the calling turn, and refuse on a closed unit naming who closed it, when and the verdict (§3.15)', async () => {
+    tasksService.prepareClose.mockResolvedValue(
+      Result.err({
+        closedAt: new Date(Date.now() - 5 * 60_000),
+        closedByUsername: 'mira',
+        kind: 'closed',
+        reference: 'unit-1',
+        state: 'cancelled',
+        verdict: 'no longer needed'
+      })
+    );
+    const close = await executeTool(
+      TASKS_TOOLSET.tools.close,
+      { reference: 'unit-1', state: 'done', verdict: 'good' },
+      context
+    );
+    expect(tasksService.prepareClose).toHaveBeenCalledWith(expect.objectContaining({ turnId: 'turn-1' }));
+    expect(close.error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message: 'unit unit-1 is closed: @mira closed it as cancelled 5m ago, with the verdict "no longer needed"'
+    });
+  });
 });

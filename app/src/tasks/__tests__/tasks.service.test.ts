@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
+import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
@@ -13,6 +14,7 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { createModelTable } from '@/testing/factories/model-table.factory.ts';
 
+import { PostSightingsRegistry } from '../sightings/post-sightings.registry.ts';
 import { TasksService } from '../tasks.service.ts';
 
 import type { PreparedUnit, WorkUnit } from '../tasks.types.ts';
@@ -24,7 +26,9 @@ const OMAR = buildAgentProfile({ tools: [], username: 'omar' });
 const MIRA = buildAgentProfile({ tools: ['tasks'], username: 'mira' });
 
 describe('TasksService', () => {
+  let channelLockService: MockedInstance<ChannelLockService>;
   let loggingService: MockedInstance<LoggingService>;
+  let postSightingsRegistry: PostSightingsRegistry;
   let tasksService: TasksService;
   let turns: TurnRow[];
   let units: ReturnType<typeof createModelTable<WorkUnit>>;
@@ -40,6 +44,8 @@ describe('TasksService', () => {
     rosterService.listAgentsIn.mockImplementation((channelId) => {
       return channelId === 'channel-1' ? [MIRA, OWEN, OMAR] : [MIRA];
     });
+    channelLockService = MockFactory.createMock(ChannelLockService);
+    channelLockService.isBusyWithTurnOpenedAfter.mockReturnValue(false);
     loggingService = MockFactory.createMock(LoggingService);
     const multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
     multiMentionPolicy.stripAgentMentions.mockImplementation((text: string) => text.replaceAll('@omar', 'omar'));
@@ -47,12 +53,14 @@ describe('TasksService', () => {
       providers: [
         TasksService,
         { provide: AgentRegistry, useValue: agentRegistry },
+        { provide: ChannelLockService, useValue: channelLockService },
         {
           provide: ConfigService,
           useValue: createConfigServiceMock({ turns: { chainLengthLimit: 3, delegationDepthLimit: 2 } })
         },
         { provide: LoggingService, useValue: loggingService },
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
+        PostSightingsRegistry,
         { provide: RosterService, useValue: rosterService },
         {
           provide: getModelToken('Turn'),
@@ -68,6 +76,7 @@ describe('TasksService', () => {
         { provide: getModelToken('WorkUnit'), useValue: units }
       ]
     }).compile();
+    postSightingsRegistry = moduleRef.get(PostSightingsRegistry);
     tasksService = moduleRef.get(TasksService);
   });
 
@@ -160,8 +169,8 @@ describe('TasksService', () => {
   it('should let only the assignee report and only the creator close, along the legal transitions', async () => {
     const unit = await assign();
     const reference = unit.id.slice(0, 8);
-    const asMira = { actingAgentUsername: 'mira', channelId: 'channel-1', reference };
-    const asOwen = { actingAgentUsername: 'owen', channelId: 'channel-1', reference };
+    const asMira = { actingAgentUsername: 'mira', channelId: 'channel-1', reference, turnId: 'turn-1' };
+    const asOwen = { actingAgentUsername: 'owen', channelId: 'channel-1', reference, turnId: 'turn-1' };
     expect((await tasksService.prepareReport({ ...asMira, summary: 'x', to: 'review' })).error).toMatchObject({
       kind: 'not-the-assignee'
     });
@@ -174,6 +183,7 @@ describe('TasksService', () => {
     expect(report.text).toBe(`@mira — unit \`${reference}\` is ready for review: three venues found`);
     await tasksService.commitTransition(report.prepared, 'post-2');
     expect(units.rows[0]).toMatchObject({ lastPostId: 'post-2', state: 'review' });
+    postSightingsRegistry.recordSeen('turn-1', ['post-2']);
     expect((await tasksService.prepareReport({ ...asOwen, summary: 'again', to: 'review' })).error).toStrictEqual({
       from: 'review',
       kind: 'illegal-transition',
@@ -182,7 +192,12 @@ describe('TasksService', () => {
     const close = (await tasksService.prepareClose({ ...asMira, to: 'done', verdict: 'good' })).unwrap();
     expect(close.text).toBe(`Unit \`${reference}\` closed as done: good`);
     await tasksService.commitTransition(close.prepared, 'post-3');
-    expect(units.rows[0]).toMatchObject({ lastPostId: 'post-3', state: 'done' });
+    expect(units.rows[0]).toMatchObject({
+      closedByUsername: 'mira',
+      lastPostId: 'post-3',
+      state: 'done',
+      verdict: 'good'
+    });
     expect(units.rows[0]?.closedAt).toBeInstanceOf(Date);
   });
 
@@ -204,6 +219,7 @@ describe('TasksService', () => {
         channelId: 'channel-1',
         reference,
         to: 'cancelled',
+        turnId: 'turn-1',
         verdict: 'x'
       })
     ).unwrap();
@@ -237,7 +253,71 @@ describe('TasksService', () => {
       `⛔ Unit \`${unit.id.slice(0, 8)}\` cancelled by @casey — \`mira\` had handed it to \`owen\`: a venue shortlist`
     );
     await tasksService.commitTransition(prepared.prepared, 'post-2');
-    expect(units.rows[0]).toMatchObject({ state: 'cancelled' });
+    expect(units.rows[0]).toMatchObject({ closedByUsername: 'casey', state: 'cancelled' });
+  });
+
+  describe('what a close rests on (§3.15)', () => {
+    const close = (reference: string, to: 'cancelled' | 'done') => {
+      return tasksService.prepareClose({
+        actingAgentUsername: 'mira',
+        channelId: 'channel-1',
+        reference,
+        to,
+        turnId: 'turn-1',
+        verdict: 'x'
+      });
+    };
+
+    it('should refuse closing an assigned unit while a turn the assignee opened since the assignment runs', async () => {
+      const unit = await assign();
+      const reference = unit.id.slice(0, 8);
+      channelLockService.isBusyWithTurnOpenedAfter.mockReturnValue(true);
+      expect((await close(reference, 'cancelled')).error).toStrictEqual({
+        assigneeUsername: 'owen',
+        kind: 'assignee-working',
+        reference
+      });
+      expect(channelLockService.isBusyWithTurnOpenedAfter).toHaveBeenCalledWith(
+        'owen',
+        'channel-1',
+        units.rows[0]?.createdAt
+      );
+      channelLockService.isBusyWithTurnOpenedAfter.mockReturnValue(false);
+      expect((await close(reference, 'done')).success).toBe(true);
+    });
+
+    it('should refuse closing a reported unit until the closing turn has read the report', async () => {
+      const unit = await assign();
+      const reference = unit.id.slice(0, 8);
+      await tasksService.commitTransition({ to: 'review', unitId: unit.id }, 'post-report');
+      expect((await close(reference, 'done')).error).toStrictEqual({ kind: 'report-unread', reference });
+      postSightingsRegistry.recordSeen('turn-1', ['post-report']);
+      expect((await close(reference, 'done')).success).toBe(true);
+    });
+  });
+
+  it('should refuse a report on a closed unit, naming who closed it, when, and the verdict (§3.15)', async () => {
+    const unit = await assign();
+    const reference = unit.id.slice(0, 8);
+    await tasksService.commitTransition(
+      { closedByUsername: 'mira', to: 'cancelled', unitId: unit.id, verdict: 'no longer needed' },
+      'post-2'
+    );
+    const refused = await tasksService.prepareReport({
+      actingAgentUsername: 'owen',
+      channelId: 'channel-1',
+      reference,
+      summary: 'x',
+      to: 'review'
+    });
+    expect(refused.error).toStrictEqual({
+      closedAt: units.rows[0]?.closedAt,
+      closedByUsername: 'mira',
+      kind: 'closed',
+      reference,
+      state: 'cancelled',
+      verdict: 'no longer needed'
+    });
   });
 
   it('should list the open units the agent is party to in the channel, oldest first, and read one by reference', async () => {

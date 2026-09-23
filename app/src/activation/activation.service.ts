@@ -6,9 +6,11 @@ import { ChannelsService } from '@/channels/channels.service.ts';
 import type { LockHandle } from '@/channels/channels.types.ts';
 import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
+import { RosterService } from '@/channels/roster/roster.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { ObservedPost } from '@/conversations/conversations.types.ts';
+import { restoreObservedPost } from '@/conversations/conversations.utils.ts';
 import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
@@ -65,6 +67,7 @@ export class ActivationService {
     private readonly multiMentionPolicy: MultiMentionPolicy,
     private readonly notificationsService: NotificationsService,
     private readonly queueService: QueueService,
+    private readonly rosterService: RosterService,
     private readonly transportRegistry: TransportRegistry,
     private readonly triggersService: TriggersService,
     private readonly turnFoldRegistry: TurnFoldRegistry,
@@ -374,7 +377,7 @@ export class ActivationService {
       channelId,
       drainedFromPostId: entry.earliestUnprocessedPostId,
       lock,
-      triggeringPostId: entry.earliestUnprocessedPostId
+      triggeringPostId: await this.findDrainTriggeringPost(profile, channelId, entry.earliestUnprocessedPostId)
     });
   }
 
@@ -388,6 +391,35 @@ export class ActivationService {
     }
     await this.queueService.enqueue(profile.username, post.channelId, post.id);
     await this.acknowledgeQueued(profile.username, post.id);
+  }
+
+  /**
+   * §5.2 — the newest post a person addressed to the agent among what a drain covers, else the
+   * earliest queued. Only posts since the agent's previous turn here began count: a colleague's post
+   * is queued once its author stops acting, so a drain from it can reach back past the person's post
+   * that started the previous turn, which that turn answered. A failure falls back rather than
+   * throws, since the lock is held and the entry already drained.
+   */
+  private async findDrainTriggeringPost(
+    profile: AgentProfile,
+    channelId: string,
+    earliestPostId: string
+  ): Promise<string> {
+    try {
+      const posts = await this.conversationsService.listPersonPostsFrom({
+        channelId,
+        fromPostId: earliestPostId,
+        observedSince: await this.turnsService.findLatestStartIn(profile.username, channelId)
+      });
+      const isDirectMessage = this.rosterService.isDirectMessage(channelId);
+      const newest = posts.find((post) => this.isWorkFor(profile, restoreObservedPost(post, isDirectMessage)));
+      return newest?.id ?? earliestPostId;
+    } catch (error) {
+      this.loggingService.error(
+        new Error(`failed to find the newest person's post to "${profile.username}" in ${channelId}`, { cause: error })
+      );
+      return earliestPostId;
+    }
   }
 
   /** §7.3 — the earliest post of the turn addressing its one colleague (§4.5) that no turn of that colleague here started after */
@@ -410,6 +442,17 @@ export class ActivationService {
       return addresseeUsername === first.addresseeUsername && (since === undefined || post.observedAt > since);
     });
     return pending && { addresseeUsername: pending.addresseeUsername, postId: pending.post.id };
+  }
+
+  private isWorkFor(profile: AgentProfile, post: ObservedPost): boolean {
+    if (!activatesOnArrival(post) || this.multiMentionPolicy.refuses(post)) {
+      return false;
+    }
+    const mode = this.channelsService.getTriggeringMode({
+      channelId: post.channelId,
+      isDirectMessage: post.isDirectMessage
+    });
+    return this.agentRegistry.isAddressedBy(profile, post, mode);
   }
 
   /**
@@ -479,14 +522,7 @@ export class ActivationService {
 
   /** whether this post is work for the agent, and if so, the queue entry that says so (§5.2) */
   private async queueIfAddressed(profile: AgentProfile, post: ObservedPost): Promise<boolean> {
-    if (!activatesOnArrival(post) || this.multiMentionPolicy.refuses(post)) {
-      return false;
-    }
-    const mode = this.channelsService.getTriggeringMode({
-      channelId: post.channelId,
-      isDirectMessage: post.isDirectMessage
-    });
-    if (!this.agentRegistry.isAddressedBy(profile, post, mode)) {
+    if (!this.isWorkFor(profile, post)) {
       return false;
     }
     await this.enqueueBusy(profile, post);

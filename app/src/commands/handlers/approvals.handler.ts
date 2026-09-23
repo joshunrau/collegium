@@ -1,27 +1,27 @@
 import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
-import { ApprovalsService } from '@/approvals/approvals.service.ts';
-import type { PendingApproval } from '@/approvals/approvals.types.ts';
+import type { PendingDecision } from '@/approvals/decisions/decisions.types.ts';
 import { resolveActingHuman } from '@/approvals/decisions/human-presence.utils.ts';
+import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 
 import { CommandHandler } from '../commands.handler.ts';
-import { renderNothingWaiting, renderPendingApprovals } from './approvals.utils.ts';
+import { renderNothingWaiting, renderPendingDecisions } from './approvals.utils.ts';
 import { requireAgentName } from './argument.utils.ts';
 
 import type { CommandInput, CommandResponse } from '../commands.types.ts';
-import type { PendingApprovalListing } from './approvals.utils.ts';
+import type { PendingDecisionListing } from './approvals.utils.ts';
 
-/** §8.4 — what is still parked on a human, in the channels the invoker is in; it decides nothing */
+/** §8.4 — the approvals and questions still parked on a human, in the channels the invoker is in; it decides nothing */
 @Injectable()
 export class ApprovalsHandler extends CommandHandler {
   readonly trigger = 'approvals';
 
   constructor(
     private readonly agentRegistry: AgentRegistry,
-    private readonly approvalsService: ApprovalsService,
+    private readonly pendingDecisionsService: PendingDecisionsService,
     private readonly rosterService: RosterService,
     private readonly transportRegistry: TransportRegistry
   ) {
@@ -34,20 +34,22 @@ export class ApprovalsHandler extends CommandHandler {
     if (named && !named.success) {
       return named.error;
     }
-    const pending = await this.approvalsService.listPending(named?.value);
+    const pending = await this.pendingDecisionsService.listPending(
+      named === undefined ? {} : { agentUsername: named.value }
+    );
     const visible = await this.keepVisibleTo(pending, input.userId);
     if (visible.length === 0) {
       return { audience: 'invoker', text: renderNothingWaiting() };
     }
-    return { audience: 'invoker', text: renderPendingApprovals(visible, new Date()) };
+    return { audience: 'invoker', text: renderPendingDecisions(visible, new Date()) };
   }
 
   /**
-   * §3.7's own predicate, asked once per distinct channel rather than once per approval, and read
+   * §3.7's own predicate, asked once per distinct channel rather than once per decision, and read
    * live because membership is what confers the right to see a prompt at all. A check that cannot
    * be answered omits the row: failing closed is the only safe direction on an authority read.
    */
-  private async keepVisibleTo(pending: readonly PendingApproval[], userId: string): Promise<PendingApprovalListing[]> {
+  private async keepVisibleTo(pending: readonly PendingDecision[], userId: string): Promise<PendingDecisionListing[]> {
     const membership = new Map<string, boolean>();
     for (const row of pending) {
       if (membership.has(row.channelId)) {

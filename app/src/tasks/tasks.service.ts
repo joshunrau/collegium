@@ -2,6 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
+import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
@@ -12,11 +13,13 @@ import type { Model, TransactionClient } from '@/prisma/prisma.types.ts';
 import { createRecordId } from '@/prisma/prisma.utils.ts';
 import { renderReference } from '@/utils/reference.utils.ts';
 
+import { PostSightingsRegistry } from './sightings/post-sightings.registry.ts';
 import {
   ASSIGNEE_TARGETS,
+  awaitsVerdictOnReport,
   CREATOR_TARGETS,
+  findTransitionRefusal,
   holdsReportTool,
-  LEGAL_FROM,
   OPEN_STATES,
   renderAssignmentPost,
   renderClosePost,
@@ -66,9 +69,11 @@ export class TasksService {
 
   constructor(
     private readonly agentRegistry: AgentRegistry,
+    private readonly channelLockService: ChannelLockService,
     configService: ConfigService,
     private readonly loggingService: LoggingService,
     private readonly multiMentionPolicy: MultiMentionPolicy,
+    private readonly postSightingsRegistry: PostSightingsRegistry,
     private readonly rosterService: RosterService,
     @InjectModel('Turn') private readonly turns: Model<'Turn'>,
     @InjectModel('WorkUnit') private readonly units: Model<'WorkUnit'>
@@ -91,9 +96,12 @@ export class TasksService {
    * record of what was said (§3.15).
    */
   async commitTransition(prepared: PreparedTransition, postId: string): Promise<void> {
-    const closes = (CREATOR_TARGETS as readonly string[]).includes(prepared.to);
+    const closing =
+      prepared.to === 'cancelled' || prepared.to === 'done'
+        ? { closedAt: new Date(), closedByUsername: prepared.closedByUsername, verdict: prepared.verdict }
+        : {};
     const moved = await this.units.updateMany({
-      data: { lastPostId: postId, state: prepared.to, ...(closes && { closedAt: new Date() }) },
+      data: { lastPostId: postId, state: prepared.to, ...closing },
       where: { id: prepared.unitId, state: { in: statesThatMayReach(prepared.to) } }
     });
     if (moved.count === 0) {
@@ -198,11 +206,12 @@ export class TasksService {
     if (!unit.success) {
       return unit;
     }
-    if (!LEGAL_FROM[unit.value.state].includes('cancelled')) {
-      return Result.err({ from: unit.value.state, kind: 'illegal-transition', to: 'cancelled' });
+    const refused = findTransitionRefusal(unit.value, 'cancelled');
+    if (refused) {
+      return Result.err(refused);
     }
     return Result.ok({
-      prepared: { to: 'cancelled', unitId: unit.value.id },
+      prepared: { closedByUsername: input.byUsername, to: 'cancelled', unitId: unit.value.id },
       text: renderHumanCancellationPost(
         { ...unit.value, outcome: this.multiMentionPolicy.stripAgentMentions(unit.value.outcome) },
         input.byUsername
@@ -210,22 +219,39 @@ export class TasksService {
     });
   }
 
+  /**
+   * §3.15 — refused, beyond the creator and the transition: while a turn of the assignee that opened
+   * since the assignment runs here, since it may be writing the report the verdict would judge; and
+   * from review or blocked, until the closing turn has read the report.
+   */
   async prepareClose(
-    input: TransitionInput & { to: (typeof CREATOR_TARGETS)[number]; verdict: string }
-  ): Promise<Result<Prepared<PreparedTransition>, TaskFailure.StateRefused | TaskFailure.Unresolved>> {
-    const unit = await this.read(input.actingAgentUsername, input.channelId, input.reference);
-    if (!unit.success) {
-      return unit;
+    input: TransitionInput & { to: (typeof CREATOR_TARGETS)[number]; turnId: string; verdict: string }
+  ): Promise<Result<Prepared<PreparedTransition>, TaskFailure.CloseRefused | TaskFailure.Unresolved>> {
+    const read = await this.read(input.actingAgentUsername, input.channelId, input.reference);
+    if (!read.success) {
+      return read;
     }
-    if (unit.value.creatorUsername !== input.actingAgentUsername) {
-      return Result.err({ creatorUsername: unit.value.creatorUsername, kind: 'not-the-creator' });
+    const unit = read.value;
+    if (unit.creatorUsername !== input.actingAgentUsername) {
+      return Result.err({ creatorUsername: unit.creatorUsername, kind: 'not-the-creator' });
     }
-    if (!LEGAL_FROM[unit.value.state].includes(input.to)) {
-      return Result.err({ from: unit.value.state, kind: 'illegal-transition', to: input.to });
+    const refused = findTransitionRefusal(unit, input.to);
+    if (refused) {
+      return Result.err(refused);
+    }
+    const reference = renderReference(unit.id);
+    if (
+      unit.state === 'assigned' &&
+      this.channelLockService.isBusyWithTurnOpenedAfter(unit.assigneeUsername, unit.channelId, unit.createdAt)
+    ) {
+      return Result.err({ assigneeUsername: unit.assigneeUsername, kind: 'assignee-working', reference });
+    }
+    if (awaitsVerdictOnReport(unit.state) && !this.postSightingsRegistry.hasSeen(input.turnId, unit.lastPostId)) {
+      return Result.err({ kind: 'report-unread', reference });
     }
     return Result.ok({
-      prepared: { to: input.to, unitId: unit.value.id },
-      text: renderClosePost(unit.value, input.to, input.verdict)
+      prepared: { closedByUsername: input.actingAgentUsername, to: input.to, unitId: unit.id, verdict: input.verdict },
+      text: renderClosePost(unit, input.to, input.verdict)
     });
   }
 
@@ -266,8 +292,9 @@ export class TasksService {
     if (unit.value.assigneeUsername !== input.actingAgentUsername) {
       return Result.err({ assigneeUsername: unit.value.assigneeUsername, kind: 'not-the-assignee' });
     }
-    if (!LEGAL_FROM[unit.value.state].includes(input.to)) {
-      return Result.err({ from: unit.value.state, kind: 'illegal-transition', to: input.to });
+    const refused = findTransitionRefusal(unit.value, input.to);
+    if (refused) {
+      return Result.err(refused);
     }
     return Result.ok({
       addressee: unit.value.creatorUsername,

@@ -1,14 +1,37 @@
-import type { PendingApproval } from '@/approvals/approvals.types.ts';
+import type { PendingDecision } from '@/approvals/decisions/decisions.types.ts';
 import { renderElapsed } from '@/formatting/durations/duration.utils.ts';
 
-/** how many waiting approvals the listing names before it says how many more there are */
+/** §3.7a — a question is model prose of up to 2000 characters; one line shows its head */
+const QUESTION_HEAD_LIMIT_CHARS = 80;
+
+function renderPendingCounts(rows: readonly PendingDecisionListing[]): string {
+  const questions = rows.filter((row) => row.kind === 'ask').length;
+  const approvals = rows.length - questions;
+  return [
+    ...(approvals > 0 ? [`${approvals} approval(s)`] : []),
+    ...(questions > 0 ? [`${questions} question(s)`] : [])
+  ].join(' and ');
+}
+
+/** a decision whose prompt never posted names no post, because there is none to open */
+function renderPromptReference(decision: PendingDecision): string {
+  return decision.promptPostId === null ? 'no prompt was posted' : `prompt \`${decision.promptPostId}\``;
+}
+
+/** how many waiting decisions the listing names before it says how many more there are */
 export const PENDING_LISTING_LIMIT = 20;
 
-/** one row as the listing shows it, with the channel named where the roster still knows it */
-export type PendingApprovalListing = PendingApproval & { readonly channelName: string | undefined };
+/** §8.1 — a decision a turn is parked on, and since when in the operator timezone */
+export type ParkedDecision = {
+  readonly decision: PendingDecision;
+  readonly since: string;
+};
 
-/** §3.7 gives an approval no timeout, so the age is the whole point of the listing */
-export function renderApprovalAge(requestedAt: Date, now: Date): string {
+/** one row as the listing shows it, with the channel named where the roster still knows it */
+export type PendingDecisionListing = PendingDecision & { readonly channelName: string | undefined };
+
+/** §3.7 gives a decision no timeout, so its age is the whole point of a listing */
+export function renderPendingAge(requestedAt: Date, now: Date): string {
   return renderElapsed(now.getTime() - requestedAt.getTime());
 }
 
@@ -18,19 +41,36 @@ export function renderNothingWaiting(): string {
 }
 
 /**
- * Oldest first, capped: an unbounded pending set would otherwise produce a post too large to
- * deliver, exactly when the listing is most worth having. A row whose prompt never posted names
- * no post, because there is none to open.
+ * The glyph the prompt and the parked status post lead with (§8.1), then what is being decided: the
+ * action for an approval, and for a question the head of its words on one line as well.
  */
-export function renderPendingApprovals(rows: readonly PendingApprovalListing[], now: Date): string {
+export function renderPendingDecisionSubject(decision: PendingDecision): string {
+  if (decision.kind === 'approval') {
+    return `🔐 \`${decision.actionName}\``;
+  }
+  const question = decision.question.replaceAll(/\s+/gu, ' ').trim();
+  const head =
+    question.length > QUESTION_HEAD_LIMIT_CHARS ? `${question.slice(0, QUESTION_HEAD_LIMIT_CHARS)}…` : question;
+  return `❓ \`${decision.actionName}\` "${head}"`;
+}
+
+/** §8.1 — a decision a turn is parked on where a turn or its work is shown: what, how long, since when, and where to answer it */
+export function renderParkedOn({ decision, since }: ParkedDecision, now: Date): string {
+  return `${renderPendingDecisionSubject(decision)} · for ${renderPendingAge(decision.requestedAt, now)}, since ${since} · ${renderPromptReference(decision)}`;
+}
+
+/**
+ * Oldest first, capped: an unbounded pending set would otherwise produce a post too large to
+ * deliver, exactly when the listing is most worth having.
+ */
+export function renderPendingDecisions(rows: readonly PendingDecisionListing[], now: Date): string {
   const shown = rows.slice(0, PENDING_LISTING_LIMIT);
   const remainder = rows.length - shown.length;
   return [
-    `${rows.length} approval(s) waiting on a human:`,
+    `${renderPendingCounts(rows)} waiting on a human:`,
     ...shown.map((row) => {
       const where = row.channelName === undefined ? [] : [row.channelName];
-      const prompt = row.promptPostId === null ? 'no prompt was posted' : `prompt \`${row.promptPostId}\``;
-      return `· @${row.agentUsername} · \`${row.actionName}\` · ${renderApprovalAge(row.requestedAt, now)} · ${[...where, prompt].join(' · ')}`;
+      return `· @${row.agentUsername} · ${renderPendingDecisionSubject(row)} · ${renderPendingAge(row.requestedAt, now)} · ${[...where, renderPromptReference(row)].join(' · ')}`;
     }),
     ...(remainder > 0 ? [`…and ${remainder} more.`] : [])
   ].join('\n');

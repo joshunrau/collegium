@@ -1,7 +1,11 @@
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
+import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
+import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
@@ -35,16 +39,22 @@ const EVENTS = [
 
 describe('TraceHandler', () => {
   let conversationsService: MockedInstance<ConversationsService>;
+  let pendingDecisionsService: MockedInstance<PendingDecisionsService>;
   let traceHandler: TraceHandler;
   let turnsService: MockedInstance<TurnsService>;
 
   beforeEach(async () => {
     conversationsService = MockFactory.createMock(ConversationsService);
     turnsService = MockFactory.createMock(TurnsService);
+    pendingDecisionsService = MockFactory.createMock(PendingDecisionsService);
+    pendingDecisionsService.listPending.mockResolvedValue([]);
     const moduleRef = await Test.createTestingModule({
       providers: [
         TraceHandler,
+        DateFormatter,
+        { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: ConversationsService, useValue: conversationsService },
+        { provide: PendingDecisionsService, useValue: pendingDecisionsService },
         { provide: TurnsService, useValue: turnsService }
       ]
     }).compile();
@@ -65,6 +75,7 @@ describe('TraceHandler', () => {
     expect(response.text).toContain('1. called `write_file` with {"path":"a.md"}');
     expect(response.text).toContain('2. `write_file` → wrote 5 bytes');
     expect(response.text).toContain('3. assistant: done');
+    expect(pendingDecisionsService.listPending).toHaveBeenCalledWith({ turnId: 'turn-1' });
   });
 
   it('should refuse a bare /trace with the usage line', async () => {

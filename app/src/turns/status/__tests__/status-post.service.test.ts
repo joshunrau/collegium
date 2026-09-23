@@ -6,8 +6,11 @@ import type { Mock } from 'vitest';
 import type { ChatTransport } from '@/chat/chat.transport.ts';
 import type { ChatFailure } from '@/chat/chat.types.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
+import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import { TimeOfDayFormatter } from '@/formatting/dates/time-of-day.formatter.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 
@@ -50,6 +53,8 @@ describe('StatusPostService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         StatusPostService,
+        TimeOfDayFormatter,
+        { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: ConversationsService, useValue: conversationsService },
         { provide: LoggingService, useValue: loggingService },
         { provide: TransportRegistry, useValue: transportRegistry },
@@ -147,6 +152,38 @@ describe('StatusPostService', () => {
       '⏳ _working…_\n→ `load_skill`\n_writing it up_',
       expect.stringMatching(/^⏹️ _killed \(\d+s\)_\n→ `load_skill`$/u)
     ]);
+  });
+
+  it('should head the post with what the turn waits on from the park until the decision lands (§8.1)', async () => {
+    vi.useFakeTimers({ now: new Date('2026-09-22T14:05:00Z') });
+    const handle = statusPostService.open(OPEN_INPUT);
+
+    handle.appendTrace({ kind: 'call', toolName: 'workspace::write' });
+    await vi.waitFor(() => expect(transport.send).toHaveBeenCalledOnce());
+    handle.park('approval-1', 'approval');
+    await vi.advanceTimersByTimeAsync(1_000);
+    handle.unpark('approval-1');
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(editedTexts()).toStrictEqual([
+      '🔐 _waiting on a decision since 14:05 UTC_\n→ `workspace::write`',
+      '⏳ _working…_\n→ `workspace::write`'
+    ]);
+  });
+
+  it('should keep naming the earliest wait while a later one of the same turn is still open (§8.1)', async () => {
+    vi.useFakeTimers({ now: new Date('2026-09-22T14:05:00Z') });
+    const handle = statusPostService.open(OPEN_INPUT);
+
+    handle.appendTrace({ kind: 'call', toolName: 'ask::human' });
+    await vi.waitFor(() => expect(transport.send).toHaveBeenCalledOnce());
+    handle.park('ask-1', 'ask');
+    await vi.advanceTimersByTimeAsync(60_000);
+    handle.park('approval-1', 'approval');
+    handle.unpark('ask-1');
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(editedTexts().at(-1)).toBe('🔐 _waiting on a decision since 14:06 UTC_\n→ `ask::human`');
   });
 
   it('should coalesce edits to one per second, and never delay the closing edit (§8.1)', async () => {

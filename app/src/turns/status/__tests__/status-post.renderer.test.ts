@@ -57,6 +57,18 @@ describe('renderStatusPost', () => {
     expect(renderStatusPost(state({ abortedBy: 'casey', outcome: 'killed' }))).toBe('⏹️ _killed by @casey_');
   });
 
+  it('should head a parked turn with what it waits on and since when, keeping the transient text (§8.1)', () => {
+    expect(renderStatusPost(state({ parked: { on: 'ask', since: '14:05 UTC' }, transientText: 'checking' }))).toBe(
+      '❓ _waiting on an answer since 14:05 UTC_\n_checking_'
+    );
+  });
+
+  it('should let an outcome replace a parked head (§8.1)', () => {
+    expect(renderStatusPost(state({ outcome: 'stopped', parked: { on: 'approval', since: '14:05 UTC' } }))).toBe(
+      '⏹️ _stopped_'
+    );
+  });
+
   it('should omit an empty transient line', () => {
     expect(renderStatusPost(state({ transientText: '' }))).toBe('⏳ _working…_');
   });

@@ -68,10 +68,7 @@ export class ContextAssembler {
       request: {
         cacheKey: JSON.stringify([profile.username, channelId]),
         // §3.8 — a user-role message, since a provider may hoist a system message ahead of the window
-        messages: [
-          ...toCompletionMessages(entries, reader, turnId),
-          ...(tail === undefined ? [] : [{ content: tail, role: 'user' as const }])
-        ],
+        messages: [...toCompletionMessages(entries, reader, turnId), { content: tail, role: 'user' }],
         model: profile.model,
         systemPrompt: stable,
         tools: this.toolRegistry.describeFor(profile)

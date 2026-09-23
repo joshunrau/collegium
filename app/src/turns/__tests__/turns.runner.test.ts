@@ -28,6 +28,7 @@ import type {
 } from '@/inference/inference.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
+import { PostSightingsRegistry } from '@/tasks/sightings/post-sightings.registry.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import type { WorkUnit } from '@/tasks/tasks.types.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
@@ -94,7 +95,15 @@ describe('TurnRunner', () => {
   let multiMentionPolicy: MockedInstance<MultiMentionPolicy>;
   let releaseHeldActivation: Mock<(held: HeldActivation) => void>;
   let sends: { channelId: string; text: string }[];
-  let statusHandle: { appendTrace: any; close: any; markTrace: any; setTransient: any; surface: any };
+  let statusHandle: {
+    appendTrace: any;
+    close: any;
+    markTrace: any;
+    park: any;
+    setTransient: any;
+    surface: any;
+    unpark: any;
+  };
   let tasksService: MockedInstance<TasksService>;
   let toolExecutor: MockedInstance<ToolExecutor>;
   let toolRegistry: MockedInstance<ToolRegistry>;
@@ -110,6 +119,7 @@ describe('TurnRunner', () => {
   let typingIndicatorService: MockedInstance<TypingIndicatorService>;
   let webService: MockedInstance<WebService>;
   let memorySightingsRegistry: MockedInstance<MemorySightingsRegistry>;
+  let postSightingsRegistry: MockedInstance<PostSightingsRegistry>;
 
   beforeEach(async () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);
@@ -126,8 +136,10 @@ describe('TurnRunner', () => {
       appendTrace: vi.fn().mockReturnValue(0),
       close: vi.fn().mockResolvedValue(undefined),
       markTrace: vi.fn(),
+      park: vi.fn(),
       setTransient: vi.fn().mockResolvedValue(undefined),
-      surface: vi.fn().mockResolvedValue(true)
+      surface: vi.fn().mockResolvedValue(true),
+      unpark: vi.fn()
     };
     contextAssembler = MockFactory.createMock(ContextAssembler);
     contextAssembler.assemble.mockResolvedValue({
@@ -174,6 +186,7 @@ describe('TurnRunner', () => {
     typingIndicatorService.start.mockReturnValue(typingHandle);
     webService = MockFactory.createMock(WebService);
     memorySightingsRegistry = MockFactory.createMock(MemorySightingsRegistry);
+    postSightingsRegistry = MockFactory.createMock(PostSightingsRegistry);
     turnsService = MockFactory.createMock(TurnsService);
     turnsService.countInChain.mockResolvedValue(1);
     turnsService.open.mockResolvedValue(Result.ok({ id: 'turn-1' } as Turn));
@@ -195,6 +208,7 @@ describe('TurnRunner', () => {
         MockFactory.createForService(LoggingService),
         { provide: MemorySightingsRegistry, useValue: memorySightingsRegistry },
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
+        { provide: PostSightingsRegistry, useValue: postSightingsRegistry },
         { provide: StatusPostService, useValue: statusPostService },
         { provide: TasksService, useValue: tasksService },
         { provide: ToolExecutor, useValue: toolExecutor },
@@ -1207,6 +1221,13 @@ describe('TurnRunner', () => {
     expect(memorySightingsRegistry.forgetTurn).toHaveBeenCalledExactlyOnceWith('turn-1');
   });
 
+  it('should count the posts its window held as read by the turn, and forget them once it ends (§3.15)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(postSightingsRegistry.recordSeen).toHaveBeenCalledExactlyOnceWith('turn-1', new Set(['post-0']));
+    expect(postSightingsRegistry.forgetTurn).toHaveBeenCalledExactlyOnceWith('turn-1');
+  });
+
   it('should close as a delivery failure rather than completed when the final output cannot be posted', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('lost reply')));
     transportSend.mockResolvedValueOnce(Result.err({ kind: 'api', message: 'mattermost is down' }));
@@ -1412,6 +1433,26 @@ describe('TurnRunner', () => {
       expect(outcome.status).toBe('delivery_failure');
       expect(onPublished).not.toHaveBeenCalled();
     });
+  });
+
+  it('should head the status post with a wait from the prompt’s event until the decision’s (§8.1)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['ask__human'])));
+    toolExecutor.execute.mockImplementationOnce(async ({ appendEvent }) => {
+      await appendEvent({ askId: 'ask-1', callId: 'call-1', kind: 'ask_requested', question: 'which?', toolName: 'q' });
+      expect(statusHandle.park).toHaveBeenCalledExactlyOnceWith('ask-1', 'ask');
+      expect(statusHandle.unpark).not.toHaveBeenCalled();
+      await appendEvent({
+        answerText: 'this',
+        askId: 'ask-1',
+        byUsername: 'casey',
+        callId: 'call-1',
+        kind: 'ask_answered'
+      });
+      expect(statusHandle.unpark).toHaveBeenCalledExactlyOnceWith('ask-1');
+      return { kind: 'continue', output: 'this' };
+    });
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
   });
 
   it('should write a returned disclosure into the turn events, not the status post (§3.6)', async () => {

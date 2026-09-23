@@ -44,3 +44,24 @@ export type DecisionFailure =
   | PendingDecisionFailure.ApproverNotPresent
   | PendingDecisionFailure.DialogUndeliverable
   | PendingDecisionFailure.NotFound;
+
+/** which decisions a listing reads: every one, or those of one agent, one channel or one turn (§8.4) */
+export type PendingDecisionScope = {
+  readonly agentUsername?: string;
+  readonly channelId?: string;
+  readonly turnId?: string;
+};
+
+/**
+ * §8.4 — one decision still parked on a human, as a listing shows it: an approval (§3.7), or a
+ * question with its words (§3.7a). The prompt post is where it is made; a null one never posted.
+ */
+export type PendingDecision = {
+  /** in display form, `ns::tool`, or a framework action's name alone */
+  readonly actionName: string;
+  readonly agentUsername: string;
+  readonly channelId: string;
+  readonly promptPostId: null | string;
+  readonly requestedAt: Date;
+  readonly turnId: string;
+} & ({ readonly kind: 'approval' } | { readonly kind: 'ask'; readonly question: string });

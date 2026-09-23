@@ -22,9 +22,7 @@ describe('Provisioning', () => {
   });
 
   it('should show an agent’s bot under the display name config declares (§3.1)', async () => {
-    await expect(provisioning.displayNameOf(provisioning.usernames.agent)).resolves.toBe(
-      provisioning.agentDisplayName
-    );
+    await expect(provisioning.displayNameOf(provisioning.usernames.agent)).resolves.toBe(provisioning.agentDisplayName);
   });
 
   it('should join every account it creates to the main channel', async () => {

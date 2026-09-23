@@ -8,7 +8,8 @@ _ephemeral_ result is visible only to the person who ran it; the rest post to th
 
 ## Seeing what happened
 
-- `/collegium trace {post-id}` — the full tool trace for a turn. Ephemeral.
+- `/collegium trace {post-id}` — the full tool trace for a turn, and what a turn still waiting on a
+  person waits on. Ephemeral.
 - `/collegium inspect {agent}` — an agent's model, tools with the ones that need approval marked,
   skills, schedules, and system prompt. Ephemeral.
 - `/collegium usage` — token usage per agent and model, with cached-prompt and reasoning breakdowns
@@ -16,11 +17,12 @@ _ephemeral_ result is visible only to the person who ran it; the rest post to th
   in any channel. Ephemeral.
 - `/collegium queue {agent}` — whether a turn is running for the agent here, since when and started
   by which post, then pending depth and the oldest unprocessed post. Ephemeral.
-- `/collegium approvals [{agent}]` — the approvals waiting on a person, for one agent or all.
-  Ephemeral.
+- `/collegium approvals [{agent}]` — the approvals and questions waiting on a person, for one agent
+  or all, oldest first. Ephemeral.
 - `/collegium triggers {agent}` — outstanding triggers. Ephemeral.
 - `/collegium units {agent}` — the open work units in this channel for an agent, each line carrying
-  the unit's reference that `cancel` takes. Ephemeral.
+  the unit's reference that `cancel` takes, then the agent or counterpart whose turn here waits on a
+  person. Ephemeral.
 
 ## Changing what an agent sees
 

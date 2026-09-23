@@ -12,7 +12,6 @@ import { renderOperatorPreamble } from './operator.preamble.ts';
 import { renderRepliesPreamble } from './replies.preamble.ts';
 import { renderSearchPreamble } from './search.preamble.ts';
 import { renderShellPreamble } from './shell.preamble.ts';
-import { renderSkillsPreamble } from './skills.preamble.ts';
 import { renderTriggersPreamble } from './triggers.preamble.ts';
 import { renderTurnStartsPreamble } from './turn-starts.preamble.ts';
 import { renderWorkUnitsPreamble } from './work-units.preamble.ts';
@@ -35,7 +34,6 @@ const PREAMBLE_PARAGRAPHS: readonly StableParagraph[] = [
   renderMailPreamble,
   renderAskPreamble,
   renderSearchPreamble,
-  renderSkillsPreamble,
   renderWorkUnitsPreamble,
   renderAddressingPreamble,
   renderTriggersPreamble,

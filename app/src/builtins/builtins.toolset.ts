@@ -11,7 +11,8 @@ export const BUILTINS_TOOLSET = implementToolset(BUILTINS_TOOLSET_DEF, {
     now: {
       budgetExempt: true,
       concurrent: true,
-      description: 'Get the current date and time. You have no other source of the current date and time.',
+      description:
+        "Get the current date and time, to the second, in the operator's timezone. Your context states the date this turn started on, never the time; this is the only source of the time.",
       execute: (_args, context) => Result.ok({ text: context.clock.now() }),
       parameters: z.object({}),
       retryable: true

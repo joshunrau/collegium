@@ -45,6 +45,7 @@ import {
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
 import type { PostKind, TurnStatus } from '@/prisma/prisma.types.ts';
+import { PostSightingsRegistry } from '@/tasks/sightings/post-sightings.registry.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -274,6 +275,7 @@ export class TurnRunner {
     private readonly loggingService: LoggingService,
     private readonly memorySightingsRegistry: MemorySightingsRegistry,
     private readonly multiMentionPolicy: MultiMentionPolicy,
+    private readonly postSightingsRegistry: PostSightingsRegistry,
     private readonly statusPostService: StatusPostService,
     private readonly tasksService: TasksService,
     private readonly toolExecutor: ToolExecutor,
@@ -375,6 +377,7 @@ export class TurnRunner {
         this.loggingService.error(new Error('failed to dispose the browsing session', { cause: error }));
       }
       this.memorySightingsRegistry.forgetTurn(turn.id);
+      this.postSightingsRegistry.forgetTurn(turn.id);
       state.control.release();
       state.fold.release();
       this.releaseHeldActivation(input, state);
@@ -507,13 +510,30 @@ export class TurnRunner {
   /**
    * The appender handed to tool execution and the approval flow. A prompt's requested event is
    * written as the prompt lands and before the turn waits on it, so it is the moment the turn
-   * parks on a person (§3.7, §3.7a), and a parked turn releases its colleague rather than hold it
-   * for as long as that person takes (§5.2).
+   * parks on a person (§3.7, §3.7a): a parked turn releases its colleague rather than hold it for
+   * as long as that person takes (§5.2), and its status post says what it waits on (§8.1) until
+   * the decision's own event is written. A cancelled decision writes none; it ends the turn, whose
+   * outcome replaces the head.
    */
-  private async appendEventReleasingOnPark(input: RunInput, state: TurnState, event: TurnEventInput): Promise<void> {
+  private async appendEventTrackingParks(input: RunInput, state: TurnState, event: TurnEventInput): Promise<void> {
     await this.turnsService.appendEvent(state.turn.id, event);
-    if (event.kind === 'approval_requested' || event.kind === 'ask_requested') {
-      this.releaseHeldActivation(input, state);
+    switch (event.kind) {
+      case 'approval_decided':
+        state.status.unpark(event.approvalId);
+        return;
+      case 'approval_requested':
+        state.status.park(event.approvalId, 'approval');
+        this.releaseHeldActivation(input, state);
+        return;
+      case 'ask_answered':
+        state.status.unpark(event.askId);
+        return;
+      case 'ask_requested':
+        state.status.park(event.askId, 'ask');
+        this.releaseHeldActivation(input, state);
+        return;
+      default:
+        return;
     }
   }
 
@@ -863,7 +883,7 @@ export class TurnRunner {
         Promise.all(
           batch.map((identified, index) => {
             return this.toolExecutor.execute({
-              appendEvent: (event) => this.appendEventReleasingOnPark(input, state, event),
+              appendEvent: (event) => this.appendEventTrackingParks(input, state, event),
               call: identified.call,
               contextText: renderApprovalContext(this.assembleApprovalContext(state, identified, positions[index]!)),
               ...(interimText !== undefined && { preface: interimText }),
@@ -999,7 +1019,7 @@ export class TurnRunner {
     );
     const decision = await this.approvalsService.request({
       agentUsername: input.profile.username,
-      appendEvent: (event) => this.appendEventReleasingOnPark(input, state, event),
+      appendEvent: (event) => this.appendEventTrackingParks(input, state, event),
       args: { attemptsSoFar: state.budget.spentCount, extensionNumber },
       channelId: input.channelId,
       payloadPresentation: 'collapse',
@@ -1080,12 +1100,16 @@ export class TurnRunner {
     return { ...identity, call, detail: described?.detail, effect: described?.effect, kind: 'runnable' };
   }
 
-  /** §3.8 — the request as assembled is measured whole; everything pushed afterwards adds its own estimate */
+  /**
+   * §3.8 — the request as assembled is measured whole; everything pushed afterwards adds its own
+   * estimate. The window's posts are what this turn has read, which a close rests on (§3.15).
+   */
   private loadAssembledContext(state: TurnState, assembled: AssembledContext): void {
     state.messages.splice(0, state.messages.length, ...assembled.request.messages);
     state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
     state.contextAssembledAt = assembled.assembledAt;
     state.windowPostIds = assembled.windowPostIds;
+    this.postSightingsRegistry.recordSeen(state.turn.id, assembled.windowPostIds);
   }
 
   /** §8.1 — the line was written at admission; the call's disposition is known only now */

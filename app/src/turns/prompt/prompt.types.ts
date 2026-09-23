@@ -1,3 +1,5 @@
+import type { $MemorySettings } from '@collegium/core/toolsets';
+
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import type { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import type { GrantedTool } from '@/tools/tools.registry.ts';
@@ -5,8 +7,7 @@ import type { GrantedTool } from '@/tools/tools.registry.ts';
 /** §3.8 — what a turn is told beside its window: the system prompt ahead of it, and the sections that may change between turns after it */
 export type TurnPrompt = {
   readonly stable: string;
-  /** absent when no section has anything to say, so no empty message follows the window */
-  readonly tail: string | undefined;
+  readonly tail: string;
 };
 
 export type TurnPromptInput = {
@@ -23,6 +24,8 @@ export type StablePromptInput = {
   readonly foldLimit: number;
   readonly granted: readonly GrantedTool[];
   readonly mailbox: StablePromptMailbox | undefined;
+  /** §3.6 — this agent's memory caps, stated in the preamble; absent exactly when it holds no memory tool */
+  readonly memoryCaps: $MemorySettings | undefined;
   readonly presentCommands: readonly string[];
   readonly profile: AgentProfile;
   readonly skillsManifest: string;
