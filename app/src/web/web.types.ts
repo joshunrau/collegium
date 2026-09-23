@@ -146,11 +146,10 @@ export declare namespace WebFailure {
     option: string;
     ref: string;
   };
-  /** no page of the PDF that was read carries a text layer — a scan, most likely, and nothing here reads an image (§3.4) */
+  /** every page of the PDF was read and none carries a text layer — a scan, most likely, and nothing here reads an image (§3.4) */
   type NoText = {
     kind: 'no-text';
     pageCount: number;
-    pagesRead: number;
     url: string;
   };
   /** the ref is on the page but CSS hides it, so no click or fill can land until it is revealed */

@@ -6,13 +6,13 @@ import type { TlsReason, WebFailure } from '../web.types.ts';
 
 /**
  * Firefox's transport errors in the app's words, since `NS_ERROR_NET_EMPTY_RESPONSE` reached a
- * model as a fact about the server. The empty response names both causes because the policy proxy
- * (§3.4) refuses an address the same way a dead host does, and nothing downstream can tell them apart.
+ * model as a fact about the server. The policy proxy (§3.4) closes a refused connection the same
+ * way, but the session types that refusal before this is reached; what is left is the host's.
  */
 const NAVIGATION_ERRORS: { readonly [code: string]: string } = {
   NS_ERROR_CONNECTION_REFUSED: 'the connection was refused',
   NS_ERROR_NET_EMPTY_RESPONSE:
-    "the connection was accepted and closed with no response: the host, or this deployment's URL policy, refused it",
+    'the connection was closed with no response: the host refused it or could not be reached',
   NS_ERROR_NET_TIMEOUT: `the page did not answer within ${NAVIGATION_TIMEOUT_MS / 1000}s`,
   NS_ERROR_UNKNOWN_HOST: 'the host name does not resolve'
 };

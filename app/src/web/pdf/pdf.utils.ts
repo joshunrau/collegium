@@ -1,5 +1,5 @@
+import { readPage } from '../reading/reading.utils.ts';
 import { MARKDOWN_CAP_CHARS, PDF_READ_TIMEOUT_MS } from '../web.constants.ts';
-import { readPage } from '../web.utils.ts';
 
 import type { FetchedPage, PageRead } from '../web.types.ts';
 import type { PdfReadBudget, PdfText } from './pdf.types.ts';
@@ -40,9 +40,13 @@ export function createPdfReadBudget(): PdfReadBudget {
   return { deadline: AbortSignal.timeout(PDF_READ_TIMEOUT_MS), maxChars: MARKDOWN_CAP_CHARS };
 }
 
-/** no page read carries text: the document is images of pages, most likely a scan */
+/**
+ * every page was read and none carries text: the document is images of pages, most likely a scan.
+ * A read the budget stopped says nothing of the pages it never reached, and a blank cover page is
+ * no scan.
+ */
 export function isWithoutTextLayer(text: PdfText): boolean {
-  return text.pages.every((page) => normalizePageText(page) === '');
+  return text.stoppedBy === undefined && text.pages.every((page) => normalizePageText(page) === '');
 }
 
 /**

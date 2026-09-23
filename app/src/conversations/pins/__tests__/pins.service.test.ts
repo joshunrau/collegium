@@ -1,6 +1,6 @@
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatTransport } from '@/chat/chat.transport.ts';
 import type { ChatFailure } from '@/chat/chat.types.ts';
@@ -11,6 +11,7 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { createObservedPost } from '@/testing/factories/observed-post.factory.ts';
 
 import { ConversationsService } from '../../conversations.service.ts';
+import { EpisodesService } from '../../episodes/episodes.service.ts';
 import { PinsService } from '../pins.service.ts';
 
 import type { RecordablePost } from '../../conversations.types.ts';
@@ -20,14 +21,25 @@ const post = (id: string, at: number, message = id): RecordablePost => {
 };
 
 describe('PinsService', () => {
+  let conversationsService: ConversationsService;
   let database: MigratedDatabase;
+  let episodesService: EpisodesService;
   let pinsService: PinsService;
 
   beforeEach(async () => {
     database = createMigratedDatabase();
     const moduleRef = await Test.createTestingModule({
-      providers: [ConversationsService, PinsService, { provide: getModelToken('Post'), useValue: database.client.post }]
+      providers: [
+        ConversationsService,
+        EpisodesService,
+        PinsService,
+        { provide: getModelToken('ChannelClear'), useValue: database.client.channelClear },
+        { provide: getModelToken('Episode'), useValue: database.client.episode },
+        { provide: getModelToken('Post'), useValue: database.client.post }
+      ]
     }).compile();
+    conversationsService = moduleRef.get(ConversationsService);
+    episodesService = moduleRef.get(EpisodesService);
     pinsService = moduleRef.get(PinsService);
   });
 
@@ -57,11 +69,30 @@ describe('PinsService', () => {
     expect(pinned?.message).toBe('use the registry, then the directory');
   });
 
+  it('should never bring back a post the channel’s last clear erased, however it is pinned (§8.5)', async () => {
+    await episodesService.recordClear(
+      'channel-1',
+      { eventsAfter: new Date(2000), postsAfter: new Date(2000) },
+      database.client
+    );
+    await pinsService.pin(post('post-1', 1000));
+    await pinsService.reconcile(transportPinning(Result.ok([post('post-0', 500), post('post-2', 2000)])), 'channel-1');
+    expect(await listPinnedIds()).toStrictEqual(['post-2']);
+    expect(await database.client.post.count({ where: { id: { in: ['post-0', 'post-1'] } } })).toBe(0);
+  });
+
   it('should unpin a post and keep its row as history', async () => {
     await pinsService.pin(post('post-1', 1000));
     await pinsService.unpin('post-1');
     expect(await listPinnedIds()).toStrictEqual([]);
     expect(await database.client.post.count({ where: { id: 'post-1' } })).toBe(1);
+  });
+
+  it('should not write to the store for an edit of a post that is not pinned', async () => {
+    await conversationsService.record(post('post-1', 1000));
+    const updateMany = vi.spyOn(database.client.post, 'updateMany');
+    await pinsService.unpin('post-1');
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it('should reconcile the channel to the pins Mattermost holds now, whatever was missed (§8.2)', async () => {

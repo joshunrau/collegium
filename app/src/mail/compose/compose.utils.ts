@@ -1,6 +1,6 @@
 import { micromark } from 'micromark';
 
-import { toMarkdown } from '@/web/web.utils.ts';
+import { toMarkdown } from '@/web/markdown/markdown.utils.ts';
 
 import { toOutboundMail } from '../mail.utils.ts';
 import { MAIL_TEMPLATE_BODY_PLACEHOLDER } from './compose.constants.ts';

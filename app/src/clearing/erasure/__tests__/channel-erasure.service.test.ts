@@ -85,6 +85,7 @@ describe('ChannelErasure', () => {
     for (const participant of [
       conversationsService.eraseBefore,
       episodesService.eraseBefore,
+      episodesService.recordClear,
       turnsService.eraseContentBefore,
       approvalsService.eraseBefore,
       asksService.eraseBefore,

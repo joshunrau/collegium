@@ -9,10 +9,11 @@ import { FetchClient } from './fetch/fetch.client.ts';
 import { extractTitle } from './fetch/fetch.utils.ts';
 import { stripPageChrome } from './fetch/page-chrome.utils.ts';
 import { refuseUnreadablePage } from './fetch/readability.utils.ts';
+import { pageToMarkdown } from './markdown/markdown.utils.ts';
 import { PdfTextExtractor } from './pdf/pdf-text.extractor.ts';
 import { createPdfReadBudget, isWithoutTextLayer, readPdfText } from './pdf/pdf.utils.ts';
+import { capMarkdown, readPage } from './reading/reading.utils.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
-import { capMarkdown, pageToMarkdown, readPage } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
 import type { FetchedPdf } from './fetch/fetch.types.ts';
@@ -57,10 +58,7 @@ export class WebService {
     this.maxSessions = configService.get('web.maxBrowserSessions');
   }
 
-  async click(
-    turnId: string,
-    ref: string
-  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
+  async click(turnId: string, ref: string): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy>>> {
     const opened = await this.sessions.get(turnId);
     if (!opened?.success) {
       return Result.err({ kind: 'no-session' });
@@ -134,7 +132,7 @@ export class WebService {
   async fill(
     turnId: string,
     args: { pressEnter?: boolean; ref: string; text: string }
-  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
+  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy>>> {
     const opened = await this.sessions.get(turnId);
     if (!opened?.success) {
       return Result.err({ kind: 'no-session' });
@@ -142,10 +140,7 @@ export class WebService {
     return this.toSnapshot(await opened.value.fill(args.ref, args.text, args.pressEnter ?? false));
   }
 
-  async hover(
-    turnId: string,
-    ref: string
-  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
+  async hover(turnId: string, ref: string): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy>>> {
     const opened = await this.sessions.get(turnId);
     if (!opened?.success) {
       return Result.err({ kind: 'no-session' });
@@ -169,8 +164,8 @@ export class WebService {
       return opened;
     }
     // after the slot is claimed, never before: a turn ending during the lookup must find a session
-    // to dispose, not claim one afterwards. The proxy would refuse the address too, but as a page
-    // that failed to load, where this is the typed refusal it is
+    // to dispose, not claim one afterwards. The session would report the proxy's refusal the same
+    // way, but only after a load that could not succeed
     const vetted = await this.addressPolicy.resolve(new URL(url));
     if (!vetted.success) {
       return vetted;
@@ -181,7 +176,7 @@ export class WebService {
   async select(
     turnId: string,
     args: { option: string; ref: string }
-  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
+  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy>>> {
     const opened = await this.sessions.get(turnId);
     if (!opened?.success) {
       return Result.err({ kind: 'no-session' });
@@ -231,7 +226,7 @@ export class WebService {
     }
     const text = extracted.value;
     if (isWithoutTextLayer(text)) {
-      return Result.err({ kind: 'no-text', pageCount: text.pageCount, pagesRead: text.pages.length, url });
+      return Result.err({ kind: 'no-text', pageCount: text.pageCount, url });
     }
     return Result.ok({
       ...readPdfText(text, read),

@@ -2,7 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { describeFetchError } from '../fetch/fetch.utils.ts';
-import { decodeHtmlEntities } from '../web.utils.ts';
+import { decodeHtmlEntities } from '../markdown/entities.utils.ts';
 import { $BraveErrorResponse, $BraveWebSearchResponse } from './brave.schemas.ts';
 import { BRAVE_WEB_SEARCH_ENDPOINT, SEARCH_TIMEOUT_MS } from './search.constants.ts';
 

@@ -1,12 +1,13 @@
 import { Result } from '@collegium/core/utils';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
+import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
 import { BrowserProcess } from './browser.process.ts';
 import { BrowserSession } from './browser.session.ts';
 import { isBrowserProvisioned } from './browser.utils.ts';
 import { PolicyProxy } from './policy.proxy.ts';
 
-import type { WebFailure } from '../web.types.ts';
+import type { AddressPolicy, WebFailure } from '../web.types.ts';
 
 /**
  * The Camoufox seam: a fresh incognito context per session over the shared browser process, its
@@ -16,6 +17,7 @@ import type { WebFailure } from '../web.types.ts';
 @Injectable()
 export class BrowserClient {
   constructor(
+    @Inject(ADDRESS_POLICY_TOKEN) private readonly addressPolicy: AddressPolicy,
     private readonly browserProcess: BrowserProcess,
     private readonly policyProxy: PolicyProxy
   ) {}
@@ -30,7 +32,7 @@ export class BrowserClient {
     try {
       const browser = await this.browserProcess.acquire();
       const context = await browser.newContext({ proxy: { server: await this.policyProxy.address() } });
-      return Result.ok(new BrowserSession(context, await context.newPage()));
+      return Result.ok(new BrowserSession(context, await context.newPage(), this.addressPolicy));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return Result.err({ kind: 'unreachable', message });

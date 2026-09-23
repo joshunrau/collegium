@@ -4,11 +4,12 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, TransactionClient } from '@/prisma/prisma.types.ts';
 
-import type { ConversationFailure, EpisodeBoundary } from '../conversations.types.ts';
+import type { ConversationFailure, EpisodeBoundary, RecordablePost } from '../conversations.types.ts';
 
 @Injectable()
 export class EpisodesService {
   constructor(
+    @InjectModel('ChannelClear') private readonly channelClears: Model<'ChannelClear'>,
     @InjectModel('Episode') private readonly episodes: Model<'Episode'>,
     @InjectModel('Post') private readonly posts: Model<'Post'>
   ) {}
@@ -25,6 +26,12 @@ export class EpisodesService {
       return Result.err({ kind: 'post-not-found', postId });
     }
     return Result.ok();
+  }
+
+  /** §8.5 — whether the channel's last clear erased every post as old as this one, so recording it would bring it back */
+  async isErasedByClear(post: Pick<RecordablePost, 'channelId' | 'createdAt'>): Promise<boolean> {
+    const cleared = await this.channelClears.findUnique({ where: { channelId: post.channelId } });
+    return cleared !== null && post.createdAt < cleared.erasedBefore;
   }
 
   /**
@@ -54,5 +61,14 @@ export class EpisodesService {
   /** a manual episode boundary (§3.8) — context never reaches back past the most recent one */
   async mark(agentUsername: string, channelId: string, postId: string): Promise<void> {
     await this.episodes.create({ data: { agentUsername, channelId, postId } });
+  }
+
+  /** §8.5 — the clear's own boundary, replacing the last one's, so that nothing it erased is recorded again */
+  async recordClear(channelId: string, boundary: EpisodeBoundary, transaction: TransactionClient): Promise<void> {
+    await transaction.channelClear.upsert({
+      create: { channelId, erasedBefore: boundary.postsAfter },
+      update: { erasedBefore: boundary.postsAfter },
+      where: { channelId }
+    });
   }
 }

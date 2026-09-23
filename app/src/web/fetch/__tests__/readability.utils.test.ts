@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { pageToMarkdown } from '../../web.utils.ts';
+import { pageToMarkdown } from '../../markdown/markdown.utils.ts';
 import { extractTitle } from '../fetch.utils.ts';
 import { refuseUnreadablePage } from '../readability.utils.ts';
 

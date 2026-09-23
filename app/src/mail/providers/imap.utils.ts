@@ -2,7 +2,7 @@ import { Result, toErrorMessage } from '@collegium/core/utils';
 import type { MessageStructureObject } from 'imapflow';
 import type { AddressObject, ParsedMail } from 'mailparser';
 
-import { toMarkdown } from '@/web/web.utils.ts';
+import { toMarkdown } from '@/web/markdown/markdown.utils.ts';
 
 import { $ImapCursor } from './imap.schemas.ts';
 

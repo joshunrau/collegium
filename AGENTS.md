@@ -80,7 +80,7 @@ app/src/
   clearing/       the §8.5 channel clear: the erasure transaction across the stores, the visible deletion, the confirmation dialog
   commands/       the slash-command entry layer and its handlers
   config/         the ConfigService and EnvService: config.json and process.env read and parsed against @collegium/config
-  conversations/  the post store, the channel window, episodes, forget, backfill, and the conversations::search toolset
+  conversations/  the post store, the channel window, episodes, pins, forget, backfill, and the conversations::search toolset
   core/           shared schema/type primitives
   credentials/    the Mattermost tokens provisioning minted, read by the app and written by nothing else
   formatting/     display formatting: the shared date and time-of-day formatters (fixed locale, operator timezone)

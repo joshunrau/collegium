@@ -1,7 +1,7 @@
 import { parseRetryAfterHeaderMs } from '@/utils/retry-after.utils.ts';
 
+import { decodeHtmlEntities } from '../markdown/entities.utils.ts';
 import { RATE_LIMIT_DEFAULT_WAIT_MS, RATE_LIMIT_RETRY_MIN_ANSWER_MS } from '../web.constants.ts';
-import { decodeHtmlEntities } from '../web.utils.ts';
 
 import type { TlsReason, WebFailure } from '../web.types.ts';
 import type { PinnedResponse } from './fetch.types.ts';

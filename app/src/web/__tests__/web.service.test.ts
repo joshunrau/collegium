@@ -11,12 +11,12 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { BrowserClient } from '../browser/browser.client.ts';
 import { BrowserSession } from '../browser/browser.session.ts';
 import { FetchClient } from '../fetch/fetch.client.ts';
+import { pageToMarkdown } from '../markdown/markdown.utils.ts';
 import { PdfTextExtractor } from '../pdf/pdf-text.extractor.ts';
 import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
 import { refuseUnbrowsableUrl } from '../web.policy.ts';
 import { WebService } from '../web.service.ts';
 import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
-import { pageToMarkdown } from '../web.utils.ts';
 
 import type { FetchedDocument, FetchedPdf } from '../fetch/fetch.types.ts';
 import type { AddressPolicy, PageRead, RenderedCapture, WebFailure } from '../web.types.ts';
@@ -324,7 +324,6 @@ describe('WebService', () => {
       expect(result.error).toStrictEqual({
         kind: 'no-text',
         pageCount: 3,
-        pagesRead: 3,
         url: 'https://northmoor.example/documents/handbook.pdf'
       });
     });

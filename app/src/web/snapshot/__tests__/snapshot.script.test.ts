@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 
-import { toMarkdown } from '../../web.utils.ts';
+import { toMarkdown } from '../../markdown/markdown.utils.ts';
 import { captureSnapshot } from '../snapshot.script.ts';
 
 const FACULTY_DIRECTORY = `<!doctype html><html><body>

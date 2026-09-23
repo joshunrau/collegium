@@ -7,6 +7,7 @@ import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow } from '@/prisma/prisma.types.ts';
 
 import { ConversationsService } from '../conversations.service.ts';
+import { EpisodesService } from '../episodes/episodes.service.ts';
 
 import type { RecordablePost } from '../conversations.types.ts';
 
@@ -19,6 +20,7 @@ import type { RecordablePost } from '../conversations.types.ts';
 export class PinsService {
   constructor(
     private readonly conversationsService: ConversationsService,
+    private readonly episodesService: EpisodesService,
     @InjectModel('Post') private readonly posts: Model<'Post'>
   ) {}
 
@@ -33,10 +35,16 @@ export class PinsService {
     });
   }
 
-  /** a post pinned now, recorded first where the store never saw it, since a person may pin a post older than its history */
+  /**
+   * A post pinned now, recorded first where the store never saw it, since a person may pin a post
+   * older than its history — but never one the channel's last clear erased: that is a post the
+   * clear's deletion missed in Mattermost, and recording it would undo the clear (§8.5).
+   */
   async pin(post: RecordablePost): Promise<void> {
-    await this.conversationsService.record(post);
-    await this.posts.update({ data: { isPinned: true, message: post.message }, where: { id: post.id } });
+    if (!(await this.episodesService.isErasedByClear(post))) {
+      await this.conversationsService.record(post);
+    }
+    await this.posts.updateMany({ data: { isPinned: true, message: post.message }, where: { id: post.id } });
   }
 
   /** §8.2 — the channel's pins as Mattermost holds them now, whatever events a restart or a dropped socket missed */
@@ -55,7 +63,12 @@ export class PinsService {
     return Result.ok();
   }
 
+  /** read before it writes: every edit of a post not pinned arrives here, a status post's on every agent's socket */
   async unpin(postId: string): Promise<void> {
+    const pinned = await this.posts.findFirst({ select: { id: true }, where: { id: postId, isPinned: true } });
+    if (pinned === null) {
+      return;
+    }
     await this.posts.updateMany({ data: { isPinned: false }, where: { id: postId, isPinned: true } });
   }
 }
