@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Memory" ADD COLUMN "revisedAt" DATETIME;
+ALTER TABLE "Memory" ADD COLUMN "revision" INTEGER NOT NULL DEFAULT 0;

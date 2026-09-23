@@ -21,6 +21,7 @@ import type {
   InferenceFailure
 } from '@/inference/inference.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -100,6 +101,7 @@ describe('TurnRunner', () => {
   let typingHandle: { stop: Mock };
   let typingIndicatorService: MockedInstance<TypingIndicatorService>;
   let webService: MockedInstance<WebService>;
+  let memorySightingsRegistry: MockedInstance<MemorySightingsRegistry>;
 
   beforeEach(async () => {
     approvalsService = MockFactory.createMock(ApprovalsService);
@@ -158,6 +160,7 @@ describe('TurnRunner', () => {
     typingIndicatorService = MockFactory.createMock(TypingIndicatorService);
     typingIndicatorService.start.mockReturnValue(typingHandle);
     webService = MockFactory.createMock(WebService);
+    memorySightingsRegistry = MockFactory.createMock(MemorySightingsRegistry);
     turnsService = MockFactory.createMock(TurnsService);
     turnsService.countInChain.mockResolvedValue(1);
     turnsService.open.mockResolvedValue(Result.ok({ id: 'turn-1' } as Turn));
@@ -176,6 +179,7 @@ describe('TurnRunner', () => {
         DateFormatter,
         { provide: InferenceRegistry, useValue: inferenceRegistry },
         MockFactory.createForService(LoggingService),
+        { provide: MemorySightingsRegistry, useValue: memorySightingsRegistry },
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         { provide: StatusPostService, useValue: statusPostService },
         { provide: TasksService, useValue: tasksService },
@@ -1155,6 +1159,12 @@ describe('TurnRunner', () => {
     expect(webService.endTurn).toHaveBeenCalledExactlyOnceWith('turn-1');
   });
 
+  it('should forget which memories the turn saw once it ends (§3.6)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(memorySightingsRegistry.forgetTurn).toHaveBeenCalledExactlyOnceWith('turn-1');
+  });
+
   it('should close as a delivery failure rather than completed when the final output cannot be posted', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('lost reply')));
     transportSend.mockResolvedValueOnce(Result.err({ kind: 'api', message: 'mattermost is down' }));
@@ -1370,7 +1380,7 @@ describe('TurnRunner', () => {
         body: 'casey prefers pnpm',
         description: 'tooling preference',
         reference: 'memory-1',
-        revisionOf: 'memory-0',
+        revision: { count: 2 },
         supersededDescriptions: ['an ancient note']
       },
       kind: 'continue',
@@ -1379,7 +1389,7 @@ describe('TurnRunner', () => {
     await run();
     expect(turnsService.appendEvent).toHaveBeenCalledWith(
       'turn-1',
-      expect.objectContaining({ kind: 'record_written', reference: 'memory-1', revisionOf: 'memory-0' })
+      expect.objectContaining({ kind: 'record_written', reference: 'memory-1', revision: { count: 2 } })
     );
     expect(statusHandle.appendTrace).not.toHaveBeenCalledWith(expect.stringContaining('tooling preference'));
   });

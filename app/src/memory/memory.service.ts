@@ -3,7 +3,6 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
-import { PrismaService } from '@/prisma/prisma.service.ts';
 import type { Model, ModelRow, TransactionClient } from '@/prisma/prisma.types.ts';
 
 import { MemoryLockService } from './locks/memory-lock.service.ts';
@@ -12,6 +11,7 @@ import { renderMemoryReference } from './memory.utils.ts';
 import type {
   MemoryFailure,
   MemoryListing,
+  MemoryListingWithRevisions,
   MemoryRevision,
   MemoryRevisionReceipt,
   MemoryWrite,
@@ -25,22 +25,32 @@ const ORIGIN_CHUNK_SIZE = 500;
 export class MemoryService {
   constructor(
     private readonly locks: MemoryLockService,
-    @InjectModel('Memory') private readonly memories: Model<'Memory'>,
-    private readonly prismaService: PrismaService
+    @InjectModel('Memory') private readonly memories: Model<'Memory'>
   ) {}
+
+  /** §8.4 — an operator's prune, which removes whatever revision is stored */
+  delete(agentUsername: string, reference: string): Promise<Result<ModelRow<'Memory'>, MemoryFailure.Unresolved>> {
+    return this.deleteAdmitted(agentUsername, reference, () => Result.ok());
+  }
 
   /**
    * Ungated like a write (§3.6), and disclosed the same way. Takes the per-agent lock so a delete
-   * cannot land inside a concurrent write's count-then-evict and cost that write an extra entry.
+   * cannot land inside a concurrent write's count-then-evict and cost that write an extra entry,
+   * and so the revision `admit` judges is the one deleted.
    */
-  async delete(
+  async deleteAdmitted<TRefusal>(
     agentUsername: string,
-    reference: string
-  ): Promise<Result<ModelRow<'Memory'>, MemoryFailure.Unresolved>> {
+    reference: string,
+    admit: (entry: ModelRow<'Memory'>) => Result<void, TRefusal>
+  ): Promise<Result<ModelRow<'Memory'>, MemoryFailure.Unresolved | TRefusal>> {
     return this.locks.run(agentUsername, async () => {
       const memory = await this.read(agentUsername, reference);
       if (!memory.success) {
         return Result.err(memory.error);
+      }
+      const admitted = admit(memory.value);
+      if (!admitted.success) {
+        return Result.err(admitted.error);
       }
       await this.memories.deleteMany({ where: { id: memory.value.id } });
       return Result.ok(memory.value);
@@ -83,6 +93,16 @@ export class MemoryService {
     return found;
   }
 
+  /** §8.4 — the listing as an operator reads it, oldest first like the agent's, with how each was revised */
+  async listWithRevisions(agentUsername: string): Promise<MemoryListingWithRevisions[]> {
+    const entries = await this.memories.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: { description: true, id: true, revisedAt: true, revision: true },
+      where: { agentUsername }
+    });
+    return entries.map(({ id, ...entry }) => ({ ...entry, reference: renderMemoryReference(id) }));
+  }
+
   /**
    * §3.6 — records that a body was needed, which is what eviction orders by. Separate from `read`,
    * so the callers that mean "this mattered" say so. Takes no lock: it cannot change the entry
@@ -105,26 +125,35 @@ export class MemoryService {
   }
 
   /**
-   * §3.6 — one step: the stored body is read and revised under the per-agent lock, and the revision
-   * written as a new entry in the same transaction that deletes the old one. The entry count does
-   * not change, so nothing is evicted.
+   * §3.6 — one step: the stored entry is read and revised in place under the per-agent lock, so it
+   * keeps its reference and its place in the listing, and `reviseBody` judges the revision it will
+   * replace. The entry count does not change, so nothing is evicted; the revision counts as a use.
    */
   async revise<TRefusal>(
     revision: MemoryRevision,
-    reviseBody: (body: string) => Result<string, TRefusal>,
+    reviseBody: (stored: ModelRow<'Memory'>) => Result<string, TRefusal>,
     caps: $MemorySettings
   ): Promise<
     Result<
       MemoryRevisionReceipt<ModelRow<'Memory'>>,
-      MemoryFailure.EmptyBody | MemoryFailure.TooLong | MemoryFailure.Unresolved | TRefusal
+      MemoryFailure.EmptyBody | MemoryFailure.RevisionTooLong | MemoryFailure.Unresolved | TRefusal
     >
   > {
+    const { description } = revision;
+    if (description !== undefined && description.length > caps.maxDescriptionChars) {
+      return Result.err({
+        field: 'description',
+        kind: 'revision-too-long',
+        length: description.length,
+        limit: caps.maxDescriptionChars
+      });
+    }
     return this.locks.run(revision.agentUsername, async () => {
       const current = await this.read(revision.agentUsername, revision.reference);
       if (!current.success) {
         return Result.err(current.error);
       }
-      const body = reviseBody(current.value.body);
+      const body = reviseBody(current.value);
       if (!body.success) {
         return Result.err(body.error);
       }
@@ -132,25 +161,28 @@ export class MemoryService {
         return Result.err({ kind: 'empty-body' });
       }
       if (body.value.length > caps.maxBodyChars) {
-        return Result.err({ field: 'body', kind: 'too-long', length: body.value.length, limit: caps.maxBodyChars });
-      }
-      const entry = await this.prismaService.$transaction(async (transaction) => {
-        const revised = await transaction.memory.create({
-          data: {
-            agentUsername: revision.agentUsername,
-            body: body.value,
-            description: current.value.description,
-            originPostId: revision.originPostId
-          }
+        return Result.err({
+          field: 'body',
+          kind: 'revision-too-long',
+          length: body.value.length,
+          limit: caps.maxBodyChars,
+          reference: renderMemoryReference(current.value.id),
+          storedLength: current.value.body.length
         });
-        await transaction.memory.deleteMany({ where: { id: current.value.id } });
-        return revised;
+      }
+      const revisedAt = new Date();
+      const entry = await this.memories.update({
+        data: {
+          body: body.value,
+          ...(description !== undefined && { description }),
+          lastUsedAt: revisedAt,
+          originPostId: revision.originPostId,
+          revisedAt,
+          revision: current.value.revision + 1
+        },
+        where: { id: current.value.id }
       });
-      return Result.ok({
-        entry,
-        reference: renderMemoryReference(entry.id),
-        revisionOf: renderMemoryReference(current.value.id)
-      });
+      return Result.ok({ entry, previous: current.value, reference: renderMemoryReference(entry.id) });
     });
   }
 

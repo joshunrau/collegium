@@ -40,7 +40,15 @@ export type ToolDisclosure = {
   readonly body: string;
   readonly description: string;
   readonly reference: string;
-  /** the reference of the record this one replaced in the same step, which no longer resolves (§3.6) */
+  /** a record revised in place, which keeps its reference: its revision count after this change, and what the change replaced (§3.6) */
+  readonly revision?: {
+    readonly count: number;
+    /** the description before this change, where the change named a new one */
+    readonly replacedDescription?: string;
+    /** the passages the change substituted, or the whole body it rewrote */
+    readonly replacedPassages?: readonly string[];
+  };
+  /** the reference of the record this one replaced in the same step, which no longer resolves */
   readonly revisionOf?: string;
   readonly supersededDescriptions?: readonly string[];
 };

@@ -295,6 +295,22 @@ describe('toCompletionMessages', () => {
 
     expect(render(entries)).toStrictEqual([{ content: '[recorded: casey on formatting]', role: 'user' }]);
   });
+
+  it('should name what a written record removed, such as the memories a write evicted (§3.6)', () => {
+    const entries = [
+      event({
+        body: 'bullet points, never prose',
+        description: 'casey on formatting',
+        kind: 'record_written',
+        reference: 'memory-1',
+        supersededDescriptions: ['an ancient note']
+      })
+    ];
+
+    expect(render(entries)).toStrictEqual([
+      { content: '[recorded: casey on formatting; this removed "an ancient note"]', role: 'user' }
+    ]);
+  });
 });
 
 describe('estimateWindowTokens', () => {
