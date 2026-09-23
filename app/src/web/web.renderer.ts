@@ -1,3 +1,4 @@
+import type { ToolExcerpt } from '@collegium/core/tools';
 import { match } from 'ts-pattern';
 
 import { FETCH_BODY_CAP_BYTES, SELECT_OPTIONS_SHOWN } from './web.constants.ts';
@@ -64,6 +65,14 @@ function renderFormElement(element: FormElement): string {
 function renderOpenedTab(url: string): string {
   const address = url === 'about:blank' ? 'an address it had not yet loaded' : url;
   return `The page opened a new tab to ${address}; it was closed — open it with web::navigate or web::fetch if it matters.`;
+}
+
+/** what a page's markdown follows: the header line, and the caveat a missing page carries */
+function renderWebPageHead(page: Pick<FetchedPage, 'retry'> & WebPage): string {
+  const retried = page.retry === undefined ? '' : `; ${describeRetry(page.retry)}`;
+  const header = `${page.title} — ${page.url} (HTTP ${page.status}${retried})`;
+  const caveat = GONE_STATUSES.has(page.status) ? `\n${BUILT_URL_CAVEAT}` : '';
+  return `${header}${caveat}\n\n`;
 }
 
 /** a recoverable browsing failure as the model hears it; `unreachable` is infrastructure and never rendered */
@@ -157,10 +166,18 @@ export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailur
 }
 
 export function renderWebPage(page: Pick<FetchedPage, 'retry'> & WebPage): string {
-  const retried = page.retry === undefined ? '' : `; ${describeRetry(page.retry)}`;
-  const header = `${page.title} — ${page.url} (HTTP ${page.status}${retried})`;
-  const caveat = GONE_STATUSES.has(page.status) ? `\n${BUILT_URL_CAVEAT}` : '';
-  return `${header}${caveat}\n\n${page.markdown}`;
+  return `${renderWebPageHead(page)}${page.markdown}`;
+}
+
+/** §3.8 — where the stretch of the page a result holds begins in the text `renderWebPage` renders */
+export function locateShownStretch(
+  page: Pick<FetchedPage, 'retry'> & WebPage
+): Omit<ToolExcerpt, 'offsetArgument'> | undefined {
+  if (page.shown === undefined) {
+    return undefined;
+  }
+  const { from, markdownIndex, to } = page.shown;
+  return { from, textIndex: renderWebPageHead(page).length + markdownIndex, to };
 }
 
 export function renderWebSnapshot(snapshot: WebSnapshot): string {

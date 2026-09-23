@@ -19,18 +19,33 @@ function readMarkdown(markdown: string, read: PageRead): Pick<FetchedPage, 'mark
 
 export type CappedMarkdown = {
   readonly markdown: string;
-  readonly shown?: MarkdownWindow;
+  readonly shown: MarkdownWindow;
 };
 
 /** A page past the guard is cut and says how much of the whole it holds — a truncation the model cannot see is one it reasons past. */
 export function capMarkdown(markdown: string): CappedMarkdown {
-  if (markdown.length <= MARKDOWN_CAP_CHARS) {
-    return { markdown };
+  const total = markdown.length;
+  if (total <= MARKDOWN_CAP_CHARS) {
+    return { markdown, shown: { from: 0, markdownIndex: 0, to: total, total } };
   }
   return {
-    markdown: `${markdown.slice(0, MARKDOWN_CAP_CHARS)}\n…page truncated at ${MARKDOWN_CAP_CHARS} of ${markdown.length} characters`,
-    shown: { from: 0, to: MARKDOWN_CAP_CHARS, total: markdown.length }
+    markdown: `${markdown.slice(0, MARKDOWN_CAP_CHARS)}\n…page truncated at ${MARKDOWN_CAP_CHARS} of ${total} characters`,
+    shown: { from: 0, markdownIndex: 0, to: MARKDOWN_CAP_CHARS, total }
   };
+}
+
+export function holdsWholePage(shown: MarkdownWindow): boolean {
+  return shown.from === 0 && shown.to === shown.total;
+}
+
+/** §3.8 — a read headed by a paragraph its offsets do not count, its stretch still located in the markdown */
+export function prependParagraph<TRead extends Pick<FetchedPage, 'markdown' | 'shown'>>(
+  read: TRead,
+  paragraph: string
+): TRead {
+  const head = `${paragraph}\n\n`;
+  const shown = read.shown && { ...read.shown, markdownIndex: read.shown.markdownIndex + head.length };
+  return { ...read, markdown: `${head}${read.markdown}`, ...(shown && { shown }) };
 }
 
 /**
@@ -44,19 +59,22 @@ export function windowMarkdown(markdown: string, startChar: number, maxChars?: n
   const width = Math.min(maxChars ?? DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS);
   const from = startChar < 0 ? Math.max(0, total + startChar) : startChar;
   if (from === 0 && total <= width) {
-    return { markdown: `${markdown}\n…end of page, ${total} characters in all` };
+    return {
+      markdown: `${markdown}\n…end of page, ${total} characters in all`,
+      shown: { from, markdownIndex: 0, to: total, total }
+    };
   }
   if (from >= total) {
     return {
       markdown: `…startChar ${startChar} is past the end of this page, which has ${total} characters`,
-      shown: { from: total, to: total, total }
+      shown: { from: total, markdownIndex: 0, to: total, total }
     };
   }
   const to = Math.min(from + width, total);
   const readOn = to < total ? `; read on with startChar=${to}, or startChar=-${TAIL_WINDOW_CHARS} for the end` : '';
   return {
     markdown: `${markdown.slice(from, to)}\n…showing characters ${from}–${to} of ${total}${readOn}`,
-    shown: { from, to, total }
+    shown: { from, markdownIndex: 0, to, total }
   };
 }
 
@@ -73,5 +91,5 @@ export function readPage(view: PageView, read: PageRead): Pick<FetchedPage, 'mar
   const leftOut =
     `…${view.leftOutChars} characters outside the page's main content (navigation, header, footer) are left ` +
     'out, and offsets count without them; pass wholePage=true to include them';
-  return { ...result, markdown: `${leftOut}\n\n${result.markdown}` };
+  return prependParagraph(result, leftOut);
 }

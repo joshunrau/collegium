@@ -171,7 +171,12 @@ describe('WebService', () => {
       expect(result.value?.markdown).toContain(
         `…page truncated at ${MARKDOWN_CAP_CHARS} of ${MARKDOWN_CAP_CHARS + 1} characters`
       );
-      expect(result.value?.shown).toStrictEqual({ from: 0, to: MARKDOWN_CAP_CHARS, total: MARKDOWN_CAP_CHARS + 1 });
+      expect(result.value?.shown).toStrictEqual({
+        from: 0,
+        markdownIndex: 0,
+        to: MARKDOWN_CAP_CHARS,
+        total: MARKDOWN_CAP_CHARS + 1
+      });
     });
 
     it('should refuse an address that resolves privately as a typed refusal, never a failed page (§3.4)', async () => {
@@ -223,7 +228,7 @@ describe('WebService', () => {
         wholePage: false
       });
       expect(result.value?.markdown).toBe(`${page.slice(10)}\n…showing characters 10–${page.length} of ${page.length}`);
-      expect(result.value?.shown).toStrictEqual({ from: 10, to: page.length, total: page.length });
+      expect(result.value?.shown).toStrictEqual({ from: 10, markdownIndex: 0, to: page.length, total: page.length });
     });
 
     it('should answer a find with where each phrase occurs in the page, and how often (§3.4)', async () => {

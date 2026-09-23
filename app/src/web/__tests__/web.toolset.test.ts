@@ -4,11 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
 
+import { readPdfText } from '../pdf/pdf.utils.ts';
+import { readPage } from '../reading/reading.utils.ts';
 import { SearchService } from '../search/search.service.ts';
+import { DEFAULT_WINDOW_CHARS } from '../web.constants.ts';
 import { WebService } from '../web.service.ts';
 import { WEB_TOOLSET } from '../web.toolset.ts';
 
-import type { WebPage, WebSnapshot } from '../web.types.ts';
+import type { PageRead, WebPage, WebSnapshot } from '../web.types.ts';
 
 const { click, fetch, fill, hover, navigate, search } = WEB_TOOLSET.tools;
 
@@ -75,7 +78,7 @@ describe('WEB_TOOLSET', () => {
 
   it('reads on from an offset, and names the part of the page the result holds (§3.8)', async () => {
     const { context, web } = buildContext();
-    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 1000, to: 2000, total: 5000 } }));
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 1000, markdownIndex: 0, to: 2000, total: 5000 } }));
     const result = await executeTool(
       fetch,
       { startChar: 1000, url: 'https://example.org/', wholePage: false },
@@ -89,6 +92,47 @@ describe('WEB_TOOLSET', () => {
     expect(result.unwrap().replaySubject).toMatch(
       /^page https:\/\/example\.org\/ \(characters 1000–2000 of 5000\), \d+ characters$/u
     );
+  });
+
+  it('should locate the stretch a window holds of a page or a PDF past every line that heads it (§3.8)', async () => {
+    const { context, web } = buildContext();
+    const page = `# Faculty\n\n${'Duval, P. — 217 BSB\n'.repeat(3_000)}`.trimEnd();
+    const read: PageRead = { kind: 'window', startChar: 4_000, wholePage: false };
+    const reads = [
+      { fetched: readPage({ leftOutChars: 1_200, markdown: page }, read), source: page },
+      { fetched: readPdfText({ pageCount: 1, pages: [page] }, read), source: `[page 1 of 1]\n${page}` }
+    ];
+    for (const { fetched, source } of reads) {
+      const answered = {
+        retry: { status: 429, waitedMs: 1_000 },
+        status: 404,
+        title: 'Faculty',
+        url: 'https://northmoor.example/'
+      };
+      web.fetch.mockResolvedValueOnce(Result.ok({ ...fetched, ...answered }));
+      const args = { startChar: 4_000, url: 'https://northmoor.example/', wholePage: false };
+      const { excerpt, text } = (await executeTool(fetch, args, context)).unwrap();
+      const to = 4_000 + DEFAULT_WINDOW_CHARS;
+      expect(excerpt).toMatchObject({ from: 4_000, offsetArgument: 'startChar', to });
+      expect(text.slice(excerpt!.textIndex, excerpt!.textIndex + DEFAULT_WINDOW_CHARS)).toBe(source.slice(4_000, to));
+    }
+  });
+
+  it('should locate a page a read holds whole, which a turn may still have to cut (§3.8)', async () => {
+    const { context, web } = buildContext();
+    const read = readPage(
+      { leftOutChars: 0, markdown: '# Example Domain' },
+      { kind: 'window', startChar: 0, wholePage: false }
+    );
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, ...read }));
+    const result = await executeTool(fetch, { startChar: 0, url: 'https://example.org/', wholePage: false }, context);
+    expect(result.unwrap().excerpt).toStrictEqual({
+      from: 0,
+      offsetArgument: 'startChar',
+      textIndex: 'Example — https://example.org/ (HTTP 200)\n\n'.length,
+      to: '# Example Domain'.length
+    });
+    expect(result.unwrap().replaySubject).toMatch(/^page https:\/\/example\.org\/, \d+ characters$/u);
   });
 
   it('should name the page a click landed on rather than its address (§8.1)', async () => {
@@ -171,7 +215,7 @@ describe('WEB_TOOLSET', () => {
 
   it('reads a bounded window of a page, passing the width through to the fetch (§3.8)', async () => {
     const { context, web } = buildContext();
-    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 0, to: 2000, total: 5000 } }));
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 0, markdownIndex: 0, to: 2000, total: 5000 } }));
     await executeTool(fetch, { maxChars: 2000, startChar: 0, url: 'https://example.org/', wholePage: false }, context);
     expect(web.fetch).toHaveBeenCalledWith('https://example.org/', {
       kind: 'window',

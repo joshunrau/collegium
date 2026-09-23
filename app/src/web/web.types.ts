@@ -32,9 +32,13 @@ export type AddressPolicy = {
   readonly vet: (url: URL) => Promise<undefined | VettedAddress>;
 };
 
-/** §3.8 — the part of a page a result holds when the whole did not fit, in characters of its markdown */
+/**
+ * §3.8 — the stretch of a page a result holds, in characters of the page's markdown, and where that
+ * stretch begins in the result's own `markdown`, past the notices that head it
+ */
 export type MarkdownWindow = {
   readonly from: number;
+  readonly markdownIndex: number;
   readonly to: number;
   readonly total: number;
 };
@@ -42,7 +46,7 @@ export type MarkdownWindow = {
 /** one page, in the shape a model reads — what a plain fetch yields */
 export type WebPage = {
   readonly markdown: string;
-  /** absent when the result holds the whole page */
+  /** absent for a find, which holds places in the page rather than a stretch of it */
   readonly shown?: MarkdownWindow;
   readonly status: number;
   readonly title: string;

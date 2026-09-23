@@ -1,4 +1,4 @@
-import { readPage } from '../reading/reading.utils.ts';
+import { prependParagraph, readPage } from '../reading/reading.utils.ts';
 import { MARKDOWN_CAP_CHARS, PDF_READ_TIMEOUT_MS } from '../web.constants.ts';
 
 import type { FetchedPage, PageRead } from '../web.types.ts';
@@ -56,6 +56,5 @@ export function isWithoutTextLayer(text: PdfText): boolean {
  */
 export function readPdfText(text: PdfText, read: PageRead): Pick<FetchedPage, 'markdown' | 'matches' | 'shown'> {
   const markdown = text.pages.map((page, index) => renderPage(page, index, text.pageCount)).join('\n\n');
-  const result = readPage({ leftOutChars: 0, markdown }, read);
-  return { ...result, markdown: `${describeRead(text)}\n\n${result.markdown}` };
+  return prependParagraph(readPage({ leftOutChars: 0, markdown }, read), describeRead(text));
 }

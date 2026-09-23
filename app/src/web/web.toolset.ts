@@ -1,14 +1,21 @@
 import { describeReplaySubject } from '@collegium/core/tools';
-import type { ToolResult } from '@collegium/core/tools';
+import type { ToolOutput, ToolResult } from '@collegium/core/tools';
 import { implementToolset, WEB_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 
+import { holdsWholePage } from './reading/reading.utils.ts';
 import { SEARCH_TIMEOUT_MS } from './search/search.constants.ts';
 import { renderSearchResults } from './search/search.utils.ts';
 import { DEFAULT_WINDOW_CHARS, FETCH_TIMEOUT_MS, MARKDOWN_CAP_CHARS, PDF_READ_TIMEOUT_MS } from './web.constants.ts';
-import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from './web.renderer.ts';
+import {
+  describeWebFailureOutcome,
+  locateShownStretch,
+  renderWebFailure,
+  renderWebPage,
+  renderWebSnapshot
+} from './web.renderer.ts';
 import { SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from './web.tokens.ts';
 
 import type { SearchFailure, SearchResult } from './search/search.types.ts';
@@ -71,7 +78,25 @@ function renderPhrases(phrases: readonly string[]): string {
 
 /** §3.8 — the page, and the part of it the result held when the whole did not fit */
 function describePageSubject({ shown, url }: WebPage): string {
-  return shown === undefined ? `page ${url}` : `page ${url} (characters ${shown.from}–${shown.to} of ${shown.total})`;
+  return shown === undefined || holdsWholePage(shown)
+    ? `page ${url}`
+    : `page ${url} (characters ${shown.from}–${shown.to} of ${shown.total})`;
+}
+
+/** what a page result shows the model, and where in it the stretch of the page it holds sits (§3.8) */
+type RenderedPageResult = Pick<ToolOutput, 'excerpt' | 'text'>;
+
+/**
+ * §3.8 — a fetched page, and where the stretch of it a window read holds sits, so a turn that must
+ * cut the result can say where to read on
+ */
+function renderFetchedPage(page: FetchedPage): RenderedPageResult {
+  const text = renderWebPage(page);
+  const stretch = locateShownStretch(page);
+  if (stretch === undefined) {
+    return { text };
+  }
+  return { excerpt: { ...stretch, offsetArgument: 'startChar' satisfies keyof $FetchArgs }, text };
 }
 
 const DESCRIPTION_PREAMBLE =
@@ -85,7 +110,7 @@ const DESCRIPTION_PREAMBLE =
  */
 function toPageResult<TPage extends WebPage>(
   result: Result<TPage, WebFailure>,
-  render: (page: TPage) => string,
+  render: (page: TPage) => RenderedPageResult,
   describeOutcome: (page: TPage) => string | undefined,
   describeSubject: (page: TPage) => string = describePageSubject,
   identifyContent: (page: TPage) => string | undefined = () => undefined
@@ -96,13 +121,14 @@ function toPageResult<TPage extends WebPage>(
     }
     return Result.ok({ text: renderWebFailure(result.error), traceOutcome: describeWebFailureOutcome(result.error) });
   }
-  const text = render(result.value);
+  const { excerpt, text } = render(result.value);
   const traceOutcome = describeOutcome(result.value);
   const contentIdentity = identifyContent(result.value);
   return Result.ok({
     replaySubject: describeReplaySubject(describeSubject(result.value), text),
     text,
     ...(contentIdentity !== undefined && { contentIdentity }),
+    ...(excerpt && { excerpt }),
     ...(traceOutcome !== undefined && { traceOutcome })
   });
 }
@@ -142,7 +168,7 @@ const toSnapshotResult = (
   result: Result<WebSnapshot, WebFailure>,
   describeOutcome: (page: WebSnapshot) => string | undefined = landingOutcome
 ): ToolResult => {
-  return toPageResult(result, renderWebSnapshot, describeOutcome);
+  return toPageResult(result, (snapshot) => ({ text: renderWebSnapshot(snapshot) }), describeOutcome);
 };
 
 /** throttling is weather the model can plan around; bad credentials or a dead provider end the turn loudly */
@@ -200,11 +226,11 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         const read = toPageRead(args);
         const fetched = await context.web.fetch(args.url, read);
         if (read.kind === 'find') {
-          return toPageResult(fetched, renderWebPage, fetchOutcome, ({ url }) => {
+          return toPageResult(fetched, renderFetchedPage, fetchOutcome, ({ url }) => {
             return `places of ${renderPhrases(read.phrases)} in page ${url}`;
           });
         }
-        return toPageResult(fetched, renderWebPage, fetchOutcome, describePageSubject, identifyReadBody);
+        return toPageResult(fetched, renderFetchedPage, fetchOutcome, describePageSubject, identifyReadBody);
       },
       parameters: $FetchArgs,
       retryable: true,
