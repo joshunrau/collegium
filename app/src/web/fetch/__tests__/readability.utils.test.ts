@@ -46,7 +46,11 @@ describe('refuseUnreadablePage', () => {
   });
 
   it.each(Object.entries(CLIENT_RENDERED_PAGES))('should refuse %s, which reads as nothing', (_name, html) => {
-    expect(refuseUnreadablePage(convert(html))).toStrictEqual({ kind: 'no-static-content', status: 200, url: PAGE_URL });
+    expect(refuseUnreadablePage(convert(html))).toStrictEqual({
+      kind: 'no-static-content',
+      status: 200,
+      url: PAGE_URL
+    });
   });
 
   it('should read an error status with nothing readable as the error it is', () => {
@@ -59,7 +63,11 @@ describe('refuseUnreadablePage', () => {
   });
 
   it.each([401, 403, 429])('should refuse a %i as blocked, whatever its body says (§3.4)', (status) => {
-    expect(refuseUnreadablePage(convert(CLOUDFRONT_REFUSAL, status))).toStrictEqual({ kind: 'blocked', status, url: PAGE_URL });
+    expect(refuseUnreadablePage(convert(CLOUDFRONT_REFUSAL, status))).toStrictEqual({
+      kind: 'blocked',
+      status,
+      url: PAGE_URL
+    });
   });
 
   it("should refuse a 503 as blocked only where a CDN's refusal page answered it (§3.4)", () => {

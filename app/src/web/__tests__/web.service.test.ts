@@ -281,7 +281,9 @@ describe('WebService', () => {
 
     it('should refuse a page the site refused to a read without a browser, and never render it instead (§3.4)', async () => {
       fetchClient.get.mockResolvedValue(
-        Result.ok(fetched({ body: '<h1>403 Forbidden</h1><p>Request forbidden by administrative rules.</p>', status: 403 }))
+        Result.ok(
+          fetched({ body: '<h1>403 Forbidden</h1><p>Request forbidden by administrative rules.</p>', status: 403 })
+        )
       );
       const result = await webService.fetch('https://northmoor.example/people/', FROM_THE_TOP);
       expect(result.error).toStrictEqual({ kind: 'blocked', status: 403, url: 'https://northmoor.example/people/' });

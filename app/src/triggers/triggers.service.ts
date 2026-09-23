@@ -13,13 +13,7 @@ import type { Model, TransactionClient, TriggerSource } from '@/prisma/prisma.ty
 
 import { renderTriggerPost } from './triggers.renderer.ts';
 
-import type {
-  Trigger,
-  TriggerFailure,
-  TriggerInput,
-  TriggerResolutionHook,
-  TriggerTarget
-} from './triggers.types.ts';
+import type { Trigger, TriggerFailure, TriggerInput, TriggerResolutionHook, TriggerTarget } from './triggers.types.ts';
 
 /**
  * §4.2 — external events do not post directly: deterministic code records a row, and the system
