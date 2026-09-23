@@ -143,6 +143,18 @@ export class TurnsService {
     });
   }
 
+  /** the agent's open turn in the channel, which §5.1 makes at most one: the post that started it, and its status post once it has one */
+  async findRunningIn(
+    agentUsername: string,
+    channelId: string
+  ): Promise<Pick<Turn, 'statusPostId' | 'triggeringPostId'> | undefined> {
+    const running = await this.turns.findFirst({
+      select: { statusPostId: true, triggeringPostId: true },
+      where: { agentUsername, channelId, status: 'running' }
+    });
+    return running ?? undefined;
+  }
+
   /** the full §8.3 trace, in the order it happened */
   listEvents(turnId: string): Promise<ModelRow<'TurnEvent'>[]> {
     return this.events.findMany({ orderBy: { sequence: 'asc' }, where: { turnId } });

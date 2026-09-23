@@ -725,7 +725,7 @@ Every command is a subcommand of one slash command, `/collegium`, so typing `/co
 - **`/collegium steer {text}`** — hand one instruction to the turns running in this channel, read before each turn's next model call; a call in flight is made again. Ephemeral; the turn names it on its status post.
 - **`/collegium resume`** — clear a global halt.
 - **`/collegium approvals [{agent}]`** — every approval still waiting on a human, in the channels you are in, oldest first, each naming the agent, the action, its age, and a link to its prompt. Ephemeral. The channel filter is the same membership check that decides who may answer one (§3.7). It decides nothing — the buttons on the prompt post remain the only way to answer.
-- **`/collegium queue {agent}`** — show pending depth and the oldest unprocessed post. Ephemeral.
+- **`/collegium queue {agent}`** — show whether a turn holds the agent's lane here (§5.1), since when, the post that started it, and its status post or that it has none yet; then pending depth and the oldest unprocessed post. Ephemeral. A turn that has called no tool has posted nothing (§8.1), so this is where a human learns that a post addressing the agent would now queue behind it (§5.2).
 - **`/collegium queue {agent} clear`** — discard the standing queue entry, so the next drain does not run work a configuration change made stale. Posts. The posts themselves stay; only the pointer goes.
 - **`/collegium triggers {agent}`** — list outstanding triggers. Ephemeral.
 - **`/collegium memory {agent}`** — inspect and prune an agent's memories. Ephemeral.

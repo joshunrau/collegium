@@ -44,7 +44,7 @@ export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefin
     hint: '{agent} [show {reference} | prune {reference}]',
     purpose: "List, read or prune an agent's memories"
   },
-  queue: { hint: '{agent} [clear]', purpose: 'Show pending depth, or discard the standing queue entry' },
+  queue: { hint: '{agent} [clear]', purpose: 'Show whether a turn is running and what waits, or discard the standing queue entry' },
   reset: { hint: '{agent}', purpose: 'Mark an episode boundary' },
   resume: { hint: '', purpose: 'Clear a global halt' },
   steer: { hint: '{text}', purpose: 'Hand one instruction to the turns running in this channel' },

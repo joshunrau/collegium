@@ -1,26 +1,32 @@
 import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
+import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { QueueService } from '@/queue/queue.service.ts';
+import { TurnsService } from '@/turns/turns.service.ts';
 
 import { renderUsage } from '../commands.definitions.ts';
 import { CommandHandler } from '../commands.handler.ts';
 import { requireAgentName } from './argument.utils.ts';
+import { renderLaneReport } from './queue.utils.ts';
 
 import type { CommandInput, CommandResponse } from '../commands.types.ts';
+import type { LaneHold, QueueBacklog } from './queue.utils.ts';
 
-const SNIPPET_LIMIT_CHARS = 80;
-
-/** §8.4 — pending depth and the oldest unprocessed post, and the one way to throw a standing entry away */
+/** §8.4 — whether a turn holds the lane, what waits behind it, and the one way to throw a standing entry away */
 @Injectable()
 export class QueueHandler extends CommandHandler {
   readonly trigger = 'queue';
 
   constructor(
     private readonly agentRegistry: AgentRegistry,
+    private readonly channelLockService: ChannelLockService,
     private readonly conversationsService: ConversationsService,
-    private readonly queueService: QueueService
+    private readonly dateFormatter: DateFormatter,
+    private readonly queueService: QueueService,
+    private readonly turnsService: TurnsService
   ) {
     super();
   }
@@ -38,17 +44,11 @@ export class QueueHandler extends CommandHandler {
     if (action === 'clear') {
       return this.clear(agentUsername, input.channelId);
     }
-    const entry = await this.queueService.peek(agentUsername, input.channelId);
-    if (!entry) {
-      return { audience: 'invoker', text: `Queue for ${agentUsername} in this channel: empty.` };
-    }
-    const backlog = await this.conversationsService.summarizeBacklog(input.channelId, entry.earliestUnprocessedPostId);
-    const snippet = backlog === undefined ? '' : ` — "${backlog.message.slice(0, SNIPPET_LIMIT_CHARS)}"`;
-    const depth = backlog === undefined ? 'an unknown number of' : backlog.pendingCount;
-    return {
-      audience: 'invoker',
-      text: `Queue for ${agentUsername}: ${depth} post(s) pending; oldest unprocessed is ${entry.earliestUnprocessedPostId}${snippet}`
-    };
+    const [hold, backlog] = await Promise.all([
+      this.readLaneHold(agentUsername, input.channelId),
+      this.readBacklog(agentUsername, input.channelId)
+    ]);
+    return { audience: 'invoker', text: renderLaneReport(agentUsername, hold, backlog) };
   }
 
   /** §3.2 — discarding work is attributable, so the channel hears it from the system bot */
@@ -60,6 +60,30 @@ export class QueueHandler extends CommandHandler {
     return {
       audience: 'channel',
       text: `🗑️ Queued work discarded: ${agentUsername} will not run what was waiting here.`
+    };
+  }
+
+  private async readBacklog(agentUsername: string, channelId: string): Promise<QueueBacklog | undefined> {
+    const entry = await this.queueService.peek(agentUsername, channelId);
+    if (!entry) {
+      return undefined;
+    }
+    const { earliestUnprocessedPostId } = entry;
+    return {
+      earliestUnprocessedPostId,
+      summary: await this.conversationsService.summarizeBacklog(channelId, earliestUnprocessedPostId)
+    };
+  }
+
+  private async readLaneHold(agentUsername: string, channelId: string): Promise<LaneHold | undefined> {
+    const heldSince = this.channelLockService.heldSince(agentUsername, channelId);
+    if (heldSince === undefined) {
+      return undefined;
+    }
+    return {
+      heldForMs: Date.now() - heldSince.getTime(),
+      heldSince: this.dateFormatter.format(heldSince),
+      turn: await this.turnsService.findRunningIn(agentUsername, channelId)
     };
   }
 }
