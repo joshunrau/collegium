@@ -26,6 +26,10 @@ describe('OpenWorkSection', () => {
     vi.useFakeTimers({ now: new Date('2026-09-22T19:10:00Z'), toFake: ['Date'] });
     agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.settingsFor.mockReturnValue(undefined);
+    agentRegistry.has.mockReturnValue(true);
+    agentRegistry.displayNameOf.mockImplementation((username) => {
+      return username.replace(/^./u, (first) => first.toUpperCase());
+    });
     tasksService = MockFactory.createMock(TasksService);
     tasksService.listOpenFor.mockResolvedValue([]);
     toolRegistry = MockFactory.createMock(ToolRegistry);
@@ -58,7 +62,7 @@ describe('OpenWorkSection', () => {
     });
   };
 
-  it('should list open work for an agent holding a tasks tool, oldest first, capped with a remainder (§3.15)', async () => {
+  it('should list open work for an agent holding a tasks tool, oldest first, capped with a remainder, then what starts its next turn (§3.15)', async () => {
     toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['tasks', 'assign'] }]);
     agentRegistry.settingsFor.mockReturnValue({ openUnitCap: 20, shownInPrompt: 1 });
     tasksService.listOpenFor.mockResolvedValue([
@@ -73,6 +77,7 @@ describe('OpenWorkSection', () => {
         },
         createdAt: new Date(Date.now() - 2 * 3_600_000),
         creatorUsername: 'mira',
+        follows: undefined,
         outcome: 'a schedule for the offsite',
         reference: 'abcd1234',
         state: 'assigned'
@@ -82,13 +87,14 @@ describe('OpenWorkSection', () => {
         counterpart: { awaited: 'verdict', kind: 'no-turn' },
         createdAt: new Date(),
         creatorUsername: 'tess',
+        follows: undefined,
         outcome: 'a venue shortlist',
         reference: 'efgh5678',
         state: 'review'
       }
     ]);
-    expect(await render()).toContain(
-      '## Open work\n\nWork handed over in this channel and still open, oldest first. A line marked `to @name` is one you assigned and are waiting on; `from @name` is one you owe. In brackets is where that colleague stood as this turn began. Read one in full with tasks__read:\n\n- [abcd1234] to @tess (working here since 18:55 UTC) · assigned · 2h 0m — a schedule for the offsite\n\n…and 1 more.'
+    expect(await render()).toBe(
+      '## Open work\n\nWork handed over in this channel and still open, oldest first. A line that reads `to` a colleague is one you assigned and are waiting on; `from` a colleague, one you owe. In brackets is where that colleague stood as this turn began. Read one in full with tasks__read:\n\n- [abcd1234] to Tess (working here since 18:55 UTC) · assigned · 2h 0m — a schedule for the offsite\n\n…and 1 more.\n\nA unit starts no turn by itself: its assignment or report does, by mentioning whoever must act next. Nothing starts another turn of yours here until a person posts, a colleague mentions you, or a trigger fires.'
     );
     expect(tasksService.listOpenFor).toHaveBeenCalledWith({ agentUsername: 'mira', channelId: 'channel-1' });
   });
@@ -99,6 +105,7 @@ describe('OpenWorkSection', () => {
       assigneeUsername: 'tess',
       createdAt: new Date('2026-09-22T18:00:00Z'),
       creatorUsername: 'mira',
+      follows: undefined,
       outcome: 'a venue shortlist',
       reference: 'abcd1234',
       state: 'assigned'
@@ -123,17 +130,38 @@ describe('OpenWorkSection', () => {
     ]);
     const rendered = await render();
     expect(rendered).toContain(
-      'to @tess (waiting on a decision since 18:57 UTC, in a turn begun before the assignment)'
+      'to Tess (waiting on a decision since 18:57 UTC, in a turn begun before the assignment)'
     );
     expect(rendered).toContain(
-      'to @tess (last turn here ended 19:02 UTC on Monday, September 21, 2026 without reporting)'
+      'to Tess (last turn here ended 19:02 UTC on Monday, September 21, 2026 without reporting)'
     );
-    expect(rendered).toContain('to @tess (awaiting your verdict since 19:02 UTC)');
+    expect(rendered).toContain('to Tess (awaiting your verdict since 19:02 UTC)');
   });
 
-  it('should state that no work is open rather than omit the section, for an agent holding a tasks tool (§3.15)', async () => {
+  it('should state that no work is open, and what starts the next turn, rather than omit the section (§3.15)', async () => {
     toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['tasks', 'assign'] }]);
-    expect(await render()).toContain('## Open work\n\nNo work is open in this channel.');
+    expect(await render()).toBe(
+      '## Open work\n\nNo work is open in this channel. Nothing starts another turn of yours here until a person posts, a colleague mentions you, or a trigger fires.'
+    );
+  });
+
+  it('should name the unit a line’s unit follows (§3.15)', async () => {
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['tasks', 'assign'] }]);
+    tasksService.listOpenFor.mockResolvedValue([
+      {
+        assigneeUsername: 'mira',
+        counterpart: { awaited: 'report', kind: 'awaiting-reader', since: new Date('2026-09-22T19:00:00Z') },
+        createdAt: new Date('2026-09-22T19:00:00Z'),
+        creatorUsername: 'tess',
+        follows: 'wxyz9876',
+        outcome: 'the second half of the venue list',
+        reference: 'abcd1234',
+        state: 'assigned'
+      }
+    ]);
+    expect(await render()).toContain(
+      '- [abcd1234] from Tess (awaiting your report since 19:00 UTC) · assigned · 10m · follows wxyz9876 — the second half of the venue list'
+    );
   });
 
   it('should omit open work for an agent holding no tasks tool (§3.15)', async () => {
@@ -143,6 +171,7 @@ describe('OpenWorkSection', () => {
         counterpart: { awaited: 'report', kind: 'no-turn' },
         createdAt: new Date(),
         creatorUsername: 'mira',
+        follows: undefined,
         outcome: 'anything',
         reference: 'abcd1234',
         state: 'assigned'

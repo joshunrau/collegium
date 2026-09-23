@@ -14,6 +14,7 @@ const PREPARED = {
   context: 'nothing tried yet',
   creatorUsername: 'mira',
   criteria: 'three venues with prices',
+  followsId: null,
   id: 'unit-abcdefghij',
   outcome: 'a venue shortlist'
 };
@@ -38,10 +39,15 @@ const UNIT = {
 } as const;
 
 describe('TASKS_TOOLSET', () => {
+  const agents = {
+    displayNameOf: (username: string) => username.replace(/^./u, (first) => first.toUpperCase()),
+    has: (username: string) => ['mira', 'owen'].includes(username)
+  };
   const moments = { format: (moment: Date) => `${moment.toISOString().slice(11, 16)} UTC` };
   const sightings = new PostSightingsRegistry();
   const tasksService = MockFactory.createMock(TasksService);
   const context = {
+    agents,
     moments,
     settings: { openUnitCap: 20, shownInPrompt: 20 },
     sightings,
@@ -57,11 +63,21 @@ describe('TASKS_TOOLSET', () => {
     const result = await executeTool(TASKS_TOOLSET.tools.assign, ASSIGN_ARGS, context);
     expect(result.value).toMatchObject({
       post: { addressee: 'owen', text: '@owen — work unit `unit-abc`' },
-      text: 'unit unit-abc assigned to @owen, whose turn starts when this turn ends'
+      text: 'unit unit-abc assigned to Owen, whose turn starts when this turn ends; the assignment is posted, so your reply need not repeat it'
     });
     expect(tasksService.commitAssign).not.toHaveBeenCalled();
     await result.value?.post?.onPublished('post-9');
     expect(tasksService.commitAssign).toHaveBeenCalledExactlyOnceWith(PREPARED, 'post-9');
+  });
+
+  it('should pass the unit an assignment follows, and say the one post closed it and continued it (§3.15)', async () => {
+    const prepared = { ...PREPARED, followsId: 'unit-xyzwvuts' };
+    tasksService.prepareAssign.mockResolvedValue(Result.ok({ addressee: 'owen', prepared, text: 'post' }));
+    const result = await executeTool(TASKS_TOOLSET.tools.assign, { ...ASSIGN_ARGS, follows: 'unit-xyz' }, context);
+    expect(tasksService.prepareAssign).toHaveBeenCalledWith(expect.objectContaining({ follows: 'unit-xyz' }));
+    expect(result.value?.text).toBe(
+      'unit unit-xyz closed as done and continued as unit unit-abc assigned to Owen, whose turn starts when this turn ends; the post is in the channel, so your reply need not repeat it'
+    );
   });
 
   it('should hand a refusal back as the call’s result, with nothing to publish', async () => {
@@ -84,7 +100,11 @@ describe('TASKS_TOOLSET', () => {
       })
     );
     tasksService.prepareClose.mockResolvedValue(
-      Result.ok({ prepared: { to: 'done', unitId: 'unit-1' }, text: 'Unit `unit-1` closed as done: good' })
+      Result.ok({
+        leavesNoneOpen: false,
+        prepared: { to: 'done', unitId: 'unit-1' },
+        text: 'Unit `unit-1` closed as done: good'
+      })
     );
     const report = await executeTool(
       TASKS_TOOLSET.tools.report,
@@ -97,7 +117,23 @@ describe('TASKS_TOOLSET', () => {
       context
     );
     expect(report.value?.post?.text).toMatch(/^@mira /);
+    expect(report.value?.text).toContain('the report is posted to Mira, whose turn starts when this turn ends');
     expect(close.value?.post?.text).not.toContain('@');
+    expect(close.value?.text).toBe('unit unit-1 closed as done; the close is posted, so your reply need not repeat it');
+  });
+
+  it('should say a close leaves the agent nothing open here that would start its next turn (§3.15)', async () => {
+    tasksService.prepareClose.mockResolvedValue(
+      Result.ok({ leavesNoneOpen: true, prepared: { to: 'done', unitId: 'unit-1' }, text: 'closed' })
+    );
+    const close = await executeTool(
+      TASKS_TOOLSET.tools.close,
+      { reference: 'unit-1', state: 'done', verdict: 'good' },
+      context
+    );
+    expect(close.value?.text).toContain(
+      'You hold no other open unit in this channel; no turn of yours starts here until a post addresses you'
+    );
   });
 
   it('should close for the calling turn, and refuse on a closed unit naming who closed it, when and the verdict (§3.15)', async () => {
@@ -119,7 +155,56 @@ describe('TASKS_TOOLSET', () => {
     expect(tasksService.prepareClose).toHaveBeenCalledWith(expect.objectContaining({ turnId: 'turn-1' }));
     expect(close.error).toStrictEqual({
       kind: 'invalid-arguments',
-      message: 'unit unit-1 is closed: @mira closed it as cancelled 5m ago, with the verdict "no longer needed"'
+      message: 'unit unit-1 is closed: Mira closed it as cancelled 5m ago, with the verdict "no longer needed"'
+    });
+  });
+
+  it('should name the next step in a refused report, and the open units for a reference that matches none (§7.2)', async () => {
+    tasksService.prepareReport.mockResolvedValueOnce(
+      Result.err({ creatorUsername: 'mira', kind: 'awaiting-verdict', reference: 'unit-1', state: 'review' })
+    );
+    tasksService.prepareReport.mockResolvedValueOnce(
+      Result.err({ kind: 'not-found', openReferences: ['unit-abc'], reference: 'i3521kmu0000000000000000' })
+    );
+    const report = () => {
+      return executeTool(TASKS_TOOLSET.tools.report, { reference: 'unit-1', state: 'review', summary: 'x' }, context);
+    };
+    expect((await report()).error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message:
+        'unit unit-1 is in review with Mira for judgement, and takes no further report: a correction goes in a post mentioning @mira, or Mira continues the unit with a new one that follows it'
+    });
+    expect((await report()).error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message:
+        'no work unit with reference "i3521kmu0000000000000000" exists for you in this channel; your open units here: unit-abc. A work unit is named by the 8 characters Open work lists in brackets; an id of 24 characters that matches none here is some other record\'s'
+    });
+  });
+
+  it('should name a person who cancelled a unit by @username, and point a refused report at its creator (§3.15)', async () => {
+    tasksService.prepareReport.mockResolvedValue(
+      Result.err({
+        closed: {
+          closedAt: new Date(Date.now() - 5 * 60_000),
+          closedByUsername: 'casey',
+          kind: 'closed',
+          reference: 'unit-1',
+          state: 'cancelled',
+          verdict: null
+        },
+        creatorUsername: 'mira',
+        kind: 'report-closed'
+      })
+    );
+    const report = await executeTool(
+      TASKS_TOOLSET.tools.report,
+      { reference: 'unit-1', state: 'review', summary: 'x' },
+      context
+    );
+    expect(report.error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message:
+        'unit unit-1 is closed: @casey closed it as cancelled 5m ago. It takes no report; if what you found still matters to Mira, it goes in a post mentioning @mira'
     });
   });
 
@@ -139,8 +224,8 @@ describe('TASKS_TOOLSET', () => {
       [
         'unit unit-abc — review',
         'assigned 18:40 UTC, last changed 19:02 UTC',
-        'creator: @mira',
-        'assignee: @owen (awaiting your verdict since 19:02 UTC)',
+        'creator: Mira',
+        'assignee: Owen (awaiting your verdict since 19:02 UTC)',
         'outcome: a venue shortlist',
         'criteria: three venues with prices',
         'context: nothing tried yet',
@@ -154,11 +239,16 @@ describe('TASKS_TOOLSET', () => {
     expect(sightings.hasSeen('turn-1', 'post-report')).toBe(true);
   });
 
-  it('should count nothing as read where the latest post can no longer be shown (§8.4)', async () => {
+  it('should name the unit one follows, and count nothing as read where the latest post can no longer be shown (§8.4)', async () => {
     tasksService.readView.mockResolvedValue(
-      Result.ok({ counterpart: undefined, latestChange: { kind: 'unreadable' }, unit: { ...UNIT, lastPostId: 'p-2' } })
+      Result.ok({
+        counterpart: undefined,
+        latestChange: { kind: 'unreadable' },
+        unit: { ...UNIT, followsId: 'unit-xyzwvuts', lastPostId: 'p-2' }
+      })
     );
     const read = await executeTool(TASKS_TOOLSET.tools.read, { reference: 'unit-abc' }, context);
+    expect(read.value?.text).toMatch(/^unit unit-abc — review\nfollows: unit unit-xyz\n/u);
     expect(read.value?.text).toContain('latest report: its post was forgotten, so it can no longer be read');
     expect(sightings.hasSeen('turn-1', 'p-2')).toBe(false);
   });

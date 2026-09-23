@@ -8,6 +8,7 @@ import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { PrismaService } from '@/prisma/prisma.service.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
 import { buildAgentProfile } from '@/testing/factories/agent-profile.factory.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
@@ -26,6 +27,7 @@ type TurnRow = { depth: number; id: string; rootPostId: null | string };
 const OWEN = buildAgentProfile({ tools: ['tasks'], username: 'owen' });
 const OMAR = buildAgentProfile({ tools: [], username: 'omar' });
 const MIRA = buildAgentProfile({ tools: ['tasks'], username: 'mira' });
+const TESS = buildAgentProfile({ tools: ['tasks'], username: 'tess' });
 
 describe('TasksService', () => {
   let channelLockService: MockedInstance<ChannelLockService>;
@@ -43,13 +45,15 @@ describe('TasksService', () => {
       defaults: (sequence) => ({ closedAt: null, createdAt: new Date(sequence), updatedAt: new Date(sequence) })
     });
     const agentRegistry = MockFactory.createMock(AgentRegistry);
-    agentRegistry.get.mockImplementation((username) => [MIRA, OWEN, OMAR].find((agent) => agent.username === username));
+    agentRegistry.get.mockImplementation((username) => {
+      return [MIRA, OWEN, OMAR, TESS].find((agent) => agent.username === username);
+    });
     agentRegistry.displayNameOf.mockImplementation((username) => {
       return username.replace(/^./u, (first) => first.toUpperCase());
     });
     const rosterService = MockFactory.createMock(RosterService);
     rosterService.listAgentsIn.mockImplementation((channelId) => {
-      return channelId === 'channel-1' ? [MIRA, OWEN, OMAR] : [MIRA];
+      return channelId === 'channel-1' ? [MIRA, OWEN, OMAR, TESS] : [MIRA];
     });
     channelLockService = MockFactory.createMock(ChannelLockService);
     channelLockService.isBusyWithTurnOpenedAfter.mockReturnValue(false);
@@ -73,6 +77,10 @@ describe('TasksService', () => {
         { provide: LoggingService, useValue: loggingService },
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         PostSightingsRegistry,
+        {
+          provide: PrismaService,
+          useValue: { $transaction: (operations: Promise<unknown>[]) => Promise.all(operations) }
+        },
         { provide: RosterService, useValue: rosterService },
         {
           provide: getModelToken('Turn'),
@@ -93,7 +101,13 @@ describe('TasksService', () => {
   });
 
   const prepare = (
-    overrides: { assigneeUsername?: string; channelId?: string; openUnitCap?: number; turnId?: string } = {}
+    overrides: {
+      assigneeUsername?: string;
+      channelId?: string;
+      follows?: string;
+      openUnitCap?: number;
+      turnId?: string;
+    } = {}
   ) => {
     return tasksService.prepareAssign({
       actingAgentUsername: 'mira',
@@ -101,6 +115,7 @@ describe('TasksService', () => {
       channelId: 'channel-1',
       context: 'nothing tried yet',
       criteria: 'three venues with prices',
+      follows: undefined,
       openUnitCap: 20,
       outcome: 'a venue shortlist',
       turnId: 'turn-1',
@@ -123,6 +138,7 @@ describe('TasksService', () => {
     expect(units.rows[0]).toMatchObject({
       assigneeUsername: 'owen',
       creatorUsername: 'mira',
+      followsId: null,
       id: prepared.prepared.id,
       lastPostId: 'post-1',
       originPostId: 'post-1',
@@ -197,12 +213,14 @@ describe('TasksService', () => {
     expect(units.rows[0]).toMatchObject({ lastPostId: 'post-2', state: 'review' });
     postSightingsRegistry.recordSeen('turn-1', ['post-2']);
     expect((await tasksService.prepareReport({ ...asOwen, summary: 'again', to: 'review' })).error).toStrictEqual({
-      from: 'review',
-      kind: 'illegal-transition',
-      to: 'review'
+      creatorUsername: 'mira',
+      kind: 'awaiting-verdict',
+      reference,
+      state: 'review'
     });
     const close = (await tasksService.prepareClose({ ...asMira, to: 'done', verdict: 'good' })).unwrap();
     expect(close.text).toBe(`Unit \`${reference}\` closed as done: good`);
+    expect(close.leavesNoneOpen).toBe(true);
     await tasksService.commitTransition(close.prepared, 'post-3');
     expect(units.rows[0]).toMatchObject({
       closedByUsername: 'mira',
@@ -323,12 +341,16 @@ describe('TasksService', () => {
       to: 'review'
     });
     expect(refused.error).toStrictEqual({
-      closedAt: units.rows[0]?.closedAt,
-      closedByUsername: 'mira',
-      kind: 'closed',
-      reference,
-      state: 'cancelled',
-      verdict: 'no longer needed'
+      closed: {
+        closedAt: units.rows[0]?.closedAt,
+        closedByUsername: 'mira',
+        kind: 'closed',
+        reference,
+        state: 'cancelled',
+        verdict: 'no longer needed'
+      },
+      creatorUsername: 'mira',
+      kind: 'report-closed'
     });
   });
 
@@ -351,11 +373,78 @@ describe('TasksService', () => {
     expect((await tasksService.read('mira', 'channel-1', first.id.slice(0, 8))).value?.id).toBe(first.id);
     expect((await tasksService.read('mira', 'channel-1', 'unit-4')).error).toStrictEqual({
       kind: 'not-found',
+      openReferences: [first.id.slice(0, 8)],
       reference: 'unit-4'
     });
     expect((await tasksService.read('owen', 'channel-1', 'unit-')).error).toStrictEqual({
       kind: 'ambiguous',
       reference: 'unit-'
+    });
+  });
+
+  describe('a unit that follows another (§3.15)', () => {
+    const reported = async () => {
+      const unit = await assign('post-1');
+      await tasksService.commitTransition({ to: 'review', unitId: unit.id }, 'post-2');
+      return unit.id.slice(0, 8);
+    };
+
+    it('should close the unit it follows as done and open the next to the same assignee, in one post', async () => {
+      const followed = await reported();
+      postSightingsRegistry.recordSeen('turn-1', ['post-2']);
+      const next = (await prepare({ follows: followed, openUnitCap: 1 })).unwrap();
+      const reference = next.prepared.id.slice(0, 8);
+      expect(next.addressee).toBe('owen');
+      expect(next.text).toContain(
+        `@owen — work unit \`${reference}\` follows unit \`${followed}\`, now closed as done`
+      );
+      await tasksService.commitAssign(next.prepared, 'post-3');
+      expect(units.rows[0]).toMatchObject({
+        closedByUsername: 'mira',
+        lastPostId: 'post-3',
+        state: 'done',
+        verdict: `continued as unit ${reference}`
+      });
+      expect(units.rows[1]).toMatchObject({ followsId: units.rows[0]?.id, originPostId: 'post-3', state: 'assigned' });
+      const open = await tasksService.listOpenFor({ agentUsername: 'mira', channelId: 'channel-1' });
+      expect(open.map((unit) => [unit.reference, unit.follows])).toStrictEqual([[reference, followed]]);
+    });
+
+    it('should refuse to follow a unit not yet reported, one whose report this turn has not read, or to another assignee', async () => {
+      const assigned = (await assign('post-1')).id.slice(0, 8);
+      expect((await prepare({ follows: assigned })).error).toStrictEqual({
+        kind: 'not-continuable',
+        reference: assigned,
+        state: 'assigned'
+      });
+      const followed = await reported();
+      expect((await prepare({ follows: followed })).error).toStrictEqual({
+        kind: 'report-unread',
+        reference: followed
+      });
+      postSightingsRegistry.recordSeen('turn-1', ['post-2']);
+      expect((await prepare({ assigneeUsername: 'omar', follows: followed })).error).toMatchObject({
+        kind: 'assignee-cannot-report'
+      });
+      expect((await prepare({ assigneeUsername: 'tess', follows: followed })).error).toStrictEqual({
+        assigneeUsername: 'owen',
+        kind: 'follows-other-assignee',
+        reference: followed
+      });
+    });
+
+    it('should leave the unit it follows unchanged when it moved before the post landed, and say so', async () => {
+      const followed = await reported();
+      postSightingsRegistry.recordSeen('turn-1', ['post-2']);
+      const next = (await prepare({ follows: followed })).unwrap();
+      await tasksService.commitTransition(
+        { closedByUsername: 'casey', to: 'cancelled', unitId: units.rows[0]!.id },
+        'p-9'
+      );
+      await tasksService.commitAssign(next.prepared, 'post-3');
+      expect(units.rows[0]).toMatchObject({ closedByUsername: 'casey', state: 'cancelled' });
+      expect(units.rows[1]).toMatchObject({ state: 'assigned' });
+      expect(loggingService.warn).toHaveBeenCalledOnce();
     });
   });
 

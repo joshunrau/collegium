@@ -1,4 +1,4 @@
-import type { CounterpartWording, OpenUnitSummary } from '@/tasks/tasks.types.ts';
+import type { OpenUnitSummary, UnitWording } from '@/tasks/tasks.types.ts';
 import { renderOpenUnitLine } from '@/tasks/tasks.utils.ts';
 
 import { renderParkedOn } from './approvals.utils.ts';
@@ -23,7 +23,7 @@ export function renderUnitsListing(
   units: readonly OpenUnitSummary[],
   parked: readonly ParkedDecision[],
   now: Date,
-  wording: CounterpartWording
+  wording: UnitWording
 ): string {
   const work =
     units.length === 0

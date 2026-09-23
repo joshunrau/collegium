@@ -171,6 +171,9 @@ model WorkUnit {
   createdAt        DateTime      @default(now())
   creatorUsername  String
   criteria         String
+  /// §3.15 — the unit this one continues, closed as done by the post that assigned this one; null for
+  /// a fresh hand-off. Not a relation: §8.5 may erase the earlier unit and leave this one standing
+  followsId        String?
   lastPostId       String
   originPostId     String
   outcome          String

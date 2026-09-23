@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { defaultDisplayNameOf } from '@collegium/config';
 import { describe, expect, it } from 'vitest';
 
 import { setupHarness } from '../../support/harness.ts';
@@ -85,7 +86,7 @@ describe('Delegation through a work unit', () => {
     const closing = inference.requestsFor('mira').at(-1)!;
     expect(closing.tail).toContain('## Open work');
     expect(closing.tail).not.toContain('No work is open in this channel.');
-    expect(closing.tail).toContain(`to @${agents.owen.username} (awaiting your verdict since `);
+    expect(closing.tail).toContain(`to ${defaultDisplayNameOf(agents.owen.username)} (awaiting your verdict since `);
     const afterwards = `afterwards-${randomUUID()}`;
     inference.willReply({ agent: 'mira', contains: 'anything open' }, textResponse(afterwards));
     await channels.main.mention('mira', 'anything open?');
@@ -227,7 +228,9 @@ describe('Delegation through a work unit', () => {
     );
     await channels.main.mention('mira', 'how is the speaker list going?');
     await miraChecking.arrived;
-    expect(inference.requestsFor('mira').at(-1)!.tail).toContain(`to @${agents.owen.username} (working here since `);
+    expect(inference.requestsFor('mira').at(-1)!.tail).toContain(
+      `to ${defaultDisplayNameOf(agents.owen.username)} (working here since `
+    );
 
     inference.willReply({ agent: 'owen' }, textResponse('reported'));
     owenWorking.release(toolCallResponse('tasks__report', { reference: reference!, state: 'review', summary }));
@@ -254,6 +257,58 @@ describe('Delegation through a work unit', () => {
     expect(shown).toContain(summary);
     const posts = await channels.main.posts();
     expect(posts.some((post) => post.text.includes(`\`${reference}\` closed as done: meets the criteria`))).toBe(true);
+  });
+
+  it('continues a reported unit as the next one to the same assignee, closing it in the same post (§3.15)', async () => {
+    const { agents, channels, inference } = harness();
+    const phrase = `guest list ${randomUUID()}`;
+    const next = `seating plan ${randomUUID()}`;
+    const started = `seating-${randomUUID()}`;
+    inference.willReply({ agent: 'mira', contains: phrase }, assignTo(agents.owen.username, phrase));
+    inference.willReply({ agent: 'mira' }, textResponse('handed over'));
+    const owenFirst = inference.willBlock({ agent: 'owen' }, textResponse('placeholder'));
+
+    await channels.main.mention('mira', `please delegate: ${phrase}`);
+    const handOff = await channels.main.awaitPost({
+      description: 'the assignment post under mira',
+      match: (post) => {
+        return post.authorId === agents.mira.userId && post.text.includes('work unit') && post.text.includes(phrase);
+      }
+    });
+    const reference = /work unit `([a-z0-9]+)`/u.exec(handOff.text)?.[1];
+    expect(reference).toBeDefined();
+    await owenFirst.arrived;
+
+    inference.willReply({ agent: 'owen' }, textResponse('reported'));
+    inference.willReply(
+      { agent: 'mira' },
+      toolCallResponse('tasks__assign', {
+        assignee: agents.owen.username,
+        context: 'the guest list is in the report',
+        criteria: 'every guest seated',
+        follows: reference!,
+        outcome: next
+      })
+    );
+    inference.willReply({ agent: 'mira' }, textResponse('continued'));
+    const owenNext = inference.willBlock({ agent: 'owen' }, textResponse(started));
+    owenFirst.release(toolCallResponse('tasks__report', { reference: reference!, state: 'review', summary: 'done' }));
+
+    const continuation = await channels.main.awaitPost({
+      description: 'the continuation post under mira',
+      match: (post) => {
+        return post.authorId === agents.mira.userId && post.text.includes('work unit') && post.text.includes(next);
+      }
+    });
+    expect(continuation.text).toContain(`follows unit \`${reference}\`, now closed as done`);
+    const successor = /work unit `([a-z0-9]+)`/u.exec(continuation.text)?.[1];
+    await owenNext.arrived;
+    const tail = inference.requestsFor('owen').at(-1)!.tail;
+    expect(tail).toContain(`[${successor}] from ${defaultDisplayNameOf(agents.mira.username)} (`);
+    expect(tail).toContain(`· follows ${reference} — ${next}`);
+    expect(tail).not.toContain(`[${reference}]`);
+    owenNext.release();
+    await channels.main.awaitReplyFrom('owen', { text: started });
   });
 
   it('queues the assignee a restart kept waiting, so the hand-off is answered after boot (§5.2, §7.3)', async () => {

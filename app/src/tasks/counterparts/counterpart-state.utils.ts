@@ -1,6 +1,6 @@
 import { match } from 'ts-pattern';
 
-import type { AwaitedMove, CounterpartState, CounterpartWording, PersonWait } from '../tasks.types.ts';
+import type { AwaitedMove, CounterpartState, PersonWait, UnitWording } from '../tasks.types.ts';
 
 /** the change a party's move answers: an assignee reports on the assignment, a creator judges the report */
 const ANSWERED_CHANGE: { readonly [Move in AwaitedMove]: string } = {
@@ -20,7 +20,7 @@ const PERSON_WAITS: { readonly [On in PersonWait['on']]: string } = {
 };
 
 /** §3.15 — one phrase, in the terms a line or record names the counterpart by */
-export function renderCounterpartState(state: CounterpartState, wording: CounterpartWording): string {
+export function renderCounterpartState(state: CounterpartState, wording: UnitWording): string {
   return match(state)
     .with({ kind: 'awaiting-reader' }, ({ awaited, since }) => {
       return `awaiting ${wording.readerPossessive} ${awaited} since ${wording.formatMoment(since)}`;

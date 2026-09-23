@@ -5,7 +5,7 @@ import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { MomentFormatter } from '@/formatting/dates/moment.formatter.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
-import { renderTaskRefusal, wordingForPerson } from '@/tasks/tasks.utils.ts';
+import { createPartyNamer, renderTaskRefusal, wordingForPerson } from '@/tasks/tasks.utils.ts';
 
 import { renderUsage } from '../commands.definitions.ts';
 import { CommandHandler } from '../commands.handler.ts';
@@ -37,6 +37,12 @@ export class UnitsHandler extends CommandHandler {
       return named.error;
     }
     const agentUsername = named.value;
+    const now = new Date();
+    const wording = wordingForPerson(
+      agentUsername,
+      (moment) => this.momentFormatter.format(moment, now),
+      createPartyNamer(this.agentRegistry)
+    );
     if (action === 'cancel' && reference !== undefined) {
       const prepared = await this.tasksService.prepareCancelOnHumanAuthority({
         agentUsername,
@@ -45,7 +51,7 @@ export class UnitsHandler extends CommandHandler {
         reference
       });
       if (!prepared.success) {
-        return { audience: 'invoker', text: `${renderTaskRefusal(prepared.error)}.` };
+        return { audience: 'invoker', text: `${renderTaskRefusal(prepared.error, wording)}.` };
       }
       // §3.15 — the post comes first: the row moves only once the announcement has landed
       return {
@@ -59,8 +65,6 @@ export class UnitsHandler extends CommandHandler {
     }
     const units = await this.tasksService.listOpenFor({ agentUsername, channelId: input.channelId });
     const parked = await this.readParkedParties(listUnitParties(agentUsername, units), input.channelId);
-    const now = new Date();
-    const wording = wordingForPerson(agentUsername, (moment) => this.momentFormatter.format(moment, now));
     return { audience: 'invoker', text: renderUnitsListing(agentUsername, units, parked, now, wording) };
   }
 

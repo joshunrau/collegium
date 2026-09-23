@@ -7,7 +7,9 @@ import type { CounterpartState } from '../../tasks.types.ts';
 
 const formatMoment = (moment: Date) => `${moment.toISOString().slice(11, 16)} UTC`;
 
-const AGENT = wordingForAgent(formatMoment);
+const nameOf = (username: string) => username.replace(/^./u, (first) => first.toUpperCase());
+
+const AGENT = wordingForAgent(formatMoment, nameOf);
 
 const PARKED: CounterpartState = {
   awaited: 'verdict',
@@ -35,9 +37,9 @@ describe('renderCounterpartState', () => {
   });
 
   it('should name the agent to a person, and leave a wait on a person to the listing that states it (§8.4)', () => {
-    const person = wordingForPerson('mira', formatMoment);
+    const person = wordingForPerson('mira', formatMoment, nameOf);
     expect(renderCounterpartState({ awaited: 'report', kind: 'awaiting-reader', since: new Date(0) }, person)).toBe(
-      "awaiting mira's report since 00:00 UTC"
+      "awaiting Mira's report since 00:00 UTC"
     );
     expect(renderCounterpartState(PARKED, person)).toBe(
       'working here since 18:50 UTC, in a turn begun before the report'

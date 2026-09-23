@@ -10,6 +10,7 @@ import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
+import { PrismaService } from '@/prisma/prisma.service.ts';
 import type { Model, TransactionClient } from '@/prisma/prisma.types.ts';
 import { createRecordId } from '@/prisma/prisma.utils.ts';
 import { renderReference } from '@/utils/reference.utils.ts';
@@ -26,6 +27,7 @@ import {
   OPEN_STATES,
   renderAssignmentPost,
   renderClosePost,
+  renderContinuationVerdict,
   renderHumanCancellationPost,
   renderReportPost,
   statesThatMayReach
@@ -47,6 +49,8 @@ type AssignInput = {
   readonly channelId: string;
   readonly context: string;
   readonly criteria: string;
+  /** the reference of the unit this one continues, which the assignment closes as done (§3.15) */
+  readonly follows: string | undefined;
   /** the creator's open-unit cap, from the acting agent's own settings */
   readonly openUnitCap: number;
   readonly outcome: string;
@@ -64,6 +68,9 @@ type Prepared<TPrepared> = { readonly prepared: TPrepared; readonly text: string
 
 /** a verb whose post addresses a peer, and the one it addresses (§4.5) */
 type Addressed<TPrepared> = Prepared<TPrepared> & { readonly addressee: string };
+
+/** §3.15 — a close, and whether it leaves the closer no other open unit here, which its result states */
+type PreparedClose = Prepared<PreparedTransition> & { readonly leavesNoneOpen: boolean };
 
 /** §3.15 — fixed text, never the model's: a report written now would come from the context that just ran out */
 const CONTEXT_EXHAUSTED_REASON = 'context exhausted';
@@ -87,6 +94,7 @@ export class TasksService {
     private readonly loggingService: LoggingService,
     private readonly multiMentionPolicy: MultiMentionPolicy,
     private readonly postSightingsRegistry: PostSightingsRegistry,
+    private readonly prismaService: PrismaService,
     private readonly rosterService: RosterService,
     @InjectModel('Turn') private readonly turns: Model<'Turn'>,
     @InjectModel('WorkUnit') private readonly units: Model<'WorkUnit'>
@@ -96,11 +104,37 @@ export class TasksService {
     this.delegationDepthLimit = limits.delegationDepthLimit;
   }
 
-  /** the row is born pointing at its post: origin and latest are the same post until a report lands */
+  /**
+   * The row is born pointing at its post: origin and latest are the same post until a report lands.
+   * A continuation's post is also the close of the unit it follows, written with it or not at all,
+   * and against that unit as it is now: one that moved since stays as it is, as a transition's does.
+   */
   async commitAssign(prepared: PreparedUnit, postId: string): Promise<void> {
-    await this.units.create({
+    const create = this.units.create({
       data: { ...prepared, lastPostId: postId, originPostId: postId, state: 'assigned' }
     });
+    if (prepared.followsId === null) {
+      await create;
+      return;
+    }
+    const [, closed] = await this.prismaService.$transaction([
+      create,
+      this.units.updateMany({
+        data: {
+          closedAt: new Date(),
+          closedByUsername: prepared.creatorUsername,
+          lastPostId: postId,
+          state: 'done',
+          verdict: renderContinuationVerdict(prepared.id)
+        },
+        where: { id: prepared.followsId, state: { in: [...ASSIGNEE_TARGETS] } }
+      })
+    ]);
+    if (closed.count === 0) {
+      this.loggingService.warn(
+        `unit ${renderReference(prepared.followsId)} moved before the unit following it landed; the post stands, the row is unchanged`
+      );
+    }
   }
 
   /**
@@ -174,11 +208,7 @@ export class TasksService {
   async listOpenFor(input: { agentUsername: string; channelId: string }): Promise<OpenUnitSummary[]> {
     const rows = await this.units.findMany({
       orderBy: { createdAt: 'asc' },
-      where: {
-        channelId: input.channelId,
-        OR: [{ creatorUsername: input.agentUsername }, { assigneeUsername: input.agentUsername }],
-        state: { in: [...OPEN_STATES] }
-      }
+      where: this.openUnitsOf(input.agentUsername, input.channelId)
     });
     return Promise.all(
       rows.filter(isOpenUnit).map(async (row) => ({
@@ -186,6 +216,7 @@ export class TasksService {
         counterpart: await this.counterpartStateService.readFor(row, input.agentUsername),
         createdAt: row.createdAt,
         creatorUsername: row.creatorUsername,
+        follows: row.followsId === null ? undefined : renderReference(row.followsId),
         outcome: row.outcome,
         reference: renderReference(row.id),
         state: row.state
@@ -195,9 +226,10 @@ export class TasksService {
 
   /**
    * Refused, in order: handing to oneself, to a peer absent from the channel (§4.5's inert-text
-   * rule cannot be defeated here), to one that could not report back through a unit, past the
-   * creator's cap, and at either §7.4 limit — refused rather than stripped, since a stripped
-   * assignment would announce a hand-off to a peer never activated (§3.15).
+   * rule cannot be defeated here), to one that could not report back through a unit, a unit to
+   * follow that cannot be continued, past the creator's cap, and at either §7.4 limit — refused
+   * rather than stripped, since a stripped assignment would announce a hand-off to a peer never
+   * activated (§3.15). The unit a continuation closes does not count against the cap.
    */
   async prepareAssign(input: AssignInput): Promise<Result<Addressed<PreparedUnit>, TaskFailure.AssignRefused>> {
     if (input.assigneeUsername === input.actingAgentUsername) {
@@ -210,10 +242,14 @@ export class TasksService {
     if (!holdsReportTool(this.agentRegistry.get(input.assigneeUsername)?.tools ?? [])) {
       return Result.err({ assigneeUsername: input.assigneeUsername, kind: 'assignee-cannot-report' });
     }
+    const followed = input.follows === undefined ? undefined : await this.findContinuable(input, input.follows);
+    if (followed && !followed.success) {
+      return followed;
+    }
     const open = await this.units.count({
       where: { channelId: input.channelId, creatorUsername: input.actingAgentUsername, state: { in: [...OPEN_STATES] } }
     });
-    if (open >= input.openUnitCap) {
+    if (open - (followed ? 1 : 0) >= input.openUnitCap) {
       return Result.err({ cap: input.openUnitCap, kind: 'cap-reached' });
     }
     const limit = await this.atLoopLimit(input.turnId);
@@ -226,6 +262,7 @@ export class TasksService {
       context: input.context,
       creatorUsername: input.actingAgentUsername,
       criteria: input.criteria,
+      followsId: followed?.value.id ?? null,
       id: createRecordId(),
       outcome: input.outcome
     };
@@ -267,7 +304,7 @@ export class TasksService {
    */
   async prepareClose(
     input: TransitionInput & { to: (typeof CREATOR_TARGETS)[number]; turnId: string; verdict: string }
-  ): Promise<Result<Prepared<PreparedTransition>, TaskFailure.CloseRefused | TaskFailure.Unresolved>> {
+  ): Promise<Result<PreparedClose, TaskFailure.CloseRefused | TaskFailure.Unresolved>> {
     const read = await this.read(input.actingAgentUsername, input.channelId, input.reference);
     if (!read.success) {
       return read;
@@ -290,7 +327,11 @@ export class TasksService {
     if (awaitsVerdictOnReport(unit.state) && !this.postSightingsRegistry.hasSeen(input.turnId, unit.lastPostId)) {
       return Result.err({ kind: 'report-unread', reference });
     }
+    const othersOpen = await this.units.count({
+      where: { ...this.openUnitsOf(input.actingAgentUsername, input.channelId), id: { not: unit.id } }
+    });
     return Result.ok({
+      leavesNoneOpen: othersOpen === 0,
       prepared: { closedByUsername: input.actingAgentUsername, to: input.to, unitId: unit.id, verdict: input.verdict },
       text: renderClosePost(unit, input.to, input.verdict)
     });
@@ -313,17 +354,26 @@ export class TasksService {
     };
   }
 
+  /** §3.15 — a unit already reported is with its creator, and one closed is past reporting; either refusal names the creator */
   async prepareReport(
     input: TransitionInput & { summary: string; to: (typeof ASSIGNEE_TARGETS)[number] }
-  ): Promise<Result<Addressed<PreparedTransition>, TaskFailure.StateRefused | TaskFailure.Unresolved>> {
+  ): Promise<Result<Addressed<PreparedTransition>, TaskFailure.ReportRefused | TaskFailure.Unresolved>> {
     const unit = await this.read(input.actingAgentUsername, input.channelId, input.reference);
     if (!unit.success) {
       return unit;
     }
+    const { creatorUsername } = unit.value;
     if (unit.value.assigneeUsername !== input.actingAgentUsername) {
       return Result.err({ assigneeUsername: unit.value.assigneeUsername, kind: 'not-the-assignee' });
     }
     const refused = findTransitionRefusal(unit.value, input.to);
+    if (refused?.kind === 'closed') {
+      return Result.err({ closed: refused, creatorUsername, kind: 'report-closed' });
+    }
+    if (refused?.kind === 'illegal-transition' && awaitsVerdictOnReport(refused.from)) {
+      const reference = renderReference(unit.value.id);
+      return Result.err({ creatorUsername, kind: 'awaiting-verdict', reference, state: refused.from });
+    }
     if (refused) {
       return Result.err(refused);
     }
@@ -340,18 +390,20 @@ export class TasksService {
     channelId: string,
     reference: string
   ): Promise<Result<WorkUnit, TaskFailure.Unresolved>> {
-    const matches = await this.units.findMany({
-      take: 2,
-      where: {
-        channelId,
-        id: { startsWith: reference },
-        OR: [{ creatorUsername: agentUsername }, { assigneeUsername: agentUsername }]
-      }
-    });
+    const where = { channelId, OR: [{ creatorUsername: agentUsername }, { assigneeUsername: agentUsername }] };
+    const matches = await this.units.findMany({ take: 2, where: { ...where, id: { startsWith: reference } } });
     if (matches.length === 1) {
       return Result.ok(matches[0]!);
     }
-    return Result.err({ kind: matches.length === 0 ? 'not-found' : 'ambiguous', reference });
+    if (matches.length > 1) {
+      return Result.err({ kind: 'ambiguous', reference });
+    }
+    const open = await this.units.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+      where: this.openUnitsOf(agentUsername, channelId)
+    });
+    return Result.err({ kind: 'not-found', openReferences: open.map(({ id }) => renderReference(id)), reference });
   }
 
   /** §3.15 — tasks::read: the unit, where its counterpart stands while it is open, and the post of its latest change */
@@ -388,6 +440,48 @@ export class TasksService {
       return 'chain-limit';
     }
     return undefined;
+  }
+
+  /**
+   * §3.15 — the unit a new one would continue: the acting agent's own, with its report in and read
+   * by this turn, since the continuation closes it as done, and handed to the same assignee
+   */
+  private async findContinuable(
+    input: AssignInput,
+    reference: string
+  ): Promise<Result<WorkUnit, TaskFailure.ContinueRefused>> {
+    const read = await this.read(input.actingAgentUsername, input.channelId, reference);
+    if (!read.success) {
+      return read;
+    }
+    const unit = read.value;
+    const resolved = renderReference(unit.id);
+    if (unit.creatorUsername !== input.actingAgentUsername) {
+      return Result.err({ creatorUsername: unit.creatorUsername, kind: 'not-the-creator' });
+    }
+    if (!awaitsVerdictOnReport(unit.state)) {
+      return Result.err({ kind: 'not-continuable', reference: resolved, state: unit.state });
+    }
+    if (unit.assigneeUsername !== input.assigneeUsername) {
+      return Result.err({
+        assigneeUsername: unit.assigneeUsername,
+        kind: 'follows-other-assignee',
+        reference: resolved
+      });
+    }
+    if (!this.postSightingsRegistry.hasSeen(input.turnId, unit.lastPostId)) {
+      return Result.err({ kind: 'report-unread', reference: resolved });
+    }
+    return Result.ok(unit);
+  }
+
+  /** the open units the agent is a party to in the channel, as creator or assignee (§3.15) */
+  private openUnitsOf(agentUsername: string, channelId: string) {
+    return {
+      channelId,
+      OR: [{ creatorUsername: agentUsername }, { assigneeUsername: agentUsername }],
+      state: { in: [...OPEN_STATES] }
+    };
   }
 
   /** the assignment post is the record's own fields; a later post is the report or close the unit last moved by */

@@ -245,6 +245,7 @@ describe('ContextAssembler across two turns', () => {
         counterpart: { awaited: 'report', kind: 'no-turn' },
         createdAt: new Date('2026-09-21T11:55:00Z'),
         creatorUsername: 'mira',
+        follows: undefined,
         outcome: 'a venue shortlist',
         reference: 'abcd1234',
         state: 'assigned'
@@ -335,6 +336,7 @@ describe('ContextAssembler across two turns', () => {
           },
           createdAt: new Date('2026-09-21T11:55:00Z'),
           creatorUsername: 'mira',
+          follows: undefined,
           outcome: 'a venue shortlist',
           reference: 'abcd1234',
           state: 'assigned'

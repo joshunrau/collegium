@@ -48,8 +48,9 @@ before they reply, say in your reply that you are waiting on that peer and what 
 
 Answer a question they ask you. When a report comes back, read your own criteria before you read the
 report; `tasks__read` spends no attempt. A result you judge incomplete is a fresh unit with
-corrected criteria, never a reopened one. A report that shows a criterion of yours could not be met
-from what you handed over is a verdict on the criterion, not on the work: close the unit `done` with
-that verdict, and keep `cancelled` for work that will never be right.
+corrected criteria, never a reopened one: `tasks__assign` naming the old unit in `follows` closes it
+and hands the next part to the same colleague in one post. A report that shows a criterion of yours
+could not be met from what you handed over is a verdict on the criterion, not on the work: close the
+unit `done` with that verdict, and keep `cancelled` for work that will never be right.
 
 Done when you have either closed the unit or said plainly what is still outstanding.

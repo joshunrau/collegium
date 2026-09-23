@@ -31,6 +31,10 @@ describe('UnitsHandler', () => {
   beforeEach(async () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.get.mockImplementation((username: string) => (username === 'mira' ? MIRA : undefined));
+    agentRegistry.has.mockImplementation((username: string) => ['mira', 'owen'].includes(username));
+    agentRegistry.displayNameOf.mockImplementation((username: string) => {
+      return username.replace(/^./u, (first) => first.toUpperCase());
+    });
     tasksService = MockFactory.createMock(TasksService);
     tasksService.listOpenFor.mockResolvedValue([
       {
@@ -38,6 +42,7 @@ describe('UnitsHandler', () => {
         counterpart: { awaited: 'report', kind: 'no-turn' },
         createdAt: new Date(Date.now() - 17 * 60_000),
         creatorUsername: 'mira',
+        follows: undefined,
         outcome: 'a venue shortlist',
         reference: 'abcd1234',
         state: 'assigned'
@@ -64,7 +69,7 @@ describe('UnitsHandler', () => {
   it('should list an agent’s open units in this channel to the invoker alone (§8.4)', async () => {
     expect(await handle('mira')).toStrictEqual({
       audience: 'invoker',
-      text: 'Open work for mira in this channel:\n- [abcd1234] to @owen (no turn here since the assignment) · assigned · 17m — a venue shortlist'
+      text: 'Open work for mira in this channel:\n- [abcd1234] to Owen (no turn here since the assignment) · assigned · 17m — a venue shortlist'
     });
     expect(tasksService.listOpenFor).toHaveBeenCalledWith({ agentUsername: 'mira', channelId: 'channel-1' });
   });
@@ -92,13 +97,14 @@ describe('UnitsHandler', () => {
         },
         createdAt: new Date('2026-09-22T11:50:00Z'),
         creatorUsername: 'mira',
+        follows: undefined,
         outcome: 'a venue shortlist',
         reference: 'abcd1234',
         state: 'assigned'
       }
     ]);
     const { text } = await handle('mira');
-    expect(text).toContain('to @owen (working here since 11:58 UTC');
+    expect(text).toContain('to Owen (working here since 11:58 UTC');
     expect(text).not.toContain('waiting on a decision');
     expect(text).toContain('Waiting on a person in this channel:\n- owen · 🔐 `workspace::write` · for ');
     expect(text).toContain('since September 22, 2026 at 12:00:00 PM UTC · prompt `prompt-1`');
@@ -122,10 +128,12 @@ describe('UnitsHandler', () => {
   });
 
   it('should tell the invoker when the reference resolves to nothing, posting nothing', async () => {
-    tasksService.prepareCancelOnHumanAuthority.mockResolvedValue(Result.err({ kind: 'not-found', reference: 'zzzz' }));
+    tasksService.prepareCancelOnHumanAuthority.mockResolvedValue(
+      Result.err({ kind: 'not-found', openReferences: ['abcd1234'], reference: 'zzzz' })
+    );
     expect(await handle('mira cancel zzzz')).toStrictEqual({
       audience: 'invoker',
-      text: 'no work unit with reference "zzzz" exists for you in this channel.'
+      text: 'no work unit with reference "zzzz" exists for you in this channel; Mira\'s open units here: abcd1234.'
     });
   });
 });

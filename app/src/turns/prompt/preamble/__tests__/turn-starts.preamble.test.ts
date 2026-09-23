@@ -10,4 +10,11 @@ describe('renderTurnStartsPreamble', () => {
     expect(paragraph).toContain('which is before your own last reply and not at the end');
     expect(paragraph).toContain('you begin the turn again, at most 3 times in one turn');
   });
+
+  it('should leave what starts the next turn to Open work for an agent holding a tasks tool (§3.15)', () => {
+    const nextTurn = 'the next turn here begins when a person posts, a colleague mentions you, or a trigger fires';
+    expect(renderTurnStartsPreamble(buildStablePromptInput())).toContain(nextTurn);
+    const holdingTasks = buildStablePromptInput({ granted: [{ gates: false, id: ['tasks', 'read'] }] });
+    expect(renderTurnStartsPreamble(holdingTasks)).not.toContain(nextTurn);
+  });
 });

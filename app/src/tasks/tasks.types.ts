@@ -9,6 +9,8 @@ export type PreparedUnit = {
   readonly context: string;
   readonly creatorUsername: string;
   readonly criteria: string;
+  /** the unit this one continues, which the same post closes as done; null for a fresh hand-off */
+  readonly followsId: null | string;
   /** minted before the post so the post can carry the reference; the row is created under this id */
   readonly id: string;
   readonly outcome: string;
@@ -52,12 +54,16 @@ export type CounterpartState =
   | { readonly awaited: AwaitedMove; readonly kind: 'awaiting-reader'; readonly since: Date }
   | { readonly awaited: AwaitedMove; readonly kind: 'no-turn' };
 
-/** how a counterpart's state is worded for whoever reads it: the agent in its prompt, or a person in a listing */
-export type CounterpartWording = {
+/** how a unit's text names one of its parties, or whoever closed it, in prose */
+export type PartyNamer = (username: string) => string;
+
+/** how a unit's line, record and refusals are worded for whoever reads them: the agent itself, or a person in a listing */
+export type UnitWording = {
   readonly formatMoment: (moment: Date) => string;
+  readonly nameOf: PartyNamer;
   /** false where the listing names a party's wait on a person itself (§8.4) */
   readonly namesPersonWait: boolean;
-  /** the reader as owner of the awaited move: "your" to the agent, the agent's name to a person */
+  /** the agent whose units they are, as owner: "your" to the agent, its name to a person */
   readonly readerPossessive: string;
 };
 
@@ -67,6 +73,8 @@ export type OpenUnitSummary = {
   readonly counterpart: CounterpartState;
   readonly createdAt: Date;
   readonly creatorUsername: string;
+  /** the reference of the unit this one continues, if it continues one */
+  readonly follows: string | undefined;
   readonly outcome: string;
   readonly reference: string;
   readonly state: OpenUnitState;
@@ -91,14 +99,10 @@ export type UnitView = {
 };
 
 export declare namespace TaskFailure {
-  type AssignRefused =
-    | { assigneeUsername: string; kind: 'assignee-absent' }
-    | { assigneeUsername: string; kind: 'assignee-cannot-report' }
-    | { cap: number; kind: 'cap-reached' }
-    | { kind: 'chain-limit' }
-    | { kind: 'depth-limit' }
-    | { kind: 'self-assignment' };
-  type Unresolved = { kind: 'ambiguous' | 'not-found'; reference: string };
+  /** §7.2 — a reference that matches nothing names the ones the agent was shown under Open work */
+  type Unresolved =
+    | { kind: 'ambiguous'; reference: string }
+    | { kind: 'not-found'; openReferences: readonly string[]; reference: string };
   /** §3.15 — a closed unit takes no transition, and says who closed it, when, and the verdict */
   type Closed = {
     closedAt: Date;
@@ -109,16 +113,39 @@ export declare namespace TaskFailure {
     verdict: null | string;
   };
   type TransitionRefused = Closed | { from: WorkUnitState; kind: 'illegal-transition'; to: WorkUnitState };
-  type StateRefused =
-    | TransitionRefused
-    | { assigneeUsername: string; kind: 'not-the-assignee' }
-    | { creatorUsername: string; kind: 'not-the-creator' };
+  type NotTheCreator = { creatorUsername: string; kind: 'not-the-creator' };
+  /** §3.15 — a verdict rests on the report it judges, so this turn must have read it */
+  type ReportUnread = { kind: 'report-unread'; reference: string };
+  type StateRefused = NotTheCreator | TransitionRefused | { assigneeUsername: string; kind: 'not-the-assignee' };
+  /** §3.15 — a report the unit cannot take names the creator it is with and the way on */
+  type ReportRefused =
+    | StateRefused
+    | { closed: Closed; creatorUsername: string; kind: 'report-closed' }
+    | {
+        creatorUsername: string;
+        kind: 'awaiting-verdict';
+        reference: string;
+        state: Extract<WorkUnitState, 'blocked' | 'review'>;
+      };
   /** §3.15 — a close waits for the assignee's turn on the unit, and rests on the report it judges */
   type CloseRefused =
-    | StateRefused
-    | { assigneeUsername: string; kind: 'assignee-working'; reference: string }
-    | { kind: 'report-unread'; reference: string };
-  type Any = AssignRefused | CloseRefused | Unresolved;
+    ReportUnread | StateRefused | { assigneeUsername: string; kind: 'assignee-working'; reference: string };
+  /** §3.15 — only the creator continues a unit, once its report is in and read, and only to the same assignee */
+  type ContinueRefused =
+    | NotTheCreator
+    | ReportUnread
+    | Unresolved
+    | { assigneeUsername: string; kind: 'follows-other-assignee'; reference: string }
+    | { kind: 'not-continuable'; reference: string; state: Exclude<WorkUnitState, 'blocked' | 'review'> };
+  type AssignRefused =
+    | ContinueRefused
+    | { assigneeUsername: string; kind: 'assignee-absent' }
+    | { assigneeUsername: string; kind: 'assignee-cannot-report' }
+    | { cap: number; kind: 'cap-reached' }
+    | { kind: 'chain-limit' }
+    | { kind: 'depth-limit' }
+    | { kind: 'self-assignment' };
+  type Any = AssignRefused | CloseRefused | ReportRefused | Unresolved;
 }
 
 export type TaskFailure = TaskFailure.Any;
