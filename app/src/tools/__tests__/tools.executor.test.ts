@@ -245,14 +245,10 @@ describe('ToolExecutor', () => {
     expect(registered.storageReaders).toStrictEqual({ notes: { findById: read, findFirst: read, findMany: read } });
   });
 
-  it('ends the turn on a bare denial, naming the denier and the display name (§5.4)', async () => {
+  it('ends the turn on a bare denial, naming the denier (§5.4)', async () => {
     approvalsService.request.mockResolvedValue(Result.ok({ byUsername: 'casey', kind: 'denied' }));
     const attempt = await execute('fixture__gated', { value: 'deploy' });
-    expect(attempt).toStrictEqual({
-      detail: '@casey denied fixture::gated',
-      kind: 'terminal',
-      status: 'denied'
-    });
+    expect(attempt).toStrictEqual({ byUsername: 'casey', kind: 'terminal', status: 'denied' });
   });
 
   it('names the denier and says the turn continues, so a reasoned denial is not read as a tool error (§5.4)', async () => {

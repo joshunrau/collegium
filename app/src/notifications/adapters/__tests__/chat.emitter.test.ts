@@ -2,6 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ChatGateway } from '@/chat/chat.gateway.ts';
 import { ChatTransport } from '@/chat/chat.transport.ts';
@@ -34,10 +35,16 @@ describe('ChatEmitter', () => {
     );
     rosterService = MockFactory.createMock(RosterService);
     rosterService.isDirectMessage.mockReturnValue(false);
+    rosterService.nameOf.mockReturnValue('Research');
+    const agentRegistry = MockFactory.createMock(AgentRegistry);
+    agentRegistry.displayNameOf.mockImplementation((username) =>
+      username.replace(/^./u, (first) => first.toUpperCase())
+    );
     const moduleRef = await Test.createTestingModule({
       providers: [
         ChatEmitter,
         DateFormatter,
+        { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ChatGateway, useValue: chatGateway },
         { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: RosterService, useValue: rosterService },
@@ -57,7 +64,8 @@ describe('ChatEmitter', () => {
         stoppedAt: new Date('2026-07-26T12:00:00Z')
       },
       kind: 'online',
-      requeuedTurns: 0
+      requeuedTurns: 0,
+      strandedUnits: []
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
       expect.stringContaining(
@@ -76,7 +84,8 @@ describe('ChatEmitter', () => {
         startedAt: new Date('2026-07-26T12:05:00Z')
       },
       kind: 'online',
-      requeuedTurns: 0
+      requeuedTurns: 0,
+      strandedUnits: []
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
       expect.stringContaining('Offline since last known alive at July 26, 2026 at 12:00:00 PM UTC.')
@@ -89,21 +98,38 @@ describe('ChatEmitter', () => {
       agentUsernames: ['mira', 'robin'],
       downtime: undefined,
       kind: 'online',
-      requeuedTurns: 0
+      requeuedTurns: 0,
+      strandedUnits: []
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
-      '🟢 **Online** — the orchestrator started with 2 agent(s): `mira`, `robin`.'
+      '🟢 **Online** — the orchestrator started with 2 agent(s): Mira, Robin.'
     );
   });
 
   it('should state how many abandoned turns went back into the queue, and only when any did (§7.3)', async () => {
-    const online = { agentUsernames: ['mira'], downtime: undefined, kind: 'online' as const };
+    const online = { agentUsernames: ['mira'], downtime: undefined, kind: 'online' as const, strandedUnits: [] };
     await chatEmitter.notify({ ...online, abandonedTurns: 2, requeuedTurns: 1 });
     await chatEmitter.notify({ ...online, abandonedTurns: 2, requeuedTurns: 0 });
     expect(chatGateway.postAsSystem.mock.calls.map(([content]) => content)).toStrictEqual([
-      '🟢 **Online** — the orchestrator started with 1 agent(s): `mira`. 2 in-flight turn(s) were abandoned. 1 that had not yet acted went back into the queue.',
-      '🟢 **Online** — the orchestrator started with 1 agent(s): `mira`. 2 in-flight turn(s) were abandoned.'
+      '🟢 **Online** — the orchestrator started with 1 agent(s): Mira. 2 in-flight turn(s) were abandoned. 1 that had not yet acted went back into the queue.',
+      '🟢 **Online** — the orchestrator started with 1 agent(s): Mira. 2 in-flight turn(s) were abandoned.'
     ]);
+  });
+
+  it('should name each unit an abandoned turn left assigned, waking neither agent (§7.3)', async () => {
+    await chatEmitter.notify({
+      abandonedTurns: 1,
+      agentUsernames: ['mira', 'owen'],
+      downtime: undefined,
+      kind: 'online',
+      requeuedTurns: 0,
+      strandedUnits: [
+        { assigneeUsername: 'owen', channelId: 'channel-1', creatorUsername: 'mira', reference: 'ab12cd34' }
+      ]
+    });
+    expect(chatGateway.postAsSystem.mock.calls[0]?.[0].split('\n')[1]).toBe(
+      "- Unit `ab12cd34` in Research, from Mira to Owen, stays assigned: Owen's turn on it was abandoned."
+    );
   });
 
   it('should post the §4.5 correction as a fixed template in the offending channel', async () => {
@@ -115,7 +141,7 @@ describe('ChatEmitter', () => {
     expect(chatGateway.postAsSystem).not.toHaveBeenCalled();
   });
 
-  it('should post the §7.4 chain-limit correction in the channel, naming the agent without a mention', async () => {
+  it('should post the §7.4 chain-limit correction in the channel, naming the agent by name, not a mention', async () => {
     await chatEmitter.notify({
       agentUsername: 'mira',
       channelId: 'channel-1',
@@ -124,12 +150,12 @@ describe('ChatEmitter', () => {
     });
     expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
       'channel-1',
-      '⛔ `mira` was not activated: this chain has reached its limit of 200 turns. A fresh post from a person starts a fresh chain.'
+      '⛔ Mira was not activated: this chain has reached its limit of 200 turns. A fresh post from a person starts a fresh chain.'
     );
     expect(chatGateway.postAsSystem).not.toHaveBeenCalled();
   });
 
-  it('should post the §7.6 long-turn notice in the channel, naming the agent without a mention', async () => {
+  it('should post the §7.6 long-turn notice in the channel, naming the agent by name, not a mention', async () => {
     await chatEmitter.notify({
       agentUsername: 'mira',
       channelId: 'channel-1',
@@ -140,7 +166,7 @@ describe('ChatEmitter', () => {
     });
     expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
       'channel-1',
-      '⏳ `mira` has been in one turn here for 31m without waiting on anyone. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.'
+      '⏳ Mira has been in one turn here for 31m without waiting on anyone. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.'
     );
   });
 
@@ -155,7 +181,7 @@ describe('ChatEmitter', () => {
     });
     expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
       'channel-1',
-      '⏳ `mira` has been in one turn here for 31m without waiting on anyone, and has called no tool yet: its status post was opened just now and will show what it does next. /collegium kill ends the turn; a turn still thinking needs nothing. A post addressing `mira` is waiting behind this turn.'
+      '⏳ Mira has been in one turn here for 31m without waiting on anyone, and has called no tool yet: its status post was opened just now and will show what it does next. /collegium kill ends the turn; a turn still thinking needs nothing. A post addressing Mira is waiting behind this turn.'
     );
   });
 
@@ -163,7 +189,10 @@ describe('ChatEmitter', () => {
     rosterService.isDirectMessage.mockReturnValue(true);
     await chatEmitter.notify({ agentUsername: 'mira', channelId: 'dm-1', kind: 'standing-queue' });
     expect(chatGateway.postAsSystemIn).not.toHaveBeenCalled();
-    expect(transport.send).toHaveBeenCalledWith({ channelId: 'dm-1', text: expect.stringContaining('`mira`') });
+    expect(transport.send).toHaveBeenCalledWith({
+      channelId: 'dm-1',
+      text: expect.stringContaining('Mira has work waiting')
+    });
   });
 
   it('should post a §7.6 notice the system bot is refused under the agent’s own account, as in a DM', async () => {
@@ -171,7 +200,7 @@ describe('ChatEmitter', () => {
     await chatEmitter.notify({ agentUsername: 'mira', channelId: 'dm-1', kind: 'standing-queue' });
     expect(transport.send).toHaveBeenCalledWith({
       channelId: 'dm-1',
-      text: '⏸️ `mira` has work waiting here and no turn running. A post addressing `mira` starts the turn that reads it; /collegium queue mira shows what waits.'
+      text: '⏸️ Mira has work waiting here and no turn running. A post addressing Mira starts the turn that reads it; /collegium queue mira shows what waits.'
     });
   });
 
@@ -188,7 +217,7 @@ describe('ChatEmitter', () => {
       reason: { agentUsernames: ['mira', 'robin'], channelId: 'channel-1', kind: 'topology-violation' }
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
-      '🛑 **Halted** — respond-to-all channel channel-1 now holds 2 agents (mira, robin). No agent will act until a human posts /collegium resume.'
+      '🛑 **Halted** — respond-to-all channel channel-1 now holds 2 agents (Mira, Robin). No agent will act until a human posts /collegium resume.'
     );
   });
 

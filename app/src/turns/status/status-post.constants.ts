@@ -18,7 +18,7 @@ export const OUTCOME_PHRASES: { readonly [K in Exclude<TurnStatus, 'running'>]: 
   completed: '✅ _done_',
   context_exhausted: '⚠️ _stopped — ran out of context_',
   delivery_failure: '⚠️ _stopped — the chat server refused a post_',
-  denied: '🛑 _stopped — a human denied an action_',
+  denied: '🛑 _stopped — action denied_',
   halted: '🛑 _stopped — global halt_',
   killed: '⏹️ _killed_',
   provider_outage: '⚠️ _stopped — the model provider failed_',

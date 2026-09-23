@@ -100,9 +100,13 @@ export function renderClosePost(unit: WorkUnit, to: (typeof CREATOR_TARGETS)[num
   return `Unit \`${renderReference(unit.id)}\` closed as ${to}: ${verdict}`;
 }
 
-/** the agents are named without their @: a mention from the system bot would start the turns this cancellation spares */
-export function renderHumanCancellationPost(unit: WorkUnit, byUsername: string): string {
-  return `⛔ Unit \`${renderReference(unit.id)}\` cancelled by @${byUsername} — \`${unit.creatorUsername}\` had handed it to \`${unit.assigneeUsername}\`: ${unit.outcome}`;
+/** the agents are named by display name, not @: a mention from the system bot would start the turns this cancellation spares */
+export function renderHumanCancellationPost(
+  unit: WorkUnit,
+  byUsername: string,
+  names: { readonly assignee: string; readonly creator: string }
+): string {
+  return `⛔ Unit \`${renderReference(unit.id)}\` cancelled by @${byUsername} — ${names.creator} had handed it to ${names.assignee}: ${unit.outcome}`;
 }
 
 /** §3.15 — the agent reading its own units: what is awaited of it is "your", and a colleague's wait on a person is named */

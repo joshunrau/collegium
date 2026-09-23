@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AgentsModule } from '@/agents/agents.module.ts';
 import { ChannelsModule } from '@/channels/channels.module.ts';
 import { ChatModule } from '@/chat/chat.module.ts';
 
@@ -10,7 +11,7 @@ import { NotificationsService } from './notifications.service.ts';
 
 @Module({
   exports: [ChannelAnnouncer, NotificationsService],
-  imports: [ChannelsModule, ChatModule],
+  imports: [AgentsModule, ChannelsModule, ChatModule],
   providers: [
     ChannelAnnouncer,
     NotificationsService,

@@ -8,12 +8,14 @@ import { RosterService } from '@/channels/roster/roster.service.ts';
 import { BackfillService } from '@/conversations/backfill/backfill.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
+import { TasksService } from '@/tasks/tasks.service.ts';
+import type { WorkUnit } from '@/tasks/tasks.types.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { StatusPostService } from '@/turns/status/status-post.service.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
-import type { AbandonedStatusPost, AbandonedTurn, UnactedTurn } from '@/turns/turns.types.ts';
+import type { AbandonedStatusPost, AbandonedTurn, ActedTurn, UnactedTurn } from '@/turns/turns.types.ts';
 
 import { LivenessService } from '../../liveness/liveness.service.ts';
 import { BootService } from '../boot.service.ts';
@@ -21,6 +23,8 @@ import { BootService } from '../boot.service.ts';
 const STATUS_POST: AbandonedStatusPost = { agentUsername: 'mira', channelId: 'channel-1', postId: 'status-1' };
 
 const UNACTED: UnactedTurn = { agentUsername: 'owen', channelId: 'channel-2', triggeringPostId: 'post-1' };
+
+const ACTED: ActedTurn = { agentUsername: 'mira', channelId: 'channel-1', triggeringPostId: 'post-2' };
 
 const ABANDONED: AbandonedTurn[] = ['turn-1', 'turn-2', 'turn-3'].map((turnId) => ({
   agentUsername: 'mira',
@@ -36,6 +40,7 @@ describe('BootService', () => {
   let loggingService: MockedInstance<LoggingService>;
   let rosterService: MockedInstance<RosterService>;
   let statusPostService: MockedInstance<StatusPostService>;
+  let tasksService: MockedInstance<TasksService>;
   let toolRegistry: MockedInstance<ToolRegistry>;
   let turnsService: MockedInstance<TurnsService>;
 
@@ -77,12 +82,14 @@ describe('BootService', () => {
       calls.push('close');
       return Promise.resolve();
     });
+    tasksService = MockFactory.createMock(TasksService);
+    tasksService.findWorkedUnit.mockResolvedValue(undefined);
     toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listUngrantedIn.mockReturnValue([]);
     turnsService = MockFactory.createMock(TurnsService);
     turnsService.abandonRunning.mockImplementation(() => {
       calls.push('abandon');
-      return Promise.resolve({ statusPosts: [STATUS_POST], turns: ABANDONED, unacted: [UNACTED] });
+      return Promise.resolve({ acted: [ACTED], statusPosts: [STATUS_POST], turns: ABANDONED, unacted: [UNACTED] });
     });
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -95,6 +102,7 @@ describe('BootService', () => {
         { provide: RosterService, useValue: rosterService },
         { provide: PluginsRegistry, useValue: { toolsets: [{ name: 'bookmark', tools: {} }] } },
         { provide: StatusPostService, useValue: statusPostService },
+        { provide: TasksService, useValue: tasksService },
         { provide: ToolRegistry, useValue: toolRegistry },
         { provide: TurnsService, useValue: turnsService }
       ]
@@ -130,7 +138,7 @@ describe('BootService', () => {
       'requeue-held',
       'sweep'
     ]);
-    expect(report).toStrictEqual({ abandonedTurns: 3, downtime: undefined, requeuedTurns: 1 });
+    expect(report).toStrictEqual({ abandonedTurns: 3, downtime: undefined, requeuedTurns: 1, strandedUnits: [] });
   });
 
   it('should hand activation the abandoned turns that had not acted (§7.3)', async () => {
@@ -141,6 +149,20 @@ describe('BootService', () => {
   it('should hand activation every abandoned turn, whose held posts it queues once the roster reconciles (§5.2, §7.3)', async () => {
     await bootService.run();
     expect(activationService.requeueHeld).toHaveBeenCalledExactlyOnceWith(ABANDONED);
+  });
+
+  it('should report the unit each acted abandoned turn was working, for the boot notice to name (§7.3)', async () => {
+    tasksService.findWorkedUnit.mockResolvedValue({
+      assigneeUsername: 'mira',
+      channelId: 'channel-1',
+      creatorUsername: 'owen',
+      id: 'ab12cd34ef56'
+    } as WorkUnit);
+    const report = await bootService.run();
+    expect(tasksService.findWorkedUnit).toHaveBeenCalledExactlyOnceWith(ACTED);
+    expect(report.strandedUnits).toStrictEqual([
+      { assigneeUsername: 'mira', channelId: 'channel-1', creatorUsername: 'owen', reference: 'ab12cd34' }
+    ]);
   });
 
   it('should report the downtime the process recorded (§7.3)', async () => {
@@ -165,7 +187,7 @@ describe('BootService', () => {
 
   it('should close at most the fifty most recently started abandoned status posts', async () => {
     const statusPosts = Array.from({ length: 60 }, (_, index) => ({ ...STATUS_POST, postId: `status-${index}` }));
-    turnsService.abandonRunning.mockResolvedValue({ statusPosts, turns: [], unacted: [] });
+    turnsService.abandonRunning.mockResolvedValue({ acted: [], statusPosts, turns: [], unacted: [] });
     await bootService.run();
     expect(statusPostService.closeAbandoned).toHaveBeenCalledTimes(50);
     expect(statusPostService.closeAbandoned).toHaveBeenLastCalledWith(statusPosts[49]);

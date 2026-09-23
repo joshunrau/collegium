@@ -44,6 +44,9 @@ describe('TasksService', () => {
     });
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.get.mockImplementation((username) => [MIRA, OWEN, OMAR].find((agent) => agent.username === username));
+    agentRegistry.displayNameOf.mockImplementation((username) =>
+      username.replace(/^./u, (first) => first.toUpperCase())
+    );
     const rosterService = MockFactory.createMock(RosterService);
     rosterService.listAgentsIn.mockImplementation((channelId) => {
       return channelId === 'channel-1' ? [MIRA, OWEN, OMAR] : [MIRA];
@@ -259,7 +262,7 @@ describe('TasksService', () => {
       })
     ).unwrap();
     expect(prepared.text).toBe(
-      `⛔ Unit \`${unit.id.slice(0, 8)}\` cancelled by @casey — \`mira\` had handed it to \`owen\`: a venue shortlist`
+      `⛔ Unit \`${unit.id.slice(0, 8)}\` cancelled by @casey — Mira had handed it to Owen: a venue shortlist`
     );
     await tasksService.commitTransition(prepared.prepared, 'post-2');
     expect(units.rows[0]).toMatchObject({ closedByUsername: 'casey', state: 'cancelled' });

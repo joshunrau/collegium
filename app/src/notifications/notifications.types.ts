@@ -1,5 +1,5 @@
 import type { HaltReason } from '@/halt/halt.types.ts';
-import type { Downtime } from '@/runtime/runtime.types.ts';
+import type { Downtime, StrandedUnit } from '@/runtime/runtime.types.ts';
 
 export declare namespace SystemEvent {
   /** §7.4 — a mention that would have opened a turn past the chain limit; no turn was opened */
@@ -34,13 +34,14 @@ export declare namespace SystemEvent {
     kind: 'offline';
     reason: 'crash' | 'shutdown';
   };
-  /** the one §7.3 boot notice: the downtime window, that in-flight work was abandoned, and how much was queued again */
+  /** the one §7.3 boot notice: the downtime window, that in-flight work was abandoned, how much was queued again, and the units left assigned */
   type Online = {
     abandonedTurns: number;
     agentUsernames: string[];
     downtime: Downtime | undefined;
     kind: 'online';
     requeuedTurns: number;
+    strandedUnits: readonly StrandedUnit[];
   };
   /** §7.6 — a queue entry with no turn of the agent's own running in its channel */
   type StandingQueue = {

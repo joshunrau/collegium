@@ -59,7 +59,7 @@ export class QueueHandler extends CommandHandler {
     }
     return {
       audience: 'channel',
-      text: `🗑️ Queued work discarded: ${agentUsername} will not run what was waiting here.`
+      text: `🗑️ Queued work discarded: ${this.agentRegistry.displayNameOf(agentUsername)} will not run what was waiting here.`
     };
   }
 

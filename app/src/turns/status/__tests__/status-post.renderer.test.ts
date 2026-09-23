@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   renderAbandonedStatusPost,
+  renderDenialNotice,
   renderExtensionPrompt,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
@@ -51,10 +52,16 @@ describe('renderStatusPost', () => {
   });
 
   it('should name who issued the command that ended the turn (§7.5)', () => {
-    expect(renderStatusPost(state({ abortedBy: 'casey', elapsedMs: 17_000, outcome: 'stopped' }))).toBe(
+    expect(renderStatusPost(state({ elapsedMs: 17_000, endedBy: 'casey', outcome: 'stopped' }))).toBe(
       '⏹️ _stopped by @casey (17s)_'
     );
-    expect(renderStatusPost(state({ abortedBy: 'casey', outcome: 'killed' }))).toBe('⏹️ _killed by @casey_');
+    expect(renderStatusPost(state({ endedBy: 'casey', outcome: 'killed' }))).toBe('⏹️ _killed by @casey_');
+  });
+
+  it('should name who denied the action that ended the turn (§8.1)', () => {
+    expect(renderStatusPost(state({ elapsedMs: 742_000, endedBy: 'casey', outcome: 'denied' }))).toBe(
+      '🛑 _stopped — action denied by @casey (12m 22s)_'
+    );
   });
 
   it('should head a parked turn with what it waits on and since when, keeping the transient text (§8.1)', () => {
@@ -172,6 +179,18 @@ describe('renderToolCallLine', () => {
 
   it('should elide a summary past the trace limit', () => {
     expect(renderToolCallLine('shell', 'x'.repeat(151))).toBe(`→ \`shell ${'x'.repeat(150)}…\``);
+  });
+});
+
+describe('renderDenialNotice', () => {
+  it('should name who denied which tool, and the unit left assigned by its creator’s name alone (§7.1, §3.15)', () => {
+    const denial = { byUsername: 'casey', toolName: 'workspace::write' };
+    expect(renderDenialNotice({ ...denial, unit: undefined })).toBe(
+      '@casey denied `workspace::write`, so I stopped. How would you like me to proceed?'
+    );
+    expect(renderDenialNotice({ ...denial, unit: { creatorDisplayName: 'Owen', reference: 'ab12cd34' } })).toBe(
+      '@casey denied `workspace::write`, so I stopped. Work unit `ab12cd34` from Owen is still assigned to me. How would you like me to proceed?'
+    );
   });
 });
 

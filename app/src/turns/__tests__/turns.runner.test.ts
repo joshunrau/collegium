@@ -158,6 +158,7 @@ describe('TurnRunner', () => {
     inferenceRegistry.getClientForModel.mockReturnValue({ complete });
     tasksService = MockFactory.createMock(TasksService);
     tasksService.findServedUnit.mockResolvedValue(undefined);
+    tasksService.findWorkedUnit.mockResolvedValue(undefined);
     tasksService.prepareExhaustionReport.mockResolvedValue(undefined);
     multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
     multiMentionPolicy.addresseesOf.mockReturnValue([]);
@@ -1084,7 +1085,7 @@ describe('TurnRunner', () => {
   it('should count an invocation denied before execution as one attempt and ask how to proceed', async () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['gated_fixture'])));
     toolExecutor.execute.mockResolvedValue({
-      detail: '@casey denied gated_fixture',
+      byUsername: 'casey',
       kind: 'terminal',
       status: 'denied'
     } satisfies ToolAttempt);
@@ -1092,6 +1093,29 @@ describe('TurnRunner', () => {
     expect(outcome.status).toBe('denied');
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'denied', expect.objectContaining({ actionCount: 1 }));
     expect(sends.at(-1)?.text).toContain('How would you like me to proceed');
+  });
+
+  it('should name the denier on the call’s line, the outcome and the notice, with the unit left assigned (§8.1, §3.15)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['gated_fixture'])));
+    toolRegistry.describeCall.mockReturnValue({
+      detail: undefined,
+      displayName: 'fixture::gated',
+      effect: undefined,
+      id: ['fixture', 'gated']
+    });
+    toolExecutor.execute.mockResolvedValue({
+      byUsername: 'casey',
+      kind: 'terminal',
+      status: 'denied'
+    } satisfies ToolAttempt);
+    tasksService.findWorkedUnit.mockResolvedValue({ creatorUsername: 'owen', id: 'ab12cd34ef56' } as WorkUnit);
+    await run();
+    expect(statusHandle.markTrace).toHaveBeenCalledWith(0, { ran: false, text: '🛑 denied by @casey' });
+    expect(statusHandle.close).toHaveBeenCalledWith('denied', 'casey');
+    expect(sends.at(-1)?.text).toBe(
+      '@casey denied `fixture::gated`, so I stopped. Work unit `ab12cd34` from Owen is still assigned to me. How would you like me to proceed?'
+    );
+    expect(tasksService.prepareExhaustionReport).not.toHaveBeenCalled();
   });
 
   it('should close as stopped at the next boundary after /stop, posting nothing further', async () => {

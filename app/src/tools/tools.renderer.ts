@@ -1,5 +1,12 @@
 import { renderDenialLine } from '@/approvals/approvals.renderer.ts';
 
+import type { TraceMark } from './tools.types.ts';
+
+/** §8.1 — a denied call's line says who denied it, whether the turn went on or stopped there (§5.4) */
+export function renderDenialTraceMark(byUsername: string): TraceMark {
+  return { ran: false, text: `🛑 denied by @${byUsername}` };
+}
+
 /**
  * §5.4 — a reasoned denial is a person's decision the turn continues under, and reads as one rather
  * than as a tool error: told only `denied: <reason>`, one model reported the tool as broken and

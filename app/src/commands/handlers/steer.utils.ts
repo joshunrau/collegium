@@ -4,9 +4,13 @@ import { match } from 'ts-pattern';
 import type { SteerRefusal } from '@/turns/control/turn-control.registry.ts';
 
 import { renderCommandName } from '../commands.definitions.ts';
-import { renderAgentNames } from './channel-interrupt.utils.ts';
 
 const FIRST_WORD = /^(\S*)\s*([\s\S]*)$/u;
+
+/** §7.5 — the answer is the invoker's alone, and names each agent by the handle the command takes back */
+function renderAgentHandles(agentUsernames: readonly string[]): string {
+  return agentUsernames.map((username) => `\`${username}\``).join(', ');
+}
 
 export type AddressedSteer = {
   readonly agentUsername: string | undefined;
@@ -27,15 +31,15 @@ export function readAddressedSteer(text: string, agentUsernamesHere: readonly st
 /** §7.5 — the ephemeral answer says what a steer can and cannot reach, or it will be read as immediate */
 export function renderSteerResponse(steered: Result<string, SteerRefusal>): string {
   if (steered.success) {
-    return `Handed to ${renderAgentNames([steered.value])}: its running turn reads it before the next model call, and a call already in flight is made again. A tool already running is not interrupted, and a turn waiting on an approval reads it only if it continues after the answer.`;
+    return `Handed to ${renderAgentHandles([steered.value])}: its running turn reads it before the next model call, and a call already in flight is made again. A tool already running is not interrupted, and a turn waiting on an approval reads it only if it continues after the answer.`;
   }
   return match(steered.error)
     .with({ kind: 'nothing-running' }, () => 'Nothing is running in this channel, so there was nothing to steer.')
     .with({ kind: 'not-running' }, ({ agentUsername }) => {
-      return `${renderAgentNames([agentUsername])} has no turn running in this channel, so there was nothing to steer. Mention ${agentUsername} in a post to queue it for the next turn.`;
+      return `${renderAgentHandles([agentUsername])} has no turn running in this channel, so there was nothing to steer. Mention ${agentUsername} in a post to queue it for the next turn.`;
     })
     .with({ kind: 'ambiguous' }, ({ runningAgentUsernames }) => {
-      return `More than one agent is running in this channel (${renderAgentNames(runningAgentUsernames)}), so the steer reached none of them. Name the one it is for: ${renderCommandName('steer')} {agent} {text}`;
+      return `More than one agent is running in this channel (${renderAgentHandles(runningAgentUsernames)}), so the steer reached none of them. Name the one it is for: ${renderCommandName('steer')} {agent} {text}`;
     })
     .exhaustive();
 }

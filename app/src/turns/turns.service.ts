@@ -55,6 +55,18 @@ export class TurnsService {
       }
       return [{ agentUsername: turn.agentUsername, channelId: turn.channelId, postId: turn.statusPostId }];
     });
+    const acted = running.flatMap((turn) => {
+      if (turn._count.events === 0) {
+        return [];
+      }
+      return [
+        {
+          agentUsername: turn.agentUsername,
+          channelId: turn.channelId,
+          triggeringPostId: turn.triggeringPostId ?? undefined
+        }
+      ];
+    });
     const unacted = running.flatMap((turn) => {
       if (turn._count.events > 0 || turn.triggeringPostId === null) {
         return [];
@@ -68,7 +80,7 @@ export class TurnsService {
       channelId: turn.channelId,
       turnId: turn.id
     }));
-    return { statusPosts, turns, unacted };
+    return { acted, statusPosts, turns, unacted };
   }
 
   /**

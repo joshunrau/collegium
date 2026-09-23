@@ -40,8 +40,8 @@ export type TraceLineHandle = number;
  */
 export type StatusPostHandle = {
   appendTrace(entry: TraceEntry): TraceLineHandle;
-  /** §7.5 — a command's outcome names who issued it; every other outcome stands alone */
-  close(outcome: Exclude<TurnStatus, 'running'>, abortedBy?: string): Promise<void>;
+  /** §8.1 — an outcome a person caused names them: who issued the stop or kill (§7.5), or denied the action (§5.4) */
+  close(outcome: Exclude<TurnStatus, 'running'>, endedBy?: string): Promise<void>;
   /** §8.1 — a call's disposition, set once its result is known: the line was written before the call ran */
   markTrace(handle: TraceLineHandle, mark: TraceMark): void;
   /** §8.1 — the head says the turn waits on a person from now until `unpark` names the same decision */
@@ -185,14 +185,14 @@ export class StatusPostService {
         void schedule();
         return state.traceLines.length - 1;
       },
-      close: (outcome, abortedBy) => {
+      close: (outcome, endedBy) => {
         closing = true;
         if (!touched) {
           return Promise.resolve();
         }
         wake?.();
-        state.abortedBy = abortedBy;
         state.elapsedMs = Date.now() - openedAt;
+        state.endedBy = endedBy;
         state.outcome = outcome;
         state.transientText = undefined;
         return schedule();

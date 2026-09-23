@@ -39,3 +39,9 @@ export type MemoryTally = {
   readonly agentUsername: string;
   readonly memoryIds: readonly string[];
 };
+
+/** an agent whose memories a clear could not delete, named in prose and by the handle `/collegium memory` takes (§8.5) */
+export type MemoryFailure = {
+  readonly displayName: string;
+  readonly username: string;
+};
