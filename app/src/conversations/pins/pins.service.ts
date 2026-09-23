@@ -63,7 +63,12 @@ export class PinsService {
     return Result.ok();
   }
 
+  /** read before it writes: every edit of a post not pinned arrives here, a status post's on every agent's socket */
   async unpin(postId: string): Promise<void> {
+    const pinned = await this.posts.findFirst({ select: { id: true }, where: { id: postId, isPinned: true } });
+    if (pinned === null) {
+      return;
+    }
     await this.posts.updateMany({ data: { isPinned: false }, where: { id: postId, isPinned: true } });
   }
 }
