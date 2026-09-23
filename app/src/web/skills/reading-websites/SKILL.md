@@ -10,15 +10,16 @@ Open an address you have read: a search result, a link on a page, or the site's 
 or search. An address you put together yourself, such as a name slotted into a `/people/` path or a
 `?page=2` added to a listing, is a guess, and guesses are where nearly every 404 comes from. When
 the page you want is somewhere on a site, fetch the page that lists it and `find` the name there;
-where the site has a search box, navigate to it and search.
+where the site has a search box and you hold `web__navigate`, navigate to it and search.
 
 Done when every address you open came off a result or a page you have read.
 
 ## Fetch first
 
 `web__fetch` is the cheap read: no browser, no session, and fetches made in one response run
-together. Start there. Switch to `web__navigate` when a fetch says the page has no static content or
-the site turned it away, or when the task needs a click, a form or a sign-in.
+together. Start there. If you hold `web__navigate`, switch to it when a fetch says the page has no
+static content or the site turned it away, or when the task needs a click, a form or a sign-in.
+Without it, such a page is out of your reach: say so rather than fetching it again.
 
 ## Find the field, then read around it
 
@@ -37,10 +38,10 @@ Done when every value you report was read on a page, not inferred from a pattern
 ## What a result is telling you
 
 - **Blocked.** The site turned away a read without a browser, and the body describes the refusal,
-  not the page. A bot check or a CDN's refusal page is what `web__navigate` gets past most often,
-  since the browser runs the check. A 401 wants a sign-in, and a 429 wants you to wait: read
-  something else before you return to that site. If the browser is refused too, the site is closed
-  to you; say so rather than fetching it again.
+  not the page. A bot check or a CDN's refusal page is what `web__navigate`, if you hold it, gets
+  past most often, since the browser runs the check. A 401 wants a sign-in, and a 429 wants you to
+  wait: read something else before you return to that site. If the browser is refused too, or you
+  hold none, the site is closed to you; say so rather than fetching it again.
 - **404 or 410.** On an address you read off a page, the page is gone. On one you built, it proves
   nothing: go back to the site's index or search.
 - **A PDF.** `web__fetch` reads its text layer, each page under a `[page N of M]` marker, and `find`
