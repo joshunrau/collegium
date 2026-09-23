@@ -36,7 +36,7 @@ describe('TASKS_TOOLSET', () => {
     const result = await executeTool(TASKS_TOOLSET.tools.assign, ASSIGN_ARGS, context);
     expect(result.value).toMatchObject({
       post: { addressee: 'owen', text: '@owen — work unit `unit-abc`' },
-      text: 'unit unit-abc assigned to @owen'
+      text: 'unit unit-abc assigned to @owen, whose turn starts when this turn ends'
     });
     expect(tasksService.commitAssign).not.toHaveBeenCalled();
     await result.value?.post?.onPublished('post-9');
@@ -57,6 +57,7 @@ describe('TASKS_TOOLSET', () => {
   it('should address a report to the creator and a close to nobody', async () => {
     tasksService.prepareReport.mockResolvedValue(
       Result.ok({
+        addressee: 'mira',
         prepared: { to: 'review', unitId: 'unit-1' },
         text: '@mira — unit `unit-1` is ready for review: done'
       })

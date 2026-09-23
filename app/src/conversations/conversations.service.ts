@@ -130,6 +130,15 @@ export class ConversationsService {
     return latest?.id;
   }
 
+  /** what one turn posted, earliest first, its status post aside (§7.3) */
+  listAuthoredBy(turnId: string): Promise<Pick<ModelRow<'Post'>, 'id' | 'message' | 'observedAt'>[]> {
+    return this.posts.findMany({
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, message: true, observedAt: true },
+      where: { authoringTurnId: turnId, kind: { not: 'status' } }
+    });
+  }
+
   /**
    * Idempotent on post id — backfill and the live stream overlap, and ingestion fans out once per
    * agent socket. Reports whether this call inserted the row: the winner owns the once-per-post

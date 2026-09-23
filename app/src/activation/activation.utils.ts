@@ -1,4 +1,13 @@
-import type { ActivationSource } from '@/conversations/conversations.types.ts';
+import type { ActivationSource, ObservedPost } from '@/conversations/conversations.types.ts';
+
+/**
+ * §5.2 — whether a post may start the turn of the agent it addresses by arriving. An agent's post
+ * never does: the turn that wrote it starts the colleague it addressed once it ends or parks, so
+ * arrival would be a second activation for the same post.
+ */
+export const activatesOnArrival = (post: Pick<ObservedPost, 'authorKind'>): boolean => {
+  return post.authorKind !== 'agent';
+};
 
 /**
  * §7.4 — human-initiated is depth zero; trigger-initiated is one, because a cron is not a human

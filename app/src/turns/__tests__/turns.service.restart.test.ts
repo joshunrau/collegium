@@ -54,11 +54,12 @@ describe('TurnsService abandonment against the store (§7.3)', () => {
     const done = await open();
     await turnsService.close(done.id, 'completed');
 
-    expect(await turnsService.abandonRunning()).toStrictEqual({
-      count: 2,
-      statusPosts: [{ agentUsername: 'mira', channelId: 'channel-1', postId: 'status-1' }],
-      unacted: []
-    });
+    const abandoned = await turnsService.abandonRunning();
+    expect(abandoned.statusPosts).toStrictEqual([
+      { agentUsername: 'mira', channelId: 'channel-1', postId: 'status-1' }
+    ]);
+    expect(abandoned.turns.map(({ turnId }) => turnId).toSorted()).toStrictEqual([running.id, traceless.id].toSorted());
+    expect(abandoned.unacted).toStrictEqual([]);
     expect(await statusOf(running.id)).toBe('abandoned');
     expect(await statusOf(traceless.id)).toBe('abandoned');
     expect(await statusOf(done.id)).toBe('completed');

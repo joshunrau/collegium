@@ -34,12 +34,25 @@ export type UnactedTurn = {
   readonly triggeringPostId: string;
 };
 
-/** what a restart abandoned: how many turns, the status posts among them left to close, and those that had not acted (§7.3) */
+/** a turn a restart abandoned, whatever it had done (§7.3) */
+export type AbandonedTurn = {
+  readonly agentUsername: string;
+  readonly channelId: string;
+  readonly turnId: string;
+};
+
+/** what a restart abandoned: every turn, the status posts among them left to close, and those that had not acted (§7.3) */
 export type AbandonedTurns = {
-  readonly count: number;
   /** most recently started first */
   readonly statusPosts: readonly AbandonedStatusPost[];
+  readonly turns: readonly AbandonedTurn[];
   readonly unacted: readonly UnactedTurn[];
+};
+
+/** §5.2 — the colleague a turn's posts addressed, and the earliest of them since the turn last stopped acting */
+export type HeldActivation = {
+  readonly addresseeUsername: string;
+  readonly postId: string;
 };
 
 /** an amount some providers leave out, summed over the turns that reported it */

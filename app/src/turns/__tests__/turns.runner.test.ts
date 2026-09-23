@@ -45,7 +45,7 @@ import { TurnRunner } from '../turns.runner.ts';
 import { TurnsService } from '../turns.service.ts';
 import { TypingIndicatorService } from '../typing/typing-indicator.service.ts';
 
-import type { Turn } from '../turns.types.ts';
+import type { HeldActivation, Turn } from '../turns.types.ts';
 
 const PROFILE = {
   actionBudget: 10,
@@ -88,6 +88,7 @@ describe('TurnRunner', () => {
   let contextAssembler: MockedInstance<ContextAssembler>;
   let conversationsService: MockedInstance<ConversationsService>;
   let multiMentionPolicy: MockedInstance<MultiMentionPolicy>;
+  let releaseHeldActivation: Mock<(held: HeldActivation) => void>;
   let sends: { channelId: string; text: string }[];
   let statusHandle: { appendTrace: any; close: any; markTrace: any; setTransient: any; surface: any };
   let tasksService: MockedInstance<TasksService>;
@@ -142,6 +143,7 @@ describe('TurnRunner', () => {
     multiMentionPolicy.refusesSecondAddressee.mockReturnValue(false);
     multiMentionPolicy.stripAgentMentionsExcept.mockImplementation((text: string) => text);
     multiMentionPolicy.stripAgentMentions.mockImplementation((content) => content);
+    releaseHeldActivation = vi.fn<(held: HeldActivation) => void>();
     const statusPostService = MockFactory.createMock(StatusPostService);
     statusPostService.open.mockReturnValue(statusHandle);
     toolExecutor = MockFactory.createMock(ToolExecutor);
@@ -203,6 +205,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 0,
       profile: PROFILE,
+      releaseHeldActivation,
       rootPostId: 'post-0'
     });
     return outcome.unwrap();
@@ -215,6 +218,7 @@ describe('TurnRunner', () => {
       depth: 0,
       foldAuthorUsername: 'casey',
       profile: PROFILE,
+      releaseHeldActivation,
       rootPostId: 'post-0'
     });
     return outcome.unwrap();
@@ -296,6 +300,7 @@ describe('TurnRunner', () => {
       depth: 0,
       foldAuthorUsername: 'casey',
       profile: PROFILE,
+      releaseHeldActivation,
       rootPostId: 'post-1',
       triggeringPostId: 'post-1'
     });
@@ -336,6 +341,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 10,
         profile: PROFILE,
+        releaseHeldActivation,
         rootPostId: 'post-0'
       })
     ).unwrap();
@@ -356,6 +362,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 1,
         profile: PROFILE,
+        releaseHeldActivation,
         rootPostId: 'post-0'
       })
     ).unwrap();
@@ -370,7 +377,14 @@ describe('TurnRunner', () => {
     turnsService.countInChain.mockResolvedValue(3);
     multiMentionPolicy.stripAgentMentions.mockImplementation((content: string) => content.replace('@owen ', ''));
     complete.mockResolvedValueOnce(Result.ok(text('@owen please continue')));
-    await turnRunner.run({ chainLength: 3, channelId: 'channel-1', depth: 10, profile: PROFILE, rootPostId: 'post-0' });
+    await turnRunner.run({
+      chainLength: 3,
+      channelId: 'channel-1',
+      depth: 10,
+      profile: PROFILE,
+      releaseHeldActivation,
+      rootPostId: 'post-0'
+    });
     expect(sends[0]?.text).toContain('this chain has reached its limit');
   });
 
@@ -383,6 +397,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 0,
       profile: PROFILE,
+      releaseHeldActivation,
       rootPostId: 'post-0'
     });
     expect(outcome.success).toBe(false);
@@ -399,6 +414,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 0,
         profile: { ...PROFILE, actionBudget: 3 },
+        releaseHeldActivation,
         rootPostId: 'post-0'
       })
     ).unwrap();
@@ -418,6 +434,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 0,
       profile: PROFILE,
+      releaseHeldActivation,
       rootPostId: 'post-1',
       triggeringPostId: 'post-1'
     });
@@ -448,6 +465,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 1,
       profile: PROFILE,
+      releaseHeldActivation,
       rootPostId: 'announcement-1',
       triggeringPostId: 'announcement-1'
     });
@@ -470,6 +488,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 1,
       profile: PROFILE,
+      releaseHeldActivation,
       rootPostId: 'post-1',
       triggeringPostId: 'post-2'
     });
@@ -909,6 +928,7 @@ describe('TurnRunner', () => {
           channelId: 'channel-1',
           depth: 0,
           profile: { ...PROFILE, actionBudget: 0 },
+          releaseHeldActivation,
           rootPostId: 'post-0'
         })
       ).unwrap();
@@ -997,6 +1017,7 @@ describe('TurnRunner', () => {
           channelId: 'channel-1',
           depth: 0,
           profile: { ...PROFILE, actionBudget: 1 },
+          releaseHeldActivation,
           rootPostId: 'post-0'
         })
       ).unwrap();
@@ -1071,6 +1092,7 @@ describe('TurnRunner', () => {
       depth: 0,
       drainedFromPostId: 'post-far-back',
       profile: PROFILE,
+      releaseHeldActivation,
       rootPostId: 'post-0'
     });
     expect(statusHandle.appendTrace).toHaveBeenCalledWith({
@@ -1087,6 +1109,7 @@ describe('TurnRunner', () => {
       depth: 0,
       drainedFromPostId: 'post-0',
       profile: PROFILE,
+      releaseHeldActivation,
       rootPostId: 'post-0'
     });
     expect(statusHandle.appendTrace).not.toHaveBeenCalled();
@@ -1298,6 +1321,39 @@ describe('TurnRunner', () => {
         content: expect.stringContaining('post refused: this turn has already addressed'),
         role: 'tool'
       });
+    });
+
+    it('should hold the colleague it addressed until the turn ends, then release the earliest post once (§5.2)', async () => {
+      multiMentionPolicy.addresseesOf.mockReturnValue(['owen']);
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
+      toolExecutor.execute.mockResolvedValueOnce(post(() => Promise.resolve()));
+      complete.mockImplementationOnce(() => {
+        expect(releaseHeldActivation).not.toHaveBeenCalled();
+        return Promise.resolve(Result.ok(text('@owen one more thing')));
+      });
+      await run();
+      expect(releaseHeldActivation).toHaveBeenCalledExactlyOnceWith({ addresseeUsername: 'owen', postId: 'post-1' });
+    });
+
+    it('should release the colleague when the turn parks on a person, and not again when it ends (§5.2)', async () => {
+      multiMentionPolicy.addresseesOf.mockReturnValueOnce(['owen']);
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
+      toolExecutor.execute.mockResolvedValueOnce(post(() => Promise.resolve()));
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['workspace__write'])));
+      toolExecutor.execute.mockImplementationOnce(async ({ appendEvent }) => {
+        expect(releaseHeldActivation).not.toHaveBeenCalled();
+        await appendEvent({
+          approvalId: 'approval-1',
+          kind: 'approval_requested',
+          payloadText: 'x',
+          toolName: 'write'
+        });
+        expect(releaseHeldActivation).toHaveBeenCalledExactlyOnceWith({ addresseeUsername: 'owen', postId: 'post-1' });
+        return { kind: 'continue', output: 'written' };
+      });
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      await run();
+      expect(releaseHeldActivation).toHaveBeenCalledOnce();
     });
 
     it('should end the turn as a delivery failure when the post cannot be sent, writing nothing', async () => {
@@ -1570,6 +1626,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 0,
         profile: { ...PROFILE, actionBudget: 1 },
+        releaseHeldActivation,
         rootPostId: 'post-0'
       })
     ).unwrap();
@@ -1849,6 +1906,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 10,
         profile: PROFILE,
+        releaseHeldActivation,
         rootPostId: 'post-0'
       })
     ).unwrap();

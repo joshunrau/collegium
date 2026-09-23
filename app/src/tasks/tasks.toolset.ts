@@ -30,7 +30,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
   tools: {
     assign: {
       description:
-        'Hand one unit of work to a colleague in this channel: the result you need, how you will judge it, and what they need to know. The framework posts it to them and records the unit; their report comes back to you, and only you can close it. A question to a colleague is a post, not a unit.',
+        'Hand one unit of work to a colleague in this channel: the result you need, how you will judge it, and what they need to know. The framework posts it mentioning them, which starts their turn once yours ends, and records the unit. Their report is posted mentioning you and starts your turn once theirs ends, so a work order needs no instruction to mention you. Only you can close the unit. A question to a colleague is a post, not a unit.',
       execute: async (args, context) => {
         const prepared = await context.tasks.prepareAssign({
           actingAgentUsername: context.turn.agentUsername,
@@ -48,7 +48,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         const { addressee, prepared: unit, text } = prepared.value;
         return Result.ok({
           post: { addressee, onPublished: (postId) => context.tasks.commitAssign(unit, postId), text },
-          text: `unit ${unit.id.slice(0, 8)} assigned to @${unit.assigneeUsername}`
+          text: `unit ${unit.id.slice(0, 8)} assigned to @${unit.assigneeUsername}, whose turn starts when this turn ends`
         });
       },
       parameters: z.object({
@@ -124,7 +124,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
     },
     report: {
       description:
-        'Report on a unit handed to you: review when the result is ready for its creator to judge, blocked when something nobody in this channel can answer stops you. The framework posts the report to the creator. You cannot close a unit yourself.',
+        'Report on a unit handed to you: review when the result is ready for its creator to judge, blocked when something nobody in this channel can answer stops you. The framework posts the report mentioning the creator, which starts their turn once yours ends, so your reply need not mention them or repeat the report. You cannot close a unit yourself.',
       execute: async (args, context) => {
         const prepared = await context.tasks.prepareReport({
           actingAgentUsername: context.turn.agentUsername,
@@ -139,7 +139,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         const { addressee, prepared: transition, text } = prepared.value;
         return Result.ok({
           post: { addressee, onPublished: (postId) => context.tasks.commitTransition(transition, postId), text },
-          text: `unit ${args.reference} reported ${args.state}; the report is posted, so your reply need not repeat it`
+          text: `unit ${args.reference} reported ${args.state}; the report is posted to @${addressee}, whose turn starts when this turn ends, so your reply need not repeat it`
         });
       },
       parameters: z.object({

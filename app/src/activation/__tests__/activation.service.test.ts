@@ -21,6 +21,8 @@ import { createObservedPost } from '@/testing/factories/observed-post.factory.ts
 import { TriggersService } from '@/triggers/triggers.service.ts';
 import { TurnFoldRegistry } from '@/turns/folding/turn-fold.registry.ts';
 import { TurnRunner } from '@/turns/turns.runner.ts';
+import { TurnsService } from '@/turns/turns.service.ts';
+import type { HeldActivation } from '@/turns/turns.types.ts';
 
 import { ActivationService } from '../activation.service.ts';
 import { DebounceService } from '../debounce/debounce.service.ts';
@@ -58,6 +60,7 @@ describe('ActivationService', () => {
   let triggersService: MockedInstance<TriggersService>;
   let turnFoldRegistry: TurnFoldRegistry;
   let turnRunner: MockedInstance<TurnRunner>;
+  let turnsService: MockedInstance<TurnsService>;
   let typingSignals: string[];
 
   beforeEach(async () => {
@@ -105,6 +108,7 @@ describe('ActivationService', () => {
     triggersService.listPendingChannelIds.mockResolvedValue([]);
     turnRunner = MockFactory.createMock(TurnRunner);
     turnRunner.run.mockResolvedValue(ended('completed'));
+    turnsService = MockFactory.createMock(TurnsService);
     const moduleRef = await Test.createTestingModule({
       providers: [
         ActivationService,
@@ -121,7 +125,8 @@ describe('ActivationService', () => {
         { provide: TransportRegistry, useValue: transportRegistry },
         { provide: TriggersService, useValue: triggersService },
         TurnFoldRegistry,
-        { provide: TurnRunner, useValue: turnRunner }
+        { provide: TurnRunner, useValue: turnRunner },
+        { provide: TurnsService, useValue: turnsService }
       ]
     }).compile();
     activationService = moduleRef.get(ActivationService);
@@ -145,6 +150,7 @@ describe('ActivationService', () => {
       channelId: 'channel-1',
       depth: 0,
       profile: PROFILE,
+      releaseHeldActivation: expect.any(Function),
       rootPostId: 'post-1',
       triggeringPostId: 'post-1'
     });
@@ -170,20 +176,6 @@ describe('ActivationService', () => {
     haltService.isHalted.mockReturnValue(true);
     await activationService.flushTriggersIfIdle('channel-1');
     expect(triggersService.peekPending).not.toHaveBeenCalled();
-  });
-
-  it('should start the turn at the depth and chain length the activation rules compute (§7.4)', async () => {
-    conversationsService.findActivationSource.mockResolvedValue({
-      authorKind: 'agent',
-      authorUsername: 'owen',
-      delegator: { agentUsername: 'mira', depth: 0 },
-      parentChainLength: 2,
-      parentDepth: 1,
-      parentRootPostId: 'post-root'
-    });
-    await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
-    await settle();
-    expect(turnRunner.run).toHaveBeenCalledWith(expect.objectContaining({ chainLength: 3, depth: 0 }));
   });
 
   it('should start no turn on the announcement the system bot posted for a trigger', async () => {
@@ -323,6 +315,7 @@ describe('ActivationService', () => {
       depth: 0,
       drainedFromPostId: 'post-7',
       profile: PROFILE,
+      releaseHeldActivation: expect.any(Function),
       rootPostId: 'post-7',
       triggeringPostId: 'post-7'
     });
@@ -395,6 +388,7 @@ describe('ActivationService', () => {
       depth: 0,
       drainedFromPostId: 'post-7',
       profile: PROFILE,
+      releaseHeldActivation: expect.any(Function),
       rootPostId: 'post-1',
       triggeringPostId: 'post-1'
     });
@@ -575,6 +569,130 @@ describe('ActivationService', () => {
       expect(queueService.enqueue).not.toHaveBeenCalled();
       expect(turnRunner.run).not.toHaveBeenCalled();
     });
+
+    it("should queue nothing for a colleague's post, which the turn that wrote it releases (§5.2)", async () => {
+      await activationService.onResynced(PROFILE, [
+        createObservedPost({ authorKind: 'agent', authorUsername: 'owen' })
+      ]);
+      await settle();
+      expect(queueService.enqueue).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("a post an agent's turn addressed to a colleague (§5.2)", () => {
+    const OWEN = { username: 'owen' } as AgentProfile;
+    let owenQueue: string | undefined;
+
+    const releasingOwen = (): void => {
+      turnRunner.run.mockImplementationOnce((input) => {
+        input.releaseHeldActivation({ addresseeUsername: 'owen', postId: 'post-5' } satisfies HeldActivation);
+        return Promise.resolve(ended('completed'));
+      });
+    };
+
+    beforeEach(() => {
+      owenQueue = undefined;
+      agentRegistry.get.mockReturnValue(OWEN);
+      queueService.enqueue.mockImplementation((agentUsername, _channelId, postId) => {
+        if (agentUsername === 'owen') {
+          owenQueue ??= postId;
+        }
+        return Promise.resolve();
+      });
+      queueService.peek.mockImplementation((agentUsername) => {
+        const standing = agentUsername === 'owen' ? owenQueue : undefined;
+        return Promise.resolve(standing === undefined ? undefined : ({ earliestUnprocessedPostId: standing } as never));
+      });
+      queueService.drain.mockImplementation((agentUsername) => {
+        const standing = agentUsername === 'owen' ? owenQueue : undefined;
+        owenQueue = agentUsername === 'owen' ? undefined : owenQueue;
+        return Promise.resolve(standing === undefined ? undefined : ({ earliestUnprocessedPostId: standing } as never));
+      });
+    });
+
+    it('should start nothing when the post arrives', async () => {
+      await activationService.onPost(OWEN, post({ authorKind: 'agent', authorUsername: 'mira', id: 'post-5' }));
+      await settle();
+      expect(debounceService.schedule).not.toHaveBeenCalled();
+      expect(queueService.enqueue).not.toHaveBeenCalled();
+      expect(turnRunner.run).not.toHaveBeenCalled();
+    });
+
+    it('should start the colleague from the held post once the authoring turn releases it, admitting it then (§7.4)', async () => {
+      conversationsService.findActivationSource.mockResolvedValue({
+        authorKind: 'agent',
+        authorUsername: 'mira',
+        delegator: { agentUsername: 'owen', depth: 0 },
+        parentChainLength: 2,
+        parentDepth: 1,
+        parentRootPostId: 'post-root'
+      });
+      releasingOwen();
+      await activationService.onPost(PROFILE, post());
+      await settle();
+      expect(turnRunner.run).toHaveBeenCalledTimes(2);
+      expect(turnRunner.run).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          chainLength: 3,
+          depth: 0,
+          drainedFromPostId: 'post-5',
+          profile: OWEN,
+          rootPostId: 'post-root',
+          triggeringPostId: 'post-5'
+        })
+      );
+      expect(haltService.admitTurnStart).toHaveBeenCalledTimes(2);
+      expect(reactions).toStrictEqual([]);
+    });
+
+    it('should queue and acknowledge the held post behind a busy colleague, starting nothing', async () => {
+      channelLockService.isBusy.mockImplementation((agentUsername) => agentUsername === 'owen');
+      releasingOwen();
+      await activationService.onPost(PROFILE, post());
+      await settle();
+      expect(queueService.enqueue).toHaveBeenCalledWith('owen', 'channel-1', 'post-5');
+      expect(reactions).toStrictEqual(['post-5:eyes']);
+      expect(turnRunner.run).toHaveBeenCalledTimes(1);
+    });
+
+    it('should leave the held post standing when the ceiling refuses it at release (§7.4)', async () => {
+      haltService.admitTurnStart.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+      releasingOwen();
+      await activationService.onPost(PROFILE, post());
+      await settle();
+      expect(owenQueue).toBe('post-5');
+      expect(turnRunner.run).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('holds a restart abandoned (§7.3)', () => {
+    const abandoned = { agentUsername: 'mira', channelId: 'channel-1', turnId: 'turn-9' };
+
+    beforeEach(() => {
+      conversationsService.listAuthoredBy.mockResolvedValue([
+        { id: 'post-4', message: '@owen — work unit', observedAt: new Date(1_000) },
+        { id: 'post-6', message: '@owen and one more thing', observedAt: new Date(3_000) }
+      ]);
+      multiMentionPolicy.addresseesOf.mockReturnValue(['owen']);
+    });
+
+    it('should queue the colleague at the earliest post it has had no turn here since', async () => {
+      turnsService.findLatestStartIn.mockResolvedValue(new Date(2_000));
+      expect(await activationService.requeueHeld([abandoned])).toBe(1);
+      expect(queueService.enqueue).toHaveBeenCalledExactlyOnceWith('owen', 'channel-1', 'post-6');
+    });
+
+    it('should queue nothing once the colleague has started a turn after every post', async () => {
+      turnsService.findLatestStartIn.mockResolvedValue(new Date(4_000));
+      expect(await activationService.requeueHeld([abandoned])).toBe(0);
+      expect(queueService.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('should queue nothing for a turn whose posts addressed no colleague', async () => {
+      multiMentionPolicy.addresseesOf.mockReturnValue([]);
+      expect(await activationService.requeueHeld([abandoned])).toBe(0);
+      expect(turnsService.findLatestStartIn).not.toHaveBeenCalled();
+    });
   });
 
   describe('the boot and /resume sweep', () => {
@@ -598,6 +716,7 @@ describe('ActivationService', () => {
         depth: 0,
         drainedFromPostId: 'post-7',
         profile: PROFILE,
+        releaseHeldActivation: expect.any(Function),
         rootPostId: 'post-7',
         triggeringPostId: 'post-7'
       });
@@ -664,7 +783,7 @@ describe('ActivationService', () => {
     let released = false;
     channelLockService.acquire.mockReturnValue({ release: () => (released = true) });
     turnRunner.run.mockResolvedValueOnce(Result.err({ count: 3, kind: 'chain-full', limit: 3, rootPostId: 'post-0' }));
-    await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
+    await activationService.onPost(PROFILE, post());
     await settle();
     expect(notificationsService.notify).toHaveBeenCalledWith({
       agentUsername: 'mira',
@@ -687,12 +806,12 @@ describe('ActivationService', () => {
     queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
     queueService.peek.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-7' } as never);
     turnRunner.run.mockResolvedValue(Result.err({ count: 3, kind: 'chain-full', limit: 3, rootPostId: 'post-0' }));
-    await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen' }));
+    await activationService.onPost(PROFILE, post());
     await settle();
     expect(queueService.enqueue).toHaveBeenCalledWith('mira', 'channel-1', 'post-7');
     expect(queueService.enqueue).not.toHaveBeenCalledWith('mira', 'channel-1', 'post-1');
     queueService.drain.mockResolvedValueOnce({ earliestUnprocessedPostId: 'post-8' } as never);
-    await activationService.onPost(PROFILE, post({ authorKind: 'agent', authorUsername: 'owen', id: 'post-2' }));
+    await activationService.onPost(PROFILE, post({ id: 'post-2' }));
     await settle();
     expect(queueService.enqueue).not.toHaveBeenCalledWith('mira', 'channel-1', 'post-8');
     expect(loggingService.warn).toHaveBeenCalledWith(expect.stringContaining('dropped the queue entry'));
