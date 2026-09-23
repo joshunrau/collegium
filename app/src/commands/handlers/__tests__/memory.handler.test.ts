@@ -24,7 +24,10 @@ describe('MemoryHandler', () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.get.mockImplementation((username: string) => (username === 'mira' ? MIRA : undefined));
     memoryService = MockFactory.createMock(MemoryService);
-    memoryService.list.mockResolvedValue([{ description: 'casey prefers bullets', reference: 'm1' }]);
+    memoryService.listWithRevisions.mockResolvedValue([
+      { description: 'casey prefers bullets', reference: 'm1', revisedAt: null, revision: 0 },
+      { description: 'release cadence', reference: 'm2', revisedAt: new Date(Date.now() - 2 * 3_600_000), revision: 3 }
+    ]);
     const moduleRef = await Test.createTestingModule({
       providers: [
         MemoryHandler,
@@ -35,10 +38,10 @@ describe('MemoryHandler', () => {
     memoryHandler = moduleRef.get(MemoryHandler);
   });
 
-  it('should list references and descriptions, never bodies', async () => {
+  it('should list references and descriptions with how each was revised, never bodies (§8.4)', async () => {
     expect(await handle('mira')).toStrictEqual({
       audience: 'invoker',
-      text: 'Memories for mira:\n- m1: casey prefers bullets'
+      text: 'Memories for mira:\n- m1: casey prefers bullets\n- m2: release cadence (revised 3 times, last 2h 0m ago)'
     });
   });
 
@@ -62,7 +65,7 @@ describe('MemoryHandler', () => {
 
   it('should say when the reference resolves to no memory', async () => {
     memoryService.read.mockResolvedValue(Result.err({ kind: 'not-found', reference: 'zz' }));
-    expect((await handle('mira show zz')).text).toContain('for mira.');
+    expect((await handle('mira show zz')).text).toBe('mira has no memory with reference "zz".');
   });
 
   it('should answer an unknown verb with the usage line', async () => {

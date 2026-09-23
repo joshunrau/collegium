@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
-import { renderUnresolvedReference } from '@/memory/memory.utils.ts';
+import { renderListingWithRevisions, renderUnresolvedReferenceFor } from '@/memory/memory.utils.ts';
 
 import { renderUsage } from '../commands.definitions.ts';
 import { CommandHandler } from '../commands.handler.ts';
@@ -39,7 +39,7 @@ export class MemoryHandler extends CommandHandler {
         audience: 'invoker',
         text: read.success
           ? `Memory ${reference} — ${read.value.description}:\n\n${read.value.body}`
-          : `${renderUnresolvedReference(read.error)} for ${agentUsername}.`
+          : renderUnresolvedReferenceFor(agentUsername, read.error)
       };
     }
     if (action === 'prune' && reference !== undefined) {
@@ -48,21 +48,22 @@ export class MemoryHandler extends CommandHandler {
         audience: 'invoker',
         text: deleted.success
           ? `Deleted memory ${reference}: ${deleted.value.description}`
-          : `${renderUnresolvedReference(deleted.error)} for ${agentUsername}.`
+          : renderUnresolvedReferenceFor(agentUsername, deleted.error)
       };
     }
     if (action !== undefined) {
       return { audience: 'invoker', text: renderUsage(this.trigger) };
     }
-    const entries = await this.memoryService.list(agentUsername);
+    const entries = await this.memoryService.listWithRevisions(agentUsername);
     if (entries.length === 0) {
       return { audience: 'invoker', text: `${agentUsername} has no memories.` };
     }
+    const now = new Date();
     return {
       audience: 'invoker',
       text: [
         `Memories for ${agentUsername}:`,
-        ...entries.map((entry) => `- ${entry.reference}: ${entry.description}`)
+        ...entries.map((entry) => `- ${renderListingWithRevisions(entry, now)}`)
       ].join('\n')
     };
   }

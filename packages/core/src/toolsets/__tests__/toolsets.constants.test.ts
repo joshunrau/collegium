@@ -24,7 +24,14 @@ describe('framework toolset defs', () => {
     expect(TOOL_GRANT_VALUES).not.toContain('triggers::resolve');
     expect(TOOL_GRANT_GROUPS).toContainEqual({
       label: 'memory',
-      values: ['memory::append', 'memory::delete', 'memory::read', 'memory::replace', 'memory::write']
+      values: [
+        'memory::append',
+        'memory::delete',
+        'memory::read',
+        'memory::replace',
+        'memory::rewrite',
+        'memory::write'
+      ]
     });
   });
 });
