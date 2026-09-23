@@ -123,7 +123,7 @@ describe('renderTrace', () => {
         reference: 'm1',
         supersededDescriptions: ['an ancient note', 'a stale plan']
       })
-    ]);
+    ], [], NOW);
     expect(text).toContain(
       '1. record m1 written, removing "an ancient note", "a stale plan": release cadence — ships on Fridays'
     );
