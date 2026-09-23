@@ -100,7 +100,14 @@ export function captureSnapshot(nextRefIndex: number): SnapshotCapture {
       return { isHidden: isHiddenRef, kind: 'button', label: controlLabel(element), ref, value: element.value };
     }
     if (element instanceof HTMLSelectElement) {
-      return { isHidden: isHiddenRef, kind: 'select', label: controlLabel(element), ref, value: element.value };
+      return {
+        isHidden: isHiddenRef,
+        kind: 'select',
+        label: controlLabel(element),
+        options: [...element.options].map((option) => option.label),
+        ref,
+        value: element.selectedOptions[0]?.label ?? ''
+      };
     }
     if (element instanceof HTMLTextAreaElement) {
       return { isHidden: isHiddenRef, kind: 'textarea', label: controlLabel(element), ref, value: element.value };

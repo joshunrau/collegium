@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyNavigationError } from '../browser.utils.ts';
+import { classifyActionError, classifyNavigationError } from '../browser.utils.ts';
 
 describe('classifyNavigationError', () => {
   it("should say the browser's transport errors in plain words", () => {
@@ -37,10 +37,30 @@ describe('classifyNavigationError', () => {
     ['MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT', 'self-signed'],
     ['SSL_ERROR_NO_CYPHER_OVERLAP', 'unclassified']
   ])('should classify %s as a TLS failure of kind %s (§3.4)', (code, reason) => {
-    expect(classifyNavigationError(`page.goto: ${code}\nCall log:\n  - navigating to "https://northmoor.example/"`)).toStrictEqual({
+    expect(
+      classifyNavigationError(`page.goto: ${code}\nCall log:\n  - navigating to "https://northmoor.example/"`)
+    ).toStrictEqual({
       code,
       kind: 'tls',
       reason
+    });
+  });
+});
+
+describe('classifyActionError', () => {
+  it("should report an element's refusal as the element's, without Playwright's framing (§3.4)", () => {
+    const message =
+      'locator.fill: Error: Element is not an <input>, <textarea> or [contenteditable] element\nCall log:\n  - waiting for locator';
+    expect(classifyActionError(message, 'e359')).toStrictEqual({
+      kind: 'action-failed',
+      message: 'Element is not an <input>, <textarea> or [contenteditable] element',
+      ref: 'e359'
+    });
+  });
+
+  it('should report a load the action started as the page failing to load', () => {
+    expect(classifyActionError('locator.click: NS_ERROR_NET_EMPTY_RESPONSE', 'e4')).toMatchObject({
+      kind: 'navigation'
     });
   });
 });

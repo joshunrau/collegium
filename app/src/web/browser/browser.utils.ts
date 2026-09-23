@@ -30,6 +30,12 @@ const TLS_REASONS_BY_CODE: { readonly [code: string]: TlsReason } = {
 /** the shape of every NSS and PSM security error's name; one not listed above is named but not classified */
 const TLS_ERROR_CODE = /\b(?:MOZILLA_PKIX_ERROR|SEC_ERROR|SSL_ERROR)_[A-Z_]+\b/u;
 
+/** the shape of Firefox's network errors: what an action reports when the load it started failed */
+const NETWORK_ERROR_CODE = /\bNS_ERROR_[A-Z_]+\b/u;
+
+/** Playwright's own framing of an action's error: the method that raised it, and the call log after the first line */
+const ACTION_ERROR_PREFIX = /^(?:locator\.\w+: )?(?:Error: )?/u;
+
 function describeNavigationError(message: string): string {
   const code = Object.keys(NAVIGATION_ERRORS).find((known) => message.includes(known));
   return code === undefined ? message : NAVIGATION_ERRORS[code]!;
@@ -46,6 +52,21 @@ export function classifyNavigationError(message: string): WebFailure.Navigation 
     return { kind: 'navigation', message: describeNavigationError(message) };
   }
   return { code, kind: 'tls', reason: TLS_REASONS_BY_CODE[code] ?? 'unclassified' };
+}
+
+/**
+ * A failed action on an element that is there and visible, as what it is: the element refused the
+ * action, unless what failed was a load the action started, which is the page's failure (§3.4).
+ */
+export function classifyActionError(
+  message: string,
+  ref: string
+): WebFailure.ActionFailed | WebFailure.Navigation | WebFailure.Tls {
+  if (TLS_ERROR_CODE.test(message) || NETWORK_ERROR_CODE.test(message)) {
+    return classifyNavigationError(message);
+  }
+  const firstLine = message.split('\n', 1)[0]!.replace(ACTION_ERROR_PREFIX, '').trim();
+  return { kind: 'action-failed', message: firstLine, ref };
 }
 
 /**

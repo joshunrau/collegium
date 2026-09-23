@@ -178,6 +178,17 @@ export class WebService {
     return this.toSnapshot(await opened.value.navigate(url));
   }
 
+  async select(
+    turnId: string,
+    args: { option: string; ref: string }
+  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
+    const opened = await this.sessions.get(turnId);
+    if (!opened?.success) {
+      return Result.err({ kind: 'no-session' });
+    }
+    return this.toSnapshot(await opened.value.select(args.ref, args.option));
+  }
+
   /**
    * Claiming the slot is synchronous — the map is written before the launch is awaited — which makes
    * the cap a compare-and-swap rather than a check-then-act: concurrent first-navigates in different

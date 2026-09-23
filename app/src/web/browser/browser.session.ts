@@ -1,7 +1,8 @@
-import { Result } from '@collegium/core/utils';
+import { Result, toErrorMessage } from '@collegium/core/utils';
 import type { BrowserContext, Locator, Page, Response } from 'playwright-core';
 
 import { classifyContentType } from '../fetch/fetch.utils.ts';
+import { lacksOption } from '../select/select.script.ts';
 import { waitForDomSettled } from '../settle/settle.script.ts';
 import { captureSnapshot } from '../snapshot/snapshot.script.ts';
 import {
@@ -13,15 +14,19 @@ import {
   NETWORK_IDLE_TIMEOUT_MS,
   OPENED_TAB_URL_TIMEOUT_MS
 } from '../web.constants.ts';
-import { classifyNavigationError } from './browser.utils.ts';
+import { classifyActionError, classifyNavigationError } from './browser.utils.ts';
 
 import type { RenderedCapture, WebFailure } from '../web.types.ts';
 
 /** what can go wrong loading a page, whatever started the load */
 type LoadFailure = WebFailure.Navigation | WebFailure.Tls | WebFailure.Unreachable;
 
+/** what an action finds wrong with its element before it acts, so nothing was done */
+type ActionRefusal = WebFailure.NoSuchOption;
+
 /** and what can go wrong acting on a ref besides */
-type ActionFailure = LoadFailure | WebFailure.NotVisible | WebFailure.StaleRef;
+type ActionFailure =
+  ActionRefusal | LoadFailure | WebFailure.ActionFailed | WebFailure.NotVisible | WebFailure.StaleRef;
 
 /**
  * One live page and its ref numbering. The counter is held here — not in the page — so it
@@ -50,9 +55,7 @@ export class BrowserSession {
     });
   }
 
-  async click(
-    ref: string
-  ): Promise<Result<RenderedCapture, ActionFailure>> {
+  async click(ref: string): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, (locator) => locator.click({ timeout: ACTION_TIMEOUT_MS }));
   }
 
@@ -65,11 +68,7 @@ export class BrowserSession {
     }
   }
 
-  async fill(
-    ref: string,
-    text: string,
-    pressEnter = false
-  ): Promise<Result<RenderedCapture, ActionFailure>> {
+  async fill(ref: string, text: string, pressEnter = false): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, async (locator) => {
       await locator.fill(text, { timeout: ACTION_TIMEOUT_MS });
       if (pressEnter) {
@@ -78,9 +77,7 @@ export class BrowserSession {
     });
   }
 
-  async hover(
-    ref: string
-  ): Promise<Result<RenderedCapture, ActionFailure>> {
+  async hover(ref: string): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, (locator) => locator.hover({ timeout: ACTION_TIMEOUT_MS }));
   }
 
@@ -104,21 +101,39 @@ export class BrowserSession {
     return this.capture();
   }
 
+  /** by the option's label or its value, as Playwright matches either */
+  async select(ref: string, option: string): Promise<Result<RenderedCapture, ActionFailure>> {
+    return this.act(ref, async (locator) => {
+      if (await locator.evaluate(lacksOption, option)) {
+        return { kind: 'no-such-option', option, ref };
+      }
+      await locator.selectOption(option, { timeout: ACTION_TIMEOUT_MS });
+      return undefined;
+    });
+  }
+
   private async act(
     ref: string,
-    action: (locator: Locator) => Promise<void>
+    action: (locator: Locator) => Promise<ActionRefusal | void>
   ): Promise<Result<RenderedCapture, ActionFailure>> {
     const locator = this.page.locator(`[data-collegium-ref="${ref}"]`);
     try {
       if ((await locator.count()) === 0) {
         return Result.err({ kind: 'stale-ref', ref });
       }
-      await action(locator);
+      const refused = await action(locator);
+      if (refused) {
+        return Result.err(refused);
+      }
     } catch (error) {
+      const message = toErrorMessage(error);
+      if (this.isGone()) {
+        return Result.err({ kind: 'unreachable', message });
+      }
       // an action that timed out on a ref CSS hides is the one failure the model can act on itself,
       // so it must not arrive as an indistinguishable page failure
       if (await locator.isVisible().catch(() => true)) {
-        return Result.err(this.asFailure(error));
+        return Result.err(classifyActionError(message, ref));
       }
       return Result.err({ kind: 'not-visible', ref });
     }
@@ -126,11 +141,8 @@ export class BrowserSession {
   }
 
   private asFailure(error: unknown): LoadFailure {
-    const message = error instanceof Error ? error.message : String(error);
-    if (this.page.isClosed() || this.context.browser()?.isConnected() === false) {
-      return { kind: 'unreachable', message };
-    }
-    return classifyNavigationError(message);
+    const message = toErrorMessage(error);
+    return this.isGone() ? { kind: 'unreachable', message } : classifyNavigationError(message);
   }
 
   private async capture(): Promise<Result<RenderedCapture, LoadFailure>> {
@@ -168,6 +180,10 @@ export class BrowserSession {
       await tab.close().catch(() => undefined);
     }
     return urls;
+  }
+
+  private isGone(): boolean {
+    return this.page.isClosed() || this.context.browser()?.isConnected() === false;
   }
 
   /**

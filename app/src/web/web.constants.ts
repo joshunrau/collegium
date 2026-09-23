@@ -61,6 +61,9 @@ export const DOM_SETTLE_MIN_MS = 750;
  */
 export const DOM_SETTLE_TIMEOUT_MS = 3_000;
 
+/** how many of a select's options a snapshot lists; a country list runs to a few hundred, and the rest are counted */
+export const SELECT_OPTIONS_SHOWN = 100;
+
 /** the ceiling on one plain fetch — tighter than a navigation, since nothing renders after the bytes arrive */
 export const FETCH_TIMEOUT_MS = 20_000;
 

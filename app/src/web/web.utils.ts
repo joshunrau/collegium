@@ -3,7 +3,12 @@ import type { TranslatorConfigFactory, TranslatorConfigObject } from 'node-html-
 import { match } from 'ts-pattern';
 
 import { findPhrases, renderFoundPhrases } from './fetch/find.utils.ts';
-import { DEFAULT_WINDOW_CHARS, FETCH_BODY_CAP_BYTES, MARKDOWN_CAP_CHARS } from './web.constants.ts';
+import {
+  DEFAULT_WINDOW_CHARS,
+  FETCH_BODY_CAP_BYTES,
+  MARKDOWN_CAP_CHARS,
+  SELECT_OPTIONS_SHOWN
+} from './web.constants.ts';
 
 import type { FormElement } from './snapshot/snapshot.types.ts';
 import type {
@@ -181,12 +186,23 @@ function linkTranslators(base: undefined | URL): TranslatorConfigObject {
   };
 }
 
+/** §3.4 — what a select offers, since web::select takes one of them back by its label */
+function renderSelectOptions(options: readonly string[]): string {
+  const listed = options
+    .slice(0, SELECT_OPTIONS_SHOWN)
+    .map((option) => `"${option}"`)
+    .join(', ');
+  const more = options.length > SELECT_OPTIONS_SHOWN ? `, and ${options.length - SELECT_OPTIONS_SHOWN} more` : '';
+  return `; options: ${listed}${more}`;
+}
+
 function renderFormElement(element: FormElement): string {
   const kind = element.kind === 'input' ? `input[type=${element.type}]` : element.kind;
   const label = element.label ? ` "${element.label}"` : '';
   const state = element.value ? ` = "${element.value}"` : '';
   const hidden = element.isHidden ? ' (hidden — reveal it before acting)' : '';
-  return `- ⟨${element.ref}⟩ ${kind}${label}${state}${hidden}`;
+  const options = element.kind === 'select' ? renderSelectOptions(element.options) : '';
+  return `- ⟨${element.ref}⟩ ${kind}${label}${state}${hidden}${options}`;
 }
 
 /**
@@ -356,6 +372,12 @@ export function readPage(view: PageView, read: PageRead): Pick<FetchedPage, 'mar
 /** a recoverable browsing failure as the model hears it; `unreachable` is infrastructure and never rendered */
 export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreachable>): string {
   return match(failure)
+    .with({ kind: 'action-failed' }, ({ message, ref }) => {
+      return (
+        `⟨${ref}⟩ is on the page, but the action on it failed: ${message}. The page itself loaded; check what ` +
+        'the element is in the latest snapshot — a select takes web::select, not web::fill'
+      );
+    })
     .with({ kind: 'blocked' }, ({ status, url }) => {
       return (
         `${url} answered HTTP ${status} with a refusal or a bot check instead of the page: the site turned away a ` +
@@ -381,6 +403,9 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     })
     .with({ kind: 'navigation' }, ({ message }) => `the page could not be loaded: ${message}`)
     .with({ kind: 'no-session' }, () => 'no page is open in this turn — navigate to a URL first')
+    .with({ kind: 'no-such-option' }, ({ option, ref }) => {
+      return `⟨${ref}⟩ offers no option "${option}", so nothing was chosen — pass an option as the latest snapshot lists it`;
+    })
     .with({ kind: 'no-text' }, ({ pageCount, pagesRead, url }) => {
       const read =
         pagesRead === pageCount ? `any of its ${pageCount} pages` : `the first ${pagesRead} of its ${pageCount} pages`;
@@ -413,12 +438,14 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
 /** §8.1 — the same failure as the status post's mark: a phrase short enough for a trace line, since a call that bought nothing must not read like one that worked */
 export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailure.Unreachable>): string {
   return match(failure)
+    .with({ kind: 'action-failed' }, () => '⚠️ action failed')
     .with({ kind: 'blocked' }, ({ status }) => `⚠️ blocked (HTTP ${status})`)
     .with({ kind: 'busy' }, () => '⚠️ browser busy')
     .with({ kind: 'empty-render' }, () => '⚠️ nothing rendered')
     .with({ kind: 'http-error' }, ({ status }) => `⚠️ HTTP ${status}`)
     .with({ kind: 'navigation' }, () => '⚠️ did not load')
     .with({ kind: 'no-session' }, () => '⚠️ no page open')
+    .with({ kind: 'no-such-option' }, () => '⚠️ no such option')
     .with({ kind: 'no-text' }, () => '⚠️ no text layer')
     .with({ kind: 'not-html' }, () => '⚠️ not HTML')
     .with({ kind: 'not-visible' }, () => '⚠️ hidden ref')

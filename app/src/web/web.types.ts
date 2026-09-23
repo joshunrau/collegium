@@ -82,9 +82,16 @@ export type WebSnapshot = WebPage & {
  * chain, an expiry, a name mismatch and a self-signed leaf are the site's fault on their face; an
  * issuer nobody here trusts is as likely a gap in this deployment's own trust store.
  */
-export type TlsReason = 'expired' | 'incomplete-chain' | 'name-mismatch' | 'self-signed' | 'unclassified' | 'untrusted-issuer';
+export type TlsReason =
+  'expired' | 'incomplete-chain' | 'name-mismatch' | 'self-signed' | 'unclassified' | 'untrusted-issuer';
 
 export declare namespace WebFailure {
+  /** the ref is on the page and visible, and the action on it failed — about the element, not the page's load (§3.4) */
+  type ActionFailed = {
+    kind: 'action-failed';
+    message: string;
+    ref: string;
+  };
   /** the site answered a read without a browser with a refusal or a bot check instead of the page (§3.4) */
   type Blocked = {
     kind: 'blocked';
@@ -123,6 +130,12 @@ export declare namespace WebFailure {
     contentType: string;
     kind: 'not-html';
     url: string;
+  };
+  /** the select offers no option with that label or value, so nothing was chosen */
+  type NoSuchOption = {
+    kind: 'no-such-option';
+    option: string;
+    ref: string;
   };
   /** no page of the PDF that was read carries a text layer — a scan, most likely, and nothing here reads an image (§3.4) */
   type NoText = {
@@ -177,6 +190,7 @@ export declare namespace WebFailure {
     url: string;
   };
   type Any =
+    | ActionFailed
     | Blocked
     | Busy
     | EmptyRender
@@ -184,6 +198,7 @@ export declare namespace WebFailure {
     | Navigation
     | NoSession
     | NoStaticContent
+    | NoSuchOption
     | NoText
     | NotHtml
     | NotVisible

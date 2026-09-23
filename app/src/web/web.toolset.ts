@@ -149,8 +149,8 @@ function toSearchResult(query: string, result: Result<SearchResult[], SearchFail
 
 /**
  * Ungated as a read instrument (§3.4): the per-agent grant decides who browses, the status post
- * traces every action. A click or fill may commit a side effect on the page, and even a navigation
- * can, so no browser tool is retryable: a timeout leaves us unable to say whether it landed (§7.2).
+ * traces every action. A click, fill or select may commit a side effect on the page, and even a
+ * navigation can, so no browser tool is retryable: a timeout leaves us unable to say whether it landed (§7.2).
  * `fetch` and `search` are the exceptions — a scriptless GET commits nothing, so a timeout is a plain failure.
  */
 export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
@@ -206,7 +206,7 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       }
     },
     fill: {
-      description: `${DESCRIPTION_PREAMBLE}Type into an input from the latest snapshot, replacing its current value — including signing in when the task calls for it.`,
+      description: `${DESCRIPTION_PREAMBLE}Type into an input from the latest snapshot, replacing its current value — including signing in when the task calls for it. A drop-down list (a select) is chosen from with select instead.`,
       execute: async (args, context) => {
         return toSnapshotResult(
           await context.web.fill(context.turn.turnId, { pressEnter: args.pressEnter, ref: args.ref, text: args.text })
@@ -269,6 +269,24 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       retryable: true,
       timeoutMs: SEARCH_TIMEOUT_MS + 5_000,
       traceDetail: (args) => `"${args.query}"`
+    },
+    select: {
+      description:
+        `${DESCRIPTION_PREAMBLE}Choose an option in a drop-down list (a select) from the latest snapshot, which ` +
+        "lists each select's options.",
+      execute: async (args, context) => {
+        return toSnapshotResult(await context.web.select(context.turn.turnId, { option: args.option, ref: args.ref }));
+      },
+      parameters: z.object({
+        option: z
+          .string()
+          .min(1)
+          .describe('The option to choose, by its label as the snapshot lists it, or by its value'),
+        ref: $Ref.describe('The ref of the select, from the latest snapshot')
+      }),
+      supersedable: true,
+      timeoutMs: WEB_TIMEOUT_MS,
+      traceDetail: (args) => `⟨${args.ref}⟩ "${args.option}"`
     }
   }
 });

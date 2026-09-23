@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS } from '../web.constants.ts';
+import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS, SELECT_OPTIONS_SHOWN } from '../web.constants.ts';
 import {
   capMarkdown,
   decodeCloudflareEmail,
@@ -273,9 +273,9 @@ describe('renderWebFailure', () => {
         "it to a trusted authority — a fault in the site's TLS configuration, which retrying will not fix " +
         '(UNABLE_TO_VERIFY_LEAF_SIGNATURE)'
     );
-    expect(
-      renderWebFailure({ code: 'SEC_ERROR_UNKNOWN_ISSUER', kind: 'tls', reason: 'untrusted-issuer' })
-    ).toContain("the site's configuration or this deployment's trust store may be at fault");
+    expect(renderWebFailure({ code: 'SEC_ERROR_UNKNOWN_ISSUER', kind: 'tls', reason: 'untrusted-issuer' })).toContain(
+      "the site's configuration or this deployment's trust store may be at fault"
+    );
   });
 
   it('should carry the status on a page that rendered nothing', () => {
@@ -286,11 +286,17 @@ describe('renderWebFailure', () => {
 
   it('should name the content type nothing reads, and what can be read', () => {
     expect(
-      renderWebFailure({ contentType: 'image/png', kind: 'unsupported-content', url: 'https://northmoor.example/crest.png' })
-    ).toBe('https://northmoor.example/crest.png is image/png, which no web tool reads: web::fetch reads web pages, PDFs and text');
+      renderWebFailure({
+        contentType: 'image/png',
+        kind: 'unsupported-content',
+        url: 'https://northmoor.example/crest.png'
+      })
+    ).toBe(
+      'https://northmoor.example/crest.png is image/png, which no web tool reads: web::fetch reads web pages, PDFs and text'
+    );
   });
 
-  it("should name web::fetch as the reader of a PDF the browser will not open (§3.4)", () => {
+  it('should name web::fetch as the reader of a PDF the browser will not open (§3.4)', () => {
     expect(
       renderWebFailure({ contentType: 'application/pdf', kind: 'not-html', url: 'https://northmoor.example/cv.pdf' })
     ).toContain('read it with web::fetch');
@@ -307,6 +313,17 @@ describe('renderWebFailure', () => {
 
   it('should name hover as the way out of a ref CSS hides', () => {
     expect(renderWebFailure({ kind: 'not-visible', ref: 'e12' })).toContain('web::hover');
+  });
+
+  it("should report a failed action on a present element as the element's, naming web::select (§3.4)", () => {
+    const line = renderWebFailure({
+      kind: 'action-failed',
+      message: 'Element is not an <input>, <textarea> or [contenteditable] element',
+      ref: 'e359'
+    });
+    expect(line).toMatch(/^⟨e359⟩ is on the page, but the action on it failed: Element is not an <input>/u);
+    expect(line).toContain('web::select');
+    expect(line).not.toContain('could not be loaded');
   });
 
   it('should say a busy browser frees only when a holding turn ends, and that fetch still works (§3.4)', () => {
@@ -339,7 +356,12 @@ describe('describeWebFailureOutcome', () => {
 
 describe('renderWebPage', () => {
   it('should caution that a 404 on an address the model built says nothing about the page (§3.4)', () => {
-    const page = { markdown: '# Not Found', status: 404, title: 'Not Found', url: 'https://northmoor.example/dr-duval' };
+    const page = {
+      markdown: '# Not Found',
+      status: 404,
+      title: 'Not Found',
+      url: 'https://northmoor.example/dr-duval'
+    };
     expect(renderWebPage(page)).toBe(
       'Not Found — https://northmoor.example/dr-duval (HTTP 404)\nIf you built this URL rather than read it off a ' +
         "page, this says nothing about the page you were after; use the site's index or search to find it.\n\n# Not Found"
@@ -370,6 +392,23 @@ describe('renderWebSnapshot', () => {
       url: 'https://northmoor.example/'
     };
     expect(renderWebSnapshot(snapshot)).toContain('⟨e1⟩ input[type=text] "Search" = "duval"');
+  });
+
+  it("should list a select's options, counting those past the ones shown (§3.4)", () => {
+    const options = Array.from({ length: SELECT_OPTIONS_SHOWN + 2 }, (_, index) => `Option ${index}`);
+    const snapshot: WebSnapshot = {
+      formElements: [{ isHidden: false, kind: 'select', label: 'Focus', options, ref: 'e1', value: 'Option 0' }],
+      markdown: '# Faculty',
+      openedUrls: [],
+      status: 200,
+      title: 'Faculty',
+      url: 'https://northmoor.example/'
+    };
+    const line = renderWebSnapshot(snapshot)
+      .split('\n')
+      .find((candidate) => candidate.startsWith('- ⟨e1⟩'));
+    expect(line).toMatch(/^- ⟨e1⟩ select "Focus" = "Option 0"; options: "Option 0", "Option 1", /u);
+    expect(line).toMatch(/"Option 99", and 2 more$/u);
   });
 
   it('should name a tab the page opened, and say when it had no address yet', () => {
