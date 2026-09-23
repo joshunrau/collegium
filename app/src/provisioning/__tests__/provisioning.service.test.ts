@@ -34,6 +34,7 @@ const ADMIN = { email: 'ops@example.org', kind: 'password', password: 'secret', 
 
 const agent = (username: string, overrides: Partial<AgentDefinition> = {}): AgentDefinition => ({
   contextBudgetTokens: 8000,
+  displayName: username,
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   schedules: {},
@@ -85,7 +86,7 @@ describe('ProvisioningService', () => {
           provide: ConfigService,
           useValue: createConfigServiceMock({
             agents: {
-              amir: agent('amir'),
+              amir: agent('amir', { displayName: 'Amir' }),
               jane: agent('jane', { tools: ['mail'], toolSettings: { mail: MAIL_SETTINGS } })
             },
             mattermost: {
@@ -131,6 +132,14 @@ describe('ProvisioningService', () => {
     expect(adminClient.ensureBot.mock.calls.map(([{ username }]) => username)).toStrictEqual([
       'orchestrator',
       'amir',
+      'jane'
+    ]);
+  });
+
+  it('should show each agent’s bot under its display name, and the system bot under its username (§3.1)', () => {
+    expect(adminClient.ensureBot.mock.calls.map(([{ displayName }]) => displayName)).toStrictEqual([
+      'orchestrator',
+      'Amir',
       'jane'
     ]);
   });

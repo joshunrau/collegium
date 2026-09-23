@@ -35,6 +35,6 @@ export class PeersSection {
   private renderPeerLine(peer: AgentProfile): string {
     const namespaces = this.toolRegistry.listGrantedNamespacesFor(peer);
     const toolsets = namespaces.length === 0 ? 'none' : namespaces.join(', ');
-    return `@${peer.username} — ${peer.expertise} (toolsets: ${toolsets})`;
+    return `${peer.displayName} (@${peer.username}) — ${peer.expertise} (toolsets: ${toolsets})`;
   }
 }

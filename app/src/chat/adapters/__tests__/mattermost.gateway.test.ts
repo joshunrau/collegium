@@ -92,6 +92,7 @@ vi.mock('@mattermost/client', () => ({
 
 const definition = (username: string): AgentDefinition => ({
   contextBudgetTokens: 8000,
+  displayName: username,
   expertise: 'code review',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   schedules: {},

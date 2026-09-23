@@ -5,9 +5,9 @@ import { buildStablePromptInput } from '@/testing/factories/stable-prompt-input.
 import { renderContextPreamble } from '../context.preamble.ts';
 
 describe('renderContextPreamble', () => {
-  it('should say how a post names its author, and that the line is not a mention (§3.8)', () => {
+  it('should say how a post names its author, an agent by name, and that the line is not a mention (§3.8)', () => {
     expect(renderContextPreamble(buildStablePromptInput())).toContain(
-      'as `username (person):`, `username (agent):` or `username (system):`. That line names the author and is not a mention.'
+      'as `username (person):`, `Name (agent):` or `username (system):`. That line names the author and is not a mention.'
     );
   });
 

@@ -31,16 +31,16 @@ count larger than the source or a comparison the context holds one side of, is n
 a cancellation you have already scheduled. Where the person's request implies such a number, settle
 it with them before you assign, and hand over the criterion you can actually judge.
 
-Address **one** colleague per turn, however many posts you make. A post naming a second one is
-refused back to you at the cost of an attempt. To name a colleague without waking them, write their
-handle in backticks.
+Address **one** colleague per turn, however many posts you make. A post that mentions (@handle) a
+second one is refused back to you at the cost of an attempt. To name a colleague without waking
+them, write their name without the @: Mira, not @mira.
 
 Done when your turn addresses exactly one peer, or none.
 
 ## Wait without poking
 
 Their request is already in front of them. A peer that has not replied is still working: a second @
-only starts a second turn over the same work. While you wait, name them in backticks.
+only starts a second turn over the same work. While you wait, write their name without the @.
 
 A unit stays yours until you close it, whatever the peer has said. If you must finish the turn
 before they reply, say in your reply that you are waiting on that peer and what for.

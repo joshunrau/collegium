@@ -53,13 +53,18 @@ export class ProvisioningService {
     const mattermost = this.configService.get('mattermost');
     const agents = Object.values(this.configService.get('agents'));
 
-    const systemBotId = await this.provisionBot({ teamId, username: mattermost.systemBotUsername });
+    const systemBotId = await this.provisionBot({
+      displayName: mattermost.systemBotUsername,
+      teamId,
+      username: mattermost.systemBotUsername
+    });
     // §8.4 — the system bot reconciles the team's slash commands at every boot, which needs the grant
     await this.adminClient.ensureTeamAdmin({ teamId, userId: systemBotId });
 
     const provisioned: { readonly agent: AgentDefinition; readonly userId: string }[] = [];
     for (const agent of agents) {
-      provisioned.push({ agent, userId: await this.provisionBot({ teamId, username: agent.username }) });
+      const userId = await this.provisionBot({ displayName: agent.displayName, teamId, username: agent.username });
+      provisioned.push({ agent, userId });
     }
 
     const memberIdsByHandle = new Map<string, Set<string>>();
@@ -86,8 +91,8 @@ export class ProvisioningService {
     }
   }
 
-  /** the account, its team membership, and the token bound to it */
-  private async provisionBot(params: { teamId: string; username: string }): Promise<string> {
+  /** the account under the name it shows, its team membership, and the token bound to it */
+  private async provisionBot(params: { displayName: string; teamId: string; username: string }): Promise<string> {
     const userId = await this.adminClient.ensureBot(params);
     await this.credentialsService.ensure({
       mint: () => {

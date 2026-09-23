@@ -94,7 +94,7 @@ A persistent identity with a name, persona, system prompt, assigned model, assig
 
 The prompt is written in configuration, either inline or as a markdown file the configuration names beneath the resources root, because prose escaped into a JSON string is prose nobody reviews. Which form is used changes nothing downstream.
 
-Each agent is a **Mattermost bot account** with its own access token, addressable as `@{username}`, shown with a `BOT` tag in the member list.
+Each agent is a **Mattermost bot account** with its own access token, addressable as `@{username}`, shown with a `BOT` tag in the member list. **Prose names it by its display name** — declared in configuration, else the username with its first letter capitalised — which is also the name its bot account shows. A name is no mention, so an agent written in passing is woken by nothing (§4.5); the handle is for addressing it.
 
 Agents are persistent colleagues, not task-scoped job runners. There is one instance of each agent, continuously; conversations are episodes in an ongoing relationship rather than independent invocations.
 
@@ -241,7 +241,7 @@ Each turn assembles context fresh from the store:
 
 **Nothing whose text can differ between two turns of the same agent in the same channel precedes the window.** The first three items change only with the deployment. The last four follow the window as one message, rendered afresh each turn and opened by a line saying it is the framework's and not a post; the turn's own calls and results follow that message. It is sent in the user's role, because a system message part-way through a conversation is one a provider may move back ahead of the window. An age, the memory listing and a channel's membership all change between turns, so a section that carries any of them goes after the window, however seldom it changes.
 
-**The window names each post's author and what they are** — a person, an agent, or the system bot — from what the store recorded when the post was observed, and without an @: a name that read as a mention was copied back into replies. **A post's attached files are named in the window**, one line each — name, type and size — whether or not anything can read them. A file an agent cannot read is a fact it states, not a fact it is spared: an agent that answers the caption as though it were the whole message is wrong in a way nobody can see.
+**The window names each post's author and what they are** — a person, an agent, or the system bot — from what the store recorded when the post was observed, and without an @: a name that read as a mention was copied back into replies. An agent is named by its display name (§3.1), so it is copied as prose; a person and the system bot by username, which is what a reply that tags the person needs. **A post's attached files are named in the window**, one line each — name, type and size — whether or not anything can read them. A file an agent cannot read is a fact it states, not a fact it is spared: an agent that answers the caption as though it were the whole message is wrong in a way nobody can see.
 
 **The system prompt contains the agent's own prompt, the shared behavioral baseline, its optional personality, and the framework preamble.**
 
@@ -299,7 +299,7 @@ In respond-to-all channels, agent-authored and system-bot posts must not trigger
 
 **The set of other agents present in the current channel**, rendered into every turn's context after the window (§3.8), excluding the agent itself and the system bot. This is how an agent knows which peers it can reach.
 
-**Each peer is listed with what it can do: its expertise, and the toolsets it was granted, by namespace** — never its individual tools and never their settings. An agent that sees a colleague's name and nothing of its reach plans against capability it cannot see. The namespaces are the grants configuration states (§3.4), which A2 already makes enumerable, so listing them tells the agent nothing an operator could not. The core namespaces every agent holds are left out.
+**Each peer is listed by name and handle, with what it can do: its expertise, and the toolsets it was granted, by namespace** — never its individual tools and never their settings. The name is how the agent writes the peer; the handle, written with its @, is how it addresses one (§4.5). An agent that sees a colleague's name and nothing of its reach plans against capability it cannot see. The namespaces are the grants configuration states (§3.4), which A2 already makes enumerable, so listing them tells the agent nothing an operator could not. The core namespaces every agent holds are left out.
 
 Membership is what Mattermost holds now, never a copy that could drift from it.
 
@@ -423,7 +423,7 @@ People type in fragments seconds apart. Context is assembled once, at turn start
 
 ### **4.5 Multi-Agent Mentions Are Refused**
 
-A post mentioning **two or more agents present in the channel** starts no turn and enters no queue. The system bot posts a mechanical correction: address one agent per message, and how to name an agent without addressing it — write the handle in backticks, which is no mention in Mattermost's grammar.
+A post mentioning **two or more agents present in the channel** starts no turn and enters no queue. The system bot posts a mechanical correction: address one agent per message, and how to name an agent without addressing it — write its name without the @, as Mira rather than @mira. A handle inside code is no mention either, but code is for where the handle itself is meant, not for naming a colleague.
 
 Mentions of agents not present in the channel are inert text: an absent agent never receives the post, so the harm this rule prevents cannot arise. A DM therefore never trips this rule.
 

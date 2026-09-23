@@ -69,6 +69,7 @@ function resolveConfig(declaration: $ConfigDeclaration, issues: z.core.$ZodRawIs
     agents[username] = {
       ...declared,
       contextBudgetTokens,
+      displayName: declared.displayName ?? defaultDisplayNameOf(username),
       model,
       personality: declared.personality ?? config.agentDefaults.personality,
       turnContextCeilingTokens,
@@ -112,9 +113,18 @@ function resolveConfig(declaration: $ConfigDeclaration, issues: z.core.$ZodRawIs
   return { ...config, agents };
 }
 
+/** §3.1 — what an agent that declares no display name is called in prose */
+export function defaultDisplayNameOf(username: string): string {
+  return username.charAt(0).toUpperCase() + username.slice(1);
+}
+
 /** an agent entry once agentDefaults are applied and its key is carried in: what the app runs (§3.1) */
-export type AgentDefinition = Omit<$AgentDeclaration, 'contextBudgetTokens' | 'model' | 'turnContextCeilingTokens'> & {
+export type AgentDefinition = Omit<
+  $AgentDeclaration,
+  'contextBudgetTokens' | 'displayName' | 'model' | 'turnContextCeilingTokens'
+> & {
   readonly contextBudgetTokens: number;
+  readonly displayName: string;
   readonly model: $ModelRef;
   /** the ceiling that applies: the declared one, capped beneath the model's window (§3.8) */
   readonly turnContextCeilingTokens: number;

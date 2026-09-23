@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
 import type { CompletionRequest } from '@/inference/inference.types.ts';
@@ -7,6 +8,8 @@ import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 import { PromptRenderer } from '../prompt/prompt.renderer.ts';
 import { estimateWindowTokens, toCompletionMessages } from './context.utils.ts';
+
+import type { WindowReader } from './context.utils.ts';
 
 type AssembleInput = {
   readonly channelId: string;
@@ -35,6 +38,7 @@ export type AssembledContext = {
 @Injectable()
 export class ContextAssembler {
   constructor(
+    private readonly agentRegistry: AgentRegistry,
     private readonly promptRenderer: PromptRenderer,
     private readonly toolRegistry: ToolRegistry,
     private readonly windowService: WindowService
@@ -43,11 +47,15 @@ export class ContextAssembler {
   async assemble(input: AssembleInput): Promise<AssembledContext> {
     const { channelId, profile, turnId } = input;
     const assembledAt = new Date();
+    const reader: WindowReader = {
+      displayNameOf: (agentUsername) => this.agentRegistry.displayNameOf(agentUsername),
+      username: profile.username
+    };
     const { entries, oldestAt } = await this.windowService.build({
       agentUsername: profile.username,
       budgetTokens: profile.contextBudgetTokens,
       channelId,
-      costOf: (candidates) => estimateWindowTokens(candidates, profile.username)
+      costOf: (candidates) => estimateWindowTokens(candidates, reader)
     });
     const { stable, tail } = await this.promptRenderer.renderParts({
       channelId,
@@ -61,7 +69,7 @@ export class ContextAssembler {
         cacheKey: JSON.stringify([profile.username, channelId]),
         // §3.8 — a user-role message, since a provider may hoist a system message ahead of the window
         messages: [
-          ...toCompletionMessages(entries, profile.username, turnId),
+          ...toCompletionMessages(entries, reader, turnId),
           ...(tail === undefined ? [] : [{ content: tail, role: 'user' as const }])
         ],
         model: profile.model,

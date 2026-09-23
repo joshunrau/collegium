@@ -281,6 +281,15 @@ export const $AgentDeclaration = z.strictObject({
   contextBudgetTokens: $ContextBudgetTokens
     .optional()
     .describe('Overrides agentDefaults.contextBudgetTokens for this agent'),
+  displayName: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[^@\r\n]+$/)
+    .optional()
+    .describe(
+      'What this agent is called in prose, and the name its bot account shows: other agents read its posts and its line under Peers by this name, and write it without the @ that would start its turn (§3.1). Defaults to the username with its first letter capitalised.'
+    ),
   expertise: z
     .string()
     .min(1)

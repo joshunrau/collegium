@@ -1,3 +1,4 @@
+import { defaultDisplayNameOf } from '@collegium/config';
 import type { $TriggeringMode, AgentDefinition } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 import type { z } from 'zod';
@@ -58,6 +59,14 @@ export class AgentRegistry {
     return text;
   }
 
+  /**
+   * §3.1 — how prose names an agent. One config no longer declares still has posts in the store,
+   * so it is named as an undeclared display name would be rather than refused.
+   */
+  displayNameOf(username: string): string {
+    return this.profiles.get(username)?.displayName ?? defaultDisplayNameOf(username);
+  }
+
   get(username: string): AgentProfile | undefined {
     return this.profiles.get(username);
   }
@@ -111,6 +120,7 @@ export class AgentRegistry {
     return {
       actionBudget,
       contextBudgetTokens: definition.contextBudgetTokens,
+      displayName: definition.displayName,
       expertise: definition.expertise,
       model: definition.model,
       personality: definition.personality,

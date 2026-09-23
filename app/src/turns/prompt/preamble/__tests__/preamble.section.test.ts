@@ -6,10 +6,10 @@ import { buildStablePromptInput } from '@/testing/factories/stable-prompt-input.
 import { renderPreambleSection } from '../preamble.section.ts';
 
 describe('renderPreambleSection', () => {
-  it('should open the preamble with the agent’s own handle (§3.8)', () => {
-    expect(renderPreambleSection(buildStablePromptInput())).toContain(
-      '## How this works\n\nYou are @mira, one of a group of agents.'
-    );
+  it('should open the preamble with the agent’s own name and handle (§3.8)', () => {
+    expect(
+      renderPreambleSection(buildStablePromptInput({ profile: buildAgentProfile({ displayName: 'Mira Turner' }) }))
+    ).toContain('## How this works\n\nYou are Mira Turner (@mira), one of a group of agents.');
   });
 
   it('should name both directories, the shell user’s read-only view of the workspace and the output spill for an agent holding both (§3.8)', () => {

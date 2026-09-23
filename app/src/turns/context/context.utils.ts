@@ -151,24 +151,27 @@ function renderEvent(
   );
 }
 
-function renderPost(post: ModelRow<'Post'>, selfUsername: string): CompletionMessage {
+/** §3.8 — an agent by its display name; a person keeps the username, so a reply that tags them copies it */
+function renderAuthorName(post: ModelRow<'Post'>, reader: WindowReader): string {
+  return post.authorKind === 'agent' ? reader.displayNameOf(post.authorUsername) : post.authorUsername;
+}
+
+function renderPost(post: ModelRow<'Post'>, reader: WindowReader): CompletionMessage {
   const content = renderPostWithAttachments(post);
-  if (post.authorUsername === selfUsername) {
+  if (post.authorUsername === reader.username) {
     return { content, role: 'assistant' };
   }
-  return { content: renderAuthoredMessage(post.authorUsername, post.authorKind, content), role: 'user' };
+  return { content: renderAuthoredMessage(renderAuthorName(post, reader), post.authorKind, content), role: 'user' };
 }
 
 function renderEntries(
   entries: readonly WindowEntry[],
-  selfUsername: string,
+  reader: WindowReader,
   currentTurnId: string | undefined
 ): CompletionMessage[] {
   const results = collectCallResults(entries);
   return entries.flatMap((entry) => {
-    return entry.kind === 'post'
-      ? [renderPost(entry.post, selfUsername)]
-      : renderEvent(entry.event, results, currentTurnId);
+    return entry.kind === 'post' ? [renderPost(entry.post, reader)] : renderEvent(entry.event, results, currentTurnId);
   });
 }
 
@@ -181,6 +184,12 @@ function chargedTextOf(message: CompletionMessage): string {
   return [message.content, ...calls].join('\n');
 }
 
+/** §3.8 — the agent a window is rendered for, and how prose names the colleagues whose posts it holds */
+export type WindowReader = {
+  readonly displayNameOf: (agentUsername: string) => string;
+  readonly username: string;
+};
+
 /**
  * §5.2 — a draining turn's window ends on the trace of the turn it drains behind, and a model
  * handed its own message as the last thing said continues it; the closing line makes the next
@@ -188,10 +197,10 @@ function chargedTextOf(message: CompletionMessage): string {
  */
 export function toCompletionMessages(
   entries: readonly WindowEntry[],
-  selfUsername: string,
+  reader: WindowReader,
   currentTurnId: string
 ): CompletionMessage[] {
-  const messages = renderEntries(entries, selfUsername, currentTurnId);
+  const messages = renderEntries(entries, reader, currentTurnId);
   const last = messages.at(-1);
   if (last === undefined || last.role === 'user') {
     return messages;
@@ -200,8 +209,8 @@ export function toCompletionMessages(
 }
 
 /** §3.8 — what entries cost the window, measured on the messages they render to, so the budget and what the model reads cannot disagree */
-export function estimateWindowTokens(entries: readonly WindowEntry[], selfUsername: string): number {
-  return renderEntries(entries, selfUsername, undefined).reduce((sum, message) => {
+export function estimateWindowTokens(entries: readonly WindowEntry[], reader: WindowReader): number {
+  return renderEntries(entries, reader, undefined).reduce((sum, message) => {
     return sum + estimateTokens(chargedTextOf(message));
   }, 0);
 }
@@ -226,6 +235,6 @@ export function containsToolCallTranscript(text: string): boolean {
  * person is never mistaken for a colleague, and without the @ that read as a mention and was copied
  * back into replies.
  */
-export function renderAuthoredMessage(username: string, kind: AuthorKind, content: string): string {
-  return `${username} (${AUTHOR_KIND_WORDS[kind]}): ${content}`;
+export function renderAuthoredMessage(authorName: string, kind: AuthorKind, content: string): string {
+  return `${authorName} (${AUTHOR_KIND_WORDS[kind]}): ${content}`;
 }

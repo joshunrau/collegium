@@ -11,7 +11,7 @@ import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 import { PeersSection } from '../peers.section.ts';
 
-const PEER = { expertise: 'scheduling', username: 'tess' } as AgentProfile;
+const PEER = { displayName: 'Tess', expertise: 'scheduling', username: 'tess' } as AgentProfile;
 
 describe('PeersSection', () => {
   let peersSection: PeersSection;
@@ -47,19 +47,19 @@ describe('PeersSection', () => {
     expect(rosterService.getPeers).toHaveBeenCalledWith('channel-1', 'mira');
   });
 
-  it('should list each peer with its expertise', () => {
+  it('should list each peer by name and handle, with its expertise (§3.11)', () => {
     rosterService.getPeers.mockReturnValue([PEER]);
     expect(render()).toBe(`## Peers
 
 Colleagues in this channel and what each is asked about. The toolsets say what each can do, not what should be handed over:
 
-- @tess — scheduling (toolsets: none)`);
+- Tess (@tess) — scheduling (toolsets: none)`);
   });
 
   it('should list the toolsets each peer was granted by namespace (§3.11)', () => {
     rosterService.getPeers.mockReturnValue([PEER]);
     toolRegistry.listGrantedNamespacesFor.mockReturnValue(['prospects', 'tasks', 'web']);
-    expect(render()).toContain('- @tess — scheduling (toolsets: prospects, tasks, web)');
+    expect(render()).toContain('- Tess (@tess) — scheduling (toolsets: prospects, tasks, web)');
     expect(toolRegistry.listGrantedNamespacesFor).toHaveBeenCalledWith(PEER);
   });
 });

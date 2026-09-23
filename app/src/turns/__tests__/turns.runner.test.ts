@@ -51,6 +51,7 @@ import type { HeldActivation, Turn } from '../turns.types.ts';
 const PROFILE = {
   actionBudget: 10,
   contextBudgetTokens: 1000,
+  displayName: 'Mira',
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   personality: undefined,
