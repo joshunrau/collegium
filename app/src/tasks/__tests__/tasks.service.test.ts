@@ -124,6 +124,17 @@ describe('TasksService', () => {
     expect((await prepare({ turnId: 'turn-1' })).error).toStrictEqual({ kind: 'chain-limit' });
   });
 
+  it('should find the unit whose assignment post started the assignee’s turn, and none for any other turn', async () => {
+    const unit = await assign('post-1');
+    const served = (agentUsername: string, triggeringPostId: string | undefined) => {
+      return tasksService.findServedUnit({ agentUsername, channelId: 'channel-1', triggeringPostId });
+    };
+    expect((await served('owen', 'post-1'))?.id).toBe(unit.id);
+    expect(await served('owen', 'post-9')).toBeUndefined();
+    expect(await served('owen', undefined)).toBeUndefined();
+    expect(await served('mira', 'post-1')).toBeUndefined();
+  });
+
   describe('the report the framework makes when an assignee runs out of context (§3.15)', () => {
     const exhausted = (triggeringPostId: string) => {
       return tasksService.prepareExhaustionReport({ agentUsername: 'owen', channelId: 'channel-1', triggeringPostId });

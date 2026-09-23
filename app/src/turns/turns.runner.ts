@@ -10,6 +10,7 @@ import { CHARS_PER_TOKEN, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
 import type { ApprovalDecision } from '@/approvals/approvals.types.ts';
@@ -18,7 +19,7 @@ import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
-import type { TurnRequest, TurnRequestOrigin } from '@/conversations/conversations.types.ts';
+import type { TurnRequestOrigin } from '@/conversations/conversations.types.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
@@ -50,6 +51,7 @@ import { ToolRegistry } from '@/tools/tools.registry.ts';
 import type { ToolAttempt, TraceMark } from '@/tools/tools.types.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
+import { renderReference } from '@/utils/reference.utils.ts';
 import { WebService } from '@/web/web.service.ts';
 
 import { renderApprovalContext } from './approval-context/approval-context.renderer.ts';
@@ -84,7 +86,7 @@ import { StatusPostService } from './status/status-post.service.ts';
 import { TurnsService } from './turns.service.ts';
 import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
 
-import type { ApprovalContext } from './approval-context/approval-context.renderer.ts';
+import type { ApprovalContext, ApprovalRequester } from './approval-context/approval-context.renderer.ts';
 import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
@@ -229,7 +231,7 @@ type TurnState = {
   /** §7.1 — results this turn recorded; a turn that recorded none accumulated nothing a fresh one would not rebuild */
   recordedResults: number;
   /** §3.7 — resolved at turn setup and again at every fold (§4.4), and quoted on every approval prompt the turn raises */
-  requestedBy: TurnRequest | undefined;
+  requestedBy: ApprovalRequester | undefined;
   /** §3.8 — the content of every supersedable result this turn produced, by hash, and the copy last pushed verbatim */
   readonly seenSupersedable: Map<string, SeenSupersedable>;
   readonly status: StatusPostHandle;
@@ -262,6 +264,7 @@ export class TurnRunner {
   private readonly limits: TurnLimits;
 
   constructor(
+    private readonly agentRegistry: AgentRegistry,
     private readonly approvalsService: ApprovalsService,
     configService: ConfigService,
     private readonly contextAssembler: ContextAssembler,
@@ -339,7 +342,7 @@ export class TurnRunner {
       promptTokens: 0,
       reasonedDenials: new Map(),
       recordedResults: 0,
-      requestedBy: await this.resolveRequester(input.triggeringPostId),
+      requestedBy: await this.resolveRequester(input, input.triggeringPostId),
       seenSupersedable: new Map(),
       status,
       supersedable: [],
@@ -1391,7 +1394,7 @@ export class TurnRunner {
    * before the words can be quoted back, because an approval prompt repeating one would address
    * that peer (§4.5).
    */
-  private async resolveRequester(postId: string | undefined): Promise<TurnRequest | undefined> {
+  private async resolveRequester(input: RunInput, postId: string | undefined): Promise<ApprovalRequester | undefined> {
     if (postId === undefined) {
       return undefined;
     }
@@ -1399,11 +1402,20 @@ export class TurnRunner {
     return match(request)
       .with(undefined, () => undefined)
       .with({ kind: 'human' }, (human) => this.stripRequestOrigin(human))
-      .with({ kind: 'agent' }, (agent): TurnRequest => ({
-        ...agent,
-        onBehalfOf: this.stripRequestOrigin(agent.onBehalfOf)
-      }))
-      .with({ kind: 'system' }, async (): Promise<TurnRequest> => {
+      .with({ kind: 'agent' }, async ({ onBehalfOf, username }): Promise<ApprovalRequester> => {
+        const unit = await this.tasksService.findServedUnit({
+          agentUsername: input.profile.username,
+          channelId: input.channelId,
+          triggeringPostId: postId
+        });
+        return {
+          displayName: this.agentRegistry.displayNameOf(username),
+          kind: 'agent',
+          onBehalfOf: this.stripRequestOrigin(onBehalfOf),
+          unitReference: unit && renderReference(unit.id)
+        };
+      })
+      .with({ kind: 'system' }, async (): Promise<ApprovalRequester> => {
         const trigger = await this.triggersService.findAnnouncedBy(postId);
         return {
           kind: 'system',
@@ -1472,7 +1484,7 @@ export class TurnRunner {
       if (folded.length > 0) {
         folds += 1;
         // §3.7 — the newest fragment is the request the prompt should quote, not the one it began on
-        state.requestedBy = await this.resolveRequester(folded.at(-1));
+        state.requestedBy = await this.resolveRequester(input, folded.at(-1));
         state.status.appendTrace({ kind: 'note', text: renderFoldLine() });
         assembled = await this.contextAssembler.assemble({ channelId, profile, turnId: state.turn.id });
         this.loadAssembledContext(state, assembled);
