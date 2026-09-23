@@ -1,5 +1,5 @@
 import { Result, toErrorMessage } from '@collegium/core/utils';
-import type { BrowserContext, Locator, Page, Response } from 'playwright-core';
+import type { BrowserContext, Locator, Page, Request, Response } from 'playwright-core';
 
 import { classifyContentType } from '../fetch/fetch.utils.ts';
 import { lacksOption } from '../select/select.script.ts';
@@ -16,10 +16,10 @@ import {
 } from '../web.constants.ts';
 import { classifyActionError, classifyNavigationError } from './browser.utils.ts';
 
-import type { RenderedCapture, WebFailure } from '../web.types.ts';
+import type { AddressPolicy, RenderedCapture, WebFailure } from '../web.types.ts';
 
 /** what can go wrong loading a page, whatever started the load */
-type LoadFailure = WebFailure.Navigation | WebFailure.Tls | WebFailure.Unreachable;
+type LoadFailure = WebFailure.Navigation | WebFailure.Tls | WebFailure.Unreachable | WebFailure.UrlRefused;
 
 /** what an action finds wrong with its element before it acts, so nothing was done */
 type ActionRefusal = WebFailure.NoSuchOption;
@@ -34,6 +34,8 @@ type ActionFailure =
  * stale ref can never alias onto a different element.
  */
 export class BrowserSession {
+  /** the document the main frame last failed to load in the current action, which the policy proxy may have refused */
+  private failedDocumentUrl: string | undefined;
   private lastStatus = 0;
   private nextRefIndex = 0;
   /** tabs this context opened on its own — a `target=_blank` link, a `window.open` — reported and closed by the next capture */
@@ -42,7 +44,8 @@ export class BrowserSession {
 
   constructor(
     private readonly context: BrowserContext,
-    page: Page
+    page: Page,
+    private readonly policy: Pick<AddressPolicy, 'refuse' | 'resolve'>
   ) {
     this.page = page;
     context.on('page', (popup) => {
@@ -51,6 +54,11 @@ export class BrowserSession {
     page.on('response', (response) => {
       if (this.isMainFrameDocument(response)) {
         this.lastStatus = response.status();
+      }
+    });
+    page.on('requestfailed', (request) => {
+      if (this.isMainFrameNavigation(request)) {
+        this.failedDocumentUrl = request.url();
       }
     });
   }
@@ -85,6 +93,7 @@ export class BrowserSession {
   async navigate(
     url: string
   ): Promise<Result<RenderedCapture, LoadFailure | WebFailure.NotHtml | WebFailure.UnsupportedContent>> {
+    this.failedDocumentUrl = undefined;
     try {
       const response = await this.page.goto(url, { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'load' });
       const contentType = (await response?.headerValue('content-type')) ?? '';
@@ -96,7 +105,7 @@ export class BrowserSession {
         return Result.err({ contentType, kind: 'not-html', url: response?.url() ?? url });
       }
     } catch (error) {
-      return Result.err(this.asFailure(error));
+      return Result.err(await this.asFailure(error));
     }
     return this.capture();
   }
@@ -117,6 +126,7 @@ export class BrowserSession {
     action: (locator: Locator) => Promise<ActionRefusal | void>
   ): Promise<Result<RenderedCapture, ActionFailure>> {
     const locator = this.page.locator(`[data-collegium-ref="${ref}"]`);
+    this.failedDocumentUrl = undefined;
     try {
       if ((await locator.count()) === 0) {
         return Result.err({ kind: 'stale-ref', ref });
@@ -133,21 +143,25 @@ export class BrowserSession {
       // an action that timed out on a ref CSS hides is the one failure the model can act on itself,
       // so it must not arrive as an indistinguishable page failure
       if (await locator.isVisible().catch(() => true)) {
-        return Result.err(classifyActionError(message, ref));
+        return Result.err(await this.explainLoadFailure(classifyActionError(message, ref)));
       }
       return Result.err({ kind: 'not-visible', ref });
     }
     return this.capture();
   }
 
-  private asFailure(error: unknown): LoadFailure {
+  private async asFailure(error: unknown): Promise<LoadFailure> {
     const message = toErrorMessage(error);
-    return this.isGone() ? { kind: 'unreachable', message } : classifyNavigationError(message);
+    return this.isGone() ? { kind: 'unreachable', message } : this.explainLoadFailure(classifyNavigationError(message));
   }
 
   private async capture(): Promise<Result<RenderedCapture, LoadFailure>> {
     try {
       await this.settle(this.page);
+      const refused = await this.judgeFailedDocument();
+      if (refused) {
+        return Result.err(refused);
+      }
       const openedUrls = await this.closeOpenedTabs();
       const snapshot = await this.page.evaluate(captureSnapshot, this.nextRefIndex);
       this.nextRefIndex = snapshot.nextRefIndex;
@@ -160,7 +174,7 @@ export class BrowserSession {
         url: this.page.url()
       });
     } catch (error) {
-      return Result.err(this.asFailure(error));
+      return Result.err(await this.asFailure(error));
     }
   }
 
@@ -182,6 +196,13 @@ export class BrowserSession {
     return urls;
   }
 
+  /** a failed load explained by the policy's verdict on the document that failed, where it has one */
+  private async explainLoadFailure<TFailure extends WebFailure>(
+    failure: TFailure
+  ): Promise<TFailure | WebFailure.Navigation | WebFailure.UrlRefused> {
+    return failure.kind === 'navigation' ? ((await this.judgeFailedDocument()) ?? failure) : failure;
+  }
+
   private isGone(): boolean {
     return this.page.isClosed() || this.context.browser()?.isConnected() === false;
   }
@@ -189,15 +210,20 @@ export class BrowserSession {
   /**
    * §3.4 — a snapshot reports the status of the document the page shows, which is not always the
    * one `goto` answered with: a bot check that clears itself, or a script that moves the page on,
-   * loads another after it. A redirect is a hop on the way to a document, not one. This runs in an
-   * event handler, where a throw would take the process down, so a frame Playwright cannot yet name
-   * — one still being created, never the main one — is simply not it.
+   * loads another after it. A redirect is a hop on the way to a document, not one.
    */
   private isMainFrameDocument(response: Response): boolean {
-    const request = response.request();
     const status = response.status();
     const isRedirect = status >= 300 && status < 400 && response.headers().location !== undefined;
-    if (!request.isNavigationRequest() || isRedirect) {
+    return !isRedirect && this.isMainFrameNavigation(response.request());
+  }
+
+  /**
+   * This runs in an event handler, where a throw would take the process down, so a frame
+   * Playwright cannot yet name — one still being created, never the main one — is simply not it.
+   */
+  private isMainFrameNavigation(request: Request): boolean {
+    if (!request.isNavigationRequest()) {
       return false;
     }
     try {
@@ -205,6 +231,25 @@ export class BrowserSession {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * §3.4 — the policy proxy refuses an address by closing the connection, which reaches the page as
+   * a dead host would. The policy is asked again about the document the main frame failed to load,
+   * so a refusal anywhere in a load — a redirect, a click, a script moving the page on — is the
+   * typed one; a document the policy passes failed for its own reasons, and has no verdict here.
+   */
+  private async judgeFailedDocument(): Promise<undefined | WebFailure.Navigation | WebFailure.UrlRefused> {
+    const url = this.failedDocumentUrl;
+    if (url === undefined) {
+      return undefined;
+    }
+    const refused = this.policy.refuse(url);
+    if (refused) {
+      return refused;
+    }
+    const resolved = await this.policy.resolve(new URL(url));
+    return resolved.success ? undefined : resolved.error;
   }
 
   private async settle(page: Page): Promise<void> {

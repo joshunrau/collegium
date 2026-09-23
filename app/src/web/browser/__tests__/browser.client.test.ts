@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { createPdf } from '@/testing/factories/pdf.factory.ts';
 
 import { toMarkdown } from '../../markdown/markdown.utils.ts';
+import { createAddressPolicy } from '../../web.policy.ts';
 import { BrowserClient } from '../browser.client.ts';
 import { CamoufoxLauncher } from '../browser.launcher.ts';
 import { BrowserProcess } from '../browser.process.ts';
@@ -208,13 +209,16 @@ const PEOPLE_LINK_REF = /\[View our people →\]\([^)]+\)⟨(e\d+)⟩/u;
 
 const ELSEWHERE_LINK_REF = /\[Elsewhere\]\([^)]+\)⟨(e\d+)⟩/u;
 
-const listen = async (server: http.Server): Promise<string> => {
+/** the fixtures are served from loopback, which the production policy refuses unless a deployment opens it */
+const POLICY = createAddressPolicy({ allowPrivateAddresses: true, deniedHosts: ['localhost'] });
+
+const listen = async (server: http.Server, host: string): Promise<string> => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (address === null || typeof address === 'string') {
     throw new Error('the server did not bind to a port');
   }
-  return `http://127.0.0.1:${address.port}`;
+  return `http://${host}:${address.port}`;
 };
 
 const close = (server: http.Server): Promise<void> => {
@@ -226,7 +230,7 @@ const close = (server: http.Server): Promise<void> => {
 describe('browsing the fixture sites', { timeout: 60_000 }, () => {
   let baseUrl: string;
   let client: BrowserClient;
-  /** an origin the policy refuses; every request that reaches it is one the guard let through */
+  /** a host the policy denies; every request that reaches it is one the guard let through */
   let elsewhere: http.Server;
   let elsewhereRequests: number;
   let elsewhereUrl: string;
@@ -246,7 +250,7 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       response.end('<h1>elsewhere-marker</h1>');
     });
-    elsewhereUrl = await listen(elsewhere);
+    elsewhereUrl = await listen(elsewhere, 'localhost');
     server = http.createServer((request, response) => {
       if (request.url === '/redirect') {
         response.writeHead(302, { location: `${elsewhereUrl}/` });
@@ -277,12 +281,9 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       response.end(page);
     });
-    baseUrl = await listen(server);
-    // the production policy refuses loopback, which is where the fixtures are served from
-    proxy = new PolicyProxy({
-      vet: (url) => Promise.resolve(url.origin === baseUrl ? { address: '127.0.0.1', family: 4 } : undefined)
-    });
-    client = new BrowserClient(new BrowserProcess(new CamoufoxLauncher()), proxy);
+    baseUrl = await listen(server, '127.0.0.1');
+    proxy = new PolicyProxy(POLICY);
+    client = new BrowserClient(POLICY, new BrowserProcess(new CamoufoxLauncher()), proxy);
   });
 
   beforeEach(async () => {
@@ -301,21 +302,20 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     await close(elsewhere);
   });
 
-  it('should refuse a redirect the policy refuses before it reaches its target (§3.4)', async () => {
+  it('should refuse a redirect to a denied host with the typed refusal, before it reaches its target (§3.4)', async () => {
     const result = await session.navigate(`${baseUrl}/redirect`);
-    expect(result.success).toBe(false);
-    expect(result.error?.kind).toBe('navigation');
+    expect(result.error).toStrictEqual({ kind: 'url-refused', reason: 'denied-host', url: `${elsewhereUrl}/` });
     expect(elsewhereRequests).toBe(0);
   });
 
-  it('should refuse a same-session link click the policy refuses (§3.4)', async () => {
+  it('should refuse a same-session link click to a denied host with the typed refusal (§3.4)', async () => {
     const outbound = (await session.navigate(`${baseUrl}/outbound`)).unwrap();
     const ref = ELSEWHERE_LINK_REF.exec(toMarkdown(outbound.html))?.[1];
     if (!ref) {
       throw new Error('the outbound link ref was not found in the markdown');
     }
     const after = await session.click(ref);
-    expect(after.success ? toMarkdown(after.value.html) : '').not.toContain('elsewhere-marker');
+    expect(after.error).toStrictEqual({ kind: 'url-refused', reason: 'denied-host', url: `${elsewhereUrl}/` });
     expect(elsewhereRequests).toBe(0);
   });
 

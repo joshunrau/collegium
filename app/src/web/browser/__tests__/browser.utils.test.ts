@@ -14,12 +14,8 @@ describe('classifyNavigationError', () => {
     expect(classifyNavigationError('page.goto: NS_ERROR_NET_TIMEOUT')).toMatchObject({
       message: 'the page did not answer within 30s'
     });
-  });
-
-  it('should name both causes of an empty response, since a policy refusal looks like a dead host (§3.4)', () => {
     expect(classifyNavigationError('page.goto: NS_ERROR_NET_EMPTY_RESPONSE')).toMatchObject({
-      message:
-        "the connection was accepted and closed with no response: the host, or this deployment's URL policy, refused it"
+      message: 'the connection was closed with no response: the host refused it or could not be reached'
     });
   });
 
