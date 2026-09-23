@@ -25,9 +25,10 @@ const ABANDONED_CLOSE_CONCURRENCY = 8;
 /**
  * §7.3 — nothing resumes, and the order is load-bearing: grants were already verified when the
  * registries constructed, turns are abandoned before approvals are invalidated, both before
- * backfill imports the downtime, and the roster reconciles before anything can consult it. The
- * queue sweep runs last, once the world is current and the unacted turns' posts are back in the
- * queue it walks, and is the same sweep /resume performs after a halt.
+ * backfill imports the downtime, and the roster reconciles before anything can consult it, the
+ * abandoned turns' held activations included (§5.2). The queue sweep runs last, once the world is
+ * current and the unacted turns' posts and the held ones are back in the queue it walks, and is
+ * the same sweep /resume performs after a halt.
  */
 @Injectable()
 export class BootService {
@@ -58,8 +59,9 @@ export class BootService {
     if (!reconciled.success) {
       throw new Error(`failed to reconcile channel membership: ${reconciled.error.message}`);
     }
+    await this.activationService.requeueHeld(abandoned.turns);
     void this.activationService.sweep();
-    return { abandonedTurns: abandoned.count, downtime, requeuedTurns };
+    return { abandonedTurns: abandoned.turns.length, downtime, requeuedTurns };
   }
 
   private async closeAbandonedStatusPosts(posts: readonly AbandonedStatusPost[]): Promise<void> {

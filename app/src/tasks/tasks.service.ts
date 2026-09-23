@@ -45,8 +45,11 @@ type TransitionInput = {
   readonly reference: string;
 };
 
-/** what a verb rendered but has not written: the post text the framework publishes, the one peer it addresses, and what to commit once it has landed */
-type Prepared<TPrepared> = { readonly addressee?: string; readonly prepared: TPrepared; readonly text: string };
+/** what a verb rendered but has not written: the post text the framework publishes, and what to commit once it has landed */
+type Prepared<TPrepared> = { readonly prepared: TPrepared; readonly text: string };
+
+/** a verb whose post addresses a peer, and the one it addresses (§4.5) */
+type Addressed<TPrepared> = Prepared<TPrepared> & { readonly addressee: string };
 
 /** §3.15 — fixed text, never the model's: a report written now would come from the context that just ran out */
 const CONTEXT_EXHAUSTED_REASON = 'context exhausted';
@@ -131,7 +134,7 @@ export class TasksService {
    * creator's cap, and at either §7.4 limit — refused rather than stripped, since a stripped
    * assignment would announce a hand-off to a peer never activated (§3.15).
    */
-  async prepareAssign(input: AssignInput): Promise<Result<Prepared<PreparedUnit>, TaskFailure.AssignRefused>> {
+  async prepareAssign(input: AssignInput): Promise<Result<Addressed<PreparedUnit>, TaskFailure.AssignRefused>> {
     if (input.assigneeUsername === input.actingAgentUsername) {
       return Result.err({ kind: 'self-assignment' });
     }
@@ -215,7 +218,7 @@ export class TasksService {
     agentUsername: string;
     channelId: string;
     triggeringPostId: string | undefined;
-  }): Promise<Prepared<PreparedTransition> | undefined> {
+  }): Promise<Addressed<PreparedTransition> | undefined> {
     const assigned = await this.units.findMany({
       where: { assigneeUsername: input.agentUsername, channelId: input.channelId, state: 'assigned' }
     });
@@ -234,7 +237,7 @@ export class TasksService {
 
   async prepareReport(
     input: TransitionInput & { summary: string; to: (typeof ASSIGNEE_TARGETS)[number] }
-  ): Promise<Result<Prepared<PreparedTransition>, TaskFailure.StateRefused | TaskFailure.Unresolved>> {
+  ): Promise<Result<Addressed<PreparedTransition>, TaskFailure.StateRefused | TaskFailure.Unresolved>> {
     const unit = await this.read(input.actingAgentUsername, input.channelId, input.reference);
     if (!unit.success) {
       return unit;
