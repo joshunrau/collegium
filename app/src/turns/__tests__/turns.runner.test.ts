@@ -2036,7 +2036,7 @@ describe('TurnRunner', () => {
     const results = complete.mock.calls[2]![0].messages.filter((message) => message.role === 'tool');
     expect(results[0]?.content).toBe(renderSupersededLine('page one'));
     expect(results[1]?.content.startsWith('page two x')).toBe(true);
-    expect(results[1]?.content).not.toContain('truncated');
+    expect(results[1]?.content).not.toContain('…result cut');
     expect(turnsService.recordPresentation).toHaveBeenCalledExactlyOnceWith('event-call-0', { collapsed: true });
   });
 
@@ -2048,15 +2048,31 @@ describe('TurnRunner', () => {
     const outcome = await run();
     expect(outcome.status).toBe('completed');
     const result = complete.mock.calls[1]![0].messages.at(-1);
-    expect(result?.content).toMatch(/y\n…result truncated to fit this turn's context; the full text is in the trace$/u);
-    expect(result?.content.length).toBeLessThan(output.length);
+    const kept = result!.content.indexOf('\n…result cut');
+    expect(
+      result?.content.endsWith(`y\n…result cut to its first ${kept} of 20000 characters to fit this turn's context`)
+    ).toBe(true);
     expect(turnsService.appendEvent).toHaveBeenCalledWith(
       'turn-1',
       expect.objectContaining({ kind: 'tool_result', output })
     );
-    expect(turnsService.recordPresentation).toHaveBeenCalledWith('event-call-0', {
-      cutToChars: result!.content.indexOf('\n…result truncated')
+    expect(turnsService.recordPresentation).toHaveBeenCalledWith('event-call-0', { cutToChars: kept });
+  });
+
+  it('should say where to read on from when the result it cuts is a stretch of a longer page (§3.8)', async () => {
+    const header = 'Venues — https://example.com/venues (HTTP 200)\n\n';
+    toolExecutor.execute.mockResolvedValueOnce({
+      excerpt: { from: 30_000, offsetArgument: 'startChar', textIndex: header.length, to: 50_000 },
+      kind: 'continue',
+      output: `${header}${'v'.repeat(20_000)}\n…showing characters 30000–50000 of 90000; read on with startChar=50000`
     });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    const result = complete.mock.calls[1]![0].messages.at(-1)!.content;
+    const kept = result.indexOf('\n…result cut');
+    expect(result).not.toContain('startChar=50000');
+    expect(result.endsWith(`; read on with startChar=${30_000 + kept - header.length}`)).toBe(true);
   });
 
   it('should end the turn as context exhausted when nothing can be retired and a cut would keep too little (§3.8)', async () => {

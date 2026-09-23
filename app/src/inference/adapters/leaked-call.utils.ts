@@ -5,9 +5,11 @@ const INLINE_CODE_SPAN = /`[^`\n]+`/gu;
 /**
  * The markup a provider's call leaves in the text when it never reached the structured field:
  * DeepSeek's DSML tags and native call tokens, the invoke and parameter tags of the XML call
- * format, and the `<tool_call>` and `<function_calls>` wrappers.
+ * format, and the `<tool_call>` and `<function_calls>` wrappers. An invoke or parameter tag counts
+ * only as a closer or with its `name=`: a bare `<parameter>` is how prose writes a placeholder.
  */
-const CALL_MARKUP = /｜DSML｜|<｜tool▁|<\/?(?:function_calls|invoke|parameter|tool_call)\b/u;
+const CALL_MARKUP =
+  /｜DSML｜|<｜tool▁|<\/?(?:function_calls|tool_call)\b|<\/(?:invoke|parameter)>|<(?:invoke|parameter)\s[^<>]*\bname=/u;
 
 /** a provider that dropped its structured `tool_calls` field can leave the call as a bare object in the text */
 function isBareCallObject(text: string): boolean {

@@ -1,4 +1,4 @@
-import type { ToolDisclosure, ToolPost } from '@collegium/core/tools';
+import type { ToolDisclosure, ToolExcerpt, ToolPost } from '@collegium/core/tools';
 
 import type { TraceMark, TurnStatus } from '@/prisma/prisma.types.ts';
 
@@ -11,6 +11,8 @@ export declare namespace ToolAttempt {
     contentIdentity?: string;
     /** a durable record the call created, for the turn to write into the event trail and trace (§3) */
     disclosure?: ToolDisclosure;
+    /** §3.8 — where `output` is a stretch of a longer whole, for the turn that must cut it to say where to read on */
+    excerpt?: ToolExcerpt;
     kind: 'continue';
     output: string;
     /** §3.15 — published under the agent's account by the runner, never by the tool (§3.3) */

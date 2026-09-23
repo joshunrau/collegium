@@ -1,7 +1,8 @@
 /** the transcript form a model copies back after reading its own history */
 const TOOL_CALL_TRANSCRIPT = /^\[called [^\s(]+\([\s\S]*\)\]$/mu;
 
-const MARKUP_TAG = /<\/?[^<>\s][^<>]*>/gu;
+/** a tag, never an autolink: `<https://…>` and `<someone@example.com>` are a link a person reads (§4.5) */
+const MARKUP_TAG = /<(?![a-z][\w+.-]*:\/\/|mailto:|[^\s<>@]+@[^\s<>@]+>)\/?[^<>\s][^<>]*>/giu;
 
 const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
 

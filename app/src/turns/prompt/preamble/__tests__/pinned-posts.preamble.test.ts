@@ -7,5 +7,6 @@ describe('renderPinnedPostsPreamble', () => {
     const paragraph = renderPinnedPostsPreamble();
     expect(paragraph).toContain('you cannot pin or unpin one');
     expect(paragraph).toContain("it outranks a colleague's paraphrase of it");
+    expect(paragraph).toContain('gives only the ids of the older ones');
   });
 });

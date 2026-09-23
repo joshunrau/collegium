@@ -5,7 +5,7 @@ import {
   renderSameContentNote,
   renderSupersededLine
 } from '@collegium/core/tools';
-import type { ToolPost, ToolTurnScope } from '@collegium/core/tools';
+import type { ToolExcerpt, ToolPost, ToolTurnScope } from '@collegium/core/tools';
 import { CHARS_PER_TOKEN, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
@@ -66,7 +66,7 @@ import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
 import { containsToolCallTranscript, lacksProse } from './guard/reply-guard.utils.ts';
 import { renderTurnClosedLog, renderTurnOpenedLog } from './logging/turn-log.utils.ts';
 import { SUPERSEDABLE_RETENTION_FLOOR } from './retention/retention.constants.ts';
-import { hashResult, retentionBudgetFor } from './retention/retention.utils.ts';
+import { hashResult, renderResultCutMarker, retentionBudgetFor, shiftExcerpt } from './retention/retention.utils.ts';
 import {
   renderBudgetExhaustedNotice,
   renderChainLengthLimitNotice,
@@ -127,9 +127,6 @@ const CONSECUTIVE_REJECTION_LIMIT = 2;
 
 /** §5.3 — how many repeated calls the extension prompt names; the loop it exposes is three URLs long, not fifty */
 const TOP_REPEATED_CALLS = 5;
-
-/** §3.8 — what a result cut to fit beneath the turn's ceiling ends with; the trace holds the rest */
-const RESULT_TRUNCATION_MARKER = "\n…result truncated to fit this turn's context; the full text is in the trace";
 
 /** §3.8 — below this a cut result is not long but the turn has no room, and the honest outcome is exhaustion */
 const RESULT_MIN_TOKENS = 500;
@@ -867,16 +864,22 @@ export class TurnRunner {
    * §3.8 — the newest result cut to what fits beneath the ceiling, marker included, or left alone
    * when what would fit is not worth keeping. Escaping can lengthen a cut, so the cut is remeasured.
    */
-  private async cutResultToFit(state: TurnState, index: number, ceiling: number): Promise<boolean> {
+  private async cutResultToFit(
+    state: TurnState,
+    target: { ceiling: number; excerpt: ToolExcerpt | undefined; index: number }
+  ): Promise<boolean> {
+    const { ceiling, excerpt, index } = target;
     const original = state.messages[index]!;
+    const totalChars = original.content.length;
+    const markerFor = (keptChars: number) => renderResultCutMarker({ excerpt, keptChars, totalChars });
     const rest = state.promptTokens - estimateMessageTokens(original);
-    const overhead = estimateMessageTokens({ ...original, content: RESULT_TRUNCATION_MARKER });
+    const overhead = estimateMessageTokens({ ...original, content: markerFor(totalChars) });
     let kept = (ceiling - rest - overhead) * CHARS_PER_TOKEN;
     for (;;) {
       if (kept < RESULT_MIN_TOKENS * CHARS_PER_TOKEN) {
         return false;
       }
-      const cut = { ...original, content: `${original.content.slice(0, kept)}${RESULT_TRUNCATION_MARKER}` };
+      const cut = { ...original, content: `${original.content.slice(0, kept)}${markerFor(kept)}` };
       const excess = rest + estimateMessageTokens(cut) - ceiling;
       if (excess <= 0) {
         state.messages[index] = cut;
@@ -1343,8 +1346,9 @@ export class TurnRunner {
       ...(result.replaySubject !== undefined && { replaySubject: result.replaySubject }),
       ...(mark !== undefined && { traceMark: mark })
     });
+    let outputAt: number | undefined = 0;
     if (this.toolRegistry.isSupersedable(input.profile, identified.call.name)) {
-      await this.recordSupersedableResult(input, state, identified, result);
+      outputAt = await this.recordSupersedableResult(input, state, identified, result);
     } else {
       this.pushMessage(state, { content: result.output, role: 'tool', toolCallId: identified.call.id });
     }
@@ -1357,7 +1361,8 @@ export class TurnRunner {
     if (result.disclosure) {
       await this.discloseRecord(state, result.disclosure);
     }
-    if ((await this.relieveContextPressure(input, state)) === 'exhausted') {
+    const excerpt = outputAt === undefined ? undefined : shiftExcerpt(result.excerpt, outputAt);
+    if ((await this.relieveContextPressure(input, state, excerpt)) === 'exhausted') {
       return this.closeWithFailureNotice(
         input,
         state,
@@ -1387,14 +1392,15 @@ export class TurnRunner {
    * address — is answered with one line and joins nothing, and a repeat of one already collapsed is
    * kept without collapsing another: a re-read never evicts a sibling, which is the cycle a fixed
    * count produced. Only the backstop in `relieveContextPressure` bounds a re-read, and a later fresh
-   * read collapses it like any other.
+   * read collapses it like any other. Returns where the output begins in the message pushed, and
+   * nothing where a line answered it instead.
    */
   private async recordSupersedableResult(
     input: RunInput,
     state: TurnState,
     identified: IdentifiedCall,
     result: ToolAttempt.Continue
-  ): Promise<void> {
+  ): Promise<number | undefined> {
     const subject = result.replaySubject ?? describeReplaySubject(`${identified.displayName} result`, result.output);
     const contentHash = hashResult(result.contentIdentity ?? result.output);
     const outputHash = hashResult(result.output);
@@ -1404,7 +1410,7 @@ export class TurnRunner {
     if (earlier !== undefined && state.supersedable.some((entry) => entry.messageIndex === earlier.messageIndex)) {
       const line = isVerbatimRepeat ? renderDuplicateLine(subject) : renderSameContentLine(subject, earlier.subject);
       this.pushMessage(state, { content: line, role: 'tool', toolCallId });
-      return;
+      return undefined;
     }
     const note =
       earlier === undefined
@@ -1420,6 +1426,7 @@ export class TurnRunner {
     if (earlier === undefined) {
       await this.retireSupersedablePastShare(input, state);
     }
+    return content.length - result.output.length;
   }
 
   /** why a post the framework publishes for the turn may not post (§4.5), or nothing */
@@ -1479,7 +1486,11 @@ export class TurnRunner {
    * never a result the model has not read; the newest result, if it still does not fit, is cut.
    * Only when even that leaves the turn over its ceiling is it out of room.
    */
-  private async relieveContextPressure(input: RunInput, state: TurnState): Promise<'exhausted' | 'relieved'> {
+  private async relieveContextPressure(
+    input: RunInput,
+    state: TurnState,
+    excerpt: ToolExcerpt | undefined
+  ): Promise<'exhausted' | 'relieved'> {
     const ceiling = input.profile.turnContextCeilingTokens;
     while (state.promptTokens > ceiling && this.hasReadSupersedable(state)) {
       await this.collapseOldestSupersedable(state);
@@ -1487,7 +1498,9 @@ export class TurnRunner {
     if (state.promptTokens <= ceiling) {
       return 'relieved';
     }
-    return (await this.cutResultToFit(state, state.messages.length - 1, ceiling)) ? 'relieved' : 'exhausted';
+    return (await this.cutResultToFit(state, { ceiling, excerpt, index: state.messages.length - 1 }))
+      ? 'relieved'
+      : 'exhausted';
   }
 
   /**

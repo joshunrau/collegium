@@ -73,6 +73,19 @@ export type ToolPost = {
 };
 
 /**
+ * §3.8 — where a result is a stretch of a longer whole read by offset, such as a page: `text` from
+ * `textIndex` on holds the whole's characters `from` to `to`, and `offsetArgument` names the
+ * argument that starts a read at an offset. A result cut to fit a turn's ceiling says with it where
+ * to read on, since the cut drops the result's own word on that.
+ */
+export type ToolExcerpt = {
+  readonly from: number;
+  readonly offsetArgument: string;
+  readonly textIndex: number;
+  readonly to: number;
+};
+
+/**
  * §3.8 — `replay` or `replaySubject` stands in for `text` once the model has moved past it: a
  * document the agent will load again anyway, or a page it has already acted on, need not be paid
  * for on every turn whose window still holds the result. Either the line itself, which a tool owns
@@ -89,6 +102,7 @@ export type ToolOutput = {
    */
   readonly contentIdentity?: string;
   readonly disclosure?: ToolDisclosure;
+  readonly excerpt?: ToolExcerpt;
   /** §3.15 — framework tools only; a plugin's output type carries no post */
   readonly post?: ToolPost;
   readonly text: string;

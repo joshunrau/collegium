@@ -20,6 +20,11 @@ describe('lacksProse (§4.5)', () => {
     expect(lacksProse('--- … ---')).toBe(true);
   });
 
+  it('should read a link written in angle brackets as prose, not as markup', () => {
+    expect(lacksProse('<https://example.com/report>')).toBe(false);
+    expect(lacksProse('<casey@example.com>')).toBe(false);
+  });
+
   it('should find no prose in one line repeated five times that makes up most of the reply', () => {
     expect(lacksProse(Array.from({ length: 5 }, () => '<dcp-message-id>dcp-message-id>').join('\n'))).toBe(true);
   });

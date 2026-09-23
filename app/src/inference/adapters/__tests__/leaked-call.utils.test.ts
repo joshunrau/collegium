@@ -21,5 +21,11 @@ describe('containsLeakedCall (§4.5)', () => {
 
   it('should leave prose that names the words without the markup alone', () => {
     expect(containsLeakedCall('I will invoke the tool with that parameter next.')).toBe(false);
+    expect(containsLeakedCall('Replace <parameter> with the venue, as in <invoke …>.')).toBe(false);
+  });
+
+  it('should recognise an invoke or parameter tag by its name, without its closer', () => {
+    expect(containsLeakedCall('<invoke name="web__fetch">\n<parameter name="url">https://x</parameter>')).toBe(true);
+    expect(containsLeakedCall('Checking.\n<invoke name="web__fetch">')).toBe(true);
   });
 });
