@@ -37,6 +37,7 @@ describe('QueueHandler', () => {
   beforeEach(async () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.get.mockImplementation((username: string) => (username === 'mira' ? MIRA : undefined));
+    agentRegistry.displayNameOf.mockReturnValue('Mira');
     channelLockService = MockFactory.createMock(ChannelLockService);
     channelLockService.heldSince.mockReturnValue(undefined);
     const conversationsService = MockFactory.createMock(ConversationsService);
@@ -85,7 +86,7 @@ describe('QueueHandler', () => {
   it('should discard the standing entry and say so in the channel', async () => {
     expect(await handle('mira clear')).toStrictEqual({
       audience: 'channel',
-      text: '🗑️ Queued work discarded: mira will not run what was waiting here.'
+      text: '🗑️ Queued work discarded: Mira will not run what was waiting here.'
     });
     expect(queueService.discard).toHaveBeenCalledWith('mira', 'channel-1');
   });

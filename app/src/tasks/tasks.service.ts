@@ -235,7 +235,11 @@ export class TasksService {
       prepared: { closedByUsername: input.byUsername, to: 'cancelled', unitId: unit.value.id },
       text: renderHumanCancellationPost(
         { ...unit.value, outcome: this.multiMentionPolicy.stripAgentMentions(unit.value.outcome) },
-        input.byUsername
+        input.byUsername,
+        {
+          assignee: this.agentRegistry.displayNameOf(unit.value.assigneeUsername),
+          creator: this.agentRegistry.displayNameOf(unit.value.creatorUsername)
+        }
       )
     });
   }

@@ -69,27 +69,29 @@ export class ChatEmitter extends NotificationsEmitter {
   }
 
   private renderSystemEvent(event: SystemEvent): string {
+    const nameOf = (username: string) => this.agentRegistry.displayNameOf(username);
     return (
       match(event)
-        // an agent is named without its @ throughout: a mention from the system bot activates the agent it names (§7.6)
+        // §3.2 — an agent is named by its display name throughout, never by its @
         .with(
           { kind: 'chain-limit-refusal' },
           ({ agentUsername, limit }) =>
-            `⛔ \`${agentUsername}\` was not activated: this chain has reached its limit of ${limit} turns. A fresh post from a person starts a fresh chain.`
+            `⛔ ${nameOf(agentUsername)} was not activated: this chain has reached its limit of ${limit} turns. A fresh post from a person starts a fresh chain.`
         )
         .with({ kind: 'halt' }, ({ reason }) => {
           const cause =
             reason.kind === 'turn-ceiling'
               ? `${reason.ceiling} turns started within one hour, the framework-wide ceiling`
-              : `respond-to-all channel ${reason.channelId} now holds ${reason.agentUsernames.length} agents (${reason.agentUsernames.join(', ')})`;
+              : `respond-to-all channel ${reason.channelId} now holds ${reason.agentUsernames.length} agents (${reason.agentUsernames.map(nameOf).join(', ')})`;
           return `🛑 **Halted** — ${cause}. No agent will act until a human posts /collegium resume.`;
         })
         .with({ kind: 'long-turn' }, ({ agentUsername, heldMs, postsWaiting, tracedNothing }) => {
-          const held = `⏳ \`${agentUsername}\` has been in one turn here for ${renderElapsed(heldMs)} without waiting on anyone`;
+          const name = nameOf(agentUsername);
+          const held = `⏳ ${name} has been in one turn here for ${renderElapsed(heldMs)} without waiting on anyone`;
           const shown = tracedNothing
             ? ', and has called no tool yet: its status post was opened just now and will show what it does next. /collegium kill ends the turn; a turn still thinking needs nothing.'
             : '. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.';
-          const waiting = postsWaiting ? ` A post addressing \`${agentUsername}\` is waiting behind this turn.` : '';
+          const waiting = postsWaiting ? ` A post addressing ${name} is waiting behind this turn.` : '';
           return `${held}${shown}${waiting}`;
         })
         // §4.5 — the refusal carries its remedy
@@ -102,7 +104,7 @@ export class ChatEmitter extends NotificationsEmitter {
             : '⚪ **Offline** — the orchestrator shut down. Agents are not responding.';
         })
         .with({ kind: 'online' }, (event) => {
-          const roster = event.agentUsernames.map((username) => `\`${username}\``).join(', ');
+          const roster = event.agentUsernames.map(nameOf).join(', ');
           const downtime = match(event.downtime)
             .with(undefined, () => '')
             .with(
@@ -124,11 +126,10 @@ export class ChatEmitter extends NotificationsEmitter {
             ...event.strandedUnits.map((unit) => this.renderStrandedUnit(unit))
           ].join('\n');
         })
-        .with(
-          { kind: 'standing-queue' },
-          ({ agentUsername }) =>
-            `⏸️ \`${agentUsername}\` has work waiting here and no turn running. A post addressing \`${agentUsername}\` starts the turn that reads it; /collegium queue ${agentUsername} shows what waits.`
-        )
+        .with({ kind: 'standing-queue' }, ({ agentUsername }) => {
+          const name = nameOf(agentUsername);
+          return `⏸️ ${name} has work waiting here and no turn running. A post addressing ${name} starts the turn that reads it; /collegium queue ${agentUsername} shows what waits.`;
+        })
         .exhaustive()
     );
   }

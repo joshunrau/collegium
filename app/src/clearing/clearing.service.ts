@@ -1,6 +1,7 @@
 import { removeTrailingSlash, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { LockHandle } from '@/channels/channels.types.ts';
 import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
@@ -28,7 +29,7 @@ import {
 import { toSignedParts } from './confirmation/confirmation.utils.ts';
 import { ChannelErasure } from './erasure/channel-erasure.service.ts';
 
-import type { ClearingRefusal, ClearingState, MemoryTally } from './clearing.types.ts';
+import type { ClearingRefusal, ClearingState, MemoryFailure, MemoryTally } from './clearing.types.ts';
 
 type ClearingRequest = Omit<ClearingState, 'issuedAt'>;
 
@@ -36,7 +37,7 @@ type VisibleErasure = {
   readonly announced: Announcement;
   readonly byUsername: string;
   readonly channelId: string;
-  readonly memoryFailures: readonly string[];
+  readonly memoryFailures: readonly MemoryFailure[];
 };
 
 /** §8.5 — the clear itself: the confirmation before it, the locks and the boundary around it, the notice that reports it */
@@ -45,6 +46,7 @@ export class ClearingService {
   private readonly confirmUrl: string;
 
   constructor(
+    private readonly agentRegistry: AgentRegistry,
     private readonly callbackSigner: CallbackSigner,
     private readonly channelAnnouncer: ChannelAnnouncer,
     private readonly channelErasure: ChannelErasure,
@@ -167,14 +169,14 @@ export class ClearingService {
   }
 
   /** per agent under its memory lock; a failure is named in the notice rather than swallowed (A4) */
-  private async deleteMemories(tally: readonly MemoryTally[]): Promise<string[]> {
-    const failures: string[] = [];
+  private async deleteMemories(tally: readonly MemoryTally[]): Promise<MemoryFailure[]> {
+    const failures: MemoryFailure[] = [];
     for (const { agentUsername, memoryIds } of tally) {
       try {
         await this.memoryService.deleteMany(agentUsername, memoryIds);
       } catch (error) {
         this.loggingService.error(error instanceof Error ? error : new Error(String(error)));
-        failures.push(agentUsername);
+        failures.push({ displayName: this.agentRegistry.displayNameOf(agentUsername), username: agentUsername });
       }
     }
     return failures;

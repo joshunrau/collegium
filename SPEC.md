@@ -108,6 +108,8 @@ A separate Mattermost bot account used for all _mechanical_ output: triggers, bo
 
 **Nothing the system bot posts enters an agent's queue** (§5.2). Trigger delivery is governed by §4.2 instead.
 
+**A notice names an agent by its display name (§3.1), not its @**, since a mention from the system bot activates the agent it names (§3.10); the handle is written with its @ only where the post means to start that agent's turn, as a trigger's delivery does (§4.2). A command a notice quotes keeps the handle it takes.
+
 ### **3.3 Turn**
 
 **The unit of execution.** One activation of one agent in one channel: assemble context, call the model, execute tools, produce output, terminate.
@@ -682,7 +684,7 @@ Every exit in §7.1 posts, or was caused by a human watching. Two shapes end a r
 - **A standing queue.** An agent has held a queue entry for a channel (§5.2) with no turn of its own running there for longer than a configured threshold. The notice names the agent and says what clears it: a post addressing the agent, and `/collegium queue {agent}` shows what waits.
 - **A long turn.** One turn has held its channel's lock (§5.1) for longer than a configured threshold since it started or last waited on a person. Time parked on an approval or a question is not counted: that wait is its prompt's and its status post's to announce (§8.1), and its remedy is an answer, not a kill. The notice names the agent and how long, says whether the turn has called a tool yet, and says that `/collegium kill` ends a turn whose status post shows no progress. A turn that has traced nothing has no status post yet (§8.1), so the sweep opens one before it speaks: the notice then points at a post that exists, and the minutes that follow are accounted for somewhere durable.
 
-Each is **one notice per episode**, re-armed only once its condition clears, so a standing condition is said once, not every minute it stands. A long turn is re-armed once more when a post queues behind it (§5.2): work waiting is a new fact about an old episode, and the second notice says so. Nothing is announced while a global halt stands (§7.4): its own post already says why nothing moves. An agent is named without its @, as every system-bot notice names one, because a mention from the system bot would activate the agent it describes (§3.10). In a DM the notice is posted under the agent's own account, as §3.2 permits.
+Each is **one notice per episode**, re-armed only once its condition clears, so a standing condition is said once, not every minute it stands. A long turn is re-armed once more when a post queues behind it (§5.2): work waiting is a new fact about an old episode, and the second notice says so. Nothing is announced while a global halt stands (§7.4): its own post already says why nothing moves. An agent is named by its display name, never its @, as every system-bot notice names one (§3.2). In a DM the notice is posted under the agent's own account, as §3.2 permits.
 
 _Why notices and not timeouts:_ each of these was a common way a long run died silently. A timeout that killed the long turn would also kill the legitimately long one, and a sweep that drained the standing queue would be the retry timer §7.1 refuses. Neither threshold is a limit the agent can see or work around: A3 is untouched, since nothing here starts a turn.
 

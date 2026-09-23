@@ -2,6 +2,7 @@ import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
@@ -80,9 +81,12 @@ describe('ClearingService', () => {
     const transportRegistry = MockFactory.createMock(TransportRegistry);
     transportRegistry.get.mockReturnValue(transport);
     windowService = MockFactory.createMock(WindowService);
+    const agentRegistry = MockFactory.createMock(AgentRegistry);
+    agentRegistry.displayNameOf.mockImplementation((username) => username.replace(/^./u, (first) => first.toUpperCase()));
     const moduleRef = await Test.createTestingModule({
       providers: [
         ClearingService,
+        { provide: AgentRegistry, useValue: agentRegistry },
         { provide: CallbackSigner, useValue: callbackSigner },
         { provide: ChannelAnnouncer, useValue: channelAnnouncer },
         { provide: ChannelErasure, useValue: channelErasure },
@@ -218,7 +222,7 @@ describe('ClearingService', () => {
       expect(memoryService.deleteMany).toHaveBeenCalledWith('mira', ['m1', 'm2']);
       await settle();
       expect(announced.edit).toHaveBeenCalledWith(
-        "🧹 casey cleared this channel: 3 post(s) removed; the agents start fresh here. jo's memories could not be deleted; see /collegium memory jo."
+        "🧹 casey cleared this channel: 3 post(s) removed; the agents start fresh here. Jo's memories could not be deleted; see /collegium memory jo."
       );
     });
 

@@ -1,7 +1,7 @@
 import type { PostErasureReport } from '@collegium/mattermost';
 import { match } from 'ts-pattern';
 
-import type { ClearingRefusal } from './clearing.types.ts';
+import type { ClearingRefusal, MemoryFailure } from './clearing.types.ts';
 
 const DELETED =
   "Every post here will be deleted, and every agent's record of them: context, traces, approvals, queued work";
@@ -11,15 +11,15 @@ const RUN_AGAIN = 'Run /collegium clear again.';
 type Outcome = {
   readonly byUsername: string;
   /** agents whose `--memories` deletion failed, which the notice must still state (A4) */
-  readonly memoryFailures: readonly string[];
+  readonly memoryFailures: readonly MemoryFailure[];
 };
 
-function withMemoryFailures(text: string, agentUsernames: readonly string[]): string {
-  if (agentUsernames.length === 0) {
+function withMemoryFailures(text: string, memoryFailures: readonly MemoryFailure[]): string {
+  if (memoryFailures.length === 0) {
     return text;
   }
-  const failures = agentUsernames.map((agentUsername) => {
-    return `${agentUsername}'s memories could not be deleted; see /collegium memory ${agentUsername}.`;
+  const failures = memoryFailures.map(({ displayName, username }) => {
+    return `${displayName}'s memories could not be deleted; see /collegium memory ${username}.`;
   });
   return `${text} ${failures.join(' ')}`;
 }

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { defaultDisplayNameOf } from '@collegium/config';
 import { describe, expect, it } from 'vitest';
 
 import { QUEUED_ACKNOWLEDGEMENT_EMOJI } from '@/activation/activation.constants.ts';
@@ -169,7 +170,7 @@ describe('/collegium stop', () => {
     await channels.main.runCommand('/collegium stop');
     await channels.main.awaitPost({
       description: 'the stop acknowledgement',
-      match: (post) => post.text.includes(`Stopped \`${agents.mira.username}\` before any further tool call`)
+      match: (post) => post.text.includes(`Stopped ${defaultDisplayNameOf(agents.mira.username)} before any further tool call`)
     });
 
     blocked.release();
@@ -219,7 +220,7 @@ describe('/collegium kill', () => {
     await channels.main.runCommand('/collegium kill');
     await channels.main.awaitPost({
       description: 'the kill acknowledgement',
-      match: (post) => post.text.includes(`Killed \`${agents.mira.username}\`.`)
+      match: (post) => post.text.includes(`Killed ${defaultDisplayNameOf(agents.mira.username)}.`)
     });
 
     inference.willReply({ agent: 'mira', contains: 'again' }, textResponse(reply));
@@ -317,9 +318,8 @@ describe('Intervention scope', () => {
     await channels.main.awaitPost({
       description: 'a stop acknowledgement naming both agents',
       match: (post) => {
-        return post.text.includes(
-          `Stopped \`${agents.mira.username}\`, \`${agents.owen.username}\` before any further tool call`
-        );
+        const names = [agents.mira.username, agents.owen.username].map(defaultDisplayNameOf).join(', ');
+        return post.text.includes(`Stopped ${names} before any further tool call`);
       }
     });
 
@@ -360,7 +360,7 @@ describe('Intervention scope', () => {
     await channels.main.runCommandAs(human, '/collegium kill');
     await channels.main.awaitPost({
       description: 'the kill acknowledgement issued by a non-admin human',
-      match: (post) => post.text.includes(`Killed \`${agents.mira.username}\`.`)
+      match: (post) => post.text.includes(`Killed ${defaultDisplayNameOf(agents.mira.username)}.`)
     });
 
     blocked.release();

@@ -100,7 +100,7 @@ describe('ChatEmitter', () => {
       strandedUnits: []
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
-      '🟢 **Online** — the orchestrator started with 2 agent(s): `mira`, `robin`.'
+      '🟢 **Online** — the orchestrator started with 2 agent(s): Mira, Robin.'
     );
   });
 
@@ -109,8 +109,8 @@ describe('ChatEmitter', () => {
     await chatEmitter.notify({ ...online, abandonedTurns: 2, requeuedTurns: 1 });
     await chatEmitter.notify({ ...online, abandonedTurns: 2, requeuedTurns: 0 });
     expect(chatGateway.postAsSystem.mock.calls.map(([content]) => content)).toStrictEqual([
-      '🟢 **Online** — the orchestrator started with 1 agent(s): `mira`. 2 in-flight turn(s) were abandoned. 1 that had not yet acted went back into the queue.',
-      '🟢 **Online** — the orchestrator started with 1 agent(s): `mira`. 2 in-flight turn(s) were abandoned.'
+      '🟢 **Online** — the orchestrator started with 1 agent(s): Mira. 2 in-flight turn(s) were abandoned. 1 that had not yet acted went back into the queue.',
+      '🟢 **Online** — the orchestrator started with 1 agent(s): Mira. 2 in-flight turn(s) were abandoned.'
     ]);
   });
 
@@ -139,7 +139,7 @@ describe('ChatEmitter', () => {
     expect(chatGateway.postAsSystem).not.toHaveBeenCalled();
   });
 
-  it('should post the §7.4 chain-limit correction in the channel, naming the agent without a mention', async () => {
+  it('should post the §7.4 chain-limit correction in the channel, naming the agent by name, not a mention', async () => {
     await chatEmitter.notify({
       agentUsername: 'mira',
       channelId: 'channel-1',
@@ -148,12 +148,12 @@ describe('ChatEmitter', () => {
     });
     expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
       'channel-1',
-      '⛔ `mira` was not activated: this chain has reached its limit of 200 turns. A fresh post from a person starts a fresh chain.'
+      '⛔ Mira was not activated: this chain has reached its limit of 200 turns. A fresh post from a person starts a fresh chain.'
     );
     expect(chatGateway.postAsSystem).not.toHaveBeenCalled();
   });
 
-  it('should post the §7.6 long-turn notice in the channel, naming the agent without a mention', async () => {
+  it('should post the §7.6 long-turn notice in the channel, naming the agent by name, not a mention', async () => {
     await chatEmitter.notify({
       agentUsername: 'mira',
       channelId: 'channel-1',
@@ -164,7 +164,7 @@ describe('ChatEmitter', () => {
     });
     expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
       'channel-1',
-      '⏳ `mira` has been in one turn here for 31m without waiting on anyone. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.'
+      '⏳ Mira has been in one turn here for 31m without waiting on anyone. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.'
     );
   });
 
@@ -179,7 +179,7 @@ describe('ChatEmitter', () => {
     });
     expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
       'channel-1',
-      '⏳ `mira` has been in one turn here for 31m without waiting on anyone, and has called no tool yet: its status post was opened just now and will show what it does next. /collegium kill ends the turn; a turn still thinking needs nothing. A post addressing `mira` is waiting behind this turn.'
+      '⏳ Mira has been in one turn here for 31m without waiting on anyone, and has called no tool yet: its status post was opened just now and will show what it does next. /collegium kill ends the turn; a turn still thinking needs nothing. A post addressing Mira is waiting behind this turn.'
     );
   });
 
@@ -187,7 +187,7 @@ describe('ChatEmitter', () => {
     rosterService.isDirectMessage.mockReturnValue(true);
     await chatEmitter.notify({ agentUsername: 'mira', channelId: 'dm-1', kind: 'standing-queue' });
     expect(chatGateway.postAsSystemIn).not.toHaveBeenCalled();
-    expect(transport.send).toHaveBeenCalledWith({ channelId: 'dm-1', text: expect.stringContaining('`mira`') });
+    expect(transport.send).toHaveBeenCalledWith({ channelId: 'dm-1', text: expect.stringContaining('Mira has work waiting') });
   });
 
   it('should post a §7.6 notice the system bot is refused under the agent’s own account, as in a DM', async () => {
@@ -195,7 +195,7 @@ describe('ChatEmitter', () => {
     await chatEmitter.notify({ agentUsername: 'mira', channelId: 'dm-1', kind: 'standing-queue' });
     expect(transport.send).toHaveBeenCalledWith({
       channelId: 'dm-1',
-      text: '⏸️ `mira` has work waiting here and no turn running. A post addressing `mira` starts the turn that reads it; /collegium queue mira shows what waits.'
+      text: '⏸️ Mira has work waiting here and no turn running. A post addressing Mira starts the turn that reads it; /collegium queue mira shows what waits.'
     });
   });
 
@@ -212,7 +212,7 @@ describe('ChatEmitter', () => {
       reason: { agentUsernames: ['mira', 'robin'], channelId: 'channel-1', kind: 'topology-violation' }
     });
     expect(chatGateway.postAsSystem).toHaveBeenCalledWith(
-      '🛑 **Halted** — respond-to-all channel channel-1 now holds 2 agents (mira, robin). No agent will act until a human posts /collegium resume.'
+      '🛑 **Halted** — respond-to-all channel channel-1 now holds 2 agents (Mira, Robin). No agent will act until a human posts /collegium resume.'
     );
   });
 

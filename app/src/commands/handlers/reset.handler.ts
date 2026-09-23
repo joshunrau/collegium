@@ -35,7 +35,7 @@ export class ResetHandler extends CommandHandler {
     await this.episodesService.mark(agentUsername, input.channelId, latestPostId);
     return {
       audience: 'channel',
-      text: `🔄 Episode boundary set: ${agentUsername} will not read past this point.`
+      text: `🔄 Episode boundary set: ${this.agentRegistry.displayNameOf(agentUsername)} will not read past this point.`
     };
   }
 }
