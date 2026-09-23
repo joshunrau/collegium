@@ -5,8 +5,7 @@ import type { GrantedTool } from '@/tools/tools.registry.ts';
 /** §3.8 — what a turn is told beside its window: the system prompt ahead of it, and the sections that may change between turns after it */
 export type TurnPrompt = {
   readonly stable: string;
-  /** absent when no section has anything to say, so no empty message follows the window */
-  readonly tail: string | undefined;
+  readonly tail: string;
 };
 
 export type TurnPromptInput = {

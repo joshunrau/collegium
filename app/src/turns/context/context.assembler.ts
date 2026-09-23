@@ -62,7 +62,7 @@ export class ContextAssembler {
         // §3.8 — a user-role message, since a provider may hoist a system message ahead of the window
         messages: [
           ...toCompletionMessages(entries, profile.username, turnId),
-          ...(tail === undefined ? [] : [{ content: tail, role: 'user' as const }])
+          { content: tail, role: 'user' }
         ],
         model: profile.model,
         systemPrompt: stable,

@@ -8,6 +8,7 @@ import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
+import { DayFormatter } from '@/formatting/dates/day.formatter.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import { toCompletionBody } from '@/inference/adapters/openai-compatible.utils.ts';
 import { MailRegistry } from '@/mail/mail.registry.ts';
@@ -21,6 +22,7 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 import { PromptRenderer } from '../../prompt/prompt.renderer.ts';
+import { DateLineSection } from '../../prompt/sections/date-line.section.ts';
 import { EarlierActionsSection } from '../../prompt/sections/earlier-actions.section.ts';
 import { MemoriesSection } from '../../prompt/sections/memories.section.ts';
 import { OpenWorkSection } from '../../prompt/sections/open-work.section.ts';
@@ -78,7 +80,7 @@ describe('ContextAssembler', () => {
 
   beforeEach(async () => {
     promptRenderer = MockFactory.createMock(PromptRenderer);
-    promptRenderer.renderParts.mockResolvedValue({ stable: 'You are Mira.\n\n## How this works', tail: undefined });
+    promptRenderer.renderParts.mockResolvedValue({ stable: 'You are Mira.\n\n## How this works', tail: '[notes]' });
     const toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.describeFor.mockReturnValue([{ description: 'Load a skill.', name: 'load_skill', parameters: {} }]);
     windowService = MockFactory.createMock(WindowService);
@@ -154,7 +156,8 @@ describe('ContextAssembler', () => {
       { content: 'casey (person): hello @mira', role: 'user' },
       { content: 'on it', role: 'assistant' },
       { content: 'checking', role: 'assistant' },
-      { content: 'casey (person): thanks', role: 'user' }
+      { content: 'casey (person): thanks', role: 'user' },
+      { content: '[notes]', role: 'user' }
     ]);
   });
 
@@ -174,7 +177,10 @@ describe('ContextAssembler', () => {
       oldestAt: new Date(1000)
     });
     const request = await assemble();
-    expect(request.messages).toStrictEqual([{ content: '[approval denied]', role: 'user' }]);
+    expect(request.messages).toStrictEqual([
+      { content: '[approval denied]', role: 'user' },
+      { content: '[notes]', role: 'user' }
+    ]);
   });
 
   it("should pass the window's oldest instant to the prompt renderer", async () => {
@@ -243,6 +249,8 @@ describe('ContextAssembler across two turns', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         ContextAssembler,
+        DateLineSection,
+        DayFormatter,
         EarlierActionsSection,
         MemoriesSection,
         OpenWorkSection,
@@ -274,7 +282,7 @@ describe('ContextAssembler across two turns', () => {
     { name: 'anthropic/claude-sonnet-5', provider: 'openrouter' },
     { name: 'openai/gpt-5.6-sol', provider: 'openrouter' }
   ])(
-    'should send $name the same bytes through the window when memories, peers and ages change (§3.8)',
+    'should send $name the same bytes through the window when memories, peers, ages and the day change (§3.8)',
     async (model) => {
       const wireBody = async () => {
         const { request } = await contextAssembler.assemble({
@@ -285,7 +293,7 @@ describe('ContextAssembler across two turns', () => {
         return toCompletionBody(request);
       };
       const first = await wireBody();
-      vi.setSystemTime(new Date('2026-09-21T13:00:00Z'));
+      vi.setSystemTime(new Date('2026-09-22T13:00:00Z'));
       windowService.build.mockResolvedValue({
         entries: [...firstWindow, post('mira', 'done', 4000), post('casey', 'thanks @mira', 5000)],
         oldestAt: new Date(1000)
