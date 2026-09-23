@@ -2,7 +2,10 @@ import type { $InferenceRetryPolicy } from '@collegium/config';
 import type { Result } from '@collegium/core/utils';
 import { delay } from 'es-toolkit';
 
+import type { LoggingService } from '@/logging/logging.service.ts';
+
 import { InferenceClient } from '../inference.client.ts';
+import { describeInferenceFailure } from '../inference.utils.ts';
 
 import type { CompletionOptions, CompletionRequest, CompletionResult, InferenceFailure } from '../inference.types.ts';
 
@@ -13,6 +16,7 @@ export class TransportRetrier extends InferenceClient {
   constructor(
     private readonly inner: InferenceClient,
     private readonly policy: $InferenceRetryPolicy,
+    private readonly loggingService: Pick<LoggingService, 'warn'>,
     private readonly random: () => number = Math.random
   ) {
     super();
@@ -37,6 +41,9 @@ export class TransportRetrier extends InferenceClient {
       if (waitMs === undefined) {
         return result;
       }
+      this.loggingService.warn(
+        `retrying a completion for ${request.model.provider}/${request.model.name} in ${Math.round(waitMs)}ms (attempt ${attempt + 1} of ${this.policy.maxAttempts}): ${describeInferenceFailure(result.error)}`
+      );
       await delay(waitMs);
       if (options.signal?.aborted) {
         return result;

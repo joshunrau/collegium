@@ -17,6 +17,8 @@ import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import type { WindowEntry } from '@/conversations/conversations.types.ts';
+import { WindowService } from '@/conversations/window/window.service.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
@@ -44,6 +46,7 @@ import { WebService } from '@/web/web.service.ts';
 import { ContextAssembler } from '../context/context.assembler.ts';
 import { TurnControlRegistry } from '../control/turn-control.registry.ts';
 import { TurnFoldRegistry } from '../folding/turn-fold.registry.ts';
+import { PromptRenderer } from '../prompt/prompt.renderer.ts';
 import { StatusPostService } from '../status/status-post.service.ts';
 import { TurnRunner } from '../turns.runner.ts';
 import { TurnsService } from '../turns.service.ts';
@@ -152,6 +155,7 @@ describe('TurnRunner', () => {
         systemPrompt: 'sys',
         tools: []
       },
+      windowEstimatedTokens: 10,
       windowPostIds: new Set(['post-0'])
     });
     const inferenceRegistry = MockFactory.createMock(InferenceRegistry);
@@ -189,8 +193,12 @@ describe('TurnRunner', () => {
     postSightingsRegistry = MockFactory.createMock(PostSightingsRegistry);
     turnsService = MockFactory.createMock(TurnsService);
     turnsService.countInChain.mockResolvedValue(1);
-    turnsService.open.mockResolvedValue(Result.ok({ id: 'turn-1' } as Turn));
-    turnsService.appendEvent.mockResolvedValue(undefined);
+    turnsService.open.mockResolvedValue(
+      Result.ok({ agentUsername: 'mira', channelId: 'channel-1', id: 'turn-1', startedAt: new Date(0) } as Turn)
+    );
+    turnsService.appendEvent.mockImplementation((_turnId, event) => {
+      return Promise.resolve(event.kind === 'tool_result' ? `event-${event.callId}` : `event-${event.kind}`);
+    });
     turnsService.close.mockResolvedValue(undefined);
     turnsService.recordStatusPost.mockResolvedValue(undefined);
     const moduleRef = await Test.createTestingModule({
@@ -228,6 +236,7 @@ describe('TurnRunner', () => {
 
   const run = async () => {
     const outcome = await turnRunner.run({
+      activationKind: 'addressed',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
@@ -240,6 +249,7 @@ describe('TurnRunner', () => {
 
   const runFolding = async () => {
     const outcome = await turnRunner.run({
+      activationKind: 'addressed',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
@@ -322,6 +332,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await turnRunner.run({
+      activationKind: 'addressed',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
@@ -364,6 +375,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('@owen please continue')));
     const outcome = (
       await turnRunner.run({
+        activationKind: 'addressed',
         chainLength: 1,
         channelId: 'channel-1',
         depth: 10,
@@ -385,6 +397,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('@owen please continue')));
     const outcome = (
       await turnRunner.run({
+        activationKind: 'addressed',
         chainLength: 3,
         channelId: 'channel-1',
         depth: 1,
@@ -405,6 +418,7 @@ describe('TurnRunner', () => {
     multiMentionPolicy.stripAgentMentions.mockImplementation((content: string) => content.replace('@owen ', ''));
     complete.mockResolvedValueOnce(Result.ok(text('@owen please continue')));
     await turnRunner.run({
+      activationKind: 'addressed',
       chainLength: 3,
       channelId: 'channel-1',
       depth: 10,
@@ -420,6 +434,7 @@ describe('TurnRunner', () => {
       Result.err({ count: 3, kind: 'chain-full', limit: 3, rootPostId: 'post-0' })
     );
     const outcome = await turnRunner.run({
+      activationKind: 'addressed',
       chainLength: 4,
       channelId: 'channel-1',
       depth: 0,
@@ -437,6 +452,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(Array.from({ length: 4 }, () => 'lookup_fixture'))));
     const outcome = (
       await turnRunner.run({
+        activationKind: 'addressed',
         chainLength: 1,
         channelId: 'channel-1',
         depth: 0,
@@ -457,6 +473,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture', 'lookup_fixture'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await turnRunner.run({
+      activationKind: 'addressed',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
@@ -488,6 +505,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await turnRunner.run({
+      activationKind: 'addressed',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 1,
@@ -511,6 +529,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await turnRunner.run({
+      activationKind: 'addressed',
       chainLength: 2,
       channelId: 'channel-1',
       depth: 1,
@@ -656,6 +675,44 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
     expect(statusHandle.markTrace).toHaveBeenCalledExactlyOnceWith(7, { ran: false, text: '🛑 denied by @casey' });
+  });
+
+  it('should keep the mark on the result’s event, so the trace reads what the status post shows (§8.3)', async () => {
+    toolExecutor.execute.mockResolvedValueOnce({
+      kind: 'continue',
+      output: 'the body is over its cap',
+      traceMark: { ran: false, text: '⚠️ refused by the tool' }
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['memory__append'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(turnsService.appendEvent).toHaveBeenCalledWith(
+      'turn-1',
+      expect.objectContaining({ kind: 'tool_result', traceMark: { ran: false, text: '⚠️ refused by the tool' } })
+    );
+  });
+
+  it('should record what started the turn and the window it read on the turn’s row (§8.3)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await turnRunner.run({
+      activationKind: 'drain',
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 0,
+      drainedFromPostId: 'post-0',
+      profile: PROFILE,
+      releaseHeldActivation,
+      rootPostId: 'post-0',
+      triggeringPostId: 'post-0'
+    });
+    expect(turnsService.open).toHaveBeenCalledWith(
+      expect.objectContaining({ activationKind: 'drain', drainedFromPostId: 'post-0' })
+    );
+    expect(turnsService.recordAssembledWindow).toHaveBeenCalledWith('turn-1', {
+      assembledAt: new Date(0),
+      estimatedTokens: 10,
+      oldestAt: new Date('2026-09-21T12:00:00Z')
+    });
   });
 
   it('should mark a line with what the tool says the call came to (§8.1)', async () => {
@@ -813,14 +870,29 @@ describe('TurnRunner', () => {
     });
   });
 
-  it('should reject a bare call object a provider left as text, rather than post it (§4.5)', async () => {
-    complete.mockResolvedValueOnce(Result.ok(text('{"name":"triggers__resolve","arguments":{"id":"s8a15c97"}}')));
+  it('should reject a call the provider left in the text, and trace what it refused and why (§4.5, §8.3)', async () => {
+    const leaked = '</parameter>\n</invoke>';
+    complete.mockResolvedValueOnce(Result.ok({ content: leaked, kind: 'leaked-call', usage: undefined }));
     complete.mockResolvedValueOnce(Result.ok(text('resolved')));
     const outcome = await run();
     expect(outcome.status).toBe('completed');
     expect(sends.map((send) => send.text)).toStrictEqual(['resolved']);
+    const rejection = 'post rejected: a tool call written as text runs nothing — invoke the tool instead';
+    expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({ content: rejection, role: 'user' });
+    expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
+      content: leaked,
+      kind: 'output_rejected',
+      reason: rejection
+    });
+  });
+
+  it('should reject a reply with no prose in it (§4.5)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(text(Array.from({ length: 6 }, () => '<dcp-message-id>').join('\n'))));
+    complete.mockResolvedValueOnce(Result.ok(text('Here is the summary.')));
+    await run();
+    expect(sends.map((send) => send.text)).toStrictEqual(['Here is the summary.']);
     expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
-      content: 'post rejected: a tool call written as text runs nothing — invoke the tool instead',
+      content: 'post rejected: the reply has no prose in it — write the message you mean to send',
       role: 'user'
     });
   });
@@ -999,6 +1071,7 @@ describe('TurnRunner', () => {
       complete.mockResolvedValueOnce(Result.ok(unparsedUse([unparsedCall('workspace__write', '{oops')])));
       const outcome = (
         await turnRunner.run({
+          activationKind: 'addressed',
           chainLength: 1,
           channelId: 'channel-1',
           depth: 0,
@@ -1088,6 +1161,7 @@ describe('TurnRunner', () => {
       });
       const outcome = (
         await turnRunner.run({
+          activationKind: 'addressed',
           chainLength: 1,
           channelId: 'channel-1',
           depth: 0,
@@ -1162,6 +1236,7 @@ describe('TurnRunner', () => {
   it('should say how far back its context reached when the window missed the post it drained from (§5.2)', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await turnRunner.run({
+      activationKind: 'addressed',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
@@ -1179,6 +1254,7 @@ describe('TurnRunner', () => {
   it('should trace nothing about a drain whose post the window reached (§5.2)', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await turnRunner.run({
+      activationKind: 'addressed',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
@@ -1188,6 +1264,93 @@ describe('TurnRunner', () => {
       rootPostId: 'post-0'
     });
     expect(statusHandle.appendTrace).not.toHaveBeenCalled();
+  });
+
+  describe('a report drained behind the supervisor’s own turn (§5.2)', () => {
+    const REPORT_ID = 'post-report';
+    const TAIL = '## Open work\n[u1] naomi · review';
+
+    const post = (id: string, author: string, message: string, at: number): WindowEntry => ({
+      kind: 'post',
+      post: {
+        attachments: null,
+        authoringTurnId: null,
+        authorKind: author === 'casey' ? 'human' : 'agent',
+        authorUsername: author,
+        channelId: 'channel-1',
+        createdAt: new Date(at),
+        id,
+        isForgotten: false,
+        kind: 'message',
+        message,
+        observedAt: new Date(at)
+      }
+    });
+
+    const event = (payload: PrismaJson.TurnEventPayload, at: number): WindowEntry => ({
+      event: { createdAt: new Date(at), id: `event-${at}`, kind: payload.kind, payload, sequence: 0, turnId: 'turn-0' },
+      kind: 'event'
+    });
+
+    beforeEach(async () => {
+      const windowService = MockFactory.createMock(WindowService);
+      windowService.build.mockResolvedValue({
+        entries: [
+          post('post-ask', 'casey', '@mira find three venues', 1000),
+          event(
+            {
+              content: '',
+              kind: 'assistant_message',
+              toolCalls: [{ args: { assignee: 'naomi' }, callId: 'c1', toolName: ['tasks', 'assign'] }]
+            },
+            2000
+          ),
+          event({ callId: 'c1', kind: 'tool_result', output: 'assigned [u1] to naomi', toolName: ['tasks', 'assign'] }, 2100),
+          event({ content: 'Handed to Naomi.', kind: 'assistant_message', toolCalls: [] }, 2200),
+          post(REPORT_ID, 'naomi', '@mira [u1] three venues, with prices', 3000)
+        ],
+        oldestAt: new Date(1000)
+      });
+      const promptRenderer = MockFactory.createMock(PromptRenderer);
+      promptRenderer.renderParts.mockResolvedValue({ stable: 'You are Mira.', tail: TAIL });
+      const agentRegistry = MockFactory.createMock(AgentRegistry);
+      agentRegistry.displayNameOf.mockImplementation((username) => (username === 'naomi' ? 'Naomi' : username));
+      const toolRegistryForContext = MockFactory.createMock(ToolRegistry);
+      toolRegistryForContext.describeFor.mockReturnValue([]);
+      const assemblerModule = await Test.createTestingModule({
+        providers: [
+          ContextAssembler,
+          { provide: AgentRegistry, useValue: agentRegistry },
+          { provide: PromptRenderer, useValue: promptRenderer },
+          { provide: ToolRegistry, useValue: toolRegistryForContext },
+          { provide: WindowService, useValue: windowService }
+        ]
+      }).compile();
+      const assembler = assemblerModule.get(ContextAssembler);
+      contextAssembler.assemble.mockImplementation((input) => assembler.assemble(input));
+    });
+
+    it('should hand the model the report as the last window message, just before the per-turn tail (§3.8)', async () => {
+      complete.mockResolvedValueOnce(Result.ok(text('Thanks, Naomi.')));
+      await turnRunner.run({
+        activationKind: 'handoff',
+        chainLength: 2,
+        channelId: 'channel-1',
+        depth: 1,
+        drainedFromPostId: REPORT_ID,
+        profile: PROFILE,
+        releaseHeldActivation,
+        rootPostId: 'post-ask',
+        triggeringPostId: REPORT_ID
+      });
+      const { messages } = complete.mock.calls[0]![0];
+      expect(messages.slice(-3)).toStrictEqual([
+        { content: 'Handed to Naomi.', role: 'assistant' },
+        { content: 'Naomi (agent): @mira [u1] three venues, with prices', role: 'user' },
+        { content: TAIL, role: 'user' }
+      ]);
+      expect(statusHandle.appendTrace).not.toHaveBeenCalled();
+    });
   });
 
   it('should return killed immediately while a completion is still in flight', async () => {
@@ -1730,6 +1893,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValue(Result.ok(text('@owen and @tess, split this')));
     const outcome = (
       await turnRunner.run({
+        activationKind: 'addressed',
         chainLength: 1,
         channelId: 'channel-1',
         depth: 0,
@@ -1810,6 +1974,7 @@ describe('TurnRunner', () => {
       systemPrompt: 'sys',
       tools: []
     },
+    windowEstimatedTokens: 10,
     windowPostIds: new Set(['post-0'])
   });
 
@@ -1830,6 +1995,7 @@ describe('TurnRunner', () => {
     expect(results[0]?.content).toBe(renderSupersededLine('page one'));
     expect(results[1]?.content.startsWith('page two x')).toBe(true);
     expect(results[1]?.content).not.toContain('truncated');
+    expect(turnsService.recordPresentation).toHaveBeenCalledExactlyOnceWith('event-call-0', { collapsed: true });
   });
 
   it('should cut a result that alone would not fit, marking the cut, and keep the trace whole (§3.8)', async () => {
@@ -1846,6 +2012,9 @@ describe('TurnRunner', () => {
       'turn-1',
       expect.objectContaining({ kind: 'tool_result', output })
     );
+    expect(turnsService.recordPresentation).toHaveBeenCalledWith('event-call-0', {
+      cutToChars: result!.content.indexOf('\n…result truncated')
+    });
   });
 
   it('should end the turn as context exhausted when nothing can be retired and a cut would keep too little (§3.8)', async () => {
@@ -2010,6 +2179,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('nothing to delegate')));
     const outcome = (
       await turnRunner.run({
+        activationKind: 'addressed',
         chainLength: 1,
         channelId: 'channel-1',
         depth: 10,

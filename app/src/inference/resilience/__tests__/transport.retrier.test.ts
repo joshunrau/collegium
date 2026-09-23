@@ -1,6 +1,9 @@
 import { Result } from '@collegium/core/utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { LoggingService } from '@/logging/logging.service.ts';
+import { MockFactory } from '@/testing/factories/mock.factory.ts';
+
 import { InferenceClient } from '../../inference.client.ts';
 import { TransportRetrier } from '../transport.retrier.ts';
 
@@ -27,7 +30,13 @@ describe('TransportRetrier', () => {
       return complete(request, options);
     }
   };
-  const retrier = new TransportRetrier(inner, { backoffMs: 100, maxAttempts: 3, maxDelayMs: 10_000 }, () => 0);
+  const loggingService = MockFactory.createMock(LoggingService);
+  const retrier = new TransportRetrier(
+    inner,
+    { backoffMs: 100, maxAttempts: 3, maxDelayMs: 10_000 },
+    loggingService,
+    () => 0
+  );
 
   const completeWithTimers = async (): Promise<Result<CompletionResult, InferenceFailure>> => {
     const result = retrier.complete(completionRequest);
@@ -54,6 +63,15 @@ describe('TransportRetrier', () => {
     expect(result.error).toStrictEqual({ kind: 'transport', reason: 'http_status', status: 503 });
   });
 
+  it('warns of each retry, naming the model, the attempt, the wait and the failure', async () => {
+    await completeWithTimers();
+
+    expect(loggingService.warn).toHaveBeenCalledTimes(2);
+    expect(loggingService.warn).toHaveBeenLastCalledWith(
+      'retrying a completion for deepseek/deepseek-v4-flash in 200ms (attempt 3 of 3): the provider could not be reached: the provider answered HTTP 503'
+    );
+  });
+
   it('stops retrying once an attempt succeeds', async () => {
     complete.mockResolvedValueOnce(failure({ kind: 'transport', reason: 'unknown' })).mockResolvedValueOnce(completion);
 
@@ -78,7 +96,12 @@ describe('TransportRetrier', () => {
   });
 
   it('shortens each backoff by up to a quarter at random, capped at the longest wait', async () => {
-    const jittered = new TransportRetrier(inner, { backoffMs: 100, maxAttempts: 4, maxDelayMs: 300 }, () => 1);
+    const jittered = new TransportRetrier(
+      inner,
+      { backoffMs: 100, maxAttempts: 4, maxDelayMs: 300 },
+      loggingService,
+      () => 1
+    );
     const result = jittered.complete(completionRequest);
     await vi.runAllTimersAsync();
     await result;

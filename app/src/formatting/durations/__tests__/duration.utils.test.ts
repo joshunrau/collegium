@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { renderElapsed } from '../duration.utils.ts';
+import { renderDuration, renderElapsed } from '../duration.utils.ts';
 
 describe('renderElapsed', () => {
   it('should render days and hours, hours and minutes, minutes, and under a minute', () => {
@@ -8,5 +8,12 @@ describe('renderElapsed', () => {
     expect(renderElapsed(3 * 3_600_000 + 12 * 60_000)).toBe('3h 12m');
     expect(renderElapsed(17 * 60_000)).toBe('17m');
     expect(renderElapsed(10_000)).toBe('under a minute');
+  });
+});
+
+describe('renderDuration', () => {
+  it('should render seconds under a minute, and minutes and seconds past it', () => {
+    expect(renderDuration(4_400)).toBe('4s');
+    expect(renderDuration(62 * 60_000 + 5_000)).toBe('62m 5s');
   });
 });

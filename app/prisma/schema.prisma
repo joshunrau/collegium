@@ -13,6 +13,18 @@ generator json {
   namespace = "PrismaJson"
 }
 
+/// §8.3 — what started a turn: a post addressing an idle agent, its queue drained as its own turn
+/// ended, a colleague's turn that addressed it ending or parking (§5.2), a trigger announced (§4.2),
+/// posts a reconnect recovered, or the boot or /collegium resume sweep of a standing queue (§7.3)
+enum ActivationKind {
+  addressed
+  drain
+  handoff
+  resync
+  sweep
+  trigger
+}
+
 enum ApprovalStatus {
   approved
   denied
@@ -59,6 +71,7 @@ enum TurnEventKind {
   ask_answered
   ask_requested
   assistant_message
+  output_rejected
   record_written
   steering_received
   tool_result
@@ -117,15 +130,23 @@ model Post {
 model Turn {
   id               String      @id @default(cuid(2))
   actionCount      Int         @default(0)
+  /// §8.3 — null on turns recorded before the column existed
+  activationKind   ActivationKind?
   agentUsername      String
   cachedPromptTokens Int?
   chainLength        Int         @default(1)
   channelId          String
   completionTokens   Int?
+  /// §8.3 — when the context the turn last used was assembled; a fold (§4.4) assembles it again
+  contextAssembledAt DateTime?
   /// what the provider charged for this turn, in USD, summed over its completions; null where the
   /// provider prices nothing in its response
   costUsd            Float?
   depth            Int
+  /// §5.2 — the earliest queued post of the queue entry the turn took over, drained or absorbed at
+  /// its start; null where it took none, and after a /collegium clear (§8.5), which removes every
+  /// post it named
+  drainedFromPostId String?
   endedAt          DateTime?
   modelName        String
   promptTokens     Int?
@@ -139,6 +160,10 @@ model Turn {
   status           TurnStatus
   statusPostId     String?
   triggeringPostId String?
+  /// §8.3 — the window of that assembly: its oldest entry, null for an empty window, and what the
+  /// budget charged for it (§3.8)
+  windowEstimatedTokens Int?
+  windowOldestAt   DateTime?
   approvals        Approval[]
   asks             Ask[]
   authoredPosts    Post[]

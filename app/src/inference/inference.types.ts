@@ -86,7 +86,17 @@ export declare namespace CompletionResult {
     kind: 'truncated';
     usage: CompletionUsage | undefined;
   };
-  type Any = Text | ToolUse | Truncated;
+  /**
+   * Text holding a tool call the provider failed to structure — its own call markup, or a bare
+   * call object. Not output, since posted it runs nothing, and not a malformed delivery to retry,
+   * since the model can make the call properly: the turn feeds it back as a rejected post (§4.5)
+   */
+  type LeakedCall = CompletionReasoning & {
+    content: string;
+    kind: 'leaked-call';
+    usage: CompletionUsage | undefined;
+  };
+  type Any = LeakedCall | Text | ToolUse | Truncated;
 }
 
 export type CompletionResult = CompletionResult.Any;

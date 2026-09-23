@@ -66,6 +66,8 @@ describe('Ephemeral commands', () => {
     const trace = await channels.main.awaitEphemeral({ contains: 'memory::write' });
     expect(trace.message).toContain(`called \`memory::write\``);
     expect(trace.message).toContain(fact);
+    expect(trace.message).toMatch(/^Started: .*, by addressed \(/mu);
+    expect(trace.message).toMatch(/^Context: assembled at \+\d+s, a window of about [\d,]+ tokens/mu);
     expect((await channels.main.posts()).some((post) => post.text.includes('Trace for turn'))).toBe(false);
   });
 

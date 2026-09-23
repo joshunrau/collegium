@@ -37,6 +37,7 @@ describe('TurnsService admission against the store (§7.4)', () => {
 
   const open = (rootPostId: string) => {
     return turnsService.open({
+      activationKind: 'addressed',
       agentUsername: 'mira',
       chainLength: 1,
       channelId: 'channel-1',

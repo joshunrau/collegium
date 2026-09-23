@@ -24,6 +24,8 @@ export type AssembledContext = {
   /** §5.2 — how far back the window reached, for the line a draining turn owes when that fell short; absent for an empty window */
   readonly reachesBackTo: Date | undefined;
   readonly request: CompletionRequest;
+  /** §8.3 — what the window's budget charged for the window as built (§3.8) */
+  readonly windowEstimatedTokens: number;
   /** which posts the window reached — how a draining turn learns its context fell short (§5.2) */
   readonly windowPostIds: ReadonlySet<string>;
 };
@@ -73,6 +75,7 @@ export class ContextAssembler {
         systemPrompt: stable,
         tools: this.toolRegistry.describeFor(profile)
       },
+      windowEstimatedTokens: estimateWindowTokens(entries, reader),
       windowPostIds: new Set(entries.flatMap((entry) => (entry.kind === 'post' ? [entry.post.id] : [])))
     };
   }

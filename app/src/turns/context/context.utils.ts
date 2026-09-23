@@ -9,27 +9,8 @@ import { reasoningOf } from '@/inference/inference.utils.ts';
 import type { AuthorKind, ModelRow } from '@/prisma/prisma.types.ts';
 import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
 
-const FENCED_CODE_BLOCK = /```[\s\S]*?```/gu;
-const TOOL_CALL_TRANSCRIPT = /^\[called [^\s(]+\([\s\S]*\)\]$/mu;
-
 /** §5.2 — what closes a window that ends on the agent's own turn, so the model begins a message rather than continuing one */
 const TURN_ENDED_LINE = '[your previous turn ended here; this turn is for what arrived while you were busy]';
-
-/** a provider that dropped its structured `tool_calls` field leaves the call as a bare object in the text */
-function isBareCallObject(text: string): boolean {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      'arguments' in parsed &&
-      'name' in parsed &&
-      typeof parsed.name === 'string'
-    );
-  } catch {
-    return false;
-  }
-}
 
 /** §3.8 — what a post's author is, in the word the model reads beside the name */
 const AUTHOR_KIND_WORDS: { readonly [K in AuthorKind]: string } = {
@@ -139,6 +120,8 @@ function renderEvent(
       .with({ kind: 'assistant_message' }, (payload) => {
         return renderAssistantEvent(payload, results, event.turnId === currentTurnId);
       })
+      // §8.3 — the model was told why and answered again; the trace alone keeps what was refused
+      .with({ kind: 'output_rejected' }, (): CompletionMessage[] => [])
       .with({ kind: 'record_written' }, (payload): CompletionMessage[] => [
         { content: renderRecordLine(payload), role: 'user' }
       ])
@@ -208,21 +191,6 @@ export function estimateWindowTokens(entries: readonly WindowEntry[], reader: Wi
   return renderEntries(entries, reader, undefined).reduce((sum, message) => {
     return sum + estimateTokens(chargedTextOf(message));
   }, 0);
-}
-
-/**
- * Whether output is a tool call written as text instead of made: the replayed transcript form a
- * model writes back after reading its own history, or the two shapes a provider leaves behind when
- * it fails to structure a call — a leaked `<tool_call>` marker, or the bare call object. Fenced code
- * is stripped before the last two are tested, so prose that quotes the syntax is not mistaken for
- * using it. Posted, any of the three runs nothing and reads as a completed action.
- */
-export function containsToolCallTranscript(text: string): boolean {
-  if (TOOL_CALL_TRANSCRIPT.test(text)) {
-    return true;
-  }
-  const stripped = text.replace(FENCED_CODE_BLOCK, '').trim();
-  return stripped !== '' && (stripped.startsWith('<tool_call>') || isBareCallObject(stripped));
 }
 
 /**

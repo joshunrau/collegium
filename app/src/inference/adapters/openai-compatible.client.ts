@@ -5,6 +5,7 @@ import { InferenceClient } from '../inference.client.ts';
 import { $CompletionChunk } from '../inference.schemas.ts';
 import { reasoningOf } from '../inference.utils.ts';
 import { createIdleAbort } from '../resilience/idle-abort.utils.ts';
+import { containsLeakedCall } from './leaked-call.utils.ts';
 import { isContextOverflowBody, parseRetryAfterMs, toCompletionBody } from './openai-compatible.utils.ts';
 import { readServerSentEvents } from './sse.utils.ts';
 import { StreamAssembler } from './stream.assembler.ts';
@@ -229,6 +230,14 @@ export class OpenAICompatibleClient extends InferenceClient {
     }
     if (assembled.content.trim() === '') {
       return Result.err({ kind: 'malformed', message: 'completion returned empty content' });
+    }
+    if (containsLeakedCall(assembled.content)) {
+      return Result.ok({
+        content: assembled.content,
+        kind: 'leaked-call',
+        usage: assembled.usage,
+        ...reasoning
+      } satisfies CompletionResult.LeakedCall);
     }
     return Result.ok({
       content: assembled.content,

@@ -1,15 +1,8 @@
 import type { ToolDisclosure, ToolPost } from '@collegium/core/tools';
 
-import type { TurnStatus } from '@/prisma/prisma.types.ts';
+import type { TraceMark, TurnStatus } from '@/prisma/prisma.types.ts';
 
-/**
- * §8.1 — a call's disposition for its status-post line, and whether the call ran at all: a line
- * whose mark says it did not states its subject and not its effect.
- */
-export type TraceMark = {
-  readonly ran: boolean;
-  readonly text: string;
-};
+export type { TraceMark };
 
 export declare namespace ToolAttempt {
   /** the model receives this as the tool result and the turn continues */

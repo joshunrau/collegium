@@ -49,6 +49,12 @@ type TurnEventPayloadByKind = {
     reasoningDetails?: readonly ReasoningDetail[];
     toolCalls: RecordedToolCall[];
   };
+  /** §4.5 — a final output refused as a post: never replayed, since the model was told why and answered again (§8.3) */
+  output_rejected: {
+    content: string;
+    /** the rejection exactly as the model read it */
+    reason: string;
+  };
   record_written: {
     body: string;
     description: string;
@@ -65,6 +71,8 @@ type TurnEventPayloadByKind = {
   tool_result: {
     callId: string;
     output: string;
+    /** §3.8 — how the model read the output where it did not read it whole; the output stays whole here */
+    presentedAs?: ResultPresentation;
     /** §7.2 — the head of argument text that never parsed, for the trace alone */
     rawArgumentsPreview?: string;
     /** the line the window replays in place of the output, as a plugin tool or a row from before `replaySubject` wrote it; the trace still shows the output */
@@ -72,6 +80,8 @@ type TurnEventPayloadByKind = {
     /** what the output was, from which the window renders its replay line (§3.8) */
     replaySubject?: string;
     toolName: PrismaJson.RecordedToolName;
+    /** §8.1 — the disposition the call's status-post line carries, where it was not plain success */
+    traceMark?: TraceMark;
   };
 };
 
@@ -117,6 +127,22 @@ declare global {
   }
 }
 
+/**
+ * §8.1 — a call's disposition for its status-post line, and whether the call ran at all: a line
+ * whose mark says it did not states its subject and not its effect. The result's event keeps it, so
+ * the status post and the trace read one record (§8.3).
+ */
+export type TraceMark = {
+  readonly ran: boolean;
+  readonly text: string;
+};
+
+/** §3.8 — what the turn did to a result under pressure: collapsed to its line once read, cut to its leading characters to fit */
+export type ResultPresentation = {
+  collapsed?: true;
+  cutToChars?: number;
+};
+
 export type PrismaModelName = Prisma.ModelName;
 
 export type PrismaModelKey<T extends PrismaModelName = PrismaModelName> = Uncapitalize<T>;
@@ -130,6 +156,7 @@ export type TransactionClient = Prisma.TransactionClient;
 export type ModelRow<T extends PrismaModelName> = Awaited<ReturnType<Model<T>['findFirstOrThrow']>>;
 
 export type {
+  ActivationKind,
   ApprovalStatus,
   AskStatus,
   AuthorKind,
