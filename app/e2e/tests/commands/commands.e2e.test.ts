@@ -181,8 +181,8 @@ describe('/collegium stop', () => {
 describe('/collegium steer', () => {
   const harness = setupHarness(SCENARIO);
 
-  it('discards a completion made before the steer and calls the model again with the correction (§7.5)', async () => {
-    const { channels, inference } = harness();
+  it('discards a completion made before the steer and calls the named agent again with the correction (§7.5)', async () => {
+    const { agents, channels, inference } = harness();
     const reply = `steered-${randomUUID()}`;
     const blocked = inference.willBlock(
       { agent: 'mira', contains: 'plan something' },
@@ -192,7 +192,7 @@ describe('/collegium steer', () => {
     await channels.main.mention('mira', 'plan something');
     await blocked.arrived;
     inference.willReply({ agent: 'mira' }, textResponse(reply));
-    await channels.main.runCommand('/collegium steer use the staging URL');
+    await channels.main.runCommand(`/collegium steer @${agents.mira.username} use the staging URL`);
     blocked.release();
     await channels.main.awaitReplyFrom('mira', { text: reply });
 

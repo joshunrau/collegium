@@ -32,9 +32,10 @@ _ephemeral_ result is visible only to the person who ran it; the rest post to th
   work a configuration change made stale. The posts themselves stay; only the pointer goes.
 - `/collegium units {agent} cancel {reference}` — cancel one open work unit; the cancellation posts
   to the channel.
-- `/collegium steer {text}` — hand one instruction to the turns running in this channel. It arrives
-  as a person's post between the agent's results, and it spends one of the agent's action attempts.
-  Ephemeral.
+- `/collegium steer [{agent}] {text}` — hand one instruction to an agent's turn running in this
+  channel. It arrives as a person's post between the agent's results, and it spends one of the
+  agent's action attempts. Name the agent when more than one is running here, or the steer is
+  refused and reaches none. Ephemeral, and the answer names the agent it reached.
 - `/collegium clear [--memories]` — delete every post in this channel and every agent's record of
   them, and with `--memories` the memories too, behind a confirmation dialog. The one destructive
   command.

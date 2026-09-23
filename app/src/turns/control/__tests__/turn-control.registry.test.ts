@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TurnControlRegistry } from '../turn-control.registry.ts';
 
+const STEERING = { byUsername: 'casey', text: 'use staging' };
+
 const register = (registry: TurnControlRegistry, turnId: string, channelId: string, agentUsername = 'mira') => {
   return registry.register({ agentUsername, channelId, onSurface: () => Promise.resolve(false), turnId });
 };
@@ -32,13 +34,37 @@ describe('TurnControlRegistry', () => {
     expect(control.aborted()).toStrictEqual({ byUsername: 'owen', kind: 'killed' });
   });
 
-  it('should buffer steering for the turns in the channel alone, until each takes it (§7.5)', () => {
+  it('should hand an unnamed steer to the one turn running in the channel, buffered until it takes it (§7.5)', () => {
     const inChannel = register(registry, 'turn-1', 'channel-1');
-    const elsewhere = register(registry, 'turn-2', 'channel-2');
-    expect(registry.steerChannel('channel-1', { byUsername: 'casey', text: 'use staging' })).toBe(1);
-    expect(inChannel.takeSteering()).toStrictEqual([{ byUsername: 'casey', text: 'use staging' }]);
+    const elsewhere = register(registry, 'turn-2', 'channel-2', 'tess');
+    expect(registry.steer('channel-1', undefined, STEERING)).toMatchObject({ success: true, value: 'mira' });
+    expect(inChannel.takeSteering()).toStrictEqual([STEERING]);
     expect(inChannel.takeSteering()).toStrictEqual([]);
     expect(elsewhere.takeSteering()).toStrictEqual([]);
+  });
+
+  it('should refuse an unnamed steer while two agents run here, and hand a named one to that agent alone (§7.5)', () => {
+    const mira = register(registry, 'turn-1', 'channel-1');
+    const tess = register(registry, 'turn-2', 'channel-1', 'tess');
+    expect(registry.steer('channel-1', undefined, STEERING)).toMatchObject({
+      error: { kind: 'ambiguous', runningAgentUsernames: ['mira', 'tess'] },
+      success: false
+    });
+    expect(registry.steer('channel-1', 'tess', STEERING)).toMatchObject({ success: true, value: 'tess' });
+    expect(mira.takeSteering()).toStrictEqual([]);
+    expect(tess.takeSteering()).toStrictEqual([STEERING]);
+  });
+
+  it('should refuse a steer that reaches no running turn, naming the agent it was for', () => {
+    register(registry, 'turn-1', 'channel-1');
+    expect(registry.steer('channel-1', 'tess', STEERING)).toMatchObject({
+      error: { agentUsername: 'tess', kind: 'not-running' },
+      success: false
+    });
+    expect(registry.steer('channel-2', undefined, STEERING)).toMatchObject({
+      error: { kind: 'nothing-running' },
+      success: false
+    });
   });
 
   it('should resolve the kill race on kill alone, and not for a released turn', async () => {

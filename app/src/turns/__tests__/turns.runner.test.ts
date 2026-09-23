@@ -919,7 +919,7 @@ describe('TurnRunner', () => {
 
   describe('steering (§7.5)', () => {
     const steer = (text = 'use staging') => {
-      return turnControlRegistry.steerChannel('channel-1', { byUsername: 'casey', text });
+      return turnControlRegistry.steer('channel-1', undefined, { byUsername: 'casey', text });
     };
 
     it('should read a steer that arrived during a tool call before the next completion, as the human speaking', async () => {

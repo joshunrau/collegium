@@ -643,13 +643,17 @@ _Accepted cost:_ a loop that trips the ceiling is handed a fresh allowance every
 
 ### **7.5 Manual Intervention**
 
-All three commands are **channel-scoped and apply to all agents in that channel.**
+All three commands are **channel-scoped**. Stop and kill apply to every agent in the channel; a steer reaches one.
 
 `/collegium stop` aborts current turns at the next iteration boundary. The honest guarantee is _no further tool calls_, not _nothing happened_.
 
 `/collegium kill` abandons current turns immediately: the turn record is closed and the channel lock released. A tool already in flight may still complete and its side effect may still land — `/collegium kill` is for a wedged process, and it accepts that ambiguity in exchange for immediacy.
 
-`/collegium steer {text}` hands one instruction to the turns running in the channel, read before each turn's next completion. It is what §4.4 folding cannot be: folding discards a completion and reassembles from scratch, which is affordable only before the turn has acted. Steering keeps the work already done and appends — the instruction arrives as the human speaking, prefixed with their name as a post would be — but discards a completion in flight, since a plan made before the correction is exactly what the human is correcting. A steer **spends one action attempt**, so a human who keeps steering runs into the same ceiling a denial with a reason does (§5.3). The turn names the steer and its author on its status post, and the trace keeps the text. A tool already running is not interrupted, and a turn parked on an approval is steered by denying with a reason (§5.4), not by this command. With nothing running, the invoker is told so and the text is discarded rather than queued; §5.2 remains the one durable path for work.
+`/collegium steer [{agent}] {text}` hands one instruction to one agent's running turn in the channel, read before that turn's next completion. It is what §4.4 folding cannot be: folding discards a completion and reassembles from scratch, which is affordable only before the turn has acted. Steering keeps the work already done and appends — the instruction arrives as the human speaking, prefixed with their name as a post would be — but discards a completion in flight, since a plan made before the correction is exactly what the human is correcting. A steer **spends one action attempt**, so a human who keeps steering runs into the same ceiling a denial with a reason does (§5.3). The turn names the steer and its author on its status post, and the trace keeps the text. A tool already running is not interrupted, and a turn parked on an approval is steered by denying with a reason (§5.4), not by this command.
+
+**A steer reaches one agent, and never guesses which.** The first word names the agent only where it is an agent in the channel, with or without its @, so a steer may open with any other word. Named, the steer goes to that agent's turn alone. Unnamed, it goes to the one agent running here; with more than one running it is refused, naming them, and reaches none. The response names the agent reached. With nothing to reach, whether nothing runs here or the named agent does not, the invoker is told so and the text is discarded rather than queued; §5.2 remains the one durable path for work.
+
+_Why refuse rather than reach every turn:_ a steer carries no addressee, since it arrives as the human speaking, so one written for one agent reads to every other as an instruction to it. A correction meant for all is steered once per agent, or is a stop.
 
 _Why a command rather than a post:_ §5.2 says an addressed post is always queued and acknowledged, and that rule is load-bearing. A command is not a post: its response is ephemeral, it re-activates nobody, and it creates no obligation the framework then has to honour.
 
@@ -722,7 +726,7 @@ Every command is a subcommand of one slash command, `/collegium`, so typing `/co
 - **`/collegium reset {agent}`** — mark an episode boundary. Posts.
 - **`/collegium stop`** — abort current turns in this channel at the next boundary. Posts.
 - **`/collegium kill`** — abandon current turns in this channel immediately. Posts.
-- **`/collegium steer {text}`** — hand one instruction to the turns running in this channel, read before each turn's next model call; a call in flight is made again. Ephemeral; the turn names it on its status post.
+- **`/collegium steer [{agent}] {text}`** — hand one instruction to an agent's turn running in this channel, read before its next model call; a call in flight is made again. The agent may go unnamed only while it is the one running here (§7.5). Ephemeral, naming the agent reached; the turn names it on its status post.
 - **`/collegium resume`** — clear a global halt.
 - **`/collegium approvals [{agent}]`** — every approval still waiting on a human, in the channels you are in, oldest first, each naming the agent, the action, its age, and a link to its prompt. Ephemeral. The channel filter is the same membership check that decides who may answer one (§3.7). It decides nothing — the buttons on the prompt post remain the only way to answer.
 - **`/collegium queue {agent}`** — show whether a turn holds the agent's lane here (§5.1), since when, the post that started it, and its status post or that it has none yet; then pending depth and the oldest unprocessed post. Ephemeral. A turn that has called no tool has posted nothing (§8.1), so this is where a human learns that a post addressing the agent would now queue behind it (§5.2).
