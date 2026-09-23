@@ -271,6 +271,39 @@ describe('ConversationsService', () => {
     });
   });
 
+  describe('listPersonPostsFrom', () => {
+    const at = (milliseconds: number) => new Date(milliseconds);
+
+    it("should list people's live posts here from the queued post onward, taken since the instant, newest first (§5.2)", async () => {
+      const owen = { authorKind: 'agent', authorUsername: 'owen' } as const;
+      await conversationsService.record(post({ createdAt: at(3000), id: 'post-0' }));
+      await conversationsService.record(post({ ...owen, createdAt: at(2000), id: 'post-1' }));
+      await conversationsService.record(post({ createdAt: at(1000), id: 'post-2' }));
+      await conversationsService.record(post({ createdAt: at(4000), id: 'post-3' }));
+      await conversationsService.record(post({ ...owen, createdAt: at(5000), id: 'post-4' }));
+      await conversationsService.record(post({ channelId: 'channel-2', createdAt: at(5000), id: 'post-5' }));
+      await conversationsService.record(post({ createdAt: at(7000), id: 'post-6' }));
+      await conversationsService.record(post({ createdAt: at(6000), id: 'post-7' }));
+      table.rows.find((row) => row.id === 'post-6')!.isForgotten = true;
+      const listed = await conversationsService.listPersonPostsFrom({
+        channelId: 'channel-1',
+        fromPostId: 'post-1',
+        observedSince: at(1)
+      });
+      expect(listed.map(({ id }) => id)).toStrictEqual(['post-7', 'post-3']);
+    });
+
+    it('should list nothing from a queued post the store never recorded', async () => {
+      await conversationsService.record(post());
+      const listed = await conversationsService.listPersonPostsFrom({
+        channelId: 'channel-1',
+        fromPostId: 'post-9',
+        observedSince: undefined
+      });
+      expect(listed).toStrictEqual([]);
+    });
+  });
+
   describe('summarizeBacklog', () => {
     it('should return the pointer post beside the count of live posts from it forward', async () => {
       await conversationsService.record(post({ createdAt: new Date(1000), id: 'post-1', message: 'older' }));
