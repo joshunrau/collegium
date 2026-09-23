@@ -553,6 +553,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await turnRunner.run({
+      activationKind: 'handoff',
       chainLength: 2,
       channelId: 'channel-1',
       depth: 1,
@@ -577,6 +578,7 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await turnRunner.run({
+      activationKind: 'handoff',
       chainLength: 2,
       channelId: 'channel-1',
       depth: 1,
@@ -1281,6 +1283,7 @@ describe('TurnRunner', () => {
         createdAt: new Date(at),
         id,
         isForgotten: false,
+        isPinned: false,
         kind: 'message',
         message,
         observedAt: new Date(at)
