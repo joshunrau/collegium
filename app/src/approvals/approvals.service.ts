@@ -29,7 +29,8 @@ import type {
 import type {
   DecisionFailure,
   PendingCancellationReason,
-  PendingDecisionFailure
+  PendingDecisionFailure,
+  PendingDecisionScope
 } from './decisions/decisions.types.ts';
 
 type ApprovalRow = ModelRow<'Approval'> & { turn: { agentUsername: string; channelId: string } };
@@ -66,7 +67,7 @@ export class ApprovalsService {
 
   /** §7.5 — the sweep both channel-scoped commands run, so a parked turn is reachable at all */
   async cancelPendingIn(channelId: string, reason: 'kill' | 'stop'): Promise<number> {
-    return this.cancelWhere({ turn: { channelId } }, reason);
+    return this.cancelWhere({ channelId }, reason);
   }
 
   /** one button click, checked against channel presence before it may resolve anything (§3.7) */
@@ -117,22 +118,18 @@ export class ApprovalsService {
     return this.cancelWhere({}, reason);
   }
 
-  /**
-   * §8.4 — every approval still parked on a human, oldest first, since the oldest blocks the
-   * deepest queue (§5.2). Who may see one is the caller's rule, not this module's: approvals own
-   * what is pending, never who is entitled to read it.
-   */
-  async listPending(agentUsername?: string): Promise<PendingApproval[]> {
-    const rows = await this.findPending(agentUsername === undefined ? {} : { turn: { agentUsername } });
-    return rows
-      .map((row) => ({
-        actionName: renderApprovalActionName(row.toolNamespace, row.toolName),
-        agentUsername: row.turn.agentUsername,
-        channelId: row.turn.channelId,
-        promptPostId: row.promptPostId,
-        requestedAt: row.createdAt
-      }))
-      .toSorted((left, right) => left.requestedAt.getTime() - right.requestedAt.getTime());
+  /** §8.4 — every approval in the scope still parked on a human, oldest first */
+  async listPending(scope: PendingDecisionScope): Promise<PendingApproval[]> {
+    const rows = await this.findPending(scope);
+    return rows.map((row) => ({
+      actionName: renderApprovalActionName(row.toolNamespace, row.toolName),
+      agentUsername: row.turn.agentUsername,
+      channelId: row.turn.channelId,
+      kind: 'approval',
+      promptPostId: row.promptPostId,
+      requestedAt: row.createdAt,
+      turnId: row.turnId
+    }));
   }
 
   /**
@@ -224,11 +221,8 @@ export class ApprovalsService {
     return true;
   }
 
-  private async cancelWhere(
-    where: { turn?: { channelId: string } },
-    reason: PendingCancellationReason
-  ): Promise<number> {
-    const pending = await this.findPending(where);
+  private async cancelWhere(scope: PendingDecisionScope, reason: PendingCancellationReason): Promise<number> {
+    const pending = await this.findPending(scope);
     let cancelled = 0;
     for (const row of pending) {
       if (await this.applyResolution(row, { kind: 'cancelled', reason })) {
@@ -251,8 +245,16 @@ export class ApprovalsService {
     return claimed.count > 0;
   }
 
-  private async findPending(where: { turn?: { agentUsername?: string; channelId?: string } }): Promise<ApprovalRow[]> {
-    return this.approvals.findMany({ include: { turn: true }, where: { ...where, status: 'pending' } });
+  private async findPending(scope: PendingDecisionScope): Promise<ApprovalRow[]> {
+    return this.approvals.findMany({
+      include: { turn: true },
+      orderBy: { createdAt: 'asc' },
+      where: {
+        status: 'pending',
+        turn: { agentUsername: scope.agentUsername, channelId: scope.channelId },
+        turnId: scope.turnId
+      }
+    });
   }
 
   private async loadForDecision(

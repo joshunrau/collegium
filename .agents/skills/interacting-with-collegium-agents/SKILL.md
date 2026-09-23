@@ -43,8 +43,8 @@ turn reads everything that queued, so a second nudge adds nothing to the first. 
 again, run `/collegium queue {agent}` (see [Inspect a turn](#inspect-a-turn)). It says whether a
 turn is running for the agent in this channel, since when, and which post started it, then what
 waits. Nudge only when it reports no turn running. A `⏳ _working…_` status post from the agent means
-a turn is running, and 👀 on your last post means it is queued; either one answers without the
-command.
+a turn is running, a `🔐` or `❓` _waiting…_ one means it is parked on a person, and 👀 on your last
+post means it is queued; each answers without the command.
 
 Make each instruction complete by itself when the agent has no recent history of the task. The
 agent sees a bounded window of recent posts, newest first. It does not see the whole channel.
@@ -53,9 +53,10 @@ agent sees a bounded window of recent posts, newest first. It does not see the w
 
 One turn writes three kinds of post. Confusing them wastes the most time.
 
-- A **status post** carries a marker. `⏳ _working…_` means the turn runs. The framework **edits
-  this same post** as the turn proceeds. A terminal marker replaces it: `✅ _done_`, or a
-  `⚠️ _stopped — …_` line that names the failure.
+- A **status post** carries a marker. `⏳ _working…_` means the turn runs;
+  `🔐 _waiting on a decision since 14:05 EDT_` or `❓ _waiting on an answer since …_` means it is
+  parked on a prompt. The framework **edits this same post** as the turn proceeds. A terminal
+  marker replaces it: `✅ _done_`, or a `⚠️ _stopped — …_` line that names the failure.
 - The **reply** is a separate post with no marker. This is the agent's message to you.
 - A **prompt** is a separate post that parks the turn on a human: `🔐 **Approval required**` for a
   gated call, `❓ **Answer needed**` for `ask::human`. It carries buttons.
@@ -66,20 +67,16 @@ the edit case. The status post lists the tool names only. It is a summary. It is
 
 ## Poll for the three states
 
-A turn is working, parked on a human, or finished. **A parked turn still renders `⏳ _working…_`**:
-the marker set has no waiting state, and the trace simply stops growing. So the marker tells you a
-turn is open, never whether it is open *on you*, and last-update time cannot separate a parked turn
-from a long model call or a hung one. Poll for the park directly, every cycle:
+A turn is working, parked on a human, or finished, and its status post's marker says which:
+`⏳ _working…_`, a `🔐` or `❓` _waiting…_ head, or a terminal marker. A park always follows a tool
+call, so a parked turn always has a status post. To find every park at once, poll:
 
 ```
-/collegium approvals          # every channel you are in, oldest first, with each one's age
+/collegium approvals          # approvals and questions in every channel you are in, oldest first, with each one's age
 ```
 
-One call covers every track — pass an agent name only to narrow it. It lists gated calls. It does
-**not** list an `ask::human` question, which parks the turn just as hard, so also treat any post
-carrying buttons as a park: `props.attachments[].actions` is non-empty while a prompt waits, and the
-framework rewrites the post and clears its attachments the moment someone decides. That test needs
-no bookkeeping on your side and answers both kinds.
+One call covers every track — pass an agent name only to narrow it. `/collegium units {agent}` and
+`/collegium trace` name the same wait for one agent's work or one turn.
 
 Decide a park the same minute you see it. Until someone does, the turn holds the channel lock, the
 agent's queue grows behind it, and the sweep is stopped rather than slow.
@@ -125,9 +122,10 @@ for an outbound message are not the same decision.
 
 ## Pitfalls
 
-**A poll that classifies on the status marker.** It reports a parked turn as working and waits out
-the whole park. Every polling loop you write asks `/collegium approvals` too, and treats a post with
-buttons as a park; see [Poll for the three states](#poll-for-the-three-states).
+**A poll that waits for a terminal marker.** A `🔐` or `❓` _waiting…_ head is not one, and the
+turn ends only after someone decides, so the loop waits out the whole park. Every polling loop you
+write matches the waiting heads or asks `/collegium approvals`; see
+[Poll for the three states](#poll-for-the-three-states).
 
 **A turn that recorded no events.** `/collegium trace` answers "recorded no events" when the model
 provider refused the first request. The post that started the turn can be consumed. Check

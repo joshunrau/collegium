@@ -5,7 +5,7 @@ import { describeTransportReason } from '@/inference/inference.utils.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 import type { TraceMark } from '@/tools/tools.types.ts';
 
-import { OUTCOME_PHRASES, WORKING_LINE } from './status-post.constants.ts';
+import { OUTCOME_PHRASES, PARKED_LINE_STEMS, WORKING_LINE } from './status-post.constants.ts';
 
 import type { ContextExhaustionCause } from '../turns.types.ts';
 
@@ -31,6 +31,11 @@ function renderOutcomeLine(
   const by = abortedBy === undefined ? '' : ` by @${abortedBy}`;
   const elapsed = elapsedMs === undefined ? '' : ` (${formatDuration(elapsedMs)})`;
   return `${OUTCOME_PHRASES[outcome].slice(0, -1)}${by}${elapsed}_`;
+}
+
+/** §8.1 — the head while nothing has ended the turn: at work, or waiting on a person and since when */
+function renderOpenHead(parked: StatusPostPark | undefined): string {
+  return parked === undefined ? WORKING_LINE : `${PARKED_LINE_STEMS[parked.on]}${parked.since}_`;
 }
 
 function sanitizeTraceText(text: string): string {
@@ -80,12 +85,23 @@ export type TraceEntry =
 /** a traced entry with the disposition it ended up with, where that was not plain success (§8.1) */
 export type TraceLine = TraceEntry & { mark?: TraceMark };
 
+/** §8.1 — what a turn is parked on: an approval (§3.7) or a question (§3.7a) */
+export type ParkedOn = keyof typeof PARKED_LINE_STEMS;
+
+/** §8.1 — the wait the head names, and when it began as the operator's clock reads it */
+export type StatusPostPark = {
+  readonly on: ParkedOn;
+  readonly since: string;
+};
+
 export type StatusPostState = {
   /** §7.5 — who issued the stop or kill the outcome records */
   abortedBy?: string;
   /** wall-clock time the turn ran, approval waits included; absent where its end was never observed */
   elapsedMs?: number;
   outcome?: Exclude<TurnStatus, 'running'>;
+  /** absent while the turn works; an outcome, once there is one, is the head whatever this says */
+  parked?: StatusPostPark;
   traceLines: TraceLine[];
   transientText?: string;
 };
@@ -97,7 +113,9 @@ export type StatusPostState = {
  */
 export function renderStatusPost(state: StatusPostState, limitChars = Number.POSITIVE_INFINITY): string {
   const head =
-    state.outcome === undefined ? WORKING_LINE : renderOutcomeLine(state.outcome, state.elapsedMs, state.abortedBy);
+    state.outcome === undefined
+      ? renderOpenHead(state.parked)
+      : renderOutcomeLine(state.outcome, state.elapsedMs, state.abortedBy);
   const groups = groupTraceLines(state.traceLines);
   const transient =
     state.outcome === undefined && state.transientText !== undefined && state.transientText !== ''
@@ -116,8 +134,8 @@ export function renderStatusPost(state: StatusPostState, limitChars = Number.POS
 }
 
 /**
- * §7.3 — the post a dead process left, closed from the next boot: the first line is the working
- * line by construction and the rest is kept as it was.
+ * §7.3 — the post a dead process left, closed from the next boot: the first line is the working or
+ * waiting head by construction and the rest is kept as it was.
  */
 export function renderAbandonedStatusPost(storedText: string): string {
   const [, ...rest] = storedText.split('\n');

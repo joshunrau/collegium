@@ -1,15 +1,18 @@
 import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
+import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { renderTaskRefusal } from '@/tasks/tasks.utils.ts';
 
 import { renderUsage } from '../commands.definitions.ts';
 import { CommandHandler } from '../commands.handler.ts';
 import { requireAgentName } from './argument.utils.ts';
-import { renderUnitsListing } from './units.utils.ts';
+import { listUnitParties, renderUnitsListing } from './units.utils.ts';
 
 import type { CommandInput, CommandResponse } from '../commands.types.ts';
+import type { ParkedDecision } from './approvals.utils.ts';
 
 /** §8.4 — the human lever on delegated work: see it, and cancel a unit whose creator will never reach it (§3.15) */
 @Injectable()
@@ -18,6 +21,8 @@ export class UnitsHandler extends CommandHandler {
 
   constructor(
     private readonly agentRegistry: AgentRegistry,
+    private readonly dateFormatter: DateFormatter,
+    private readonly pendingDecisionsService: PendingDecisionsService,
     private readonly tasksService: TasksService
   ) {
     super();
@@ -51,9 +56,14 @@ export class UnitsHandler extends CommandHandler {
       return { audience: 'invoker', text: renderUsage(this.trigger) };
     }
     const units = await this.tasksService.listOpenFor({ agentUsername, channelId: input.channelId });
-    if (units.length === 0) {
-      return { audience: 'invoker', text: `${agentUsername} has no open work in this channel.` };
-    }
-    return { audience: 'invoker', text: renderUnitsListing(agentUsername, units, new Date()) };
+    const parked = await this.readParkedParties(listUnitParties(agentUsername, units), input.channelId);
+    return { audience: 'invoker', text: renderUnitsListing(agentUsername, units, parked, new Date()) };
+  }
+
+  private async readParkedParties(parties: ReadonlySet<string>, channelId: string): Promise<ParkedDecision[]> {
+    const pending = await this.pendingDecisionsService.listPending({ channelId });
+    return pending
+      .filter((decision) => parties.has(decision.agentUsername))
+      .map((decision) => ({ decision, since: this.dateFormatter.format(decision.requestedAt) }));
   }
 }

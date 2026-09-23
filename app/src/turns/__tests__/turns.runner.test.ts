@@ -93,7 +93,15 @@ describe('TurnRunner', () => {
   let multiMentionPolicy: MockedInstance<MultiMentionPolicy>;
   let releaseHeldActivation: Mock<(held: HeldActivation) => void>;
   let sends: { channelId: string; text: string }[];
-  let statusHandle: { appendTrace: any; close: any; markTrace: any; setTransient: any; surface: any };
+  let statusHandle: {
+    appendTrace: any;
+    close: any;
+    markTrace: any;
+    park: any;
+    setTransient: any;
+    surface: any;
+    unpark: any;
+  };
   let tasksService: MockedInstance<TasksService>;
   let toolExecutor: MockedInstance<ToolExecutor>;
   let toolRegistry: MockedInstance<ToolRegistry>;
@@ -122,8 +130,10 @@ describe('TurnRunner', () => {
       appendTrace: vi.fn().mockReturnValue(0),
       close: vi.fn().mockResolvedValue(undefined),
       markTrace: vi.fn(),
+      park: vi.fn(),
       setTransient: vi.fn().mockResolvedValue(undefined),
-      surface: vi.fn().mockResolvedValue(true)
+      surface: vi.fn().mockResolvedValue(true),
+      unpark: vi.fn()
     };
     contextAssembler = MockFactory.createMock(ContextAssembler);
     contextAssembler.assemble.mockResolvedValue({
@@ -1387,6 +1397,26 @@ describe('TurnRunner', () => {
       expect(outcome.status).toBe('delivery_failure');
       expect(onPublished).not.toHaveBeenCalled();
     });
+  });
+
+  it('should head the status post with a wait from the prompt’s event until the decision’s (§8.1)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['ask__human'])));
+    toolExecutor.execute.mockImplementationOnce(async ({ appendEvent }) => {
+      await appendEvent({ askId: 'ask-1', callId: 'call-1', kind: 'ask_requested', question: 'which?', toolName: 'q' });
+      expect(statusHandle.park).toHaveBeenCalledExactlyOnceWith('ask-1', 'ask');
+      expect(statusHandle.unpark).not.toHaveBeenCalled();
+      await appendEvent({
+        answerText: 'this',
+        askId: 'ask-1',
+        byUsername: 'casey',
+        callId: 'call-1',
+        kind: 'ask_answered'
+      });
+      expect(statusHandle.unpark).toHaveBeenCalledExactlyOnceWith('ask-1');
+      return { kind: 'continue', output: 'this' };
+    });
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
   });
 
   it('should write a returned disclosure into the turn events, not the status post (§3.6)', async () => {

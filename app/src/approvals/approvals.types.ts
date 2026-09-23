@@ -2,7 +2,11 @@ import type { ApprovalPayloadPresentation } from '@collegium/core/approvals';
 
 import type { TurnEventInput } from '@/turns/turns.types.ts';
 
-import type { PendingCancellationReason, PendingDecisionFailure } from './decisions/decisions.types.ts';
+import type {
+  PendingCancellationReason,
+  PendingDecision,
+  PendingDecisionFailure
+} from './decisions/decisions.types.ts';
 
 /**
  * §5.4 — a bare denial terminates the turn; a denial with reason continues it under the same
@@ -25,14 +29,7 @@ export type ApprovalPayloadTooLarge = {
 /** raised while asking for consent, before any decision endpoint exists */
 export type ApprovalFailureRequest = ApprovalPayloadTooLarge | PendingDecisionFailure.PromptUndeliverable;
 
-/** §8.4 — one waiting approval as the listing shows it; the prompt post is where a decision is made */
-export type PendingApproval = {
-  readonly actionName: string;
-  readonly agentUsername: string;
-  readonly channelId: string;
-  readonly promptPostId: null | string;
-  readonly requestedAt: Date;
-};
+export type PendingApproval = Extract<PendingDecision, { kind: 'approval' }>;
 
 /** one button click on the prompt, bound by the controller and decided one layer in */
 export type DecisionInput = {

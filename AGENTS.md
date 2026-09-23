@@ -83,7 +83,7 @@ app/src/
   conversations/  the post store, the channel window, episodes, forget, backfill, and the conversations::search toolset
   core/           shared schema/type primitives
   credentials/    the Mattermost tokens provisioning minted, read by the app and written by nothing else
-  formatting/     display formatting: the shared date formatter (fixed locale, operator timezone)
+  formatting/     display formatting: the shared date and time-of-day formatters (fixed locale, operator timezone)
   halt/           the §7.4 circuit breaker: hourly turn ceiling and the global halt
   health/         liveness
   inference/      model providers, tool calling, transport retry

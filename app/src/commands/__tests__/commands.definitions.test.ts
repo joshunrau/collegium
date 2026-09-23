@@ -22,7 +22,7 @@ describe('describeCommandSurface', () => {
   it('should declare every subcommand with its hint and purpose, in order', () => {
     expect(describeCommandSurface()[0]).toStrictEqual({
       hint: '[agent]',
-      purpose: 'List approvals waiting on a human',
+      purpose: 'List approvals and questions waiting on a human',
       trigger: 'approvals'
     });
   });
@@ -31,7 +31,7 @@ describe('describeCommandSurface', () => {
 describe('renderSurfaceUsage', () => {
   it('should list every subcommand under the bare usage line', () => {
     expect(renderSurfaceUsage()).toContain(
-      'Usage: /collegium {subcommand}\n- /collegium approvals [agent] — List approvals waiting on a human'
+      'Usage: /collegium {subcommand}\n- /collegium approvals [agent] — List approvals and questions waiting on a human'
     );
     expect(renderSurfaceUsage()).toContain('- /collegium resume — Clear a global halt');
   });

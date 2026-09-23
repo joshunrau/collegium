@@ -14,7 +14,7 @@ const SCENARIO = defineScenario({
     {
       expertise: 'End-to-end testing',
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
-      tools: ['memory', 'workspace'],
+      tools: ['ask', 'memory', 'workspace'],
       username: 'mira'
     }
   ],
@@ -142,6 +142,60 @@ describe('Approval resolution', () => {
     expect(fs.readFileSync(path.join(app.workspaceDirFor(agents.mira.username), 'approved.md'), 'utf8')).toBe(content);
     const rewritten = await channels.main.awaitPostUpdate(prompt, { contains: 'Approved' });
     expect(rewritten.id).toBe(prompt.id);
+  });
+
+  it('heads the status post with the wait, lists it, and turns back to working once approved (§8.1, §8.4)', async () => {
+    const { agents, channels, inference } = harness();
+    const marker = `parked-${randomUUID()}`;
+    const reply = `parked-done-${randomUUID()}`;
+    inference.willReply(
+      { agent: 'mira', contains: 'park on me' },
+      toolCallResponse('workspace__write', { content: marker, path: 'parked.md' })
+    );
+    const blocked = inference.willBlock({ agent: 'mira' }, textResponse(reply));
+
+    await channels.main.mention('mira', 'park on me');
+    const prompt = await awaitPrompt(marker);
+    const statusPost = await channels.main.awaitPost({
+      description: 'the status post naming the wait',
+      match: (post) => post.authorId === agents.mira.userId && post.text.startsWith('🔐 _waiting on a decision since ')
+    });
+    await channels.main.runCommand('/collegium approvals');
+    const listing = await channels.main.awaitEphemeral({ contains: prompt.id });
+    expect(listing.message).toContain(`· @${agents.mira.username} · 🔐 \`workspace::write\` ·`);
+
+    await channels.main.clickAction(prompt, 'approve');
+    await blocked.arrived;
+    await channels.main.awaitPostUpdate(statusPost, { contains: '⏳ _working…_' });
+    blocked.release();
+    await channels.main.awaitReplyFrom('mira', { text: reply });
+  });
+
+  it('lists a question beside the approvals and heads the status post with it until answered (§3.7a, §8.1)', async () => {
+    const { agents, channels, inference } = harness();
+    const question = `Which venue, ${randomUUID()}?`;
+    const reply = `answered-${randomUUID()}`;
+    inference.willReply(
+      { agent: 'mira', contains: 'ask me first' },
+      toolCallResponse('ask__human', { options: ['Hall A', 'Hall B'], question })
+    );
+    inference.willReply({ agent: 'mira' }, textResponse(reply));
+
+    await channels.main.mention('mira', 'ask me first');
+    const prompt = await channels.main.awaitPost({
+      description: 'the question prompt',
+      match: (post) => post.text.includes('Answer needed') && post.text.includes(question)
+    });
+    await channels.main.awaitPost({
+      description: 'the status post naming the question',
+      match: (post) => post.authorId === agents.mira.userId && post.text.startsWith('❓ _waiting on an answer since ')
+    });
+    await channels.main.runCommand(`/collegium approvals ${agents.mira.username}`);
+    const listing = await channels.main.awaitEphemeral({ contains: prompt.id });
+    expect(listing.message).toContain(`· @${agents.mira.username} · ❓ \`ask::human\` "${question}" ·`);
+
+    await channels.main.clickAction(prompt, 'option0');
+    await channels.main.awaitReplyFrom('mira', { text: reply });
   });
 
   it('refuses a resolution from a human who is not in the channel (§3.7)', async () => {

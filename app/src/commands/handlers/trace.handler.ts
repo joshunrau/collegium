@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
+import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
 
 import { CommandHandler } from '../commands.handler.ts';
@@ -16,6 +18,8 @@ export class TraceHandler extends CommandHandler {
 
   constructor(
     private readonly conversationsService: ConversationsService,
+    private readonly dateFormatter: DateFormatter,
+    private readonly pendingDecisionsService: PendingDecisionsService,
     private readonly turnsService: TurnsService
   ) {
     super();
@@ -32,6 +36,11 @@ export class TraceHandler extends CommandHandler {
     if (turn?.channelId !== input.channelId) {
       return { audience: 'invoker', text: `No turn authored post ${postId} in this channel.` };
     }
-    return { audience: 'invoker', text: renderTrace(turn, await this.turnsService.listEvents(turn.id)) };
+    const [events, pending] = await Promise.all([
+      this.turnsService.listEvents(turn.id),
+      this.pendingDecisionsService.listPending({ turnId: turn.id })
+    ]);
+    const parked = pending.map((decision) => ({ decision, since: this.dateFormatter.format(decision.requestedAt) }));
+    return { audience: 'invoker', text: renderTrace(turn, events, parked, new Date()) };
   }
 }
