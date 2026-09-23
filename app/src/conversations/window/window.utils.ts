@@ -18,6 +18,7 @@ function answeredCallIdOf(entry: WindowEntry): string | undefined {
     case 'tool_result':
       return payload.callId;
     case 'assistant_message':
+    case 'output_rejected':
     case 'record_written':
     case 'steering_received':
       return undefined;

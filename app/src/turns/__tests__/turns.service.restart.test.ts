@@ -32,6 +32,7 @@ describe('TurnsService abandonment against the store (§7.3)', () => {
 
   const open = async (triggeringPostId?: string) => {
     const opened = await turnsService.open({
+      activationKind: 'addressed',
       agentUsername: 'mira',
       chainLength: 1,
       channelId: 'channel-1',

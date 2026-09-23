@@ -14,7 +14,7 @@ import { restoreObservedPost } from '@/conversations/conversations.utils.ts';
 import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
-import type { TurnStatus } from '@/prisma/prisma.types.ts';
+import type { ActivationKind, TurnStatus } from '@/prisma/prisma.types.ts';
 import { QueueService } from '@/queue/queue.service.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 import { TurnFoldRegistry } from '@/turns/folding/turn-fold.registry.ts';
@@ -23,7 +23,7 @@ import { TurnsService } from '@/turns/turns.service.ts';
 import type { AbandonedTurn, HeldActivation, TurnOpenFailure, TurnOutcome, UnactedTurn } from '@/turns/turns.types.ts';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 
-import { QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
+import { QUEUE_REASONS, QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
 import {
   activatesOnArrival,
   toActivationChainLength,
@@ -32,6 +32,18 @@ import {
   toFoldAuthorUsername
 } from './activation.utils.ts';
 import { DebounceService } from './debounce/debounce.service.ts';
+
+/** the activations that start a turn from the queue rather than from the post that arrived (§5.2) */
+type DrainKind = Extract<ActivationKind, 'drain' | 'handoff' | 'resync' | 'sweep'>;
+
+/** what a turn about to run was activated by and on (§8.3), and the lane it holds */
+type TurnStart = {
+  readonly activationKind: ActivationKind;
+  readonly channelId: string;
+  readonly drainedFromPostId?: string;
+  readonly lock: LockHandle;
+  readonly triggeringPostId: string;
+};
 
 /**
  * §7.1 — the queue drains only into a turn that can plausibly make progress. After a provider
@@ -114,7 +126,12 @@ export class ActivationService {
       lock.release();
       return;
     }
-    await this.runTurn(profile, { channelId, lock, triggeringPostId: posted.value.postId });
+    await this.runTurn(profile, {
+      activationKind: 'trigger',
+      channelId,
+      lock,
+      triggeringPostId: posted.value.postId
+    });
   }
 
   /** the agent stays on the signature — never re-derived from the roster cache (§4.5) */
@@ -125,6 +142,7 @@ export class ActivationService {
     }
     if (this.multiMentionPolicy.refuses(post)) {
       if (inserted) {
+        this.loggingService.log(`refused post ${post.id} in ${post.channelId}: it addresses more than one agent (§4.5)`);
         await this.notificationsService.notify({ channelId: post.channelId, kind: 'multi-mention-refusal' });
       }
       return;
@@ -155,7 +173,7 @@ export class ActivationService {
       return;
     }
     if (this.channelLockService.isBusy(profile.username, post.channelId)) {
-      await this.enqueueBusy(profile, post);
+      await this.enqueueBusy(profile, post, 'busy');
       return;
     }
     this.signalTyping(profile, post.channelId);
@@ -177,7 +195,7 @@ export class ActivationService {
       }
     }
     for (const channelId of queuedChannelIds) {
-      await this.drainQueue(profile, channelId);
+      await this.drainQueue(profile, channelId, 'resync');
     }
   }
 
@@ -228,7 +246,7 @@ export class ActivationService {
         this.loggingService.warn(`dropping a queue entry for unknown agent "${entry.agentUsername}"`);
         continue;
       }
-      void this.drainQueue(profile, entry.channelId);
+      void this.drainQueue(profile, entry.channelId, 'sweep');
     }
     for (const channelId of await this.triggersService.listPendingChannelIds()) {
       await this.flushTriggersIfIdle(channelId);
@@ -250,12 +268,12 @@ export class ActivationService {
   /** during a halt the post is queued rather than lost — it simply starts no turn (§7.4) */
   private activate(profile: AgentProfile, post: ObservedPost): void {
     if (this.haltService.isHalted()) {
-      void this.enqueueBusy(profile, post);
+      void this.enqueueBusy(profile, post, 'halted');
       return;
     }
     const lock = this.channelLockService.acquire(profile.username, post.channelId);
     if (!lock) {
-      void this.enqueueBusy(profile, post);
+      void this.enqueueBusy(profile, post, 'busy');
       return;
     }
     void this.admitAndRun(profile, post, lock);
@@ -276,10 +294,11 @@ export class ActivationService {
     try {
       await this.putBackInQueue(profile.username, channelId, held.postId);
       if (this.channelLockService.isBusy(profile.username, channelId)) {
+        this.logQueued(profile, channelId, held.postId, 'handoff');
         await this.acknowledgeQueued(profile.username, held.postId);
         return;
       }
-      await this.drainQueue(profile, channelId);
+      await this.drainQueue(profile, channelId, 'handoff');
     } catch (error) {
       this.loggingService.error(
         new Error(`failed to start "${profile.username}" in ${channelId} from a held post`, { cause: error })
@@ -291,13 +310,14 @@ export class ActivationService {
   private async admitAndRun(profile: AgentProfile, post: ObservedPost, lock: LockHandle): Promise<void> {
     if (!(await this.haltService.admitTurnStart())) {
       lock.release();
-      await this.enqueueBusy(profile, post);
+      await this.enqueueBusy(profile, post, 'ceiling');
       return;
     }
     // §5.2 — this turn's window already covers whatever a non-progress exit left standing, so it
     // absorbs the row. Leaving it would drain the same window into a second turn once this one ends.
     const standing = await this.queueService.drain(profile.username, post.channelId);
     await this.runTurn(profile, {
+      activationKind: 'addressed',
       channelId: post.channelId,
       drainedFromPostId: standing?.earliestUnprocessedPostId,
       lock,
@@ -342,7 +362,7 @@ export class ActivationService {
    * is checked before the row is drained, so a refusal leaves the pointer untouched rather than
    * deleting and re-inserting it around a window where a later fragment could replace it.
    */
-  private async drainQueue(profile: AgentProfile, channelId: string): Promise<void> {
+  private async drainQueue(profile: AgentProfile, channelId: string, activationKind: DrainKind): Promise<void> {
     if (this.haltService.isHalted()) {
       return;
     }
@@ -374,6 +394,7 @@ export class ActivationService {
       return;
     }
     await this.runTurn(profile, {
+      activationKind,
       channelId,
       drainedFromPostId: entry.earliestUnprocessedPostId,
       lock,
@@ -382,7 +403,11 @@ export class ActivationService {
   }
 
   /** §4.4 — fragments arriving while the agent is busy skip debounce and land in the queue */
-  private async enqueueBusy(profile: AgentProfile, post: ObservedPost): Promise<void> {
+  private async enqueueBusy(
+    profile: AgentProfile,
+    post: ObservedPost,
+    reason: Exclude<keyof typeof QUEUE_REASONS, 'handoff'>
+  ): Promise<void> {
     if (post.authorKind === 'system') {
       this.loggingService.warn(
         `dropped a system bot post addressed to a busy "${profile.username}" — nothing from the system bot is queued (§5.2)`
@@ -390,6 +415,7 @@ export class ActivationService {
       return;
     }
     await this.queueService.enqueue(profile.username, post.channelId, post.id);
+    this.logQueued(profile, post.channelId, post.id, reason);
     await this.acknowledgeQueued(profile.username, post.id);
   }
 
@@ -482,6 +508,16 @@ export class ActivationService {
     }
   }
 
+  /** §8.3 — the activation decision that starts no turn yet, one line each */
+  private logQueued(
+    profile: AgentProfile,
+    channelId: string,
+    postId: string,
+    reason: keyof typeof QUEUE_REASONS
+  ): void {
+    this.loggingService.log(`queued post ${postId} for "${profile.username}" in ${channelId}: ${QUEUE_REASONS[reason]}`);
+  }
+
   /**
    * §4.4 — a fragment that missed the window folds into the turn already answering that human,
    * which has not yet acted on its first completion. The reply is the acknowledgement, so an
@@ -525,7 +561,7 @@ export class ActivationService {
     if (!this.isWorkFor(profile, post)) {
       return false;
     }
-    await this.enqueueBusy(profile, post);
+    await this.enqueueBusy(profile, post, 'resync');
     return true;
   }
 
@@ -538,9 +574,12 @@ export class ActivationService {
    */
   private async refuseChainTurn(
     profile: AgentProfile,
-    input: { channelId: string; drainedFromPostId?: string; lock: LockHandle },
+    input: TurnStart,
     refusal: TurnOpenFailure.ChainFull
   ): Promise<void> {
+    this.loggingService.log(
+      `refused a turn for "${profile.username}" in ${input.channelId} from post ${input.triggeringPostId}: its chain already holds ${refusal.count} of ${refusal.limit} turns (§7.4)`
+    );
     let humanWaiting = false;
     try {
       if (input.drainedFromPostId !== undefined) {
@@ -563,18 +602,16 @@ export class ActivationService {
       limit: refusal.limit
     });
     if (humanWaiting) {
-      await this.drainQueue(profile, input.channelId);
+      await this.drainQueue(profile, input.channelId, 'drain');
     }
   }
 
-  private async runTurn(
-    profile: AgentProfile,
-    input: { channelId: string; drainedFromPostId?: string; lock: LockHandle; triggeringPostId: string }
-  ): Promise<void> {
+  private async runTurn(profile: AgentProfile, input: TurnStart): Promise<void> {
     let ended: TurnOutcome | undefined;
     try {
       const source = await this.conversationsService.findActivationSource(input.triggeringPostId);
       const outcome = await this.turnRunner.run({
+        activationKind: input.activationKind,
         chainLength: toActivationChainLength(source),
         channelId: input.channelId,
         depth: toActivationDepth(source, profile.username),
@@ -614,7 +651,7 @@ export class ActivationService {
       input.lock.release();
     }
     if ((progressed && !consumed) || humanWaiting) {
-      await this.drainQueue(profile, input.channelId);
+      await this.drainQueue(profile, input.channelId, 'drain');
     }
     if (progressed) {
       await this.flushTriggersIfIdle(input.channelId);

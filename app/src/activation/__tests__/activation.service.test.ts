@@ -151,6 +151,7 @@ describe('ActivationService', () => {
     await activationService.onPost(PROFILE, post());
     await settle();
     expect(turnRunner.run).toHaveBeenCalledWith({
+      activationKind: 'addressed',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
@@ -211,6 +212,9 @@ describe('ActivationService', () => {
     expect(reactions).toStrictEqual(['post-1:eyes']);
     expect(debounceService.schedule).not.toHaveBeenCalled();
     expect(turnRunner.run).not.toHaveBeenCalled();
+    expect(loggingService.log).toHaveBeenCalledWith(
+      'queued post post-1 for "mira" in channel-1: its turn here holds the lane (§5.1)'
+    );
   });
 
   it('should fold an unaddressed fragment into the turn already answering that human', async () => {
@@ -315,6 +319,7 @@ describe('ActivationService', () => {
     await settle();
     expect(turnRunner.run).toHaveBeenCalledTimes(2);
     expect(turnRunner.run).toHaveBeenLastCalledWith({
+      activationKind: 'drain',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
@@ -470,6 +475,7 @@ describe('ActivationService', () => {
     await settle();
     expect(turnRunner.run).toHaveBeenCalledTimes(1);
     expect(turnRunner.run).toHaveBeenCalledWith({
+      activationKind: 'addressed',
       chainLength: 1,
       channelId: 'channel-1',
       depth: 0,
@@ -580,7 +586,9 @@ describe('ActivationService', () => {
       triggersService.peekPending.mockResolvedValueOnce({ id: 'trigger-1', targetAgentUsername: 'mira' } as never);
       await activationService.flushTriggersIfIdle('channel-1');
       expect(triggersService.post).toHaveBeenCalledWith('trigger-1');
-      expect(turnRunner.run).toHaveBeenCalledWith(expect.objectContaining({ triggeringPostId: 'trigger-post-1' }));
+      expect(turnRunner.run).toHaveBeenCalledWith(
+        expect.objectContaining({ activationKind: 'trigger', triggeringPostId: 'trigger-post-1' })
+      );
     });
 
     it('should hold a trigger while the channel lock is taken', async () => {
@@ -720,6 +728,7 @@ describe('ActivationService', () => {
       expect(turnRunner.run).toHaveBeenCalledTimes(2);
       expect(turnRunner.run).toHaveBeenLastCalledWith(
         expect.objectContaining({
+          activationKind: 'handoff',
           chainLength: 3,
           depth: 0,
           drainedFromPostId: 'post-5',
@@ -798,6 +807,7 @@ describe('ActivationService', () => {
       await settle();
       expect(turnRunner.run).toHaveBeenCalledTimes(1);
       expect(turnRunner.run).toHaveBeenCalledWith({
+        activationKind: 'sweep',
         chainLength: 1,
         channelId: 'channel-1',
         depth: 0,

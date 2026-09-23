@@ -34,7 +34,8 @@ export class InferenceRegistry {
       if (credentials) {
         this.adapters[provider] = new TransportRetrier(
           new OpenAICompatibleClient({ ...credentials, timeoutMs }, provider),
-          retry
+          retry,
+          loggingService
         );
       }
     }

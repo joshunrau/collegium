@@ -442,7 +442,9 @@ For agent-authored output the check happens at post time. The post is rejected a
 
 **The bound is per turn, not per post.** A turn addresses at most one peer, however many posts it emits: a second post naming a different agent present in the channel is refused exactly as a post naming two of them is, since two addressing posts would produce the two concurrent turns this rule exists to prevent. The same peer addressed twice in one turn is one addressee and one activation: the peer starts once the turn ends or parks, with every post the turn addressed to it in view (§5.2).
 
-**Two rejections in a row, then the turn ends** with a deterministic notice under the agent's name. A rejected post spends one action attempt (§5.3). The dedicated count exists because the budget's bound is the wrong one to rely on here: twenty-five rejected posts would reach the extension prompt with a number that says a turn worked hard rather than that it failed the same way repeatedly. A tool call that runs between two rejections resets the count. Every cause shares the one count — the mentions above, a tool call written as prose, output cut at the limit (§7.1), a reply longer than a post, a call naming a tool the agent does not hold (§7.2) — because a model alternating between them is exhibiting one behaviour.
+**A tool call written as prose is rejected the same way, whatever form it takes.** A model copies back the transcript line it read in its history, or its provider fails to structure the call and leaves its own markup in the text — DeepSeek's DSML, stray `invoke` and `parameter` tags, a `<tool_call>` wrapper, a bare call object. Posted, either runs nothing and reads as an action taken. Which markup leaks is the provider's own, so the inference adapter recognises it behind the vendor seam and hands the turn a leaked call rather than text; the rule the turn applies is one rule for every provider. **So is a reply with no prose in it**: no letter or digit in any script outside markup tags, or one line repeated five or more times that makes up most of the reply. Neither is a message anyone meant to send.
+
+**Two rejections in a row, then the turn ends** with a deterministic notice under the agent's name. A rejected post spends one action attempt (§5.3). The dedicated count exists because the budget's bound is the wrong one to rely on here: twenty-five rejected posts would reach the extension prompt with a number that says a turn worked hard rather than that it failed the same way repeatedly. A tool call that runs between two rejections resets the count. Every cause shares the one count — the mentions above, a tool call written as prose, a reply with no prose, output cut at the limit (§7.1), a reply longer than a post, a call naming a tool the agent does not hold (§7.2) — because a model alternating between them is exhibiting one behaviour. The trace keeps every rejected post and the reason it was refused (§8.3).
 
 Agent mentions in transient status text are stripped before posting. Status text never addresses anyone.
 
@@ -726,6 +728,10 @@ _Accepted losses:_ editing a post in the client does not correct what an agent b
 
 The complete tool trace — every call, arguments, and results — is retrievable via `/collegium trace {post-id}`, where the post is named by its id or by its permalink. **The response is ephemeral, visible only to the invoker**, because trace output contains file contents and email bodies verbatim, and everyone in a channel can also approve agents.
 
+**The trace opens with the turn's own record**, because a reader who cannot see why a turn started or what it read misreads what it did. What started it: a post addressing an idle agent, its queue drained as its previous turn here ended, a colleague's turn that addressed it ending or parking (§5.2), a trigger (§4.2), posts a reconnect recovered, or the boot or resume sweep (§7.3) — with the post it answers and the post a drain began from. When it started, how long it ran, and over how many actions. The context it last assembled: when, how far back the window reached, and what the budget charged for it (§3.8). The tokens the provider reported — the prompt with the share its cache served, the completion with its reasoning — and the cost. Each event beneath states its offset from the start. A result carries the mark its status-post line shows (§8.1), and where the model did not read it whole — cut to fit the turn's ceiling, or collapsed to its line once read (§3.8) — says so beside the whole output. A post rejected under §4.5 is kept with the reason it was refused.
+
+**None of it enters the window.** The record lives on the turn's row rather than in its events, because the events are the agent's own trace and replay into its later windows (§3.8); a rejected post is an event the window skips, since the model was told why and answered again.
+
 A trace carrying those payloads runs into the same substrate limit §6.2 does, and takes the same answer: where it exceeds what a single post can carry, it is delivered as an attachment, still ephemeral.
 
 Reading traces is how the tool inventory gets tightened over time.
@@ -734,7 +740,7 @@ Reading traces is how the tool inventory gets tightened over time.
 
 Every command is a subcommand of one slash command, `/collegium`, so typing `/collegium ` offers the whole surface with an argument hint and a line of help per subcommand:
 
-- **`/collegium trace {post-id}`** — full tool trace for a turn; a turn still waiting on a person says on what, since when, and its prompt. Ephemeral.
+- **`/collegium trace {post-id}`** — full tool trace for a turn, headed by what started it, what it read and what it cost (§8.3); a turn still waiting on a person says on what, since when, and its prompt. Ephemeral.
 - **`/collegium forget {post-id}`** — remove a post from agent context. Posts.
 - **`/collegium clear [--memories]`** — delete every post in this channel and every agent's record of them, after a confirmation; `--memories` also deletes the memories their turns here wrote (§8.5). Posts.
 - **`/collegium reset {agent}`** — mark an episode boundary. Posts.

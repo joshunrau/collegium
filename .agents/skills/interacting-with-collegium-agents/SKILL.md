@@ -89,8 +89,12 @@ answer comes back in the API response as ephemeral text. It does not appear in t
 `app/src/commands/commands.definitions.ts` holds the current command list and the arguments of
 each command. Read it rather than a copy here.
 
-`/collegium trace {post-id}` is the only complete record of a turn. It gives the model, the
-outcome, the arguments of every call, and the full result of every call.
+`/collegium trace {post-id}` is the only complete record of a turn. Its head gives the model, the
+outcome, what started the turn (a post addressing the agent, a drain, a colleague's hand-off, a
+trigger, a resync or a sweep) and the posts it answered and drained from, how long it ran, the
+window it read, and its tokens and cost. Beneath it come the arguments of every call and the full
+result of every call, each with its offset from the start, and every reply the framework rejected
+with the reason.
 
 **A trace of a working turn runs 300,000 to 550,000 characters.** Write it to a file. Then read the
 file with a script. A trace read into your context directly costs more than the whole rest of the

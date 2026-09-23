@@ -43,7 +43,7 @@ import {
 } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
-import type { PostKind, TurnStatus } from '@/prisma/prisma.types.ts';
+import type { ActivationKind, PostKind, ResultPresentation, TurnStatus } from '@/prisma/prisma.types.ts';
 import { PostSightingsRegistry } from '@/tasks/sightings/post-sightings.registry.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
@@ -57,9 +57,11 @@ import { renderApprovalContext } from './approval-context/approval-context.rende
 import { ActionBudget } from './budget/action.budget.ts';
 import { renderExtensionDenialResult } from './budget/budget.renderer.ts';
 import { ContextAssembler } from './context/context.assembler.ts';
-import { containsToolCallTranscript, renderAuthoredMessage } from './context/context.utils.ts';
+import { renderAuthoredMessage } from './context/context.utils.ts';
 import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
+import { containsToolCallTranscript, lacksProse } from './guard/reply-guard.utils.ts';
+import { renderTurnClosedLog, renderTurnOpenedLog } from './logging/turn-log.utils.ts';
 import { SUPERSEDABLE_RETENTION_FLOOR } from './retention/retention.constants.ts';
 import { hashResult, retentionBudgetFor } from './retention/retention.utils.ts';
 import {
@@ -102,9 +104,20 @@ type SeenSupersedable = {
 /** §3.8 — what a re-read of a result already collapsed opens with, so the model learns the page did not change without paying to compare */
 const REPEATED_READ_NOTE = '[identical to a result you read earlier this turn; nothing changed]';
 
-/** §7.1 — what a completion cut at the output limit hears; the loop it re-enters is the rejected post's (§4.5) */
-const TRUNCATED_OUTPUT_REJECTION =
-  'output rejected: it was cut off at the output limit before it finished — answer more briefly, or do the work in smaller steps';
+/** §4.5 — a tool call written as prose, whether a transcript the model copied or its provider's own markup */
+const TOOL_CALL_AS_TEXT_REJECTION = 'post rejected: a tool call written as text runs nothing — invoke the tool instead';
+
+/**
+ * What a completion that never reached the post-time checks hears: cut at the output limit (§7.1),
+ * or a call the provider left in the text. The loop either re-enters is the rejected post's (§4.5).
+ */
+const UNPOSTABLE_COMPLETION_REJECTIONS: {
+  readonly [K in Exclude<CompletionResult['kind'], 'text' | 'tool-use'>]: string;
+} = {
+  'leaked-call': TOOL_CALL_AS_TEXT_REJECTION,
+  truncated:
+    'output rejected: it was cut off at the output limit before it finished — answer more briefly, or do the work in smaller steps'
+};
 
 /** §4.5 — rejections in a row a turn survives; the budget bounds the loop too, but with a number that says nothing about why */
 const CONSECUTIVE_REJECTION_LIMIT = 2;
@@ -135,6 +148,8 @@ type TurnLimits = {
 };
 
 type RunInput = {
+  /** §8.3 — what started the turn, recorded on its row */
+  activationKind: ActivationKind;
   chainLength: number;
   channelId: string;
   depth: number;
@@ -231,6 +246,8 @@ type TurnState = {
   recordedResults: number;
   /** §3.7 — resolved at turn setup and again at every fold (§4.4), and quoted on every approval prompt the turn raises */
   requestedBy: TurnRequest | undefined;
+  /** §3.8 — each recorded result's event, by the index of the message carrying it, where relief later says how the model read it (§8.3) */
+  readonly resultEventIds: Map<number, string>;
   /** §3.8 — the content of every supersedable result this turn produced, by hash, and the copy last pushed verbatim */
   readonly seenSupersedable: Map<string, SeenSupersedable>;
   readonly status: StatusPostHandle;
@@ -305,10 +322,12 @@ export class TurnRunner {
   async run(input: RunInput): Promise<Result<TurnOutcome, TurnOpenFailure>> {
     const { channelId, profile } = input;
     const opened = await this.turnsService.open({
+      activationKind: input.activationKind,
       agentUsername: profile.username,
       chainLength: input.chainLength,
       channelId,
       depth: input.depth,
+      drainedFromPostId: input.drainedFromPostId,
       modelName: profile.model.name,
       rootPostId: input.rootPostId,
       triggeringPostId: input.triggeringPostId
@@ -317,6 +336,18 @@ export class TurnRunner {
       return opened;
     }
     const turn = opened.value;
+    this.loggingService.log(
+      renderTurnOpenedLog({
+        activationKind: input.activationKind,
+        agentUsername: profile.username,
+        chainLength: input.chainLength,
+        channelId,
+        depth: input.depth,
+        drainedFromPostId: input.drainedFromPostId,
+        triggeringPostId: input.triggeringPostId,
+        turnId: turn.id
+      })
+    );
     const status = this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id });
     const state: TurnState = {
       addressedPeer: undefined,
@@ -342,6 +373,7 @@ export class TurnRunner {
       reasonedDenials: new Map(),
       recordedResults: 0,
       requestedBy: await this.resolveRequester(input.triggeringPostId),
+      resultEventIds: new Map(),
       seenSupersedable: new Map(),
       status,
       supersedable: [],
@@ -605,24 +637,22 @@ export class TurnRunner {
     identified: IdentifiedCall,
     attempt: ToolAttempt.Terminal
   ): Promise<TurnOutcome> {
-    this.markTraceLine(
-      state,
-      identified,
-      match<ToolAttempt.Terminal['status'], TraceMark>(attempt.status)
-        .with('delivery_failure', () => ({ ran: false, text: '⚠️ undelivered' }))
-        .with('denied', () => ({ ran: false, text: '🛑 denied' }))
-        // §8.1 — a call the command or halt cancelled did not run, and must not read as one that did
-        .with('halted', 'killed', 'stopped', () => ({ ran: false, text: '⏹️ cancelled' }))
-        .with('semantic_error', () => ({ ran: true, text: '⚠️ error' }))
-        .with('side_effect_ambiguous', () => ({ ran: true, text: '⚠️ unconfirmed' }))
-        .exhaustive()
-    );
+    const mark = match<ToolAttempt.Terminal['status'], TraceMark>(attempt.status)
+      .with('delivery_failure', () => ({ ran: false, text: '⚠️ undelivered' }))
+      .with('denied', () => ({ ran: false, text: '🛑 denied' }))
+      // §8.1 — a call the command or halt cancelled did not run, and must not read as one that did
+      .with('halted', 'killed', 'stopped', () => ({ ran: false, text: '⏹️ cancelled' }))
+      .with('semantic_error', () => ({ ran: true, text: '⚠️ error' }))
+      .with('side_effect_ambiguous', () => ({ ran: true, text: '⚠️ unconfirmed' }))
+      .exhaustive();
+    this.markTraceLine(state, identified, mark);
     if (attempt.status === 'semantic_error' || attempt.status === 'side_effect_ambiguous') {
       await this.turnsService.appendEvent(state.turn.id, {
         callId: identified.call.id,
         kind: 'tool_result',
         output: attempt.detail,
-        toolName: identified.recordedName
+        toolName: identified.recordedName,
+        traceMark: mark
       });
     }
     return (
@@ -692,13 +722,14 @@ export class TurnRunner {
     return this.close(state, 'completed');
   }
 
-  /** §3.8 — the oldest verbatim page reads as its in-turn line for the rest of the turn; the event keeps the text */
-  private collapseOldestSupersedable(state: TurnState): void {
+  /** §3.8 — the oldest verbatim page reads as its in-turn line for the rest of the turn; the event keeps the text and says so (§8.3) */
+  private async collapseOldestSupersedable(state: TurnState): Promise<void> {
     const stale = state.supersedable.shift()!;
     const message = state.messages[stale.messageIndex]!;
     const collapsed = { ...message, content: renderSupersededLine(stale.subject) };
     state.messages[stale.messageIndex] = collapsed;
     state.promptTokens += estimateMessageTokens(collapsed) - estimateMessageTokens(message);
+    await this.recordPresentation(state, stale.messageIndex, { collapsed: true });
   }
 
   /**
@@ -730,20 +761,25 @@ export class TurnRunner {
   /**
    * The branch with no tool call: the turn's final output when it may post, else fed back as a
    * user message for another try under the budget — this branch carries no tool call for a tool
-   * result to reference (§4.5). Output cut at the provider's limit takes the same loop (§7.1).
+   * result to reference (§4.5). Output cut at the provider's limit (§7.1) and a call the provider
+   * left in the text take the same loop. The trace keeps every rejected output and why (§8.3).
    */
   private async concludeOrRetry(
     input: RunInput,
     state: TurnState,
-    completion: CompletionResult.Text | CompletionResult.Truncated
+    completion: Exclude<CompletionResult, CompletionResult.ToolUse>
   ): Promise<TurnOutcome | undefined> {
-    const truncated = completion.kind === 'truncated';
-    const content = truncated ? completion.content : await this.enforceChainLimits(input, state, completion.content);
-    let rejection = truncated ? TRUNCATED_OUTPUT_REJECTION : await this.rejectionOf(input, state, content);
+    const content =
+      completion.kind === 'text' ? await this.enforceChainLimits(input, state, completion.content) : completion.content;
+    let rejection =
+      completion.kind === 'text'
+        ? await this.rejectionOf(input, state, content)
+        : UNPOSTABLE_COMPLETION_REJECTIONS[completion.kind];
     const reasoning = reasoningOf(completion);
     if (rejection === undefined) {
       return this.closeWithFinalOutput(input, state, content, reasoning);
     }
+    await this.turnsService.appendEvent(state.turn.id, { content, kind: 'output_rejected', reason: rejection });
     // checked before the spend: the rejection that ends the turn buys nothing, so it costs nothing
     if (state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT) {
       return this.closeWithFailureNotice(input, state, 'semantic_error', renderOutputRefusedNotice());
@@ -781,7 +817,7 @@ export class TurnRunner {
    * §3.8 — the newest result cut to what fits beneath the ceiling, marker included, or left alone
    * when what would fit is not worth keeping. Escaping can lengthen a cut, so the cut is remeasured.
    */
-  private cutResultToFit(state: TurnState, index: number, ceiling: number): boolean {
+  private async cutResultToFit(state: TurnState, index: number, ceiling: number): Promise<boolean> {
     const original = state.messages[index]!;
     const rest = state.promptTokens - estimateMessageTokens(original);
     const overhead = estimateMessageTokens({ ...original, content: RESULT_TRUNCATION_MARKER });
@@ -795,6 +831,7 @@ export class TurnRunner {
       if (excess <= 0) {
         state.messages[index] = cut;
         state.promptTokens = rest + estimateMessageTokens(cut);
+        await this.recordPresentation(state, index, { cutToChars: kept });
         return true;
       }
       kept -= excess * CHARS_PER_TOKEN;
@@ -1099,14 +1136,20 @@ export class TurnRunner {
 
   /**
    * §3.8 — the request as assembled is measured whole; everything pushed afterwards adds its own
-   * estimate. The window's posts are what this turn has read, which a close rests on (§3.15).
+   * estimate. The window's posts are what this turn has read, which a close rests on (§3.15), and
+   * the window itself goes on the turn's row for the trace (§8.3).
    */
-  private loadAssembledContext(state: TurnState, assembled: AssembledContext): void {
+  private async loadAssembledContext(state: TurnState, assembled: AssembledContext): Promise<void> {
     state.messages.splice(0, state.messages.length, ...assembled.request.messages);
     state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
     state.contextAssembledAt = assembled.assembledAt;
     state.windowPostIds = assembled.windowPostIds;
     this.postSightingsRegistry.recordSeen(state.turn.id, assembled.windowPostIds);
+    await this.turnsService.recordAssembledWindow(state.turn.id, {
+      assembledAt: assembled.assembledAt,
+      estimatedTokens: assembled.windowEstimatedTokens,
+      oldestAt: assembled.reachesBackTo
+    });
   }
 
   /** §8.1 — the line was written at admission; the call's disposition is known only now */
@@ -1233,34 +1276,34 @@ export class TurnRunner {
       return published.outcome;
     }
     const result = published?.kind === 'refused' ? { kind: 'continue' as const, output: published.output } : attempt;
-    await this.turnsService.appendEvent(state.turn.id, {
+    const mark =
+      published?.kind === 'refused'
+        ? { ran: true, text: '⚠️ post refused' }
+        : (attempt.traceMark ?? toOutcomeTraceMark(attempt.traceOutcome));
+    const eventId = await this.turnsService.appendEvent(state.turn.id, {
       callId: identified.call.id,
       kind: 'tool_result',
       output: result.output,
       toolName: identified.recordedName,
       ...(result.replay !== undefined && { replay: result.replay }),
-      ...(result.replaySubject !== undefined && { replaySubject: result.replaySubject })
+      ...(result.replaySubject !== undefined && { replaySubject: result.replaySubject }),
+      ...(mark !== undefined && { traceMark: mark })
     });
     if (this.toolRegistry.isSupersedable(input.profile, identified.call.name)) {
-      this.recordSupersedableResult(input, state, identified, result);
+      await this.recordSupersedableResult(input, state, identified, result);
     } else {
       this.pushMessage(state, { content: result.output, role: 'tool', toolCallId: identified.call.id });
     }
+    state.resultEventIds.set(state.messages.length - 1, eventId);
     state.recordedResults += 1;
-    this.markTraceLine(
-      state,
-      identified,
-      published?.kind === 'refused'
-        ? { ran: true, text: '⚠️ post refused' }
-        : (attempt.traceMark ?? toOutcomeTraceMark(attempt.traceOutcome))
-    );
+    this.markTraceLine(state, identified, mark);
     if (published?.kind === 'published' && attempt.post) {
       await attempt.post.onPublished(published.postId);
     }
     if (result.disclosure) {
       await this.discloseRecord(state, result.disclosure);
     }
-    if (this.relieveContextPressure(input, state) === 'exhausted') {
+    if ((await this.relieveContextPressure(input, state)) === 'exhausted') {
       return this.closeWithFailureNotice(
         input,
         state,
@@ -1269,6 +1312,18 @@ export class TurnRunner {
       );
     }
     return undefined;
+  }
+
+  /** §8.3 — how the model came to read a result, on the result's own event; a message carrying no recorded result has none */
+  private async recordPresentation(
+    state: TurnState,
+    messageIndex: number,
+    presentation: ResultPresentation
+  ): Promise<void> {
+    const eventId = state.resultEventIds.get(messageIndex);
+    if (eventId !== undefined) {
+      await this.turnsService.recordPresentation(eventId, presentation);
+    }
   }
 
   /**
@@ -1280,12 +1335,12 @@ export class TurnRunner {
    * count produced. Only the backstop in `relieveContextPressure` bounds a re-read, and a later fresh
    * read collapses it like any other.
    */
-  private recordSupersedableResult(
+  private async recordSupersedableResult(
     input: RunInput,
     state: TurnState,
     identified: IdentifiedCall,
     result: ToolAttempt.Continue
-  ): void {
+  ): Promise<void> {
     const subject = result.replaySubject ?? describeReplaySubject(`${identified.displayName} result`, result.output);
     const contentHash = hashResult(result.contentIdentity ?? result.output);
     const outputHash = hashResult(result.output);
@@ -1309,7 +1364,7 @@ export class TurnRunner {
     state.seenSupersedable.set(contentHash, { messageIndex, outputHash, subject });
     state.supersedable.push({ messageIndex, subject });
     if (earlier === undefined) {
-      this.retireSupersedablePastShare(input, state);
+      await this.retireSupersedablePastShare(input, state);
     }
   }
 
@@ -1344,7 +1399,10 @@ export class TurnRunner {
       return `post rejected: this turn has already addressed @${state.addressedPeer}`;
     }
     if (containsToolCallTranscript(content)) {
-      return 'post rejected: a tool call written as text runs nothing — invoke the tool instead';
+      return TOOL_CALL_AS_TEXT_REJECTION;
+    }
+    if (lacksProse(content)) {
+      return 'post rejected: the reply has no prose in it — write the message you mean to send';
     }
     const oversize = await this.measureAgainstPostLimit(state, content);
     if (oversize) {
@@ -1367,15 +1425,15 @@ export class TurnRunner {
    * never a result the model has not read; the newest result, if it still does not fit, is cut.
    * Only when even that leaves the turn over its ceiling is it out of room.
    */
-  private relieveContextPressure(input: RunInput, state: TurnState): 'exhausted' | 'relieved' {
+  private async relieveContextPressure(input: RunInput, state: TurnState): Promise<'exhausted' | 'relieved'> {
     const ceiling = input.profile.turnContextCeilingTokens;
     while (state.promptTokens > ceiling && this.hasReadSupersedable(state)) {
-      this.collapseOldestSupersedable(state);
+      await this.collapseOldestSupersedable(state);
     }
     if (state.promptTokens <= ceiling) {
       return 'relieved';
     }
-    return this.cutResultToFit(state, state.messages.length - 1, ceiling) ? 'relieved' : 'exhausted';
+    return (await this.cutResultToFit(state, state.messages.length - 1, ceiling)) ? 'relieved' : 'exhausted';
   }
 
   /**
@@ -1438,7 +1496,7 @@ export class TurnRunner {
   }
 
   /** §3.8 — oldest read first, past the share and never below the floor; measured from the messages themselves, since a cut can shrink one after it was pushed */
-  private retireSupersedablePastShare(input: RunInput, state: TurnState): void {
+  private async retireSupersedablePastShare(input: RunInput, state: TurnState): Promise<void> {
     const budget = retentionBudgetFor(input.profile);
     const verbatimTokens = () => {
       return state.supersedable.reduce(
@@ -1451,7 +1509,7 @@ export class TurnRunner {
       verbatimTokens() > budget &&
       this.hasReadSupersedable(state)
     ) {
-      this.collapseOldestSupersedable(state);
+      await this.collapseOldestSupersedable(state);
     }
   }
 
@@ -1459,7 +1517,7 @@ export class TurnRunner {
   private async runLoop(input: RunInput, state: TurnState): Promise<TurnOutcome> {
     const { channelId, profile } = input;
     let assembled = await this.contextAssembler.assemble({ channelId, profile, turnId: state.turn.id });
-    this.loadAssembledContext(state, assembled);
+    await this.loadAssembledContext(state, assembled);
     if (this.exceedsCeiling(input, state)) {
       return this.closeWithFailureNotice(input, state, 'context_exhausted', renderContextExhaustedNotice('initial'));
     }
@@ -1499,7 +1557,7 @@ export class TurnRunner {
         state.requestedBy = await this.resolveRequester(folded.at(-1));
         state.status.appendTrace({ kind: 'note', text: renderFoldLine() });
         assembled = await this.contextAssembler.assemble({ channelId, profile, turnId: state.turn.id });
-        this.loadAssembledContext(state, assembled);
+        await this.loadAssembledContext(state, assembled);
         if (this.exceedsCeiling(input, state)) {
           return this.closeWithFailureNotice(
             input,
@@ -1592,6 +1650,17 @@ export class TurnRunner {
         actionCount: state.budget.spentCount,
         usage: state.usage
       });
+      this.loggingService.log(
+        renderTurnClosedLog({
+          actionCount: state.budget.spentCount,
+          agentUsername: state.turn.agentUsername,
+          channelId: state.turn.channelId,
+          elapsedMs: Date.now() - state.turn.startedAt.getTime(),
+          status,
+          turnId: state.turn.id,
+          usage: state.usage
+        })
+      );
     } catch (error) {
       this.loggingService.error(new Error(`failed to close turn ${state.turn.id} as ${status}`, { cause: error }));
     }

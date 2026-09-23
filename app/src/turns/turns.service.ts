@@ -6,12 +6,26 @@ import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import type { CompletionUsage } from '@/inference/inference.types.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import { PrismaService } from '@/prisma/prisma.service.ts';
-import type { Model, ModelRow, TransactionClient, TurnStatus } from '@/prisma/prisma.types.ts';
+import type {
+  ActivationKind,
+  Model,
+  ModelRow,
+  ResultPresentation,
+  TransactionClient,
+  TurnStatus
+} from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
 import { sumUsageTotals, toReportedTotal } from './turns.utils.ts';
 
-import type { AbandonedTurns, Turn, TurnEventInput, TurnOpenFailure, UsageReport } from './turns.types.ts';
+import type {
+  AbandonedTurns,
+  AssembledWindowRecord,
+  Turn,
+  TurnEventInput,
+  TurnOpenFailure,
+  UsageReport
+} from './turns.types.ts';
 
 @Injectable()
 export class TurnsService {
@@ -75,9 +89,9 @@ export class TurnsService {
    * Every tool call, result, approval request and decision, and memory write, in order (§8.3).
    * This is the only writer of `TurnEvent`, and it derives the `kind` column from the payload so
    * the two can never disagree. The sequence is gapless per turn; the unique constraint turns a
-   * concurrent append into a retry rather than a gap.
+   * concurrent append into a retry rather than a gap. Returns the event's id.
    */
-  async appendEvent(turnId: string, event: TurnEventInput): Promise<void> {
+  async appendEvent(turnId: string, event: TurnEventInput): Promise<string> {
     for (;;) {
       const last = await this.events.findFirst({
         orderBy: { sequence: 'desc' },
@@ -85,10 +99,11 @@ export class TurnsService {
         where: { turnId }
       });
       try {
-        await this.events.create({
-          data: { kind: event.kind, payload: event, sequence: (last?.sequence ?? -1) + 1, turnId }
+        const created = await this.events.create({
+          data: { kind: event.kind, payload: event, sequence: (last?.sequence ?? -1) + 1, turnId },
+          select: { id: true }
         });
-        return;
+        return created.id;
       } catch (error) {
         if (!isUniqueConstraintViolation(error)) {
           throw error;
@@ -144,7 +159,7 @@ export class TurnsService {
     const turn = { channelId, startedAt: { lt: boundary.eventsAfter } };
     await transaction.turnEvent.deleteMany({ where: { turn } });
     await transaction.turn.updateMany({
-      data: { rootPostId: null, statusPostId: null, triggeringPostId: null },
+      data: { drainedFromPostId: null, rootPostId: null, statusPostId: null, triggeringPostId: null },
       where: turn
     });
   }
@@ -193,10 +208,12 @@ export class TurnsService {
    * limit" true rather than hoped for.
    */
   open(input: {
+    activationKind: ActivationKind;
     agentUsername: string;
     chainLength: number;
     channelId: string;
     depth: number;
+    drainedFromPostId?: string;
     modelName: string;
     rootPostId: string;
     triggeringPostId?: string;
@@ -208,10 +225,12 @@ export class TurnsService {
       }
       const turn = await transaction.turn.create({
         data: {
+          activationKind: input.activationKind,
           agentUsername: input.agentUsername,
           chainLength: input.chainLength,
           channelId: input.channelId,
           depth: input.depth,
+          drainedFromPostId: input.drainedFromPostId,
           modelName: input.modelName,
           rootPostId: input.rootPostId,
           status: 'running',
@@ -219,6 +238,33 @@ export class TurnsService {
         }
       });
       return Result.ok(turn);
+    });
+  }
+
+  /** §8.3 — the window the turn's context was last assembled from; a fold (§4.4) overwrites it */
+  async recordAssembledWindow(turnId: string, window: AssembledWindowRecord): Promise<void> {
+    await this.turns.update({
+      data: {
+        contextAssembledAt: window.assembledAt,
+        windowEstimatedTokens: window.estimatedTokens,
+        windowOldestAt: window.oldestAt ?? null
+      },
+      where: { id: turnId }
+    });
+  }
+
+  /**
+   * §3.8 — how the model came to read a result it did not read whole, merged into what the event
+   * already records: a cut result can later collapse. The output itself is never rewritten.
+   */
+  async recordPresentation(eventId: string, presentation: ResultPresentation): Promise<void> {
+    const { payload } = await this.events.findUniqueOrThrow({ select: { payload: true }, where: { id: eventId } });
+    if (payload.kind !== 'tool_result') {
+      throw new Error(`event ${eventId} records a ${payload.kind}, which has no presentation`);
+    }
+    await this.events.update({
+      data: { payload: { ...payload, presentedAs: { ...payload.presentedAs, ...presentation } } },
+      where: { id: eventId }
     });
   }
 

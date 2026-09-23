@@ -92,7 +92,7 @@ describe('TurnsService', () => {
                 throw new Prisma.PrismaClientKnownRequestError('unique', { clientVersion: '0', code: 'P2002' });
               }
               events.push(data);
-              return Promise.resolve(data);
+              return Promise.resolve({ id: `event-${data.turnId}-${data.sequence}` });
             },
             findFirst: ({ where }: any) => {
               const [last] = events
@@ -117,6 +117,7 @@ describe('TurnsService', () => {
 
   const open = async (rootPostId = `post-${sequence}`) => {
     const opened = await turnsService.open({
+      activationKind: 'addressed',
       agentUsername: 'mira',
       chainLength: 1,
       channelId: 'channel-1',
@@ -140,6 +141,7 @@ describe('TurnsService', () => {
     await open('post-a');
     await open('post-a');
     const refused = await turnsService.open({
+      activationKind: 'addressed',
       agentUsername: 'mira',
       chainLength: 3,
       channelId: 'channel-1',
@@ -161,7 +163,9 @@ describe('TurnsService', () => {
       output: 'ok',
       toolName: 'load_skill'
     });
-    await turnsService.appendEvent(second.id, { content: 'hi', kind: 'assistant_message', toolCalls: [] });
+    await expect(
+      turnsService.appendEvent(second.id, { content: 'hi', kind: 'assistant_message', toolCalls: [] })
+    ).resolves.toBe(`event-${second.id}-0`);
     expect(events.map(({ kind, sequence: n, turnId }) => [turnId, n, kind])).toStrictEqual([
       [first.id, 0, 'assistant_message'],
       [first.id, 1, 'tool_result'],

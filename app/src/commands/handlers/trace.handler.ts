@@ -40,7 +40,8 @@ export class TraceHandler extends CommandHandler {
       this.turnsService.listEvents(turn.id),
       this.pendingDecisionsService.listPending({ turnId: turn.id })
     ]);
-    const parked = pending.map((decision) => ({ decision, since: this.dateFormatter.format(decision.requestedAt) }));
-    return { audience: 'invoker', text: renderTrace(turn, events, parked, new Date()) };
+    const formatDate = (date: Date) => this.dateFormatter.format(date);
+    const parked = pending.map((decision) => ({ decision, since: formatDate(decision.requestedAt) }));
+    return { audience: 'invoker', text: renderTrace({ events, formatDate, now: new Date(), parked, turn }) };
   }
 }

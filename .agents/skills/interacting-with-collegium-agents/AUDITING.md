@@ -13,8 +13,9 @@ identifier, a citation.
 **1. Write the trace to a file.** Never hold it in context. One trace reaches 550,000 characters.
 
 **2. Split the trace into what the agent wrote and what the agent read.** A line that holds
-``called `toolset::tool` with`` is the agent's own output. Every other line is a result, a page, or
-framework text. The second group is the haystack.
+``called `toolset::tool` with`` is the agent's own output, and so is a line that holds
+`rejected output (`. Every other line is a result, a page, or framework text. The second group is
+the haystack.
 
 **3. Extract each written value by brace matching, not by a regular expression.** A pattern such as
 `\{.*?\}` stops at the first closing brace. It undercounts calls and it gives no warning. Find the

@@ -13,18 +13,37 @@ import type { Turn } from '@/turns/turns.types.ts';
 
 import { TraceHandler } from '../trace.handler.ts';
 
-const TURN = {
+const TURN: Turn = {
+  actionCount: 1,
+  activationKind: 'addressed',
   agentUsername: 'mira',
+  cachedPromptTokens: null,
   chainLength: 1,
   channelId: 'channel-1',
+  completionTokens: null,
+  contextAssembledAt: null,
+  costUsd: null,
   depth: 0,
+  drainedFromPostId: null,
+  endedAt: new Date('2026-01-01T00:00:09.000Z'),
   id: 'turn-1',
   modelName: 'deepseek-v4-flash',
-  status: 'completed'
-} as Turn;
+  promptTokens: null,
+  reasoningTokens: null,
+  rootPostId: 'post-1',
+  startedAt: new Date('2026-01-01T00:00:00.000Z'),
+  status: 'completed',
+  statusPostId: null,
+  triggeringPostId: 'post-1',
+  windowEstimatedTokens: null,
+  windowOldestAt: null
+};
+
+const at = (seconds: number) => new Date(TURN.startedAt.getTime() + seconds * 1000);
 
 const EVENTS = [
   {
+    createdAt: at(2),
     payload: {
       args: { path: 'a.md' },
       callId: 'c1',
@@ -33,8 +52,8 @@ const EVENTS = [
       toolCalls: [{ args: { path: 'a.md' }, callId: 'c1', toolName: 'write_file' }]
     }
   },
-  { payload: { callId: 'c1', kind: 'tool_result', output: 'wrote 5 bytes', toolName: 'write_file' } },
-  { payload: { content: 'done', kind: 'assistant_message', toolCalls: [] } }
+  { createdAt: at(3), payload: { callId: 'c1', kind: 'tool_result', output: 'wrote 5 bytes', toolName: 'write_file' } },
+  { createdAt: at(8), payload: { content: 'done', kind: 'assistant_message', toolCalls: [] } }
 ];
 
 describe('TraceHandler', () => {
@@ -72,9 +91,10 @@ describe('TraceHandler', () => {
     });
     expect(response.audience).toBe('invoker');
     expect(response.text).toContain('Trace for turn turn-1 (mira on deepseek-v4-flash, completed, depth 0, chain 1):');
-    expect(response.text).toContain('1. called `write_file` with {"path":"a.md"}');
-    expect(response.text).toContain('2. `write_file` → wrote 5 bytes');
-    expect(response.text).toContain('3. assistant: done');
+    expect(response.text).toContain('Started: January 1, 2026 at 12:00:00 AM UTC, by addressed');
+    expect(response.text).toContain('1. [+2s] called `write_file` with {"path":"a.md"}');
+    expect(response.text).toContain('2. [+3s] `write_file` → wrote 5 bytes');
+    expect(response.text).toContain('3. [+8s] assistant: done');
     expect(pendingDecisionsService.listPending).toHaveBeenCalledWith({ turnId: 'turn-1' });
   });
 

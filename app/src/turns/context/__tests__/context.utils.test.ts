@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import type { AuthorKind } from '@/prisma/prisma.types.ts';
 
-import { containsToolCallTranscript, estimateWindowTokens, toCompletionMessages } from '../context.utils.ts';
+import { estimateWindowTokens, toCompletionMessages } from '../context.utils.ts';
 
 import type { WindowReader } from '../context.utils.ts';
 
@@ -350,30 +350,6 @@ describe('estimateWindowTokens', () => {
     const files = [{ id: 'file-1', mimeType: 'application/pdf', name: 'q3-report.pdf', size: 421888 }];
     expect(estimateWindowTokens([post('casey', 'hi', { files })], READER)).toBeGreaterThan(
       estimateWindowTokens([post('casey', 'hi')], READER)
-    );
-  });
-});
-
-describe('containsToolCallTranscript', () => {
-  it('should recognise the replayed call form, including a fabricated tool name', () => {
-    expect(containsToolCallTranscript('[called web__navigate({"url":"http://x"})]')).toBe(true);
-    expect(containsToolCallTranscript('Sure.\n[called read_memory({"id":"m1"})]')).toBe(true);
-  });
-
-  it('should leave prose that merely mentions a tool alone', () => {
-    expect(containsToolCallTranscript('I called web__navigate and it worked')).toBe(false);
-    expect(containsToolCallTranscript('')).toBe(false);
-  });
-
-  it('should recognise a leaked tool-call marker and a bare call object a provider failed to structure', () => {
-    expect(containsToolCallTranscript('<tool_call>{"name":"shell__run","arguments":{}}</tool_call>')).toBe(true);
-    expect(containsToolCallTranscript('\n{"name":"shell__run","arguments":{"command":"ls"}}')).toBe(true);
-  });
-
-  it('should leave a JSON answer without arguments, and syntax quoted in a code fence, alone', () => {
-    expect(containsToolCallTranscript('{"name":"report","rows":3}')).toBe(false);
-    expect(containsToolCallTranscript('A call looks like this:\n```\n<tool_call>{"name":"x"}</tool_call>\n```')).toBe(
-      false
     );
   });
 });

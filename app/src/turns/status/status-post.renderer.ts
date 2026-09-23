@@ -1,5 +1,6 @@
 import { match } from 'ts-pattern';
 
+import { renderDuration } from '@/formatting/durations/duration.utils.ts';
 import type { InferenceFailure } from '@/inference/inference.types.ts';
 import { describeTransportReason } from '@/inference/inference.utils.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
@@ -11,14 +12,6 @@ import type { ContextExhaustionCause } from '../turns.types.ts';
 
 const TRACE_DETAIL_LIMIT_CHARS = 150;
 
-function formatDuration(elapsedMs: number): string {
-  const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));
-  if (totalSeconds < 60) {
-    return `${totalSeconds}s`;
-  }
-  return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
-}
-
 /**
  * §8.1 — the closing line also states how long the turn ran, and who issued the command that ended
  * it (§7.5); every phrase ends in the closing underscore, which the additions go inside.
@@ -29,7 +22,7 @@ function renderOutcomeLine(
   abortedBy: string | undefined
 ): string {
   const by = abortedBy === undefined ? '' : ` by @${abortedBy}`;
-  const elapsed = elapsedMs === undefined ? '' : ` (${formatDuration(elapsedMs)})`;
+  const elapsed = elapsedMs === undefined ? '' : ` (${renderDuration(elapsedMs)})`;
   return `${OUTCOME_PHRASES[outcome].slice(0, -1)}${by}${elapsed}_`;
 }
 
