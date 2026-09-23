@@ -2,6 +2,9 @@ import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ConfigService } from '@/config/config.service.ts';
+import { LoggingService } from '@/logging/logging.service.ts';
+import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 
@@ -9,7 +12,7 @@ import { BrowserClient } from '../browser/browser.client.ts';
 import { BrowserSession } from '../browser/browser.session.ts';
 import { FetchClient } from '../fetch/fetch.client.ts';
 import { PdfTextExtractor } from '../pdf/pdf-text.extractor.ts';
-import { MARKDOWN_CAP_CHARS, MAX_LIVE_SESSIONS } from '../web.constants.ts';
+import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
 import { refuseUnbrowsableUrl } from '../web.policy.ts';
 import { WebService } from '../web.service.ts';
 import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
@@ -61,6 +64,9 @@ const CLIENT_RENDERED_DIRECTORY = `<!doctype html><html><head>
   <script src="/directory.js"></script>
 </body></html>`;
 
+/** a cap below the shipped one, so filling it takes two turns rather than four */
+const MAX_BROWSER_SESSIONS = 2;
+
 const FROM_THE_TOP: PageRead = { kind: 'window', startChar: 0, wholePage: false };
 
 const rendered = (over: Partial<RenderedCapture>): RenderedCapture => ({
@@ -93,6 +99,7 @@ const fetchedPdf = (over: Partial<FetchedPdf> = {}): FetchedPdf => ({
 describe('WebService', () => {
   let browserClient: MockedInstance<BrowserClient>;
   let fetchClient: MockedInstance<FetchClient>;
+  let loggingService: MockedInstance<LoggingService>;
   let pdfTextExtractor: MockedInstance<PdfTextExtractor>;
   let session: MockedInstance<BrowserSession>;
   let webService: WebService;
@@ -102,6 +109,7 @@ describe('WebService', () => {
     policy.resolve.mockResolvedValue(Result.ok({ address: '203.0.113.7', family: 4 }));
     browserClient = MockFactory.createMock(BrowserClient);
     fetchClient = MockFactory.createMock(FetchClient);
+    loggingService = MockFactory.createMock(LoggingService);
     pdfTextExtractor = MockFactory.createMock(PdfTextExtractor);
     session = MockFactory.createMock(BrowserSession);
     browserClient.createSession.mockResolvedValue(Result.ok(session as unknown as BrowserSession));
@@ -110,7 +118,12 @@ describe('WebService', () => {
         WebService,
         { provide: ADDRESS_POLICY_TOKEN, useValue: policy },
         { provide: BrowserClient, useValue: browserClient },
+        {
+          provide: ConfigService,
+          useValue: createConfigServiceMock({ web: { maxBrowserSessions: MAX_BROWSER_SESSIONS } })
+        },
         { provide: FetchClient, useValue: fetchClient },
+        { provide: LoggingService, useValue: loggingService },
         { provide: PdfTextExtractor, useValue: pdfTextExtractor }
       ]
     }).compile();
@@ -179,13 +192,14 @@ describe('WebService', () => {
       expect(result.error).toStrictEqual({ kind: 'navigation', message: 'net::ERR_NAME_NOT_RESOLVED' });
     });
 
-    it('should report busy once every live-session slot belongs to another turn', async () => {
+    it('should report busy once every live-session slot the deployment declares belongs to another turn', async () => {
       session.navigate.mockResolvedValue(Result.ok(rendered({})));
-      for (let index = 0; index < MAX_LIVE_SESSIONS; index++) {
+      for (let index = 0; index < MAX_BROWSER_SESSIONS; index++) {
         await webService.navigate(`turn-${index}`, 'https://northmoor.example/');
       }
       const result = await webService.navigate('turn-overflow', 'https://northmoor.example/');
-      expect(result.error).toStrictEqual({ kind: 'busy' });
+      expect(result.error).toStrictEqual({ kind: 'busy', sessions: MAX_BROWSER_SESSIONS });
+      expect(loggingService.warn).toHaveBeenCalledWith(expect.stringContaining('by turns turn-0, turn-1'));
     });
   });
 
@@ -357,7 +371,7 @@ describe('WebService', () => {
     });
 
     // a tool timeout or /kill ends the turn while the launch is still in flight; the session that
-    // arrives afterwards would otherwise hold one of MAX_LIVE_SESSIONS until restart
+    // arrives afterwards would otherwise hold one of the live-session slots until restart
     it('should dispose a session whose launch outlived the turn that asked for it', async () => {
       let settle!: (created: Result<BrowserSession, WebFailure.Unreachable>) => void;
       browserClient.createSession.mockReturnValue(new Promise((resolve) => (settle = resolve)));

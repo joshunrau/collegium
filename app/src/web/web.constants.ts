@@ -61,13 +61,6 @@ export const DOM_SETTLE_MIN_MS = 750;
  */
 export const DOM_SETTLE_TIMEOUT_MS = 3_000;
 
-/**
- * The ceiling on concurrently live sessions — a memory guard, since each is a Firefox context
- * holding a rendered page. Turns beyond it get the `busy` failure rather than a queue, because a
- * blocked queue inside a turn is a stall the model cannot see.
- */
-export const MAX_LIVE_SESSIONS = 4;
-
 /** the ceiling on one plain fetch — tighter than a navigation, since nothing renders after the bytes arrive */
 export const FETCH_TIMEOUT_MS = 20_000;
 

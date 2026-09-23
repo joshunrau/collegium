@@ -91,9 +91,10 @@ export declare namespace WebFailure {
     status: number;
     url: string;
   };
-  /** every live-session slot is taken by other turns — try again once one ends */
+  /** every live-session slot is held by another turn, and none frees until the turn holding it ends (§3.4) */
   type Busy = {
     kind: 'busy';
+    sessions: number;
   };
   /** the page rendered and produced nothing — the assertion this module exists for */
   type EmptyRender = {

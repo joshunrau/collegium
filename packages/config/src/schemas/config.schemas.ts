@@ -521,6 +521,14 @@ export const $WebConfig = z.strictObject({
     .default(CONFIG_DEFAULTS.web.allowPrivateAddresses)
     .describe(
       'Lifts the refusal of loopback, private-network and link-local addresses for every agent and every request the web toolset makes (§3.4). Only http(s) is still enforced. Meant for a deployment that serves its own test pages; it is logged at boot whenever it is on.'
+    ),
+  maxBrowserSessions: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.web.maxBrowserSessions)
+    .describe(
+      "How many browser sessions may be live at once, across every agent (§3.4). A turn holds one from its first web::navigate until it ends, and each is a browser context holding a rendered page, so this bounds the browser's memory. A turn that would open one past it is refused rather than queued; web::fetch needs no session and still works."
     )
 });
 
@@ -576,5 +584,7 @@ export const $ConfigDeclaration = z.strictObject({
       'Credentials for each model provider an agent may name. A provider a model names must be configured here.'
     ),
   turns: $TurnsConfig.prefault({}).describe('The bounds on a turn and on chains of turns (§5.3, §7.4)'),
-  web: $WebConfig.prefault({}).describe('What the web toolset may reach beyond the public internet (§3.4)')
+  web: $WebConfig
+    .prefault({})
+    .describe('What the web toolset may reach, and how many browser sessions it may hold open at once (§3.4)')
 });

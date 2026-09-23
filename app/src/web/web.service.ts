@@ -1,6 +1,9 @@
 import { Result } from '@collegium/core/utils';
 import { Inject, Injectable } from '@nestjs/common';
 
+import { ConfigService } from '@/config/config.service.ts';
+import { LoggingService } from '@/logging/logging.service.ts';
+
 import { BrowserClient } from './browser/browser.client.ts';
 import { FetchClient } from './fetch/fetch.client.ts';
 import { extractTitle } from './fetch/fetch.utils.ts';
@@ -8,7 +11,6 @@ import { stripPageChrome } from './fetch/page-chrome.utils.ts';
 import { refuseUnreadablePage } from './fetch/readability.utils.ts';
 import { PdfTextExtractor } from './pdf/pdf-text.extractor.ts';
 import { createPdfReadBudget, isWithoutTextLayer, readPdfText } from './pdf/pdf.utils.ts';
-import { MAX_LIVE_SESSIONS } from './web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
 import { capMarkdown, pageToMarkdown, readPage } from './web.utils.ts';
 
@@ -36,6 +38,8 @@ import type {
  */
 @Injectable()
 export class WebService {
+  private readonly maxSessions: number;
+
   /**
    * The slot is the promise, not the session: it is claimed before the browser launches, so a turn
    * ending mid-launch still finds something to dispose (§5.1's lock is not held across a tool call).
@@ -45,9 +49,13 @@ export class WebService {
   constructor(
     @Inject(ADDRESS_POLICY_TOKEN) private readonly addressPolicy: AddressPolicy,
     private readonly browserClient: BrowserClient,
+    configService: ConfigService,
     private readonly fetchClient: FetchClient,
+    private readonly loggingService: LoggingService,
     private readonly pdfTextExtractor: PdfTextExtractor
-  ) {}
+  ) {
+    this.maxSessions = configService.get('web.maxBrowserSessions');
+  }
 
   async click(
     turnId: string,
@@ -173,15 +181,19 @@ export class WebService {
   /**
    * Claiming the slot is synchronous — the map is written before the launch is awaited — which makes
    * the cap a compare-and-swap rather than a check-then-act: concurrent first-navigates in different
-   * turns can no longer all pass a size read that is already stale.
+   * turns can no longer all pass a size read that is already stale. A turn past the cap is refused,
+   * never queued (§3.4).
    */
   private async openSession(turnId: string): Promise<Result<BrowserSession, WebFailure.Busy | WebFailure.Unreachable>> {
     const existing = this.sessions.get(turnId);
     if (existing) {
       return existing;
     }
-    if (this.sessions.size >= MAX_LIVE_SESSIONS) {
-      return Result.err({ kind: 'busy' });
+    if (this.sessions.size >= this.maxSessions) {
+      this.loggingService.warn(
+        `turn ${turnId} was refused a browser session: all ${this.maxSessions} are held, by turns ${[...this.sessions.keys()].join(', ')}`
+      );
+      return Result.err({ kind: 'busy', sessions: this.maxSessions });
     }
     const opening = this.browserClient.createSession();
     this.sessions.set(turnId, opening);

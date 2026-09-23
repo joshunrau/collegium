@@ -119,7 +119,7 @@ describe('$Config', () => {
       plugins: [],
       providers: { deepseek: { baseUrl: 'https://api.deepseek.com' } },
       turns: { actionBudget: 25, chainLengthLimit: 200, delegationDepthLimit: 10, hourlyCeiling: 500 },
-      web: { allowPrivateAddresses: false }
+      web: { allowPrivateAddresses: false, maxBrowserSessions: 4 }
     });
   });
 

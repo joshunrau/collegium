@@ -37,7 +37,8 @@ export const CONFIG_DEFAULTS = {
     hourlyCeiling: 500
   },
   web: {
-    allowPrivateAddresses: false
+    allowPrivateAddresses: false,
+    maxBrowserSessions: 4
   }
 } as const;
 

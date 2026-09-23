@@ -308,6 +308,13 @@ describe('renderWebFailure', () => {
   it('should name hover as the way out of a ref CSS hides', () => {
     expect(renderWebFailure({ kind: 'not-visible', ref: 'e12' })).toContain('web::hover');
   });
+
+  it('should say a busy browser frees only when a holding turn ends, and that fetch still works (§3.4)', () => {
+    expect(renderWebFailure({ kind: 'busy', sessions: 4 })).toBe(
+      'all 4 browser sessions this deployment allows are held by other turns, and one frees only when the turn ' +
+        'holding it ends. web::fetch needs no session and still works'
+    );
+  });
 });
 
 describe('describeWebFailureOutcome', () => {

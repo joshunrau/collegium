@@ -362,7 +362,13 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
         'read without a browser. web::navigate may get through, though some sites refuse a browser too'
       );
     })
-    .with({ kind: 'busy' }, () => 'the browser is at its concurrent-session limit; try again shortly')
+    .with({ kind: 'busy' }, ({ sessions }) => {
+      const held =
+        sessions === 1
+          ? 'the one browser session this deployment allows is held by another turn, and it frees only when that turn ends'
+          : `all ${sessions} browser sessions this deployment allows are held by other turns, and one frees only when the turn holding it ends`;
+      return `${held}. web::fetch needs no session and still works`;
+    })
     .with({ kind: 'empty-render' }, ({ status, url }) => {
       const rendered = `the page at ${url} answered HTTP ${status} and rendered no readable content`;
       return GONE_STATUSES.has(status) ? `${rendered}. ${BUILT_URL_CAVEAT}` : rendered;
