@@ -82,9 +82,9 @@ describe('ClearingService', () => {
     transportRegistry.get.mockReturnValue(transport);
     windowService = MockFactory.createMock(WindowService);
     const agentRegistry = MockFactory.createMock(AgentRegistry);
-    agentRegistry.displayNameOf.mockImplementation((username) =>
-      username.replace(/^./u, (first) => first.toUpperCase())
-    );
+    agentRegistry.displayNameOf.mockImplementation((username) => {
+      return username.replace(/^./u, (first) => first.toUpperCase());
+    });
     const moduleRef = await Test.createTestingModule({
       providers: [
         ClearingService,

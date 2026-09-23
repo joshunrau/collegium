@@ -170,8 +170,9 @@ describe('/collegium stop', () => {
     await channels.main.runCommand('/collegium stop');
     await channels.main.awaitPost({
       description: 'the stop acknowledgement',
-      match: (post) =>
-        post.text.includes(`Stopped ${defaultDisplayNameOf(agents.mira.username)} before any further tool call`)
+      match: (post) => {
+        return post.text.includes(`Stopped ${defaultDisplayNameOf(agents.mira.username)} before any further tool call`);
+      }
     });
 
     blocked.release();

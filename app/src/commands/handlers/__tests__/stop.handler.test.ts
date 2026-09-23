@@ -22,9 +22,9 @@ describe('StopHandler', () => {
     turnControlRegistry = MockFactory.createMock(TurnControlRegistry);
     turnControlRegistry.abortChannel.mockReturnValue(['mira', 'tess']);
     const agentRegistry = MockFactory.createMock(AgentRegistry);
-    agentRegistry.displayNameOf.mockImplementation((username) =>
-      username.replace(/^./u, (first) => first.toUpperCase())
-    );
+    agentRegistry.displayNameOf.mockImplementation((username) => {
+      return username.replace(/^./u, (first) => first.toUpperCase());
+    });
     const moduleRef = await Test.createTestingModule({
       providers: [
         KillHandler,

@@ -314,10 +314,11 @@ describe('RuntimeService', () => {
     const post = createObservedPost();
     let finishBoot!: () => void;
     bootService.run.mockReturnValue(
-      new Promise(
-        (resolve) =>
-          (finishBoot = () => resolve({ abandonedTurns: 0, downtime: undefined, requeuedTurns: 0, strandedUnits: [] }))
-      )
+      new Promise((resolve) => {
+        finishBoot = () => {
+          resolve({ abandonedTurns: 0, downtime: undefined, requeuedTurns: 0, strandedUnits: [] });
+        };
+      })
     );
     const runtimeService = await compile();
     const booting = runtimeService.onApplicationBootstrap();

@@ -44,9 +44,9 @@ describe('TasksService', () => {
     });
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.get.mockImplementation((username) => [MIRA, OWEN, OMAR].find((agent) => agent.username === username));
-    agentRegistry.displayNameOf.mockImplementation((username) =>
-      username.replace(/^./u, (first) => first.toUpperCase())
-    );
+    agentRegistry.displayNameOf.mockImplementation((username) => {
+      return username.replace(/^./u, (first) => first.toUpperCase());
+    });
     const rosterService = MockFactory.createMock(RosterService);
     rosterService.listAgentsIn.mockImplementation((channelId) => {
       return channelId === 'channel-1' ? [MIRA, OWEN, OMAR] : [MIRA];
