@@ -15,6 +15,7 @@ const SCENARIO = defineScenario({
       expertise: 'End-to-end testing',
       systemPrompt: 'You are Mira. Reply clearly and briefly.',
       tools: ['tasks', 'workspace'],
+      toolSettings: (botUsernameOf) => ({ tasks: { assignees: [botUsernameOf('owen')] } }),
       username: 'mira'
     },
     {
@@ -22,6 +23,12 @@ const SCENARIO = defineScenario({
       systemPrompt: 'You are Owen. Reply clearly and briefly.',
       tools: ['tasks'],
       username: 'owen'
+    },
+    {
+      expertise: 'End-to-end testing',
+      systemPrompt: 'You are Tess. Reply clearly and briefly.',
+      tools: ['tasks'],
+      username: 'tess'
     }
   ],
   channels: [{ name: 'main' }]
@@ -309,6 +316,26 @@ describe('Delegation through a work unit', () => {
     expect(tail).not.toContain(`[${reference}]`);
     owenNext.release();
     await channels.main.awaitReplyFrom('owen', { text: started });
+  });
+
+  it('refuses a hand-off to a colleague outside the declared assignees, naming them, and posts nothing (§3.15)', async () => {
+    const { agents, channels, inference } = harness();
+    const phrase = `sitemap extraction ${randomUUID()}`;
+    const refused = `refused-${randomUUID()}`;
+    inference.willReply({ agent: 'mira', contains: phrase }, assignTo(agents.tess.username, phrase));
+    inference.willReply({ agent: 'mira' }, textResponse(refused));
+
+    await channels.main.mention('mira', `please delegate: ${phrase}`);
+    await channels.main.awaitReplyFrom('mira', { text: refused });
+    const owen = `${defaultDisplayNameOf(agents.owen.username)} (@${agents.owen.username})`;
+    const request = inference.requestsFor('mira').at(-1)!;
+    expect(request.systemPrompt).toContain(`tasks__assign hands a unit only to ${owen}`);
+    expect(request.messages.map((message) => message.content ?? '').join('\n')).toContain(
+      `you hand units only to ${owen}, so ${defaultDisplayNameOf(agents.tess.username)} takes none from you`
+    );
+    const posts = await channels.main.posts();
+    expect(posts.some((post) => post.text.includes(`@${agents.tess.username} — work unit`))).toBe(false);
+    expect(inference.requestsFor('tess')).toHaveLength(0);
   });
 
   it('queues the assignee a restart kept waiting, so the hand-off is answered after boot (§5.2, §7.3)', async () => {

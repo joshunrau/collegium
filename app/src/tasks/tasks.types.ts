@@ -139,6 +139,8 @@ export declare namespace TaskFailure {
     | { kind: 'not-continuable'; reference: string; state: Exclude<WorkUnitState, 'blocked' | 'review'> };
   type AssignRefused =
     | ContinueRefused
+    /** §3.15 — outside the colleagues the creator's settings declare, whom the refusal names */
+    | { assignees: readonly string[]; assigneeUsername: string; kind: 'assignee-undeclared' }
     | { assigneeUsername: string; kind: 'assignee-absent' }
     | { assigneeUsername: string; kind: 'assignee-cannot-report' }
     | { cap: number; kind: 'cap-reached' }

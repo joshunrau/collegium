@@ -13,4 +13,17 @@ describe('renderWorkUnitsPreamble', () => {
       'listed under Open work with their references, oldest first, and that section says so when none is open'
     );
   });
+
+  it('should name the declared assignees only to an agent that assigns (§3.15)', () => {
+    const assignees = [
+      { displayName: 'Owen', username: 'owen' },
+      { displayName: 'Tess', username: 'tess' }
+    ];
+    const declared =
+      'tasks__assign hands a unit only to Owen (@owen) and Tess (@tess), and refuses any other colleague';
+    const assigning = buildStablePromptInput({ assignees, granted: [{ gates: false, id: ['tasks', 'assign'] }] });
+    expect(renderWorkUnitsPreamble(assigning)).toContain(declared);
+    const reporting = buildStablePromptInput({ assignees, granted: [{ gates: false, id: ['tasks', 'report'] }] });
+    expect(renderWorkUnitsPreamble(reporting)).not.toContain('tasks__assign hands');
+  });
 });

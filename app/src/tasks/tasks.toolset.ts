@@ -57,6 +57,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         const wording = wordingFor(context);
         const prepared = await context.tasks.prepareAssign({
           actingAgentUsername: context.turn.agentUsername,
+          assignees: context.settings.assignees,
           assigneeUsername: args.assignee,
           channelId: context.turn.channelId,
           context: args.context,

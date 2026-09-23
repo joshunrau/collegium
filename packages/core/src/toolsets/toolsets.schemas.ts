@@ -94,6 +94,13 @@ export const $WebSearchSettings = z
 export type $TasksSettings = z.infer<typeof $TasksSettings>;
 export const $TasksSettings = z
   .strictObject({
+    assignees: z
+      .array(z.string().min(1))
+      .min(1)
+      .optional()
+      .describe(
+        'The usernames of the colleagues this agent may hand units to, continuations included. An assignment to anyone else is refused before it is posted, and the prompt names these colleagues. Each must be a configured agent other than this one that holds tasks::report, or boot is refused. Absent, any colleague in the channel that can report may take a unit (§3.15).'
+      ),
     openUnitCap: z
       .number()
       .int()
@@ -109,7 +116,7 @@ export const $TasksSettings = z
       .default(20)
       .describe('How many open units the prompt lists before it states a remainder count instead (§3.15).')
   })
-  .describe('The bounds on delegated work (§3.15). Every field has a default, so a bare grant works.');
+  .describe('The bounds on delegated work (§3.15). Every field is optional, so a bare grant works.');
 
 export type $WebSettings = z.infer<typeof $WebSettings>;
 export const $WebSettings = z

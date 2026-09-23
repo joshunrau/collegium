@@ -1,4 +1,4 @@
-import { MEMORY_TOOLSET_DEF } from '@collegium/core/toolsets';
+import { MEMORY_TOOLSET_DEF, TASKS_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
@@ -90,7 +90,9 @@ export class PromptRenderer {
 
   private readStableInput(profile: AgentProfile): StablePromptInput {
     const mailbox = this.mailRegistry.mailboxFor(profile.username);
+    const assignees = this.agentRegistry.settingsFor(TASKS_TOOLSET_DEF, profile.username)?.assignees;
     return {
+      assignees: assignees?.map((username) => ({ displayName: this.agentRegistry.displayNameOf(username), username })),
       budgetExemptCalls: this.toolRegistry.listBudgetExemptFor(profile),
       foldLimit: this.foldLimit,
       granted: this.toolRegistry.listFor(profile),

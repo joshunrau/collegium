@@ -8,7 +8,10 @@ type AgentSpec = Pick<$AgentDeclaration, 'expertise'> & {
   /** the inference stub routes requests by prompt text, so a scenario states its prompt inline (§3.1) */
   systemPrompt: Extract<$AgentDeclaration['systemPrompt'], string>;
   tools?: $AgentDeclaration['tools'];
-  toolSettings?: $AgentDeclaration['toolSettings'];
+  /** a function where a setting names a colleague, whose bot username exists only once the workspace provisions it */
+  toolSettings?:
+    | $AgentDeclaration['toolSettings']
+    | ((botUsernameOf: (agent: string) => string) => $AgentDeclaration['toolSettings']);
   username: string;
 };
 

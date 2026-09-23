@@ -19,6 +19,8 @@ export type TurnPromptInput = {
 
 /** §3.8 — what the sections ahead of the window are written from: the agent, and what the registries and configuration report of it */
 export type StablePromptInput = {
+  /** §3.15 — the colleagues this agent may hand units to, where its tasks settings declare them; they change only with the deployment */
+  readonly assignees: readonly StablePromptColleague[] | undefined;
   readonly budgetExemptCalls: readonly string[];
   /** §4.4 — how often one turn may start over for a further post, stated in the preamble */
   readonly foldLimit: number;
@@ -31,6 +33,12 @@ export type StablePromptInput = {
   readonly skillsManifest: string;
   readonly supersedableCalls: readonly string[];
   readonly textFormatter: TextFormatter;
+};
+
+/** a colleague as prose names it, with the handle a tool argument takes (§3.1) */
+export type StablePromptColleague = {
+  readonly displayName: string;
+  readonly username: string;
 };
 
 export type StablePromptMailbox = {

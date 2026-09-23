@@ -30,6 +30,7 @@ const MIRA = buildAgentProfile({ tools: ['tasks'], username: 'mira' });
 const TESS = buildAgentProfile({ tools: ['tasks'], username: 'tess' });
 
 describe('TasksService', () => {
+  let agentRegistry: MockedInstance<AgentRegistry>;
   let channelLockService: MockedInstance<ChannelLockService>;
   let conversationsService: MockedInstance<ConversationsService>;
   let counterpartStateService: MockedInstance<CounterpartStateService>;
@@ -44,7 +45,7 @@ describe('TasksService', () => {
     units = createModelTable<WorkUnit>({
       defaults: (sequence) => ({ closedAt: null, createdAt: new Date(sequence), updatedAt: new Date(sequence) })
     });
-    const agentRegistry = MockFactory.createMock(AgentRegistry);
+    agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.get.mockImplementation((username) => {
       return [MIRA, OWEN, OMAR, TESS].find((agent) => agent.username === username);
     });
@@ -102,6 +103,7 @@ describe('TasksService', () => {
 
   const prepare = (
     overrides: {
+      assignees?: readonly string[];
       assigneeUsername?: string;
       channelId?: string;
       follows?: string;
@@ -111,6 +113,7 @@ describe('TasksService', () => {
   ) => {
     return tasksService.prepareAssign({
       actingAgentUsername: 'mira',
+      assignees: undefined,
       assigneeUsername: 'owen',
       channelId: 'channel-1',
       context: 'nothing tried yet',
@@ -152,6 +155,27 @@ describe('TasksService', () => {
     expect((await prepare({ assigneeUsername: 'omar' })).error).toMatchObject({ kind: 'assignee-cannot-report' });
     await assign();
     expect((await prepare({ openUnitCap: 1 })).error).toStrictEqual({ cap: 1, kind: 'cap-reached' });
+  });
+
+  it('should refuse a colleague outside the declared assignees before anything else is read, a continuation included (§3.15)', async () => {
+    const refused = { assignees: ['tess'], assigneeUsername: 'owen', kind: 'assignee-undeclared' };
+    expect((await prepare({ assignees: ['tess'] })).error).toStrictEqual(refused);
+    expect((await prepare({ assignees: ['tess'], follows: 'unit-1' })).error).toStrictEqual(refused);
+    expect((await prepare({ assignees: ['owen', 'tess'] })).success).toBe(true);
+  });
+
+  it('should refuse at boot a declared assignee that is the agent itself, no agent, or one that cannot report (§3.15)', () => {
+    agentRegistry.list.mockReturnValue([MIRA]);
+    const declaring = (assignees: string[]) => {
+      agentRegistry.settingsFor.mockReturnValue({ assignees, openUnitCap: 20, shownInPrompt: 20 });
+      return () => tasksService.assertDeclaredAssigneesCanReport();
+    };
+    expect(declaring(['owen', 'tess'])).not.toThrow();
+    expect(declaring(['mira'])).toThrow('an agent does not hand a unit to itself');
+    expect(declaring(['ghost'])).toThrow(
+      'agent "mira" names "ghost" in toolSettings.tasks.assignees, which is not a configured agent'
+    );
+    expect(declaring(['omar'])).toThrow('which holds no tasks::report and so could never report back');
   });
 
   it('should refuse an assignment at the delegation depth limit or the chain-length limit (§7.4)', async () => {

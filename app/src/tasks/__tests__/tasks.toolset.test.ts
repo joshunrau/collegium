@@ -40,7 +40,7 @@ const UNIT = {
 describe('TASKS_TOOLSET', () => {
   const agents = {
     displayNameOf: (username: string) => username.replace(/^./u, (first) => first.toUpperCase()),
-    has: (username: string) => ['mira', 'owen'].includes(username)
+    has: (username: string) => ['mira', 'owen', 'tess'].includes(username)
   };
   const moments = { format: (moment: Date) => `${moment.toISOString().slice(11, 16)} UTC` };
   const tasksService = MockFactory.createMock(TasksService);
@@ -81,6 +81,23 @@ describe('TASKS_TOOLSET', () => {
     tasksService.prepareAssign.mockResolvedValue(Result.err({ assigneeUsername: 'owen', kind: 'assignee-absent' }));
     const result = await executeTool(TASKS_TOOLSET.tools.assign, ASSIGN_ARGS, context);
     expect(result.error).toStrictEqual({ kind: 'invalid-arguments', message: 'Owen is not in this channel' });
+  });
+
+  it('should pass the declared assignees, and name each with its handle when refusing another (§3.15)', async () => {
+    tasksService.prepareAssign.mockResolvedValue(
+      Result.err({ assignees: ['owen'], assigneeUsername: 'tess', kind: 'assignee-undeclared' })
+    );
+    const settings = { ...context.settings, assignees: ['owen'] };
+    const result = await executeTool(
+      TASKS_TOOLSET.tools.assign,
+      { ...ASSIGN_ARGS, assignee: 'tess' },
+      { ...context, settings }
+    );
+    expect(tasksService.prepareAssign).toHaveBeenCalledWith(expect.objectContaining({ assignees: ['owen'] }));
+    expect(result.error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message: 'you hand units only to Owen (@owen), so Tess takes none from you'
+    });
   });
 
   it('should require the outcome, the criteria and the context of a hand-off in the schema (§3.5)', () => {

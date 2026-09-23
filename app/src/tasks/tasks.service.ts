@@ -1,4 +1,5 @@
 import type { WorkUnitView } from '@collegium/core/plugins';
+import { TASKS_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
@@ -46,6 +47,8 @@ import type {
 
 type AssignInput = {
   readonly actingAgentUsername: string;
+  /** the colleagues the creator may hand units to, from its own settings; undefined where it declares none (§3.15) */
+  readonly assignees: readonly string[] | undefined;
   readonly assigneeUsername: string;
   readonly channelId: string;
   readonly context: string;
@@ -103,6 +106,28 @@ export class TasksService {
     const limits = configService.get('turns');
     this.chainLengthLimit = limits.chainLengthLimit;
     this.delegationDepthLimit = limits.delegationDepthLimit;
+  }
+
+  /**
+   * §3.15 — a declared assignee that is the agent itself, no configured agent, or one that could
+   * never report back is a policy that cannot hold, so boot refuses it rather than every assignment
+   */
+  assertDeclaredAssigneesCanReport(): void {
+    for (const { username } of this.agentRegistry.list()) {
+      for (const assignee of this.agentRegistry.settingsFor(TASKS_TOOLSET_DEF, username)?.assignees ?? []) {
+        const declared = `agent "${username}" names "${assignee}" in toolSettings.tasks.assignees`;
+        if (assignee === username) {
+          throw new Error(`${declared}, and an agent does not hand a unit to itself`);
+        }
+        const profile = this.agentRegistry.get(assignee);
+        if (!profile) {
+          throw new Error(`${declared}, which is not a configured agent`);
+        }
+        if (!holdsReportTool(profile.tools)) {
+          throw new Error(`${declared}, which holds no tasks::report and so could never report back`);
+        }
+      }
+    }
   }
 
   /**
@@ -261,15 +286,23 @@ export class TasksService {
   }
 
   /**
-   * Refused, in order: handing to oneself, to a peer absent from the channel (§4.5's inert-text
-   * rule cannot be defeated here), to one that could not report back through a unit, a unit to
-   * follow that cannot be continued, past the creator's cap, and at either §7.4 limit — refused
-   * rather than stripped, since a stripped assignment would announce a hand-off to a peer never
-   * activated (§3.15). The unit a continuation closes does not count against the cap.
+   * Refused, in order: handing to oneself, to a colleague outside the creator's declared set, to a
+   * peer absent from the channel (§4.5's inert-text rule cannot be defeated here), to one that
+   * could not report back through a unit, a unit to follow that cannot be continued, past the
+   * creator's cap, and at either §7.4 limit — refused rather than stripped, since a stripped
+   * assignment would announce a hand-off to a peer never activated (§3.15). The unit a
+   * continuation closes does not count against the cap.
    */
   async prepareAssign(input: AssignInput): Promise<Result<Addressed<PreparedUnit>, TaskFailure.AssignRefused>> {
     if (input.assigneeUsername === input.actingAgentUsername) {
       return Result.err({ kind: 'self-assignment' });
+    }
+    if (input.assignees && !input.assignees.includes(input.assigneeUsername)) {
+      return Result.err({
+        assignees: input.assignees,
+        assigneeUsername: input.assigneeUsername,
+        kind: 'assignee-undeclared'
+      });
     }
     const present = this.rosterService.listAgentsIn(input.channelId);
     if (!present.some((agent) => agent.username === input.assigneeUsername)) {

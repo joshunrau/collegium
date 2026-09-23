@@ -26,6 +26,7 @@ import { SchedulesService } from '@/schedules/schedules.service.ts';
 import { ShellService } from '@/shell/shell.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { StallsService } from '@/stalls/stalls.service.ts';
+import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 
@@ -61,6 +62,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     private readonly shellService: ShellService,
     private readonly skillsService: SkillsService,
     private readonly stallsService: StallsService,
+    private readonly tasksService: TasksService,
     private readonly toolRegistry: ToolRegistry,
     private readonly transportRegistry: TransportRegistry,
     private readonly triggersService: TriggersService
@@ -83,6 +85,8 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
           .map((profile) => [profile.username, this.toolRegistry.listFor(profile).map(({ id }) => id)])
       )
     );
+    // §3.15 — a declared assignee that could never take a unit is refused here, not at every assignment
+    this.tasksService.assertDeclaredAssigneesCanReport();
     await Promise.all(
       this.agentRegistry.list().map((profile) => fs.mkdir(profile.workspaceDir, { mode: 0o700, recursive: true }))
     );

@@ -96,6 +96,14 @@ function waitUntilExited(child: ChildProcessWithoutNullStreams): Promise<void> {
   });
 }
 
+function resolveBotUsername(agents: ReadonlyMap<string, AgentBot>, name: string): string {
+  const bot = agents.get(name);
+  if (!bot) {
+    throw new Error(`a tool setting names agent "${name}", which the scenario does not declare`);
+  }
+  return bot.username;
+}
+
 function buildCollegiumConfig({
   agents,
   channels,
@@ -122,7 +130,10 @@ function buildCollegiumConfig({
             skills: Array.from(agent.skills ?? []),
             systemPrompt: agent.systemPrompt,
             tools: [...(agent.tools ?? [])],
-            toolSettings: { ...agent.toolSettings }
+            toolSettings:
+              typeof agent.toolSettings === 'function'
+                ? agent.toolSettings((name) => resolveBotUsername(agents, name))
+                : { ...agent.toolSettings }
           }
         ];
       })

@@ -31,6 +31,7 @@ import { SchedulesService } from '@/schedules/schedules.service.ts';
 import { ShellService } from '@/shell/shell.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { StallsService } from '@/stalls/stalls.service.ts';
+import { TasksService } from '@/tasks/tasks.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -79,6 +80,7 @@ describe('RuntimeService', () => {
   let schedulesService: MockedInstance<SchedulesService>;
   let shellService: MockedInstance<ShellService>;
   let skillsService: MockedInstance<SkillsService>;
+  let tasksService: MockedInstance<TasksService>;
   let toolRegistry: MockedInstance<ToolRegistry>;
   let transport: MockedInstance<ChatTransport>;
   let transportRegistry: MockedInstance<TransportRegistry>;
@@ -114,6 +116,7 @@ describe('RuntimeService', () => {
         { provide: ShellService, useValue: shellService },
         { provide: SkillsService, useValue: skillsService },
         MockFactory.createForService(StallsService),
+        { provide: TasksService, useValue: tasksService },
         { provide: ToolRegistry, useValue: toolRegistry },
         { provide: TransportRegistry, useValue: transportRegistry },
         { provide: TriggersService, useValue: triggersService }
@@ -174,6 +177,7 @@ describe('RuntimeService', () => {
     shellService = MockFactory.createMock(ShellService);
     shellService.assertProvisioned.mockResolvedValue(undefined);
     skillsService = MockFactory.createMock(SkillsService);
+    tasksService = MockFactory.createMock(TasksService);
     toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['memory', 'write'] }]);
     transportRegistry = MockFactory.createMock(TransportRegistry);
@@ -222,6 +226,15 @@ describe('RuntimeService', () => {
     expect(skillsService.assertGrantedToolsCoverSkills).toHaveBeenCalledExactlyOnceWith(
       new Map([['mira', [['memory', 'write']]]])
     );
+  });
+
+  it('should refuse to boot on a declared assignee that could never take a unit, before any transport connects (§3.15)', async () => {
+    tasksService.assertDeclaredAssigneesCanReport.mockImplementation(() => {
+      throw new Error('agent "mira" names "ghost" in toolSettings.tasks.assignees, which is not a configured agent');
+    });
+    const runtimeService = await compile();
+    await expect(runtimeService.onApplicationBootstrap()).rejects.toThrow('which is not a configured agent');
+    expect(chatGateway.connect).not.toHaveBeenCalled();
   });
 
   it('should reconcile and start the schedule ticker once the roster has (§4.2)', async () => {

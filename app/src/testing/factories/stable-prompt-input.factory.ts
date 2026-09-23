@@ -5,6 +5,7 @@ import { buildAgentProfile } from './agent-profile.factory.ts';
 
 export function buildStablePromptInput(overrides: Partial<StablePromptInput> = {}): StablePromptInput {
   return {
+    assignees: undefined,
     budgetExemptCalls: [],
     foldLimit: 3,
     granted: [],

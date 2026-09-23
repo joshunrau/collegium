@@ -217,6 +217,11 @@ export function renderTaskRefusal(failure: TaskFailure, wording: UnitWording, no
         `${nameOf(assigneeUsername)} holds no tasks tool, so it could not report back through a unit`
     )
     .with(
+      { kind: 'assignee-undeclared' },
+      ({ assignees, assigneeUsername }) =>
+        `you hand units only to ${assignees.map((username) => `${nameOf(username)} (@${username})`).join(', ')}, so ${nameOf(assigneeUsername)} takes none from you`
+    )
+    .with(
       { kind: 'assignee-working' },
       ({ assigneeUsername, reference }) =>
         `unit ${reference} is still being worked on: the turn ${nameOf(assigneeUsername)} started here after it was assigned has not ended, so it cannot close yet. A report from that turn starts your next one, where you can close it; a person can cancel it at once with /collegium units`
