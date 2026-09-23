@@ -1,6 +1,6 @@
 import { Result } from '@collegium/core/utils';
 
-import { toMarkdown } from '@/web/web.utils.ts';
+import { toMarkdown } from '@/web/markdown/markdown.utils.ts';
 
 import { $ExchangeCursor } from './exchange.schemas.ts';
 

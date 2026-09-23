@@ -1,5 +1,5 @@
+import { readPage } from '../reading/reading.utils.ts';
 import { MARKDOWN_CAP_CHARS, PDF_READ_TIMEOUT_MS } from '../web.constants.ts';
-import { readPage } from '../web.utils.ts';
 
 import type { FetchedPage, PageRead } from '../web.types.ts';
 import type { PdfReadBudget, PdfText } from './pdf.types.ts';

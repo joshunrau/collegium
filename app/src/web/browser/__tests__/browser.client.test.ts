@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { createPdf } from '@/testing/factories/pdf.factory.ts';
 
-import { toMarkdown } from '../../web.utils.ts';
+import { toMarkdown } from '../../markdown/markdown.utils.ts';
 import { BrowserClient } from '../browser.client.ts';
 import { CamoufoxLauncher } from '../browser.launcher.ts';
 import { BrowserProcess } from '../browser.process.ts';

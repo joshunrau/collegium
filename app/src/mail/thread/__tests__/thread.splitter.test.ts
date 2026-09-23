@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { toMarkdown } from '@/web/web.utils.ts';
+import { toMarkdown } from '@/web/markdown/markdown.utils.ts';
 
 import { splitMailThread } from '../thread.splitter.ts';
 import {

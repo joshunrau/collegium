@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { pageToMarkdown } from '../../web.utils.ts';
+import { pageToMarkdown } from '../../markdown/markdown.utils.ts';
 import { stripPageChrome } from '../page-chrome.utils.ts';
 
 const PAGE_URL = 'https://northmoor.example/people/duval';

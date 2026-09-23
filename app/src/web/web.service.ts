@@ -9,10 +9,11 @@ import { FetchClient } from './fetch/fetch.client.ts';
 import { extractTitle } from './fetch/fetch.utils.ts';
 import { stripPageChrome } from './fetch/page-chrome.utils.ts';
 import { refuseUnreadablePage } from './fetch/readability.utils.ts';
+import { pageToMarkdown } from './markdown/markdown.utils.ts';
 import { PdfTextExtractor } from './pdf/pdf-text.extractor.ts';
 import { createPdfReadBudget, isWithoutTextLayer, readPdfText } from './pdf/pdf.utils.ts';
+import { capMarkdown, readPage } from './reading/reading.utils.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
-import { capMarkdown, pageToMarkdown, readPage } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
 import type { FetchedPdf } from './fetch/fetch.types.ts';

@@ -8,8 +8,8 @@ import { z } from 'zod';
 import { SEARCH_TIMEOUT_MS } from './search/search.constants.ts';
 import { renderSearchResults } from './search/search.utils.ts';
 import { DEFAULT_WINDOW_CHARS, FETCH_TIMEOUT_MS, MARKDOWN_CAP_CHARS, PDF_READ_TIMEOUT_MS } from './web.constants.ts';
+import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from './web.renderer.ts';
 import { SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from './web.tokens.ts';
-import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from './web.utils.ts';
 
 import type { SearchFailure, SearchResult } from './search/search.types.ts';
 import type { FetchedPage, PageRead, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
