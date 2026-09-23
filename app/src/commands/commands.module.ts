@@ -37,6 +37,9 @@ import { TriggersHandler } from './handlers/triggers.handler.ts';
 import { UnitsHandler } from './handlers/units.handler.ts';
 import { UsageHandler } from './handlers/usage.handler.ts';
 import { CommandReconcilerService } from './registration/command-reconciler.service.ts';
+import { LaneReportService } from './reports/lane-report.service.ts';
+import { TraceReportService } from './reports/trace-report.service.ts';
+import { UnitsReportService } from './reports/units-report.service.ts';
 
 import type { CommandHandler } from './commands.handler.ts';
 
@@ -85,6 +88,9 @@ const COMMAND_HANDLER_CLASSES = [
     ...COMMAND_HANDLER_CLASSES,
     CommandReconcilerService,
     CommandsService,
+    LaneReportService,
+    TraceReportService,
+    UnitsReportService,
     {
       inject: [...COMMAND_HANDLER_CLASSES],
       provide: CommandRegistry,

@@ -11,6 +11,7 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
 
+import { LaneReportService } from '../../reports/lane-report.service.ts';
 import { QueueHandler } from '../queue.handler.ts';
 
 const MIRA = buildAgentProfile();
@@ -50,6 +51,7 @@ describe('QueueHandler', () => {
     dateFormatter.format.mockReturnValue('September 22, 2026 at 9:14:02 AM UTC');
     const moduleRef = await Test.createTestingModule({
       providers: [
+        LaneReportService,
         QueueHandler,
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ChannelLockService, useValue: channelLockService },

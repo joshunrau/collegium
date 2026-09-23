@@ -15,6 +15,7 @@ import { createConfigServiceMock } from '@/testing/factories/config-service.fact
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 
+import { UnitsReportService } from '../../reports/units-report.service.ts';
 import { UnitsHandler } from '../units.handler.ts';
 
 const MIRA = buildAgentProfile();
@@ -53,6 +54,7 @@ describe('UnitsHandler', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         UnitsHandler,
+        UnitsReportService,
         DateFormatter,
         DayFormatter,
         MomentFormatter,

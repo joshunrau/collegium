@@ -2,6 +2,8 @@ import { match } from 'ts-pattern';
 
 import type { MessageAttachment } from '@/chat/chat.types.ts';
 
+import { DECISION_GLYPHS } from './approvals.constants.ts';
+
 import type { AskDecision } from './asks.types.ts';
 import type { DecisionFailure } from './decisions/decisions.types.ts';
 
@@ -41,7 +43,7 @@ export type AskPromptInput = {
 
 /** §3.7a — the question as the channel reads it, under the agent's own account and styled like an approval */
 export function renderAskPrompt(input: AskPromptInput): string {
-  const lead = `❓ **Answer needed: \`${input.actionName}\`**`;
+  const lead = `${DECISION_GLYPHS.ask} **Answer needed: \`${input.actionName}\`**`;
   const preface = input.preface === undefined ? [] : [capPreface(input.preface)];
   const offered = input.options === undefined ? [] : [`Offered answers: ${input.options.join(' · ')}`];
   return [

@@ -13,6 +13,12 @@ export function listUnitParties(agentUsername: string, units: readonly OpenUnitS
   ]);
 }
 
+/** an agent's open units in a channel, and the decisions a party to them is parked on there */
+export type UnitsReport = {
+  readonly parked: readonly ParkedDecision[];
+  readonly units: readonly OpenUnitSummary[];
+};
+
 /**
  * §8.4 — the same lines the agent reads in its prompt, so a human and the agent see one listing;
  * then each party whose turn here waits on a person, since a unit on either side of a parked turn
@@ -20,8 +26,7 @@ export function listUnitParties(agentUsername: string, units: readonly OpenUnitS
  */
 export function renderUnitsListing(
   agentUsername: string,
-  units: readonly OpenUnitSummary[],
-  parked: readonly ParkedDecision[],
+  { parked, units }: UnitsReport,
   now: Date,
   wording: UnitWording
 ): string {

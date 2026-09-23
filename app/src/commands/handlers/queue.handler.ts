@@ -1,19 +1,15 @@
 import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
-import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
-import { ConversationsService } from '@/conversations/conversations.service.ts';
-import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { QueueService } from '@/queue/queue.service.ts';
-import { TurnsService } from '@/turns/turns.service.ts';
 
 import { renderUsage } from '../commands.definitions.ts';
 import { CommandHandler } from '../commands.handler.ts';
+import { LaneReportService } from '../reports/lane-report.service.ts';
 import { requireAgentName } from './argument.utils.ts';
 import { renderLaneReport } from './queue.utils.ts';
 
 import type { CommandInput, CommandResponse } from '../commands.types.ts';
-import type { LaneHold, QueueBacklog } from './queue.utils.ts';
 
 /** §8.4 — whether a turn holds the lane, what waits behind it, and the one way to throw a standing entry away */
 @Injectable()
@@ -22,11 +18,8 @@ export class QueueHandler extends CommandHandler {
 
   constructor(
     private readonly agentRegistry: AgentRegistry,
-    private readonly channelLockService: ChannelLockService,
-    private readonly conversationsService: ConversationsService,
-    private readonly dateFormatter: DateFormatter,
-    private readonly queueService: QueueService,
-    private readonly turnsService: TurnsService
+    private readonly laneReportService: LaneReportService,
+    private readonly queueService: QueueService
   ) {
     super();
   }
@@ -44,11 +37,10 @@ export class QueueHandler extends CommandHandler {
     if (action === 'clear') {
       return this.clear(agentUsername, input.channelId);
     }
-    const [hold, backlog] = await Promise.all([
-      this.readLaneHold(agentUsername, input.channelId),
-      this.readBacklog(agentUsername, input.channelId)
-    ]);
-    return { audience: 'invoker', text: renderLaneReport(agentUsername, hold, backlog) };
+    return {
+      audience: 'invoker',
+      text: renderLaneReport(agentUsername, await this.laneReportService.read(agentUsername, input.channelId))
+    };
   }
 
   /** §3.2 — discarding work is attributable, so the channel hears it from the system bot */
@@ -60,30 +52,6 @@ export class QueueHandler extends CommandHandler {
     return {
       audience: 'channel',
       text: `🗑️ Queued work discarded: ${this.agentRegistry.displayNameOf(agentUsername)} will not run what was waiting here.`
-    };
-  }
-
-  private async readBacklog(agentUsername: string, channelId: string): Promise<QueueBacklog | undefined> {
-    const entry = await this.queueService.peek(agentUsername, channelId);
-    if (!entry) {
-      return undefined;
-    }
-    const { earliestUnprocessedPostId } = entry;
-    return {
-      earliestUnprocessedPostId,
-      summary: await this.conversationsService.summarizeBacklog(channelId, earliestUnprocessedPostId)
-    };
-  }
-
-  private async readLaneHold(agentUsername: string, channelId: string): Promise<LaneHold | undefined> {
-    const heldSince = this.channelLockService.heldSince(agentUsername, channelId);
-    if (heldSince === undefined) {
-      return undefined;
-    }
-    return {
-      heldForMs: Date.now() - heldSince.getTime(),
-      heldSince: this.dateFormatter.format(heldSince),
-      turn: await this.turnsService.findRunningIn(agentUsername, channelId)
     };
   }
 }

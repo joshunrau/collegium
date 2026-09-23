@@ -38,7 +38,10 @@ export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefin
     purpose: "Delete every post here and every agent's record of them, after confirmation"
   },
   forget: { hint: '{post-id}', purpose: 'Remove a post from agent context' },
-  inspect: { hint: '{agent}', purpose: "Show an agent's model, tools, skills and system prompt" },
+  inspect: {
+    hint: '{agent}',
+    purpose: "Show an agent's model, tools, skills, schedules and the prompt a turn here gets"
+  },
   kill: { hint: '', purpose: 'Abandon current turns in this channel immediately' },
   memory: {
     hint: '{agent} [show {reference} | prune {reference}]',

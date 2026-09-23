@@ -11,6 +11,7 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
 import type { Turn } from '@/turns/turns.types.ts';
 
+import { TraceReportService } from '../../reports/trace-report.service.ts';
 import { TraceHandler } from '../trace.handler.ts';
 
 const TURN: Turn = {
@@ -70,6 +71,7 @@ describe('TraceHandler', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         TraceHandler,
+        TraceReportService,
         DateFormatter,
         { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: ConversationsService, useValue: conversationsService },

@@ -3,12 +3,14 @@
 
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 
+import { DECISION_GLYPHS } from '../../approvals/approvals.constants.ts';
+
 export const WORKING_LINE = '⏳ _working…_';
 
 /** §8.1 — the head while the turn waits on a person, up to the time the wait began and the closing underscore */
 export const PARKED_LINE_STEMS = {
-  approval: '🔐 _waiting on a decision since ',
-  ask: '❓ _waiting on an answer since '
+  approval: `${DECISION_GLYPHS.approval} _waiting on a decision since `,
+  ask: `${DECISION_GLYPHS.ask} _waiting on an answer since `
 } as const;
 
 /** §3.2 — deterministic code speaking as the agent: fixed strings and templated facts only */

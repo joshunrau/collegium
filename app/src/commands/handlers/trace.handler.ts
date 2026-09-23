@@ -1,11 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
-import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
-import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
-import { TurnsService } from '@/turns/turns.service.ts';
 
 import { CommandHandler } from '../commands.handler.ts';
+import { TraceReportService } from '../reports/trace-report.service.ts';
 import { requirePostId } from './argument.utils.ts';
 import { renderTrace } from './trace.utils.ts';
 
@@ -18,9 +16,7 @@ export class TraceHandler extends CommandHandler {
 
   constructor(
     private readonly conversationsService: ConversationsService,
-    private readonly dateFormatter: DateFormatter,
-    private readonly pendingDecisionsService: PendingDecisionsService,
-    private readonly turnsService: TurnsService
+    private readonly traceReportService: TraceReportService
   ) {
     super();
   }
@@ -36,12 +32,6 @@ export class TraceHandler extends CommandHandler {
     if (turn?.channelId !== input.channelId) {
       return { audience: 'invoker', text: `No turn authored post ${postId} in this channel.` };
     }
-    const [events, pending] = await Promise.all([
-      this.turnsService.listEvents(turn.id),
-      this.pendingDecisionsService.listPending({ turnId: turn.id })
-    ]);
-    const formatDate = (date: Date) => this.dateFormatter.format(date);
-    const parked = pending.map((decision) => ({ decision, since: formatDate(decision.requestedAt) }));
-    return { audience: 'invoker', text: renderTrace({ events, formatDate, now: new Date(), parked, turn }) };
+    return { audience: 'invoker', text: renderTrace(await this.traceReportService.read(turn)) };
   }
 }

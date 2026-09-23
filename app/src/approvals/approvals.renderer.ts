@@ -3,6 +3,8 @@ import { match } from 'ts-pattern';
 
 import type { MessageAttachment, PostFile } from '@/chat/chat.types.ts';
 
+import { DECISION_GLYPHS } from './approvals.constants.ts';
+
 import type { ApprovalDecision } from './approvals.types.ts';
 import type { DecisionFailure } from './decisions/decisions.types.ts';
 
@@ -12,7 +14,7 @@ const INLINE_PREFIX_CHARS = 600;
 const ATTACHED_PAYLOAD_FILENAME = 'payload.md';
 
 function renderHeader(actionName: string): string {
-  return `🔐 **Approval required: \`${actionName}\`**`;
+  return `${DECISION_GLYPHS.approval} **Approval required: \`${actionName}\`**`;
 }
 
 /** the resolved post is a historical record; the untruncated payload lives in the trace (§8.3) */

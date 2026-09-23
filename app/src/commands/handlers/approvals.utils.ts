@@ -1,3 +1,4 @@
+import { DECISION_GLYPHS } from '@/approvals/approvals.constants.ts';
 import type { PendingDecision } from '@/approvals/decisions/decisions.types.ts';
 import { renderElapsed } from '@/formatting/durations/duration.utils.ts';
 
@@ -46,12 +47,12 @@ export function renderNothingWaiting(): string {
  */
 export function renderPendingDecisionSubject(decision: PendingDecision): string {
   if (decision.kind === 'approval') {
-    return `🔐 \`${decision.actionName}\``;
+    return `${DECISION_GLYPHS.approval} \`${decision.actionName}\``;
   }
   const question = decision.question.replaceAll(/\s+/gu, ' ').trim();
   const head =
     question.length > QUESTION_HEAD_LIMIT_CHARS ? `${question.slice(0, QUESTION_HEAD_LIMIT_CHARS)}…` : question;
-  return `❓ \`${decision.actionName}\` "${head}"`;
+  return `${DECISION_GLYPHS.ask} \`${decision.actionName}\` "${head}"`;
 }
 
 /** §8.1 — a decision a turn is parked on where a turn or its work is shown: what, how long, since when, and where to answer it */

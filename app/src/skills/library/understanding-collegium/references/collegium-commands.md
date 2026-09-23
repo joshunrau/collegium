@@ -11,7 +11,8 @@ _ephemeral_ result is visible only to the person who ran it; the rest post to th
 - `/collegium trace {post-id}` — the full tool trace for a turn, and what a turn still waiting on a
   person waits on. Ephemeral.
 - `/collegium inspect {agent}` — an agent's model, tools with the ones that need approval marked,
-  skills, schedules, and system prompt. Ephemeral.
+  skills, schedules, and the prompt a turn in this channel would be given: the system prompt, then
+  the message that follows the window. Ephemeral.
 - `/collegium usage` — token usage per agent and model, with cached-prompt and reasoning breakdowns
   and the cost the provider charged where it reports it, over turns that ended in the last 24 hours
   in any channel. Ephemeral.
@@ -26,7 +27,8 @@ _ephemeral_ result is visible only to the person who ran it; the rest post to th
 
 ## Changing what an agent sees
 
-- `/collegium reset {agent}` — mark an episode boundary; context and search reach no further back.
+- `/collegium reset {agent}` — mark an episode boundary; context and search reach no further back,
+  though posts pinned here still stand.
 - `/collegium forget {post-id}` — remove a post from agent context.
 - `/collegium memory {agent} [show {reference} | prune {reference}]` — list an agent's memories;
   `show` reads one in full, `prune` deletes one. Ephemeral, and `prune` changes what the agent holds.

@@ -43,11 +43,13 @@ export type QueueBacklog = {
   readonly summary: undefined | { message: string; pendingCount: number };
 };
 
+/** one agent's lane in a channel: the turn holding it, if any, and the standing entry behind it */
+export type LaneReport = {
+  readonly backlog: QueueBacklog | undefined;
+  readonly hold: LaneHold | undefined;
+};
+
 /** §8.4 — the lane first: a turn with no call yet has no status post (§8.1), and a post addressing it would queue (§5.2) */
-export function renderLaneReport(
-  agentUsername: string,
-  hold: LaneHold | undefined,
-  backlog: QueueBacklog | undefined
-): string {
+export function renderLaneReport(agentUsername: string, { backlog, hold }: LaneReport): string {
   return [renderLane(agentUsername, hold), renderBacklog(backlog)].join('\n');
 }
