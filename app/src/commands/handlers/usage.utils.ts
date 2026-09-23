@@ -9,17 +9,17 @@ const COST_FORMAT = new Intl.NumberFormat('en-US', {
   style: 'currency'
 });
 
-const TOKEN_COUNT_FORMAT = new Intl.NumberFormat('en-US');
+const COUNT_FORMAT = new Intl.NumberFormat('en-US');
 
 function renderRow(agent: string, model: string, totals: UsageTotals): string {
   const cells = [
     agent,
     model,
-    TOKEN_COUNT_FORMAT.format(totals.turnCount),
-    TOKEN_COUNT_FORMAT.format(totals.promptTokens),
-    renderReportedTotal(totals.cachedPromptTokens, TOKEN_COUNT_FORMAT),
-    TOKEN_COUNT_FORMAT.format(totals.completionTokens),
-    renderReportedTotal(totals.reasoningTokens, TOKEN_COUNT_FORMAT),
+    COUNT_FORMAT.format(totals.turnCount),
+    COUNT_FORMAT.format(totals.promptTokens),
+    renderReportedTotal(totals.cachedPromptTokens, COUNT_FORMAT),
+    COUNT_FORMAT.format(totals.completionTokens),
+    renderReportedTotal(totals.reasoningTokens, COUNT_FORMAT),
     renderReportedTotal(totals.costUsd, COST_FORMAT)
   ];
   return `| ${cells.join(' | ')} |`;
@@ -55,3 +55,5 @@ export function renderUsageResponse(report: UsageReport): string {
     ...(isAnyPartial ? ['', `${PARTIAL_MARKER} Not reported by every turn in the row.`] : [])
   ].join('\n');
 }
+
+export { COST_FORMAT, COUNT_FORMAT };

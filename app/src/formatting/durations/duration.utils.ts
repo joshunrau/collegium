@@ -16,3 +16,12 @@ export function renderElapsed(elapsedMs: number): string {
   }
   return 'under a minute';
 }
+
+/** how long something ran, to the second: minutes and seconds past the first minute, as a status post's closing line states it (§8.1) */
+export function renderDuration(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+  return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
+}

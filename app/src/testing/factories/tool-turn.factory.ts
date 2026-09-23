@@ -7,6 +7,7 @@ export function buildToolTurnScope(overrides: Partial<ToolTurnScope> = {}): Tool
     channelId: 'channel-1',
     triggeringPostId: 'post-1',
     turnId: 'turn-1',
+    workUnit: null,
     ...overrides
   };
 }

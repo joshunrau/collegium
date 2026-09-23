@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { defineConfig } from '../index.ts';
 import { createTestContext, PluginToolFailureError } from '../testing.ts';
 
+import type { WorkUnitView } from '../index.ts';
 import type { ApprovalContextFor } from '../tool.ts';
 
 const config = defineConfig({
@@ -67,6 +68,25 @@ describe('createTestContext', () => {
   it('omits settings when the config declares none and accepts turn overrides', () => {
     const context = createTestContext(defineConfig({}), { turn: { agentUsername: 'mira' } });
     expect('settings' in context).toBe(false);
-    expect(context.turn).toMatchObject({ agentUsername: 'mira', triggeringPostId: null });
+    expect(context.turn).toMatchObject({ agentUsername: 'mira', triggeringPostId: null, workUnit: null });
+  });
+
+  it('finds a work unit it was given by its reference or a prefix naming it alone (§3.14)', async () => {
+    const unit = (reference: string): WorkUnitView => ({
+      assigneeUsername: 'mira',
+      context: 'the March export',
+      createdAt: new Date(0),
+      creatorUsername: 'owen',
+      criteria: 'every row reconciled',
+      outcome: 'a reconciled ledger',
+      reference,
+      state: 'assigned',
+      updatedAt: new Date(0)
+    });
+    const { workUnits } = createTestContext(config, { workUnits: [unit('q3m8v1zd'), unit('q3x0k2ab')] });
+    expect(await workUnits.find('q3m8v1zd')).toStrictEqual(unit('q3m8v1zd'));
+    expect(await workUnits.find('q3m')).toStrictEqual(unit('q3m8v1zd'));
+    expect(await workUnits.find('q3')).toBeNull();
+    expect(await workUnits.find('zzzzzzzz')).toBeNull();
   });
 });

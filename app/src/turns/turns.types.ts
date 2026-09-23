@@ -100,6 +100,15 @@ export declare namespace TurnOpenFailure {
 
 export type TurnOpenFailure = TurnOpenFailure.Any;
 
+/** §8.3 — the window one context assembly read, as the turn's row records it */
+export type AssembledWindowRecord = {
+  readonly assembledAt: Date;
+  /** what the window's budget charged for it (§3.8) */
+  readonly estimatedTokens: number;
+  /** undefined for an empty window */
+  readonly oldestAt: Date | undefined;
+};
+
 /** what activation branches on when a turn ends: drain the queue, leave it standing (§7.1), or consume it (§5.2) */
 export type TurnOutcome = {
   /** when the assembly the turn last used began reading the store */

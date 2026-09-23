@@ -1,4 +1,5 @@
 import { PLUGIN_TOOL_ERR } from '@collegium/core/plugins';
+import type { WorkUnitReader, WorkUnitView } from '@collegium/core/plugins';
 import type { ToolTurnScope } from '@collegium/core/tools';
 import { applyCollectionQuery } from '@collegium/core/toolsets';
 import type { AnyToolsetCollection, CollectionRecord } from '@collegium/core/toolsets';
@@ -13,7 +14,8 @@ const DEFAULT_TURN: ToolTurnScope = {
   agentUsername: 'tester',
   channelId: 'test-channel',
   triggeringPostId: null,
-  turnId: 'test-turn'
+  turnId: 'test-turn',
+  workUnit: null
 };
 
 /** the deployment's store mints a cuid2; here any unique string serves, and a test that needs a known id passes one */
@@ -58,16 +60,37 @@ function createCollection(schema: z.ZodObject): AnyToolsetCollection {
   };
 }
 
-/** `settings` as the declared schema accepts them, so defaults apply as they do at boot; `turn` overrides the four facts */
+/** a reference finds the one unit it begins, as the deployment's does; an empty one, or a prefix naming several, finds none */
+function createWorkUnitReader(units: readonly WorkUnitView[]): WorkUnitReader {
+  return {
+    find: (reference) => {
+      return Promise.try(() => {
+        if (reference === '') {
+          return null;
+        }
+        const matches = units.filter((unit) => unit.reference.startsWith(reference));
+        return matches.length === 1 ? matches[0]! : null;
+      });
+    }
+  };
+}
+
+/**
+ * `settings` as the declared schema accepts them, so defaults apply as they do at boot; `turn`
+ * overrides the facts of the turn; `workUnits` are the units the acting agent is a party to in its
+ * channel, all `workUnits.find` can reach.
+ */
 export type TestContextOptions<TConfig extends PluginConfig> = {
   readonly settings?: TConfig['settings'] extends z.ZodType ? z.input<TConfig['settings']> : never;
   readonly turn?: Partial<ToolTurnScope>;
+  readonly workUnits?: readonly WorkUnitView[];
 };
 
 /**
  * The context a deployment hands `execute`, over in-memory storage: each declared collection
  * validates on write and parses on read as the real store does, settings pass through the declared
- * schema so defaults apply, and `err` raises exactly what the framework's wrapper catches.
+ * schema so defaults apply, `err` raises exactly what the framework's wrapper catches, and
+ * `workUnits` reads the units the options name.
  */
 export function createTestContext<TConfig extends PluginConfig>(
   config: TConfig,
@@ -76,7 +99,12 @@ export function createTestContext<TConfig extends PluginConfig>(
   const storage = Object.fromEntries(
     Object.entries(config.storage).map(([name, schema]) => [name, createCollection(schema)])
   );
-  const context = { err: PLUGIN_TOOL_ERR, storage, turn: { ...DEFAULT_TURN, ...options.turn } };
+  const context = {
+    err: PLUGIN_TOOL_ERR,
+    storage,
+    turn: { ...DEFAULT_TURN, ...options.turn },
+    workUnits: createWorkUnitReader(options.workUnits ?? [])
+  };
   const settings = config.settings === undefined ? {} : { settings: config.settings.parse(options.settings ?? {}) };
   return { ...context, ...settings } as ToolContextFor<TConfig>;
 }

@@ -1,3 +1,4 @@
+import type { WorkUnitView } from '@collegium/core/plugins';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
@@ -202,6 +203,34 @@ export class TasksService {
       where: { assigneeUsername: input.agentUsername, channelId: input.channelId, state: 'assigned' }
     });
     return assigned.length === 1 ? assigned[0] : undefined;
+  }
+
+  /** §3.14 — a unit as a plugin tool reads it, found as `read` finds one; an empty reference names none */
+  async findWorkUnitView(input: {
+    agentUsername: string;
+    channelId: string;
+    reference: string;
+  }): Promise<null | WorkUnitView> {
+    if (input.reference === '') {
+      return null;
+    }
+    const found = await this.read(input.agentUsername, input.channelId, input.reference);
+    if (!found.success) {
+      return null;
+    }
+    const { assigneeUsername, context, createdAt, creatorUsername, criteria, id, outcome, state, updatedAt } =
+      found.value;
+    return {
+      assigneeUsername,
+      context,
+      createdAt,
+      creatorUsername,
+      criteria,
+      outcome,
+      reference: renderReference(id),
+      state,
+      updatedAt
+    };
   }
 
   /** open units where the agent is creator or assignee, in this channel, oldest first, each with where its counterpart stands (§3.15) */

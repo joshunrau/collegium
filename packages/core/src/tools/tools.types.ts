@@ -11,13 +11,15 @@ import type { Result } from '../utils.ts';
  */
 export type ToolId = readonly [namespace: string, name: string];
 
-/** the four facts of the running turn (§4) — everything else a tool needs, its toolset declares */
+/** the facts of the running turn (§4) — everything else a tool needs, its toolset declares */
 export type ToolTurnScope = {
   readonly agentUsername: string;
   readonly channelId: string;
   /** provenance for anything a tool records; null on a turn no post triggered */
   readonly triggeringPostId: null | string;
   readonly turnId: string;
+  /** §3.14 — the unit this turn serves as its assignee, fixed when it starts; null on any other turn, never guessed */
+  readonly workUnit: null | { readonly creatorUsername: string; readonly reference: string };
 };
 
 /** §6.2 — the full payload the approver reads; presence of the `approval` hook is what gates a tool (§5) */

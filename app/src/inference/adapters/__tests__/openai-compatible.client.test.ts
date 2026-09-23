@@ -293,6 +293,14 @@ describe('OpenAICompatibleClient', () => {
     });
   });
 
+  it('returns text holding the provider’s own call markup as a leaked call, not a reply (§4.5)', async () => {
+    fetchMock.mockResolvedValueOnce(completionResponse({ content: '</parameter>\n</invoke></｜DSML｜parameter>' }));
+
+    const result = await client.complete(completionRequest);
+
+    expect(result.value?.kind).toBe('leaked-call');
+  });
+
   it('classifies a filtered completion as a provider failure', async () => {
     fetchMock.mockResolvedValueOnce(completionResponse({ content: '' }, undefined, 'content_filter'));
 
