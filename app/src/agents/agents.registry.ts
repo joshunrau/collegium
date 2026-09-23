@@ -1,5 +1,4 @@
 import type { $TriggeringMode, AgentDefinition } from '@collegium/config';
-import { MODEL_CONTEXT_WINDOW_TOKENS } from '@collegium/core/common';
 import { Injectable } from '@nestjs/common';
 import type { z } from 'zod';
 
@@ -112,7 +111,6 @@ export class AgentRegistry {
     return {
       actionBudget,
       contextBudgetTokens: definition.contextBudgetTokens,
-      contextWindowTokens: MODEL_CONTEXT_WINDOW_TOKENS[definition.model.name],
       expertise: definition.expertise,
       model: definition.model,
       personality: definition.personality,
@@ -120,6 +118,7 @@ export class AgentRegistry {
       systemPrompt,
       tools: definition.tools,
       toolSettings,
+      turnContextCeilingTokens: definition.turnContextCeilingTokens,
       username: definition.username,
       workspaceDir: deriveWorkspaceDir(workspaceRoot, definition.username)
     };

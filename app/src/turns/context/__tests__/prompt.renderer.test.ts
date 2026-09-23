@@ -23,9 +23,9 @@ import { PromptRenderer } from '../prompt.renderer.ts';
 const PROFILE = {
   actionBudget: 7,
   contextBudgetTokens: 12_000,
-  contextWindowTokens: 32_000,
   expertise: 'testing',
   systemPrompt: 'You are Mira.',
+  turnContextCeilingTokens: 32_000,
   username: 'mira',
   workspaceDir: '/var/lib/collegium/workspaces/mira'
 } as AgentProfile;
@@ -122,12 +122,13 @@ describe('PromptRenderer', () => {
   it('should state the configured budgets and the calls exempt from them in the preamble', async () => {
     const prompt = await render();
     expect(prompt).toContain('fits the recent posts and records in this channel to about 12000 tokens');
+    expect(prompt).toContain('The whole of your context in one turn is kept under about 32,000 tokens.');
     expect(prompt).toContain('Each turn has 7 attempts.');
     expect(prompt).toContain('Calls to builtins__now and skills__load spend none.');
     expect(prompt).toContain('at most 20 of them, newest first');
   });
 
-  it('should state the retention rule for the calls whose results fold, from the model window (§3.8)', async () => {
+  it('should state the retention rule for the calls whose results fold, from the turn ceiling (§3.8)', async () => {
     toolRegistry.listSupersedableFor.mockReturnValue(['web__fetch', 'workspace__read']);
     const prompt = await render();
     expect(prompt).toContain(

@@ -110,7 +110,7 @@ describe('$Config', () => {
   it('should apply the shipped defaults to every section', () => {
     expect($Config.parse(config)).toMatchObject({
       activation: { debounce: { ceilingMs: 15_000, windowMs: 750 }, foldLimit: 3 },
-      agentDefaults: { toolSettings: {} },
+      agentDefaults: { toolSettings: {}, turnContextCeilingTokens: 200_000 },
       display: { timezone: 'UTC' },
       inference: { retry: { backoffMs: 1_000, maxAttempts: 5, maxDelayMs: 30_000 }, timeoutMs: 120_000 },
       logging: { level: 'info' },
@@ -155,15 +155,39 @@ describe('$Config', () => {
     expect($Config.parse(config).agents.mira?.personality).toBeUndefined();
   });
 
-  it('should let an agent override a default, and take a share of its model’s window when neither states a budget', () => {
+  it('should let an agent override a default, and take a share of its turn ceiling when neither states a budget', () => {
     const parsed = $Config.parse({
       ...config,
       agentDefaults: { model: { name: 'deepseek-v4-pro', provider: 'deepseek' } }
     });
     expect(parsed.agents.mira).toMatchObject({
-      contextBudgetTokens: 250_000,
-      model: { name: 'deepseek-v4-flash', provider: 'deepseek' }
+      contextBudgetTokens: 50_000,
+      model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
+      turnContextCeilingTokens: 200_000
     });
+  });
+
+  it('should let an agent override the default turn ceiling, and cap it beneath its model’s window (§3.8)', () => {
+    const parsed = $Config.parse({
+      ...config,
+      agentDefaults: { turnContextCeilingTokens: 120_000 },
+      agents: { mira: declaration([]), tess: { ...declaration([]), turnContextCeilingTokens: 5_000_000 } }
+    });
+    expect(parsed.agents.mira?.turnContextCeilingTokens).toBe(120_000);
+    expect(parsed.agents.tess?.turnContextCeilingTokens).toBe(850_000);
+  });
+
+  it('should refuse a context budget that is not below the turn ceiling, where it was stated (§3.8)', () => {
+    expect(
+      issuePaths({
+        ...config,
+        agentDefaults: { contextBudgetTokens: 200_000 },
+        agents: {
+          mira: declaration([]),
+          tess: { ...declaration([]), contextBudgetTokens: 60_000, turnContextCeilingTokens: 60_000 }
+        }
+      })
+    ).toStrictEqual(['agentDefaults.contextBudgetTokens', 'agents.tess.contextBudgetTokens']);
   });
 
   it('should refuse an agent with no model in either place', () => {

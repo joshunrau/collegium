@@ -1,7 +1,7 @@
 import { MODEL_CONTEXT_WINDOW_TOKENS } from '@collegium/core/common';
 import type { z } from 'zod';
 
-import { CONTEXT_BUDGET_WINDOW_SHARE } from '../constants.ts';
+import { CONTEXT_BUDGET_CEILING_SHARE, TURN_CONTEXT_WINDOW_SHARE } from '../constants.ts';
 import { $ConfigDeclaration } from './config.schemas.ts';
 
 import type { $AgentDeclaration, $ModelRef, $Username } from './config.schemas.ts';
@@ -13,8 +13,9 @@ type ResolvedConfig = Omit<$ConfigDeclaration, '$schema' | 'agents'> & {
 
 /**
  * The perimeter's cross-references, resolved and checked in one pass so every failure is reported
- * together: each agent's values from agentDefaults, each provider a model names, the system bot
- * against the agent keys, the main channel against its triggering mode.
+ * together: each agent's values from agentDefaults, its budget against its turn ceiling, each
+ * provider a model names, the system bot against the agent keys, the main channel against its
+ * triggering mode.
  */
 function resolveConfig(declaration: $ConfigDeclaration, issues: z.core.$ZodRawIssue[]): ResolvedConfig {
   const { $schema: _schema, ...config } = declaration;
@@ -45,14 +46,32 @@ function resolveConfig(declaration: $ConfigDeclaration, issues: z.core.$ZodRawIs
     if (!config.providers[model.provider]) {
       agentsByMissingProvider.set(model.provider, [...(agentsByMissingProvider.get(model.provider) ?? []), username]);
     }
+    const turnContextCeilingTokens = Math.min(
+      declared.turnContextCeilingTokens ?? config.agentDefaults.turnContextCeilingTokens,
+      Math.floor(MODEL_CONTEXT_WINDOW_TOKENS[model.name] * TURN_CONTEXT_WINDOW_SHARE)
+    );
+    const contextBudgetTokens =
+      declared.contextBudgetTokens ??
+      config.agentDefaults.contextBudgetTokens ??
+      Math.floor(turnContextCeilingTokens * CONTEXT_BUDGET_CEILING_SHARE);
+    // §3.8 — a window the budget allows would end every turn it fills before the model is called
+    if (contextBudgetTokens >= turnContextCeilingTokens) {
+      issues.push({
+        code: 'custom',
+        input: contextBudgetTokens,
+        message: `agent "${username}" has a context budget of ${contextBudgetTokens} tokens, which is not below its turn ceiling of ${turnContextCeilingTokens}`,
+        path:
+          declared.contextBudgetTokens === undefined
+            ? ['agentDefaults', 'contextBudgetTokens']
+            : ['agents', username, 'contextBudgetTokens']
+      });
+    }
     agents[username] = {
       ...declared,
-      contextBudgetTokens:
-        declared.contextBudgetTokens ??
-        config.agentDefaults.contextBudgetTokens ??
-        Math.floor(MODEL_CONTEXT_WINDOW_TOKENS[model.name] * CONTEXT_BUDGET_WINDOW_SHARE),
+      contextBudgetTokens,
       model,
       personality: declared.personality ?? config.agentDefaults.personality,
+      turnContextCeilingTokens,
       username
     };
   }
@@ -94,9 +113,11 @@ function resolveConfig(declaration: $ConfigDeclaration, issues: z.core.$ZodRawIs
 }
 
 /** an agent entry once agentDefaults are applied and its key is carried in: what the app runs (§3.1) */
-export type AgentDefinition = Omit<$AgentDeclaration, 'contextBudgetTokens' | 'model'> & {
+export type AgentDefinition = Omit<$AgentDeclaration, 'contextBudgetTokens' | 'model' | 'turnContextCeilingTokens'> & {
   readonly contextBudgetTokens: number;
   readonly model: $ModelRef;
+  /** the ceiling that applies: the declared one, capped beneath the model's window (§3.8) */
+  readonly turnContextCeilingTokens: number;
   readonly username: $Username;
 };
 

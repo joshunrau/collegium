@@ -37,6 +37,7 @@ function agent(username: string, model: $ModelRef): AgentDefinition {
     systemPrompt: `You are ${username}.`,
     tools: [],
     toolSettings: {},
+    turnContextCeilingTokens: 200_000,
     username
   };
 }

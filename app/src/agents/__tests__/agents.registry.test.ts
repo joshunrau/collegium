@@ -26,6 +26,7 @@ const MIRA: AgentDefinition = {
   systemPrompt: 'You are Mira',
   tools: ['memory'],
   toolSettings: { memory: { maxEntries: 5 } },
+  turnContextCeilingTokens: 200_000,
   username: 'mira'
 };
 
@@ -38,6 +39,7 @@ const TESS: AgentDefinition = {
   systemPrompt: 'You are Tess',
   tools: [],
   toolSettings: {},
+  turnContextCeilingTokens: 200_000,
   username: 'tess'
 };
 

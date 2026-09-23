@@ -45,7 +45,6 @@ import type { Turn } from '../turns.types.ts';
 const PROFILE = {
   actionBudget: 10,
   contextBudgetTokens: 1000,
-  contextWindowTokens: 4_000,
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   personality: undefined,
@@ -53,6 +52,7 @@ const PROFILE = {
   systemPrompt: 'You are Mira.',
   tools: [],
   toolSettings: new Map(),
+  turnContextCeilingTokens: 3_400,
   username: 'mira',
   workspaceDir: '/tmp/workspaces/mira'
 } as AgentProfile;
@@ -1670,7 +1670,7 @@ describe('TurnRunner', () => {
     const outcome = await run();
     expect(outcome.status).toBe('completed');
     const result = complete.mock.calls[1]![0].messages.at(-1);
-    expect(result?.content).toMatch(/y\n…result truncated to fit the context window; the full text is in the trace$/u);
+    expect(result?.content).toMatch(/y\n…result truncated to fit this turn's context; the full text is in the trace$/u);
     expect(result?.content.length).toBeLessThan(output.length);
     expect(turnsService.appendEvent).toHaveBeenCalledWith(
       'turn-1',
@@ -1696,7 +1696,7 @@ describe('TurnRunner', () => {
     expect(complete).not.toHaveBeenCalled();
   });
 
-  // the profile's 4,000-token window retains 1,200 tokens of pages (§3.8); a page this size is about 700
+  // the profile's 3,400-token ceiling retains 1,020 tokens of pages (§3.8); a page this size is about 700
   const pageText = (name: string) => `page ${name} ${'x'.repeat(2_800)}`;
 
   const toolMessagesOf = (request: CompletionRequest) => {

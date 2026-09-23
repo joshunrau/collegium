@@ -230,7 +230,7 @@ export function renderContextExhaustedNotice(cause: ContextExhaustionCause): str
       () => 'I ran out of room in my context part-way through this turn and stopped. What I did so far is in the trace.'
     )
     .with('initial', () => {
-      return "My starting context does not fit my model's window. This is a configuration problem — the context budget against the model — not something I can work around.";
+      return 'My starting context does not fit in one turn. This is a configuration problem — my context budget against my turn ceiling — not something I can work around.';
     })
     .exhaustive();
 }

@@ -26,7 +26,6 @@ import { PromptRenderer } from '../prompt.renderer.ts';
 const PROFILE: AgentProfile = {
   actionBudget: 25,
   contextBudgetTokens: 1000,
-  contextWindowTokens: 32_000,
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   personality: undefined,
@@ -34,6 +33,7 @@ const PROFILE: AgentProfile = {
   systemPrompt: 'You are Mira.',
   tools: ['load_skill'],
   toolSettings: new Map(),
+  turnContextCeilingTokens: 27_200,
   username: 'mira',
   workspaceDir: '/tmp/workspaces/mira'
 };

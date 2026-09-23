@@ -41,6 +41,7 @@ const agent = (username: string, overrides: Partial<AgentDefinition> = {}): Agen
   systemPrompt: `You are ${username}`,
   tools: [],
   toolSettings: {},
+  turnContextCeilingTokens: 200_000,
   username,
   ...overrides
 });
