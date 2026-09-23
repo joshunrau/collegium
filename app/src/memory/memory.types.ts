@@ -25,16 +25,24 @@ export type MemoryWriteReceipt<TEntry> = {
   readonly reference: string;
 };
 
-/** the entry a revision edits, and the provenance it carries once revised (§3.6) */
+/** the entry a revision edits, the provenance it carries once revised, and the description it takes on if it names one (§3.6) */
 export type MemoryRevision = {
   readonly agentUsername: string;
+  readonly description?: string;
   readonly originPostId: null | string;
   readonly reference: string;
 };
 
-/** what a revision reports back: the entry as revised, under the reference it has always had (§3.6) */
+/** one passage a replace substitutes (§3.6) */
+export type MemoryEdit = {
+  readonly passage: string;
+  readonly replacement: string;
+};
+
+/** what a revision reports back: the entry as revised and as it stood before, under the reference it has always had (§3.6) */
 export type MemoryRevisionReceipt<TEntry> = {
   readonly entry: TEntry;
+  readonly previous: TEntry;
   readonly reference: string;
 };
 
@@ -50,15 +58,38 @@ export declare namespace MemoryFailure {
     reference: string;
   };
   type Unresolved = Ambiguous | NotFound;
-  /** over a cap, and therefore refused — never silently truncated (§3.6, A4) */
+  /** what a write sends is over a cap, and therefore refused — never silently truncated (§3.6, A4) */
   type TooLong = {
     field: 'body' | 'description';
     kind: 'too-long';
     length: number;
     limit: number;
   };
-  /** the passage a replace names does not occur exactly once in the body, so substituting it would be a guess (§3.6) */
+  /**
+   * §3.6 — a revision over a cap: the description it names, or the body it would leave, beside what
+   * the entry holds now, since the remedy is room made in that entry rather than another one
+   */
+  type RevisionTooLong =
+    | {
+        field: 'body';
+        kind: 'revision-too-long';
+        length: number;
+        limit: number;
+        reference: string;
+        storedLength: number;
+      }
+    | {
+        field: 'description';
+        kind: 'revision-too-long';
+        length: number;
+        limit: number;
+      };
+  /**
+   * The passage a replace names does not occur exactly once in the body, so substituting it would be
+   * a guess (§3.6). `edit` is its 1-based place among several edits, none of which is then applied.
+   */
   type PassageUnmatched = {
+    edit?: number;
     kind: 'passage-unmatched';
     occurrences: 'none' | 'several';
   };
@@ -72,7 +103,7 @@ export declare namespace MemoryFailure {
     lastSeen: 'earlier' | 'never';
     reference: string;
   };
-  type Any = EmptyBody | PassageUnmatched | TooLong | Unresolved | UnseenRevision;
+  type Any = EmptyBody | PassageUnmatched | RevisionTooLong | TooLong | Unresolved | UnseenRevision;
 }
 
 export type MemoryFailure = MemoryFailure.Any;

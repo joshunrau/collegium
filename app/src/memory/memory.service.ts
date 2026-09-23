@@ -125,26 +125,35 @@ export class MemoryService {
   }
 
   /**
-   * §3.6 — one step: the stored body is read and revised in place under the per-agent lock, so the
-   * entry keeps its reference and its place in the listing. The entry count does not change, so
-   * nothing is evicted; the revision counts as a use.
+   * §3.6 — one step: the stored entry is read and revised in place under the per-agent lock, so it
+   * keeps its reference and its place in the listing, and `reviseBody` judges the revision it will
+   * replace. The entry count does not change, so nothing is evicted; the revision counts as a use.
    */
   async revise<TRefusal>(
     revision: MemoryRevision,
-    reviseBody: (body: string) => Result<string, TRefusal>,
+    reviseBody: (stored: ModelRow<'Memory'>) => Result<string, TRefusal>,
     caps: $MemorySettings
   ): Promise<
     Result<
       MemoryRevisionReceipt<ModelRow<'Memory'>>,
-      MemoryFailure.EmptyBody | MemoryFailure.TooLong | MemoryFailure.Unresolved | TRefusal
+      MemoryFailure.EmptyBody | MemoryFailure.RevisionTooLong | MemoryFailure.Unresolved | TRefusal
     >
   > {
+    const { description } = revision;
+    if (description !== undefined && description.length > caps.maxDescriptionChars) {
+      return Result.err({
+        field: 'description',
+        kind: 'revision-too-long',
+        length: description.length,
+        limit: caps.maxDescriptionChars
+      });
+    }
     return this.locks.run(revision.agentUsername, async () => {
       const current = await this.read(revision.agentUsername, revision.reference);
       if (!current.success) {
         return Result.err(current.error);
       }
-      const body = reviseBody(current.value.body);
+      const body = reviseBody(current.value);
       if (!body.success) {
         return Result.err(body.error);
       }
@@ -152,12 +161,20 @@ export class MemoryService {
         return Result.err({ kind: 'empty-body' });
       }
       if (body.value.length > caps.maxBodyChars) {
-        return Result.err({ field: 'body', kind: 'too-long', length: body.value.length, limit: caps.maxBodyChars });
+        return Result.err({
+          field: 'body',
+          kind: 'revision-too-long',
+          length: body.value.length,
+          limit: caps.maxBodyChars,
+          reference: renderMemoryReference(current.value.id),
+          storedLength: current.value.body.length
+        });
       }
       const revisedAt = new Date();
       const entry = await this.memories.update({
         data: {
           body: body.value,
+          ...(description !== undefined && { description }),
           lastUsedAt: revisedAt,
           originPostId: revision.originPostId,
           revisedAt,
@@ -165,7 +182,7 @@ export class MemoryService {
         },
         where: { id: current.value.id }
       });
-      return Result.ok({ entry, reference: renderMemoryReference(entry.id) });
+      return Result.ok({ entry, previous: current.value, reference: renderMemoryReference(entry.id) });
     });
   }
 

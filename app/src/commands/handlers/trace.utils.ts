@@ -9,13 +9,22 @@ function toDisplayName(name: PrismaJson.RecordedToolName): string {
   return typeof name === 'string' ? name : renderToolDisplayName(name);
 }
 
-/** §3.6 — a revision in place names its count and the passage it replaced; one that wrote a new record names the record it replaced */
+/**
+ * §3.6 — a revision in place names its count and what it replaced; a new record names the record it
+ * replaced and whatever writing it removed, such as the memories a write evicted (§8.1)
+ */
 function renderRecordChange(event: Extract<PrismaJson.TurnEventPayload, { kind: 'record_written' }>): string {
   if (event.revision !== undefined) {
-    const { count, replacedPassage } = event.revision;
-    return `${event.reference} revised (revision ${count})${replacedPassage === undefined ? '' : `, replacing "${replacedPassage}"`}`;
+    const { count, replacedDescription, replacedPassages = [] } = event.revision;
+    const replaced = [
+      ...replacedPassages.map((passage) => `"${passage}"`),
+      ...(replacedDescription === undefined ? [] : [`the description "${replacedDescription}"`])
+    ];
+    return `${event.reference} revised (revision ${count})${replaced.length === 0 ? '' : `, replacing ${replaced.join(', ')}`}`;
   }
-  return `${event.reference} written${event.revisionOf === undefined ? '' : `, revising ${event.revisionOf}`}`;
+  const revising = event.revisionOf === undefined ? '' : `, revising ${event.revisionOf}`;
+  const removing = event.supersededDescriptions.map((description) => `"${description}"`).join(', ');
+  return `${event.reference} written${revising}${removing === '' ? '' : `, removing ${removing}`}`;
 }
 
 function renderEventLine(payload: PrismaJson.TurnEventPayload): string {

@@ -11,7 +11,9 @@ import { MemoryService } from '../memory.service.ts';
 import { MEMORY_TOOLSET } from '../memory.toolset.ts';
 import { MemorySightingsRegistry } from '../sightings/memory-sightings.registry.ts';
 
-const { append, delete: deleteTool, read, replace, write } = MEMORY_TOOLSET.tools;
+import type { MemoryRevision } from '../memory.types.ts';
+
+const { append, delete: deleteTool, read, replace, rewrite, write } = MEMORY_TOOLSET.tools;
 
 const STORED = {
   body: 'bullet points, always',
@@ -36,6 +38,19 @@ function buildContext() {
 function deletingAgainst(stored: ModelRow<'Memory'>) {
   return (_agentUsername: string, _reference: string, admit: (entry: ModelRow<'Memory'>) => Result<void, unknown>) => {
     return Promise.resolve(admit(stored).pipe(() => stored));
+  };
+}
+
+/** the service's revision, applied to one stored entry as the real one applies it under its lock */
+function revisingAgainst(stored: ModelRow<'Memory'>) {
+  return (revision: MemoryRevision, reviseBody: (entry: ModelRow<'Memory'>) => Result<string, unknown>) => {
+    return Promise.resolve(
+      reviseBody(stored).pipe((body) => {
+        const description = revision.description ?? stored.description;
+        const entry = { ...stored, body, description, revision: stored.revision + 1 };
+        return { entry, previous: stored, reference: 'mem00001' };
+      })
+    );
   };
 }
 
@@ -93,7 +108,7 @@ describe('MEMORY_TOOLSET', () => {
         reference: 'mem-1',
         supersededDescriptions: ['old fact']
       },
-      text: 'memory mem-1 saved'
+      text: 'memory mem-1 saved (8 of 16,000 characters); at the cap of 50 memories, it removed the one read longest ago: "old fact"'
     });
   });
 
@@ -103,7 +118,7 @@ describe('MEMORY_TOOLSET', () => {
     const result = await executeTool(write, { body: 'long', description: 'd' }, context);
     expect(result.error).toStrictEqual({
       kind: 'invalid-arguments',
-      message: 'the body is 5000 characters, over its cap of 4000; shorten it and write again'
+      message: 'the body is 5,000 characters, over its cap of 4,000; shorten it and write again'
     });
   });
 
@@ -151,10 +166,9 @@ describe('MEMORY_TOOLSET', () => {
     expect(result.error).toMatchObject({ kind: 'invalid-arguments', message: expect.stringContaining('none of your') });
   });
 
-  it('revises a memory in place and discloses its count and the passage it replaced (§3.6)', async () => {
+  it('revises a memory in place and discloses its count, its size and the passage it replaced (§3.6)', async () => {
     const { context, memory } = buildContext();
-    const revised = { ...STORED, body: 'numbered lists', revision: 3 };
-    memory.revise.mockResolvedValue(Result.ok({ entry: revised, reference: 'mem00001' }));
+    memory.revise.mockImplementation(revisingAgainst({ ...STORED, revision: 2 }));
     const result = await executeTool(
       replace,
       { passage: 'bullet points, always', reference: 'mem00001', replacement: 'numbered lists' },
@@ -165,16 +179,101 @@ describe('MEMORY_TOOLSET', () => {
         body: 'numbered lists',
         description: 'a stale fact',
         reference: 'mem00001',
-        revision: { count: 3, replacedPassage: 'bullet points, always' }
+        revision: { count: 3, replacedPassages: ['bullet points, always'] }
       },
-      text: 'memory mem00001 revised'
+      text: 'memory mem00001 revised (14 of 16,000 characters)'
+    });
+  });
+
+  it('applies several edits in order and discloses each passage and the description it replaced (§3.6)', async () => {
+    const { context, memory } = buildContext();
+    memory.revise.mockImplementation(revisingAgainst(STORED));
+    const edits = [
+      { passage: 'bullet points', replacement: 'numbered lists' },
+      { passage: 'lists, always', replacement: 'lists, mostly' }
+    ];
+    const result = await executeTool(replace, { description: 'formatting', edits, reference: 'mem00001' }, context);
+    expect(result.unwrap().disclosure).toMatchObject({
+      body: 'numbered lists, mostly',
+      description: 'formatting',
+      revision: {
+        count: 1,
+        replacedDescription: 'a stale fact',
+        replacedPassages: ['bullet points', 'lists, always']
+      }
+    });
+  });
+
+  it('refuses every edit when one does not match, naming it', async () => {
+    const { context, memory } = buildContext();
+    memory.revise.mockImplementation(revisingAgainst(STORED));
+    const edits = [
+      { passage: 'bullet', replacement: 'numbered' },
+      { passage: 'never', replacement: 'rarely' }
+    ];
+    const result = await executeTool(replace, { edits, reference: 'mem00001' }, context);
+    expect(result.error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message: 'none of the edits was applied: in edit 2, the passage does not occur in that memory'
+    });
+  });
+
+  it('takes one passage or several edits, never both', () => {
+    const both = { edits: [{ passage: 'a', replacement: 'b' }], passage: 'a', reference: 'mem00001', replacement: 'b' };
+    expect(replace.parameters.safeParse(both).success).toBe(false);
+    expect(replace.parameters.safeParse({ passage: 'a', reference: 'mem00001' }).success).toBe(false);
+  });
+
+  it('refuses a revision over the body cap with what the memory holds and what the change would make it (§3.6)', async () => {
+    const { context, memory } = buildContext();
+    memory.revise.mockResolvedValue(
+      Result.err({
+        field: 'body',
+        kind: 'revision-too-long',
+        length: 16_590,
+        limit: 16_000,
+        reference: 'mem00001',
+        storedLength: 15_940
+      })
+    );
+    const result = await executeTool(append, { reference: 'mem00001', text: 'more' }, context);
+    expect(result.error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message:
+        'memory mem00001 holds 15,940 of 16,000 characters, and this change would make it 16,590; shorten a passage with memory__replace, or rewrite the memory without what is no longer needed with memory__rewrite, then try again'
+    });
+  });
+
+  it('rewrites a memory the turn read, disclosing the body it replaced (§3.6)', async () => {
+    const { context, memory } = buildContext();
+    memory.revise.mockImplementation(revisingAgainst(STORED));
+    await executeTool(read, { reference: 'mem00001' }, context);
+    const result = await executeTool(rewrite, { body: 'numbered lists', reference: 'mem00001' }, context);
+    expect(result.unwrap().disclosure).toStrictEqual({
+      body: 'numbered lists',
+      description: 'a stale fact',
+      reference: 'mem00001',
+      revision: { count: 1, replacedPassages: ['bullet points, always'] }
+    });
+  });
+
+  it('refuses to rewrite a memory the turn has not read, or one revised since (§3.6)', async () => {
+    const { context, memory } = buildContext();
+    memory.revise.mockImplementation(revisingAgainst(STORED));
+    const unread = await executeTool(rewrite, { body: 'b', reference: 'mem00001' }, context);
+    expect(unread.error).toMatchObject({ message: 'you have not read memory mem00001 in this turn; read it first' });
+    await executeTool(read, { reference: 'mem00001' }, context);
+    memory.revise.mockImplementation(revisingAgainst({ ...STORED, revision: 1 }));
+    const stale = await executeTool(rewrite, { body: 'b', reference: 'mem00001' }, context);
+    expect(stale.error).toMatchObject({
+      message: 'memory mem00001 was revised since you read it; read it again first'
     });
   });
 
   it('counts a revision as seen only from the revision the turn had read (§3.6)', async () => {
     const { context, memory } = buildContext();
     const appended = { ...STORED, body: 'a\nb', revision: 1 };
-    memory.revise.mockResolvedValue(Result.ok({ entry: appended, reference: 'mem00001' }));
+    memory.revise.mockResolvedValue(Result.ok({ entry: appended, previous: STORED, reference: 'mem00001' }));
     memory.deleteAdmitted.mockImplementation(deletingAgainst(appended));
     await executeTool(append, { reference: 'mem00001', text: 'b' }, context);
     expect((await executeTool(deleteTool, { reference: 'mem00001' }, context)).success).toBe(false);
@@ -201,7 +300,7 @@ describe('MEMORY_TOOLSET', () => {
     expect(write.retryable).toBeUndefined();
     expect(deleteTool.budgetExempt).toBeUndefined();
     expect(deleteTool.retryable).toBe(true);
-    for (const revision of [append, replace]) {
+    for (const revision of [append, replace, rewrite]) {
       expect([revision.budgetExempt, revision.concurrent, revision.retryable]).toStrictEqual([
         undefined,
         undefined,
