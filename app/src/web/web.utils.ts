@@ -16,6 +16,7 @@ import type {
   MarkdownWindow,
   PageRead,
   PageView,
+  RateLimitRetry,
   TlsReason,
   WebFailure,
   WebPage,
@@ -91,6 +92,15 @@ const TLS_FAILURES: { readonly [Reason in TlsReason]: string } = {
     "the site's certificate was issued by an authority this deployment does not trust; the site's configuration or " +
     "this deployment's trust store may be at fault, and retrying will not fix it"
 };
+
+/** §3.4 — said wherever the answer it came to is, so the model knows asking again at once is the site's to refuse */
+function describeRetry({ status, waitedMs }: RateLimitRetry): string {
+  return `retried once, ${Math.round(waitedMs / 100) / 10} s after an HTTP ${status}`;
+}
+
+function describeAnswer(status: number, retry: RateLimitRetry | undefined): string {
+  return retry === undefined ? `HTTP ${status}` : `HTTP ${status} (${describeRetry(retry)})`;
+}
 
 function toCodePoint(body: string): number {
   return body[1]?.toLowerCase() === 'x' ? Number.parseInt(body.slice(2), 16) : Number(body.slice(1));
@@ -378,9 +388,9 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
         'the element is in the latest snapshot — a select takes web::select, not web::fill'
       );
     })
-    .with({ kind: 'blocked' }, ({ status, url }) => {
+    .with({ kind: 'blocked' }, ({ retry, status, url }) => {
       return (
-        `${url} answered HTTP ${status} with a refusal or a bot check instead of the page: the site turned away a ` +
+        `${url} answered ${describeAnswer(status, retry)} with a refusal or a bot check instead of the page: the site turned away a ` +
         'read without a browser. web::navigate may get through, though some sites refuse a browser too'
       );
     })
@@ -395,8 +405,8 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
       const rendered = `the page at ${url} answered HTTP ${status} and rendered no readable content`;
       return GONE_STATUSES.has(status) ? `${rendered}. ${BUILT_URL_CAVEAT}` : rendered;
     })
-    .with({ kind: 'http-error' }, ({ bodyChars, status, url }) => {
-      const answered = `${url} answered HTTP ${status} with ${bodyChars} characters of body and nothing readable in it`;
+    .with({ kind: 'http-error' }, ({ bodyChars, retry, status, url }) => {
+      const answered = `${url} answered ${describeAnswer(status, retry)} with ${bodyChars} characters of body and nothing readable in it`;
       return GONE_STATUSES.has(status)
         ? `${answered}; there is no page at this address, and a browser will not find one. ${BUILT_URL_CAVEAT}`
         : answered;
@@ -458,8 +468,9 @@ export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailur
     .exhaustive();
 }
 
-export function renderWebPage(page: WebPage): string {
-  const header = `${page.title} — ${page.url} (HTTP ${page.status})`;
+export function renderWebPage(page: Pick<FetchedPage, 'retry'> & WebPage): string {
+  const retried = page.retry === undefined ? '' : `; ${describeRetry(page.retry)}`;
+  const header = `${page.title} — ${page.url} (HTTP ${page.status}${retried})`;
   const caveat = GONE_STATUSES.has(page.status) ? `\n${BUILT_URL_CAVEAT}` : '';
   return `${header}${caveat}\n\n${page.markdown}`;
 }

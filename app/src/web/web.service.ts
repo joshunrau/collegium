@@ -112,23 +112,23 @@ export class WebService {
     if (fetched.value.kind === 'pdf') {
       return this.readPdf(fetched.value, read);
     }
-    const { body, kind, status, url: finalUrl } = fetched.value;
+    const { body, kind, retry, status, url: finalUrl } = fetched.value;
+    const answered = { status, url: finalUrl, ...(retry && { retry }) };
     if (kind === 'text') {
       return Result.ok({
         ...readPage({ leftOutChars: 0, markdown: body }, read),
-        status,
-        title: new URL(finalUrl).pathname,
-        url: finalUrl
+        ...answered,
+        title: new URL(finalUrl).pathname
       });
     }
     const markdown = pageToMarkdown(body, finalUrl);
     const title = extractTitle(body);
-    const unreadable = refuseUnreadablePage({ body, markdown, status, title, url: finalUrl });
+    const unreadable = refuseUnreadablePage({ ...answered, body, markdown, title });
     if (unreadable) {
       return Result.err(unreadable);
     }
     const view = read.wholePage ? { leftOutChars: 0, markdown } : this.viewMainContent(body, finalUrl, markdown);
-    return Result.ok({ ...readPage(view, read), status, title, url: finalUrl });
+    return Result.ok({ ...readPage(view, read), ...answered, title });
   }
 
   async fill(
@@ -219,7 +219,7 @@ export class WebService {
 
   /** §3.4 — the text layer alone, under the same windowing as a page; a cut PDF does not parse, so it is not read */
   private async readPdf(
-    { bytes, isTruncated, status, url }: FetchedPdf,
+    { bytes, isTruncated, retry, status, url }: FetchedPdf,
     read: PageRead
   ): Promise<Result<FetchedPage, WebFailure.NoText | WebFailure.UnreadablePdf>> {
     if (isTruncated) {
@@ -233,7 +233,13 @@ export class WebService {
     if (isWithoutTextLayer(text)) {
       return Result.err({ kind: 'no-text', pageCount: text.pageCount, pagesRead: text.pages.length, url });
     }
-    return Result.ok({ ...readPdfText(text, read), status, title: new URL(url).pathname, url });
+    return Result.ok({
+      ...readPdfText(text, read),
+      status,
+      title: new URL(url).pathname,
+      url,
+      ...(retry && { retry })
+    });
   }
 
   private toSnapshot<TFailure extends WebFailure>(

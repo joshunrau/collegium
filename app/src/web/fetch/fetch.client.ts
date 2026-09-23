@@ -1,14 +1,22 @@
 import type { Readable } from 'node:stream';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import { Result } from '@collegium/core/utils';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { FETCH_BODY_CAP_BYTES, FETCH_TIMEOUT_MS, FETCH_USER_AGENT, MAX_REDIRECTS } from '../web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
-import { charsetOf, classifyContentType, classifyFetchError, describeFetchError, toDecoder } from './fetch.utils.ts';
+import {
+  charsetOf,
+  classifyContentType,
+  classifyFetchError,
+  describeFetchError,
+  rateLimitRetryWaitMs,
+  toDecoder
+} from './fetch.utils.ts';
 import { pinnedGet } from './pinned-request.utils.ts';
 
-import type { AddressPolicy, WebFailure } from '../web.types.ts';
+import type { AddressPolicy, RateLimitRetry, VettedAddress, WebFailure } from '../web.types.ts';
 import type { FetchedResource, PinnedResponse } from './fetch.types.ts';
 
 const ACCEPT =
@@ -30,13 +38,17 @@ export class FetchClient {
   async get(
     url: string
   ): Promise<
-    Result<FetchedResource, WebFailure.Navigation | WebFailure.Tls | WebFailure.UnsupportedContent | WebFailure.UrlRefused>
+    Result<
+      FetchedResource,
+      WebFailure.Navigation | WebFailure.Tls | WebFailure.UnsupportedContent | WebFailure.UrlRefused
+    >
   > {
     const followed = await this.follow(url);
     if (!followed.success) {
       return followed;
     }
-    const { response, url: finalUrl } = followed.value;
+    const { response, retry, url: finalUrl } = followed.value;
+    const answered = { status: response.status, url: finalUrl, ...(retry && { retry }) };
     const contentType = response.headers.get('content-type') ?? '';
     const kind = classifyContentType(contentType);
     if (kind === 'unsupported') {
@@ -49,21 +61,25 @@ export class FetchClient {
     }
     const { bytes, isTruncated } = read.value;
     if (kind === 'pdf') {
-      return Result.ok({ bytes, isTruncated, kind, status: response.status, url: finalUrl });
+      return Result.ok({ ...answered, bytes, isTruncated, kind });
     }
     const text = toDecoder(charsetOf(contentType)).decode(bytes);
     const body = isTruncated
       ? `${text}\n…body truncated at ${FETCH_BODY_CAP_BYTES} bytes; the server was still sending`
       : text;
-    return Result.ok({ body, kind, status: response.status, url: finalUrl });
+    return Result.ok({ ...answered, body, kind });
   }
 
   private async follow(
     url: string
   ): Promise<
-    Result<{ response: PinnedResponse; url: string }, WebFailure.Navigation | WebFailure.Tls | WebFailure.UrlRefused>
+    Result<
+      { response: PinnedResponse; retry?: RateLimitRetry; url: string },
+      WebFailure.Navigation | WebFailure.Tls | WebFailure.UrlRefused
+    >
   > {
     let current = url;
+    let retry: RateLimitRetry | undefined;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
       const refused = this.addressPolicy.refuse(current);
       if (refused) {
@@ -73,19 +89,15 @@ export class FetchClient {
       if (!vetted.success) {
         return vetted;
       }
-      let response: PinnedResponse;
-      try {
-        response = await pinnedGet(current, vetted.value, {
-          accept: ACCEPT,
-          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-          userAgent: FETCH_USER_AGENT
-        });
-      } catch (error) {
-        return Result.err(classifyFetchError(error));
+      const requested = await this.request(current, vetted.value, retry === undefined);
+      if (!requested.success) {
+        return requested;
       }
+      const { response } = requested.value;
+      retry ??= requested.value.retry;
       const location = response.headers.get('location');
       if (!REDIRECT_STATUSES.has(response.status) || location === null) {
-        return Result.ok({ response, url: current });
+        return Result.ok({ response, url: current, ...(retry && { retry }) });
       }
       response.body.destroy();
       const next = URL.parse(location, current);
@@ -119,6 +131,46 @@ export class FetchClient {
       return Result.ok({ bytes: Buffer.concat(chunks), isTruncated: false });
     } catch (error) {
       return Result.err({ kind: 'navigation', message: describeFetchError(error) });
+    }
+  }
+
+  /**
+   * One hop's GET, asked once more when the site answers with a rate limit whose wait fits the
+   * hop's own timeout (§3.4). The retry shares that timeout rather than starting its own, so the
+   * tool's timeout stays a backstop and never becomes the bound.
+   */
+  private async request(
+    url: string,
+    vetted: VettedAddress,
+    mayRetry: boolean
+  ): Promise<Result<{ response: PinnedResponse; retry?: RateLimitRetry }, WebFailure.Navigation | WebFailure.Tls>> {
+    const deadline = Date.now() + FETCH_TIMEOUT_MS;
+    const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+    const first = await this.send(url, vetted, signal);
+    if (!first.success) {
+      return first;
+    }
+    const waitMs = mayRetry ? rateLimitRetryWaitMs(first.value, Date.now(), deadline) : undefined;
+    if (waitMs === undefined) {
+      return Result.ok({ response: first.value });
+    }
+    first.value.body.destroy();
+    await sleep(waitMs);
+    const second = await this.send(url, vetted, signal);
+    return second.success
+      ? Result.ok({ response: second.value, retry: { status: first.value.status, waitedMs: waitMs } })
+      : second;
+  }
+
+  private async send(
+    url: string,
+    vetted: VettedAddress,
+    signal: AbortSignal
+  ): Promise<Result<PinnedResponse, WebFailure.Navigation | WebFailure.Tls>> {
+    try {
+      return Result.ok(await pinnedGet(url, vetted, { accept: ACCEPT, signal, userAgent: FETCH_USER_AGENT }));
+    } catch (error) {
+      return Result.err(classifyFetchError(error));
     }
   }
 }

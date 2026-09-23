@@ -66,6 +66,13 @@ describe('WEB_TOOLSET', () => {
     expect(result.unwrap().contentIdentity).toBeUndefined();
   });
 
+  it('marks a fetch that waited out a rate limit in its trace line (§8.1)', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, retry: { status: 429, waitedMs: 1_000 } }));
+    const result = await executeTool(fetch, { startChar: 0, url: 'https://example.org/', wholePage: false }, context);
+    expect(result.unwrap().traceOutcome).toBe('retried after HTTP 429');
+  });
+
   it('reads on from an offset, and names the part of the page the result holds (§3.8)', async () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 1000, to: 2000, total: 5000 } }));

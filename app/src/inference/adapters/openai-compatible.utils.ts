@@ -2,14 +2,13 @@ import type { $ModelRef } from '@collegium/config';
 import { match } from 'ts-pattern';
 
 import type { ToolSchema } from '@/core/core.types.ts';
+import { parseRetryAfterHeaderMs } from '@/utils/retry-after.utils.ts';
 
 import { toPromptCaching } from './prompt-caching.utils.ts';
 
 import type { CompletionMessage, CompletionRequest, ToolCall } from '../inference.types.ts';
 
 type AssistantMessage = Extract<CompletionMessage, { role: 'assistant' }>;
-
-const RETRY_AFTER_SECONDS = /^\d+(?:\.\d+)?$/u;
 
 /**
  * A DeepSeek thinking model refuses a request whose tail it must continue from — a trailing
@@ -140,13 +139,5 @@ export function parseRetryAfterMs(headers: Headers, now: number): number | undef
   if (Number.isFinite(milliseconds) && milliseconds >= 0) {
     return Math.ceil(milliseconds);
   }
-  const retryAfter = headers.get('retry-after')?.trim();
-  if (retryAfter === undefined) {
-    return undefined;
-  }
-  if (RETRY_AFTER_SECONDS.test(retryAfter)) {
-    return Math.ceil(Number(retryAfter) * 1000);
-  }
-  const date = Date.parse(retryAfter);
-  return Number.isNaN(date) ? undefined : Math.max(0, date - now);
+  return parseRetryAfterHeaderMs(headers.get('retry-after'), now);
 }

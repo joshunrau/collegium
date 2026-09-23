@@ -1,6 +1,9 @@
 import type { Readable } from 'node:stream';
 
+import type { RateLimitRetry } from '../web.types.ts';
+
 type FetchedResponse = {
+  readonly retry?: RateLimitRetry;
   readonly status: number;
   /** after redirects — not necessarily what was asked for */
   readonly url: string;
@@ -34,6 +37,7 @@ export type PinnedResponse = {
 export type ConvertedPage = {
   readonly body: string;
   readonly markdown: string;
+  readonly retry?: RateLimitRetry;
   readonly status: number;
   readonly title: string;
   /** after redirects — not necessarily what was asked for */

@@ -139,6 +139,31 @@ describe('FetchClient', () => {
     });
   });
 
+  it('should ask once more after the wait a rate limit names, and say it did (§3.4)', async () => {
+    pinnedGetMock.mockResolvedValueOnce(respond('slow down', { headers: { 'retry-after': '0' }, status: 429 }));
+    pinnedGetMock.mockResolvedValueOnce(html('<h1>Faculty</h1>'));
+    const result = await client.get('https://northmoor.example/people/');
+    expect(result.value).toMatchObject({ retry: { status: 429, waitedMs: 0 }, status: 200 });
+    expect(pinnedGetMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('should retry a rate limit only once', async () => {
+    pinnedGetMock.mockImplementation(() => {
+      return Promise.resolve(respond('slow down', { headers: { 'retry-after': '0' }, status: 429 }));
+    });
+    const result = await client.get('https://northmoor.example/people/');
+    expect(result.value).toMatchObject({ retry: { status: 429, waitedMs: 0 }, status: 429 });
+    expect(pinnedGetMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('should not wait out a rate limit longer than the request has left to answer in (§3.4)', async () => {
+    pinnedGetMock.mockResolvedValueOnce(respond('slow down', { headers: { 'retry-after': '60' }, status: 429 }));
+    const result = await client.get('https://northmoor.example/people/');
+    expect(result.value).toMatchObject({ status: 429 });
+    expect(result.value).not.toHaveProperty('retry');
+    expect(pinnedGetMock).toHaveBeenCalledTimes(1);
+  });
+
   it('should report a network failure as the page not loading', async () => {
     pinnedGetMock.mockRejectedValueOnce(new Error('connect ECONNREFUSED 203.0.113.7:443'));
     const result = await client.get('https://northmoor.example/');

@@ -6,6 +6,7 @@ import {
   classifyFetchError,
   describeFetchError,
   extractTitle,
+  rateLimitRetryWaitMs,
   toDecoder
 } from '../fetch.utils.ts';
 
@@ -92,5 +93,24 @@ describe('classifyFetchError', () => {
       kind: 'navigation',
       message: 'ECONNREFUSED message'
     });
+  });
+});
+
+describe('rateLimitRetryWaitMs (§3.4)', () => {
+  const now = Date.parse('2026-09-22T12:00:00Z');
+  const deadline = now + 20_000;
+  const answer = (status: number, retryAfter?: string) => {
+    return { headers: new Headers(retryAfter === undefined ? {} : { 'retry-after': retryAfter }), status };
+  };
+
+  it('should wait what the site names, or a second for a 429 that names nothing', () => {
+    expect(rateLimitRetryWaitMs(answer(503, '2'), now, deadline)).toBe(2_000);
+    expect(rateLimitRetryWaitMs(answer(429), now, deadline)).toBe(1_000);
+  });
+
+  it('should not retry a 503 that names no wait, a wait the timeout cannot hold, or a status that is no limit', () => {
+    expect(rateLimitRetryWaitMs(answer(503), now, deadline)).toBeUndefined();
+    expect(rateLimitRetryWaitMs(answer(429, '15'), now, deadline)).toBeUndefined();
+    expect(rateLimitRetryWaitMs(answer(403, '1'), now, deadline)).toBeUndefined();
   });
 });

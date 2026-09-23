@@ -68,6 +68,20 @@ export const SELECT_OPTIONS_SHOWN = 100;
 export const FETCH_TIMEOUT_MS = 20_000;
 
 /**
+ * The pause before retrying a 429 that names none (§3.4). Most limits are counted per second, so
+ * one second has let the window pass; a 503 that names none is not retried at all, since it is as
+ * likely an outage or a CDN's refusal as a request to slow down.
+ */
+export const RATE_LIMIT_DEFAULT_WAIT_MS = 1_000;
+
+/**
+ * How much of its request's timeout a retried request must still have to answer in once the wait
+ * is over (§3.4). A longer wait is not taken: a retry the timeout cuts off reads as a page that
+ * failed to load, where the status it replaced was one the model could plan around.
+ */
+export const RATE_LIMIT_RETRY_MIN_ANSWER_MS = 10_000;
+
+/**
  * Wikimedia and other robot-policy hosts refuse an unnamed client with a 403; a named one is what
  * their policy asks for. No deployment name, since the header reaches every site an agent reads.
  */

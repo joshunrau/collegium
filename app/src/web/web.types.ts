@@ -65,10 +65,17 @@ export type PageView = {
   readonly markdown: string;
 };
 
+/** §3.4 — the rate limit a fetch waited out before the answer it reports: the status that asked, and the wait */
+export type RateLimitRetry = {
+  readonly status: number;
+  readonly waitedMs: number;
+};
+
 /** one fetched page as read */
 export type FetchedPage = WebPage & {
   /** how many times the phrases occur; present when the read was a find */
   readonly matches?: number;
+  readonly retry?: RateLimitRetry;
 };
 
 /** one rendered page state: a page plus the controls a later action may target */
@@ -95,6 +102,7 @@ export declare namespace WebFailure {
   /** the site answered a read without a browser with a refusal or a bot check instead of the page (§3.4) */
   type Blocked = {
     kind: 'blocked';
+    retry?: RateLimitRetry;
     status: number;
     url: string;
   };
@@ -113,6 +121,7 @@ export declare namespace WebFailure {
   type HttpError = {
     bodyChars: number;
     kind: 'http-error';
+    retry?: RateLimitRetry;
     status: number;
     url: string;
   };

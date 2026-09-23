@@ -120,14 +120,19 @@ const httpStatusOutcome = (page: WebPage): string | undefined => {
   return page.status >= 300 ? `HTTP ${page.status}` : undefined;
 };
 
-/** §8.1 — and what a find came to, since one that matched nothing must not trace like one that did */
+/** §8.1 — a find that matched nothing must not trace like one that did */
+const describeFound = (matches: number): string => {
+  return matches === 0 ? '⚠️ no matches' : `${matches} match${matches === 1 ? '' : 'es'}`;
+};
+
+/** §8.1 — and what a find came to, and the rate limit a fetch waited out on the way (§3.4) */
 const fetchOutcome = (page: FetchedPage): string | undefined => {
-  const status = httpStatusOutcome(page);
-  if (page.matches === undefined) {
-    return status;
-  }
-  const found = page.matches === 0 ? '⚠️ no matches' : `${page.matches} match${page.matches === 1 ? '' : 'es'}`;
-  return status === undefined ? found : `${status}, ${found}`;
+  const parts = [
+    httpStatusOutcome(page),
+    page.retry && `retried after HTTP ${page.retry.status}`,
+    page.matches === undefined ? undefined : describeFound(page.matches)
+  ].filter((part) => part !== undefined);
+  return parts.length === 0 ? undefined : parts.join(', ');
 };
 
 /** §8.1 — the page the action landed on, named rather than addressed: a client-rendered pager's URL never changes */

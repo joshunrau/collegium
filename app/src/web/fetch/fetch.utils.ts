@@ -1,6 +1,10 @@
+import { parseRetryAfterHeaderMs } from '@/utils/retry-after.utils.ts';
+
+import { RATE_LIMIT_DEFAULT_WAIT_MS, RATE_LIMIT_RETRY_MIN_ANSWER_MS } from '../web.constants.ts';
 import { decodeHtmlEntities } from '../web.utils.ts';
 
 import type { TlsReason, WebFailure } from '../web.types.ts';
+import type { PinnedResponse } from './fetch.types.ts';
 
 const HTML_TYPES: ReadonlySet<string> = new Set(['application/xhtml+xml', 'text/html']);
 
@@ -9,6 +13,9 @@ const PDF_TYPES: ReadonlySet<string> = new Set(['application/pdf', 'application/
 const TEXT_TYPES: ReadonlySet<string> = new Set(['application/json', 'application/xml']);
 
 const TITLE_PATTERN = /<title[^>]*>([^<]*)<\/title>/i;
+
+/** what a site answers a client it wants to come back later */
+const RATE_LIMIT_STATUSES: ReadonlySet<number> = new Set([429, 503]);
 
 /** OpenSSL's and Node's names for a certificate that did not verify, by what each establishes (§3.4) */
 const TLS_REASONS_BY_CODE: { readonly [code: string]: TlsReason } = {
@@ -31,7 +38,8 @@ function asTlsFailure(error: unknown): undefined | WebFailure.Tls {
     return undefined;
   }
   const reason =
-    TLS_REASONS_BY_CODE[code] ?? (TLS_CODE_PREFIXES.some((prefix) => code.startsWith(prefix)) ? 'unclassified' : undefined);
+    TLS_REASONS_BY_CODE[code] ??
+    (TLS_CODE_PREFIXES.some((prefix) => code.startsWith(prefix)) ? 'unclassified' : undefined);
   return reason === undefined ? undefined : { code, kind: 'tls', reason };
 }
 
@@ -92,4 +100,23 @@ export function describeFetchError(error: unknown): string {
  */
 export function classifyFetchError(error: unknown): WebFailure.Navigation | WebFailure.Tls {
   return asTlsFailure(error) ?? { kind: 'navigation', message: describeFetchError(error) };
+}
+
+/**
+ * §3.4 — how long to wait before the one retry a rate limit earns, or nothing: the answer is not a
+ * rate limit, it asks for no wait, or its wait would leave the retry too little of the request's
+ * timeout to answer in.
+ */
+export function rateLimitRetryWaitMs(
+  response: Pick<PinnedResponse, 'headers' | 'status'>,
+  now: number,
+  deadline: number
+): number | undefined {
+  if (!RATE_LIMIT_STATUSES.has(response.status)) {
+    return undefined;
+  }
+  const asked =
+    parseRetryAfterHeaderMs(response.headers.get('retry-after'), now) ??
+    (response.status === 429 ? RATE_LIMIT_DEFAULT_WAIT_MS : undefined);
+  return asked !== undefined && now + asked + RATE_LIMIT_RETRY_MIN_ANSWER_MS <= deadline ? asked : undefined;
 }

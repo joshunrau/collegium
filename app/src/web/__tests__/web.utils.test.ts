@@ -355,6 +355,19 @@ describe('describeWebFailureOutcome', () => {
 });
 
 describe('renderWebPage', () => {
+  it('should say a page is the answer to a retry after a rate limit (§3.4)', () => {
+    const page = {
+      markdown: '# Faculty',
+      retry: { status: 429, waitedMs: 1_500 },
+      status: 200,
+      title: 'Faculty',
+      url: 'https://northmoor.example/'
+    };
+    expect(renderWebPage(page)).toMatch(
+      /^Faculty — https:\/\/northmoor\.example\/ \(HTTP 200; retried once, 1\.5 s after an HTTP 429\)\n/u
+    );
+  });
+
   it('should caution that a 404 on an address the model built says nothing about the page (§3.4)', () => {
     const page = {
       markdown: '# Not Found',

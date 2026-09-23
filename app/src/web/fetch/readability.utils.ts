@@ -57,14 +57,14 @@ function isRefusal(page: ConvertedPage): boolean {
 export function refuseUnreadablePage(
   page: ConvertedPage
 ): undefined | WebFailure.Blocked | WebFailure.HttpError | WebFailure.NoStaticContent {
-  const { markdown, status, url } = page;
+  const { markdown, retry, status, url } = page;
   if (isRefusal(page)) {
-    return { kind: 'blocked', status, url };
+    return { kind: 'blocked', status, url, ...(retry && { retry }) };
   }
   if (markdown !== '') {
     return undefined;
   }
   return status >= 400
-    ? { bodyChars: page.body.length, kind: 'http-error', status, url }
+    ? { bodyChars: page.body.length, kind: 'http-error', status, url, ...(retry && { retry }) }
     : { kind: 'no-static-content', status, url };
 }
