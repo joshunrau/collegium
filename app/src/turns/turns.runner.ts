@@ -110,15 +110,8 @@ const CONSECUTIVE_REJECTION_LIMIT = 2;
 /** §5.3 — how many repeated calls the extension prompt names; the loop it exposes is three URLs long, not fifty */
 const TOP_REPEATED_CALLS = 5;
 
-/**
- * §3.8 — the share of a model's window one turn's prompt may reach before its stale pages are
- * retired and, failing that, the turn ends. The remainder is the completion the model has yet to
- * write and the slack a character-ratio estimate owes a tokeniser it is not.
- */
-const TURN_PROMPT_CEILING_SHARE = 0.85;
-
-/** §3.8 — what a result cut to fit the window ends with; the trace holds the rest */
-const RESULT_TRUNCATION_MARKER = '\n…result truncated to fit the context window; the full text is in the trace';
+/** §3.8 — what a result cut to fit beneath the turn's ceiling ends with; the trace holds the rest */
+const RESULT_TRUNCATION_MARKER = "\n…result truncated to fit this turn's context; the full text is in the trace";
 
 /** §3.8 — below this a cut result is not long but the turn has no room, and the honest outcome is exhaustion */
 const RESULT_MIN_TOKENS = 500;
@@ -522,10 +515,6 @@ export class TurnRunner {
     };
   }
 
-  private ceilingFor(profile: AgentProfile): number {
-    return Math.floor(profile.contextWindowTokens * TURN_PROMPT_CEILING_SHARE);
-  }
-
   /** every exit but a §7.1 failure, which closes through `closeWithFailureNotice`; a command's exit names its invoker (§7.5) */
   private close(state: TurnState, status: Exclude<TurnStatus, 'running' | FailureStatus>): Promise<TurnOutcome> {
     const aborted = state.control.aborted();
@@ -897,7 +886,7 @@ export class TurnRunner {
   }
 
   private exceedsCeiling(input: RunInput, state: TurnState): boolean {
-    return state.promptTokens > this.ceilingFor(input.profile);
+    return state.promptTokens > input.profile.turnContextCeilingTokens;
   }
 
   /**
@@ -1319,7 +1308,7 @@ export class TurnRunner {
    * Only when even that leaves the turn over its ceiling is it out of room.
    */
   private relieveContextPressure(input: RunInput, state: TurnState): 'exhausted' | 'relieved' {
-    const ceiling = this.ceilingFor(input.profile);
+    const ceiling = input.profile.turnContextCeilingTokens;
     while (state.promptTokens > ceiling && this.hasReadSupersedable(state)) {
       this.collapseOldestSupersedable(state);
     }
@@ -1409,7 +1398,7 @@ export class TurnRunner {
   /** everything here may throw; run() owns the boundary so no exit can leave the turn 'running' */
   private async runLoop(input: RunInput, state: TurnState): Promise<TurnOutcome> {
     const { channelId, profile } = input;
-    let assembled = await this.contextAssembler.assemble({ channelId, profile });
+    let assembled = await this.contextAssembler.assemble({ channelId, profile, turnId: state.turn.id });
     this.loadAssembledContext(state, assembled);
     if (this.exceedsCeiling(input, state)) {
       return this.closeWithFailureNotice(input, state, 'context_exhausted', renderContextExhaustedNotice('initial'));
@@ -1449,7 +1438,7 @@ export class TurnRunner {
         // §3.7 — the newest fragment is the request the prompt should quote, not the one it began on
         state.requestedBy = await this.resolveRequester(folded.at(-1));
         state.status.appendTrace({ kind: 'note', text: renderFoldLine() });
-        assembled = await this.contextAssembler.assemble({ channelId, profile });
+        assembled = await this.contextAssembler.assemble({ channelId, profile, turnId: state.turn.id });
         this.loadAssembledContext(state, assembled);
         if (this.exceedsCeiling(input, state)) {
           return this.closeWithFailureNotice(

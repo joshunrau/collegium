@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { $ChannelHandle, $ResourcePath } from '../common.ts';
+import { REPLAY_VERBATIM_MAX_CHARS } from '../tools.ts';
 
 export type $MailEndpoint = z.infer<typeof $MailEndpoint>;
 export const $MailEndpoint = z.strictObject({
@@ -126,7 +127,7 @@ export const $MemorySettings = z
       .positive()
       .default(16_000)
       .describe(
-        'Longest body one entry may hold. A longer write is refused rather than truncated, since a silently cut note is worse than a refused one. Bodies are read on demand, never rendered into every prompt, so the cost of a large one is paid only by the turn that reads it.'
+        `Longest body one entry may hold. A longer write is refused rather than truncated, since a silently cut note is worse than a refused one. Bodies are never listed in the prompt, but a written body stays in the channel window as the arguments of the call that wrote it, so this also bounds what one write costs each later turn whose window reaches it. A body read back replays to later turns in full up to ${REPLAY_VERBATIM_MAX_CHARS} characters, and as one line beyond that (§3.8).`
       ),
     maxDescriptionChars: z
       .number()
@@ -134,7 +135,7 @@ export const $MemorySettings = z
       .positive()
       .default(200)
       .describe(
-        'Longest description one entry may hold. Descriptions enter the system prompt every turn, so this bounds that cost.'
+        'Longest description one entry may hold. Every description is listed after the channel window on every turn (§3.8), so this bounds that cost.'
       ),
     maxEntries: z
       .number()

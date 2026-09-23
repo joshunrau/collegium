@@ -5,8 +5,15 @@ import { WindowService } from '@/conversations/window/window.service.ts';
 import type { CompletionRequest } from '@/inference/inference.types.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
-import { toCompletionMessages } from './context.utils.ts';
-import { SystemPromptRenderer } from './system-prompt.renderer.ts';
+import { estimateWindowTokens, toCompletionMessages } from './context.utils.ts';
+import { PromptRenderer } from './prompt.renderer.ts';
+
+type AssembleInput = {
+  readonly channelId: string;
+  readonly profile: AgentProfile;
+  /** the turn in progress: its own rounds are the only ones handed back with their reasoning (§3.12) */
+  readonly turnId: string;
+};
 
 export type AssembledContext = {
   /** §5.2 — taken before the store is read, so every post recorded earlier was there to be read */
@@ -19,28 +26,30 @@ export type AssembledContext = {
 };
 
 /**
- * The seven sections of §3.8, from SQLite alone — never the Mattermost API on the turn path. All
- * but two render into the system prompt; tool definitions ride the request's own `tools` field,
- * which is where a provider reads them; the channel window becomes the messages. The window is
- * built first because the prompt's earlier-action lines begin where it reaches back to.
+ * The sections of §3.8, from SQLite alone — never the Mattermost API on the turn path. The system
+ * prompt leads; tool definitions ride the request's own `tools` field, which is where a provider
+ * reads them; the channel window becomes the messages, and the sections that change between turns
+ * follow it as one message of their own. The window is built first because the earlier-action
+ * lines begin where it reaches back to.
  */
 @Injectable()
 export class ContextAssembler {
   constructor(
-    private readonly systemPromptRenderer: SystemPromptRenderer,
+    private readonly promptRenderer: PromptRenderer,
     private readonly toolRegistry: ToolRegistry,
     private readonly windowService: WindowService
   ) {}
 
-  async assemble(input: { channelId: string; profile: AgentProfile }): Promise<AssembledContext> {
-    const { channelId, profile } = input;
+  async assemble(input: AssembleInput): Promise<AssembledContext> {
+    const { channelId, profile, turnId } = input;
     const assembledAt = new Date();
     const { entries, oldestAt } = await this.windowService.build({
       agentUsername: profile.username,
       budgetTokens: profile.contextBudgetTokens,
-      channelId
+      channelId,
+      costOf: (candidates) => estimateWindowTokens(candidates, profile.username)
     });
-    const systemPrompt = await this.systemPromptRenderer.renderParts({
+    const { stable, tail } = await this.promptRenderer.renderParts({
       channelId,
       profile,
       windowReachesBackTo: oldestAt
@@ -50,9 +59,13 @@ export class ContextAssembler {
       reachesBackTo: oldestAt,
       request: {
         cacheKey: JSON.stringify([profile.username, channelId]),
-        messages: toCompletionMessages(entries, profile.username),
+        // §3.8 — a user-role message, since a provider may hoist a system message ahead of the window
+        messages: [
+          ...toCompletionMessages(entries, profile.username, turnId),
+          ...(tail === undefined ? [] : [{ content: tail, role: 'user' as const }])
+        ],
         model: profile.model,
-        systemPrompt,
+        systemPrompt: stable,
         tools: this.toolRegistry.describeFor(profile)
       },
       windowPostIds: new Set(entries.flatMap((entry) => (entry.kind === 'post' ? [entry.post.id] : [])))

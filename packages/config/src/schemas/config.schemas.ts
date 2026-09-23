@@ -19,7 +19,7 @@ import { isUnique } from '@collegium/core/utils';
 import type { LiteralUnion } from 'type-fest';
 import { z } from 'zod';
 
-import { CONFIG_DEFAULTS, CONTEXT_BUDGET_WINDOW_SHARE } from '../constants.ts';
+import { CONFIG_DEFAULTS, CONTEXT_BUDGET_CEILING_SHARE, TURN_CONTEXT_WINDOW_SHARE } from '../constants.ts';
 import { schemaTable, suggestedValues } from '../meta.ts';
 
 // After any change here, update the root config.json to match; `pnpm build` regenerates
@@ -83,7 +83,16 @@ export const $ContextBudgetTokens = z
   .int()
   .positive()
   .describe(
-    'How many estimated tokens of channel history one turn may assemble (§3.8). The estimate is a character ratio, not a tokenizer.'
+    'How many estimated tokens of channel history one turn may assemble (§3.8). It bounds what a turn starts with, never what the turn goes on to accumulate, and must be below the agent’s turn ceiling. The estimate is a character ratio, not a tokenizer.'
+  );
+
+export type $TurnContextCeilingTokens = z.infer<typeof $TurnContextCeilingTokens>;
+export const $TurnContextCeilingTokens = z
+  .number()
+  .int()
+  .positive()
+  .describe(
+    `How many estimated tokens one turn’s whole context may reach: the prompt, the channel history and the turn’s own tool results (§3.8). Past it, results the agent has already read collapse to one line each, a result that still does not fit is cut with a marker saying so, and a turn that cannot get beneath it ends. Retention within a turn is a share of it. Capped at ${TURN_CONTEXT_WINDOW_SHARE * 100}% of the model’s context window, so it binds where that window is too large to bound a turn.`
   );
 
 /** a Mattermost account name: the slug an agent is addressed by, and its bot account's own handle */
@@ -190,7 +199,7 @@ export const $AgentDefaults = z.strictObject({
   contextBudgetTokens: $ContextBudgetTokens
     .optional()
     .describe(
-      `Every agent's budget unless it states its own. Omit to give each agent ${CONTEXT_BUDGET_WINDOW_SHARE * 100}% of its model's context window.`
+      `Every agent's budget unless it states its own. Omit to give each agent ${CONTEXT_BUDGET_CEILING_SHARE * 100}% of its turn ceiling.`
     ),
   model: $ModelRef.optional(),
   personality: $Personality.optional(),
@@ -198,7 +207,10 @@ export const $AgentDefaults = z.strictObject({
     .default({})
     .describe(
       'Per-namespace settings every agent granted that namespace starts from. An agent’s own toolSettings merge over these shallowly, per namespace: a field the agent states replaces that field whole, and the rest keep their defaults.'
-    )
+    ),
+  turnContextCeilingTokens: $TurnContextCeilingTokens
+    .default(CONFIG_DEFAULTS.agentDefaults.turnContextCeilingTokens)
+    .describe("Every agent's turn ceiling unless it states its own")
 });
 
 export type $TimeOfDay = z.infer<typeof $TimeOfDay>;
@@ -300,7 +312,10 @@ export const $AgentDeclaration = z.strictObject({
     .default({})
     .describe(
       'Per-namespace settings for this agent, merged shallowly over agentDefaults.toolSettings and validated against the schema the toolset declares. Settings for an ungranted toolset are refused at boot.'
-    )
+    ),
+  turnContextCeilingTokens: $TurnContextCeilingTokens
+    .optional()
+    .describe('Overrides agentDefaults.turnContextCeilingTokens for this agent')
 });
 
 export type $DebouncePolicy = z.infer<typeof $DebouncePolicy>;

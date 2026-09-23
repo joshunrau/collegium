@@ -68,7 +68,8 @@ export type ToolPost = {
  * for on every turn whose window still holds the result. Either the line itself, which a tool owns
  * and later turns see verbatim, or the subject alone (`page https://…, 18432 characters`), from
  * which the framework renders the later-turn line and the in-turn collapse line each in its own
- * words. Never both.
+ * words. Never both. A result that names neither replays to later turns as its tool's name and
+ * size once it is longer than `REPLAY_VERBATIM_MAX_CHARS`.
  */
 export type ToolOutput = {
   /**

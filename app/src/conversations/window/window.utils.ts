@@ -1,10 +1,28 @@
-import { estimateTokens } from '@collegium/core/utils';
-
 import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
 
-import { renderPostWithAttachments, replayTextOf } from '../conversations.utils.ts';
+import { replayTextOf } from '../conversations.utils.ts';
 
 import type { WindowEntry } from '../conversations.types.ts';
+
+/** the call an event answers or gates: its result, an approval or ask that names it; nothing for an event that stands alone */
+function answeredCallIdOf(entry: WindowEntry): string | undefined {
+  if (entry.kind === 'post') {
+    return undefined;
+  }
+  const { payload } = entry.event;
+  switch (payload.kind) {
+    case 'approval_decided':
+    case 'approval_requested':
+    case 'ask_answered':
+    case 'ask_requested':
+    case 'tool_result':
+      return payload.callId;
+    case 'assistant_message':
+    case 'record_written':
+    case 'steering_received':
+      return undefined;
+  }
+}
 
 export type PagedSource<TRow> = {
   /** drops the row `peek` last returned */
@@ -13,19 +31,14 @@ export type PagedSource<TRow> = {
   peek(): Promise<TRow | undefined>;
 };
 
-/** what an entry costs against the window budget: what the model will read, so a replayed result costs its replay line */
-export function entryText(entry: WindowEntry): string {
-  if (entry.kind === 'post') {
-    return renderPostWithAttachments(entry.post);
-  }
-  const { payload } = entry.event;
-  return replayTextOf(payload) ?? JSON.stringify(payload);
-}
+export type UnitCollector = {
+  /** fed the walk newest first: the unit this entry completes, or nothing while it waits for the call it answers */
+  take(entry: WindowEntry): readonly WindowEntry[] | undefined;
+};
 
 /**
- * §3.8 — how one earlier action reads: the line the tool declared, else its bare name. Not
- * `entryText`'s rule, which falls back to the whole payload because that is what a result with no
- * replay line costs the window; an earlier action is one line or it is nothing.
+ * §3.8 — how one earlier action reads: the line its result replays as, else its bare name. Not the
+ * window's rule, where a short result keeps its text; an earlier action is one line or it is nothing.
  */
 export function replayLineOf(payload: PrismaJson.TurnEventPayload): string | undefined {
   if (payload.kind !== 'tool_result') {
@@ -34,13 +47,36 @@ export function replayLineOf(payload: PrismaJson.TurnEventPayload): string | und
   return replayTextOf(payload) ?? `[${renderRecordedToolName(payload.toolName)}]`;
 }
 
-export function costOf(entries: readonly WindowEntry[]): number {
-  return entries.reduce((sum, entry) => sum + estimateTokens(entryText(entry)), 0);
-}
-
 /** the instant an entry is ordered and anchored by: the post's own clock, or the host's for a trace event */
 export function instantOf(entry: WindowEntry): Date {
   return entry.kind === 'post' ? entry.post.createdAt : entry.event.createdAt;
+}
+
+/**
+ * §3.8 — what the window admits whole, read newest first: an assistant message together with every
+ * event answering its calls, which arrive before it, or any other entry alone. A call is rendered
+ * beside its result, so costing either apart from the other would charge what is never sent.
+ */
+export function createUnitCollector(): UnitCollector {
+  const answers = new Map<string, WindowEntry[]>();
+  return {
+    take: (entry) => {
+      const callId = answeredCallIdOf(entry);
+      if (callId !== undefined) {
+        answers.set(callId, [...(answers.get(callId) ?? []), entry]);
+        return undefined;
+      }
+      if (entry.kind === 'post' || entry.event.payload.kind !== 'assistant_message') {
+        return [entry];
+      }
+      const answering = entry.event.payload.toolCalls.flatMap((call) => {
+        const found = answers.get(call.callId) ?? [];
+        answers.delete(call.callId);
+        return found;
+      });
+      return [entry, ...answering];
+    }
+  };
 }
 
 /**

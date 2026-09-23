@@ -13,7 +13,7 @@ const request: CompletionRequest = {
   cacheKey: 'mira:channel-1',
   messages: [{ content: 'Hello', role: 'user' }],
   model: DEEPSEEK_FLASH,
-  systemPrompt: { dynamic: 'Current memories and peers', memories: '', stable: 'Instructions and skills' },
+  systemPrompt: 'Instructions and skills',
   tools: []
 };
 
@@ -29,15 +29,12 @@ const openai = (name: 'openai/gpt-5.6-sol' | 'openai/gpt-6-astra' | '~openai/gpt
 
 describe('toCompletionBody', () => {
   it.each([anthropic('anthropic/claude-sonnet-5'), anthropic('~anthropic/claude-opus-latest')])(
-    'should cache the stable prefix, system context, and growing history for $name',
+    'should cache the system prompt and the growing history for $name',
     (model) => {
       const body = toCompletionBody({ ...request, model });
       expect(body.cache_control).toStrictEqual({ type: 'ephemeral' });
       expect(body.messages[0]).toStrictEqual({
-        content: [
-          { cache_control: { type: 'ephemeral' }, text: request.systemPrompt.stable, type: 'text' },
-          { cache_control: { type: 'ephemeral' }, text: request.systemPrompt.dynamic, type: 'text' }
-        ],
+        content: [{ cache_control: { type: 'ephemeral' }, text: request.systemPrompt, type: 'text' }],
         role: 'system'
       });
       expect(body).not.toHaveProperty('prompt_cache_options');
@@ -45,16 +42,13 @@ describe('toCompletionBody', () => {
   );
 
   it.each([openai('openai/gpt-5.6-sol'), openai('openai/gpt-6-astra'), openai('~openai/gpt-luna-latest')])(
-    'should retain automatic caching alongside explicit system boundaries for $name',
+    'should retain automatic caching alongside an explicit system boundary for $name',
     (model) => {
       const body = toCompletionBody({ ...request, model });
       expect(body.prompt_cache_options).toStrictEqual({ mode: 'implicit', ttl: '30m' });
       expect(body.prompt_cache_key).toBe(body.session_id);
       expect(body.messages[0]).toStrictEqual({
-        content: [
-          { prompt_cache_breakpoint: { mode: 'explicit' }, text: request.systemPrompt.stable, type: 'text' },
-          { prompt_cache_breakpoint: { mode: 'explicit' }, text: request.systemPrompt.dynamic, type: 'text' }
-        ],
+        content: [{ prompt_cache_breakpoint: { mode: 'explicit' }, text: request.systemPrompt, type: 'text' }],
         role: 'system'
       });
       expect(body).not.toHaveProperty('cache_control');
@@ -68,40 +62,20 @@ describe('toCompletionBody', () => {
     { name: 'z-ai/glm-5.3', provider: 'openrouter' }
   ])('should preserve automatic caching without unsupported controls for $name', (model) => {
     const body = toCompletionBody({ ...request, model });
-    expect(body.messages[0]).toStrictEqual({
-      content: 'Instructions and skills\n\nCurrent memories and peers',
-      role: 'system'
-    });
+    expect(body.messages[0]).toStrictEqual({ content: 'Instructions and skills', role: 'system' });
     expect(body).not.toHaveProperty('cache_control');
     expect(body).not.toHaveProperty('prompt_cache_options');
     expect(body).not.toHaveProperty('prompt_cache_key');
   });
 
-  it('should keep routing stable across memory changes and window truncation, while separating conversations', () => {
+  it('should keep routing stable as the conversation changes, while separating conversations', () => {
     const routed: CompletionRequest = { ...request, model: { name: 'z-ai/glm-5.3', provider: 'openrouter' } };
     const original = toCompletionBody(routed);
-    const changed = toCompletionBody({
-      ...routed,
-      messages: [{ content: 'A later window', role: 'user' }],
-      systemPrompt: { ...request.systemPrompt, dynamic: 'Updated memories' }
-    });
+    const changed = toCompletionBody({ ...routed, messages: [{ content: 'A later window', role: 'user' }] });
     expect(original.session_id).toMatch(/^[a-f0-9]{64}$/u);
     expect(changed.session_id).toBe(original.session_id);
     expect(toCompletionBody({ ...routed, cacheKey: 'mira:channel-2' }).session_id).not.toBe(original.session_id);
     expect(toCompletionBody(request)).not.toHaveProperty('session_id');
-  });
-
-  it('should preserve the cacheable instruction block when memories change and omit empty blocks', () => {
-    const initial = toCompletionBody({
-      ...request,
-      model: CLAUDE_SONNET,
-      systemPrompt: { ...request.systemPrompt, dynamic: '' }
-    });
-    const updated = toCompletionBody({ ...request, model: CLAUDE_SONNET });
-    expect(initial.messages[0]?.content).toStrictEqual([
-      { cache_control: { type: 'ephemeral' }, text: request.systemPrompt.stable, type: 'text' }
-    ]);
-    expect(updated.messages[0]?.content[0]).toStrictEqual(initial.messages[0]?.content[0]);
   });
 
   it('should stream every completion with usage on the last chunk, asking OpenRouter for its accounting too', () => {
@@ -138,7 +112,7 @@ describe('toCompletionBody', () => {
     const body = toCompletionBody({
       ...request,
       messages: [{ content: 'All done', role: 'assistant' }],
-      systemPrompt: { dynamic: '', memories: '', stable: 'Be helpful' }
+      systemPrompt: 'Be helpful'
     });
 
     expect(body.messages).toStrictEqual([

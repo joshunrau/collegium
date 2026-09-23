@@ -99,6 +99,7 @@ const definition = (username: string): AgentDefinition => ({
   systemPrompt: `You are ${username}`,
   tools: [],
   toolSettings: {},
+  turnContextCeilingTokens: 200_000,
   username
 });
 

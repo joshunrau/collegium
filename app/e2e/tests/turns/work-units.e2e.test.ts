@@ -81,14 +81,12 @@ describe('Delegation through a work unit', () => {
     expect(await traceOf(miraReply.id)).toContain('depth 0');
 
     const closing = inference.requestsFor('mira').at(-1)!;
-    expect(closing.systemPrompt).toContain('## Open work');
-    expect(closing.systemPrompt).not.toContain('No work is open in this channel.');
+    expect(closing.tail).toContain('## Open work');
+    expect(closing.tail).not.toContain('No work is open in this channel.');
     const afterwards = `afterwards-${randomUUID()}`;
     inference.willReply({ agent: 'mira', contains: 'anything open' }, textResponse(afterwards));
     await channels.main.mention('mira', 'anything open?');
     await channels.main.awaitReplyFrom('mira', { text: afterwards });
-    expect(inference.requestsFor('mira').at(-1)!.systemPrompt).toContain(
-      '## Open work\n\nNo work is open in this channel.'
-    );
+    expect(inference.requestsFor('mira').at(-1)!.tail).toContain('## Open work\n\nNo work is open in this channel.');
   });
 });

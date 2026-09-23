@@ -50,6 +50,7 @@ const DEFINITION: AgentDefinition = {
   systemPrompt: 'You are Mira.',
   tools: [],
   toolSettings: {},
+  turnContextCeilingTokens: 200_000,
   username: 'mira'
 };
 
@@ -123,7 +124,6 @@ describe('RuntimeService', () => {
     mira = {
       actionBudget: 25,
       contextBudgetTokens: 1000,
-      contextWindowTokens: 32_000,
       expertise: 'testing',
       model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
       personality: undefined,
@@ -131,6 +131,7 @@ describe('RuntimeService', () => {
       systemPrompt: 'You are Mira.',
       tools: [],
       toolSettings: new Map(),
+      turnContextCeilingTokens: 27_200,
       username: 'mira',
       workspaceDir: path.join(workspaceRoot, 'mira')
     };

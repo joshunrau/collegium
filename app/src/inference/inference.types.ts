@@ -32,11 +32,12 @@ export type UnparsedToolCall = {
 };
 
 /**
- * Reasoning travels with the assistant message it produced, in memory within the turn and through
- * the `assistant_message` event across turns, because a thinking-mode provider rejects a replayed
- * assistant message without it. DeepSeek hands it back as text; OpenRouter as structured blocks
- * carrying a signature, replayed exactly as they came. §3.12 keeps it off every other surface:
- * never a post, a prompt, a trace, or a log line.
+ * Reasoning travels with the assistant message it produced for the rest of its turn, because a
+ * thinking-mode provider rejects continuing from an assistant message without it; the
+ * `assistant_message` event keeps it, and a later turn's window hands none of it back (§3.12).
+ * DeepSeek hands it back as text; OpenRouter as structured blocks carrying a signature, replayed
+ * exactly as they came. §3.12 keeps it off every other surface: never a post, a prompt, a trace,
+ * or a log line.
  */
 export type CompletionReasoning = {
   reasoningContent?: string;
@@ -48,18 +49,12 @@ export type CompletionMessage =
   | { content: string; role: 'tool'; toolCallId: string }
   | { content: string; role: 'user' };
 
-/** §3.8 — the three cache boundaries, in order: fixed for the process, changing when the agent writes, changing turn to turn */
-export type SystemPrompt = {
-  readonly dynamic: string;
-  readonly memories: string;
-  readonly stable: string;
-};
-
 export type CompletionRequest = {
   readonly cacheKey: string;
   readonly messages: readonly CompletionMessage[];
   readonly model: $ModelRef;
-  readonly systemPrompt: SystemPrompt;
+  /** §3.8 — the one system message, sent first; what changes between turns travels in `messages` after the window */
+  readonly systemPrompt: string;
   readonly tools: readonly ToolSchema[];
 };
 

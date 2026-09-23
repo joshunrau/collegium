@@ -22,6 +22,7 @@ const MIRA: AgentDefinition = {
   systemPrompt: 'You are Mira',
   tools: [],
   toolSettings: {},
+  turnContextCeilingTokens: 200_000,
   username: 'mira'
 };
 

@@ -18,27 +18,27 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
-import { SystemPromptRenderer } from '../system-prompt.renderer.ts';
+import { PromptRenderer } from '../prompt.renderer.ts';
 
 const PROFILE = {
   actionBudget: 7,
   contextBudgetTokens: 12_000,
-  contextWindowTokens: 32_000,
   expertise: 'testing',
   systemPrompt: 'You are Mira.',
+  turnContextCeilingTokens: 32_000,
   username: 'mira',
   workspaceDir: '/var/lib/collegium/workspaces/mira'
 } as AgentProfile;
 
 const PEER = { expertise: 'scheduling', username: 'tess' } as AgentProfile;
 
-describe('SystemPromptRenderer', () => {
+describe('PromptRenderer', () => {
   let mailRegistry: MockedInstance<MailRegistry>;
   let memoryService: MockedInstance<MemoryService>;
   let rosterService: MockedInstance<RosterService>;
   let shellService: MockedInstance<ShellService>;
   let skillsService: MockedInstance<SkillsService>;
-  let systemPromptRenderer: SystemPromptRenderer;
+  let promptRenderer: PromptRenderer;
   let toolRegistry: MockedInstance<ToolRegistry>;
   let windowService: MockedInstance<WindowService>;
   let agentRegistry: MockedInstance<AgentRegistry>;
@@ -70,7 +70,7 @@ describe('SystemPromptRenderer', () => {
     tasksService.listOpenFor.mockResolvedValue([]);
     const moduleRef = await Test.createTestingModule({
       providers: [
-        SystemPromptRenderer,
+        PromptRenderer,
         TextFormatter,
         { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: MailRegistry, useValue: mailRegistry },
@@ -84,13 +84,17 @@ describe('SystemPromptRenderer', () => {
         { provide: TasksService, useValue: tasksService }
       ]
     }).compile();
-    systemPromptRenderer = moduleRef.get(SystemPromptRenderer);
+    promptRenderer = moduleRef.get(PromptRenderer);
   });
 
-  const render = () => systemPromptRenderer.render({ channelId: 'channel-1', profile: PROFILE });
+  const render = () => promptRenderer.render({ channelId: 'channel-1', profile: PROFILE });
 
   const renderParts = (windowReachesBackTo: Date | undefined = undefined) => {
-    return systemPromptRenderer.renderParts({ channelId: 'channel-1', profile: PROFILE, windowReachesBackTo });
+    return promptRenderer.renderParts({ channelId: 'channel-1', profile: PROFILE, windowReachesBackTo });
+  };
+
+  const renderTail = async (windowReachesBackTo: Date | undefined = undefined) => {
+    return (await renderParts(windowReachesBackTo)).tail ?? '';
   };
 
   it('should include the behavioral baseline without an optional personality', async () => {
@@ -104,7 +108,7 @@ describe('SystemPromptRenderer', () => {
   });
 
   it('should place an optional personality between the behavioral baseline and the preamble', async () => {
-    const prompt = await systemPromptRenderer.render({
+    const prompt = await promptRenderer.render({
       channelId: 'channel-1',
       profile: { ...PROFILE, personality: 'candid' }
     });
@@ -118,12 +122,13 @@ describe('SystemPromptRenderer', () => {
   it('should state the configured budgets and the calls exempt from them in the preamble', async () => {
     const prompt = await render();
     expect(prompt).toContain('fits the recent posts and records in this channel to about 12000 tokens');
+    expect(prompt).toContain('The whole of your context in one turn is kept under about 32,000 tokens.');
     expect(prompt).toContain('Each turn has 7 attempts.');
     expect(prompt).toContain('Calls to builtins__now and skills__load spend none.');
     expect(prompt).toContain('at most 20 of them, newest first');
   });
 
-  it('should state the retention rule for the calls whose results fold, from the model window (§3.8)', async () => {
+  it('should state the retention rule for the calls whose results fold, from the turn ceiling (§3.8)', async () => {
     toolRegistry.listSupersedableFor.mockReturnValue(['web__fetch', 'workspace__read']);
     const prompt = await render();
     expect(prompt).toContain(
@@ -153,6 +158,12 @@ describe('SystemPromptRenderer', () => {
     const prompt = await render();
     expect(prompt).toContain(
       'as `username (person):`, `username (agent):` or `username (system):`. That line names the author and is not a mention.'
+    );
+  });
+
+  it('should say the message after the posts is the framework’s and not a post (§3.8)', async () => {
+    expect(await render()).toContain(
+      "After the posts and records, one message opens with such a line: it is the framework's, not a post"
     );
   });
 
@@ -251,10 +262,10 @@ describe('SystemPromptRenderer', () => {
 
   it('should carry the directories in the stable half and no clock or host state in either (§3.8)', async () => {
     toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['workspace', 'read'] }]);
-    const { dynamic, stable } = await renderParts();
+    const { stable, tail = '' } = await renderParts();
     expect(stable).toContain('share one directory');
-    expect(dynamic).not.toContain('share one directory');
-    expect(`${stable}\n${dynamic}`).not.toMatch(/\bgit\b|\bbranch\b|\bcommit\b|\d{4}-\d{2}-\d{2}/u);
+    expect(tail).not.toContain('share one directory');
+    expect(`${stable}\n${tail}`).not.toMatch(/\bgit\b|\bbranch\b|\bcommit\b|\d{4}-\d{2}-\d{2}/u);
   });
 
   it('should state what conversations__search reaches only for an agent that holds it (§3.8)', async () => {
@@ -263,7 +274,7 @@ describe('SystemPromptRenderer', () => {
     expect(await render()).toContain('conversations__search finds past posts in the channels you are in.');
   });
 
-  it('should append the skills, memories, and peers sections in §3.8 order', async () => {
+  it('should end the stable half on the skills and open the tail with the framework line, in §3.8 order', async () => {
     memoryService.list.mockResolvedValue([{ description: 'casey prefers bullet points', reference: 'memory-1' }]);
     rosterService.getPeers.mockReturnValue([PEER]);
     skillsService.renderManifest.mockReturnValue('- handing-work-to-a-peer: How to hand work over.');
@@ -273,6 +284,8 @@ describe('SystemPromptRenderer', () => {
 Procedures written for situations you will meet here. Load one with skills__load before acting when the work in front of you is the situation its description names; a load you did not need still costs a round trip:
 
 - handing-work-to-a-peer: How to hand work over.
+
+[the framework's notes as this turn starts; not a post]
 
 ## Memories
 
@@ -295,33 +308,49 @@ Colleagues in this channel and what each is asked about. The toolsets say what e
   it('should list the toolsets each peer was granted by namespace (§3.11)', async () => {
     rosterService.getPeers.mockReturnValue([PEER]);
     toolRegistry.listGrantedNamespacesFor.mockReturnValue(['prospects', 'tasks', 'web']);
-    expect((await renderParts()).dynamic).toContain('- @tess — scheduling (toolsets: prospects, tasks, web)');
+    expect(await renderTail()).toContain('- @tess — scheduling (toolsets: prospects, tasks, web)');
     expect(toolRegistry.listGrantedNamespacesFor).toHaveBeenCalledWith(PEER);
   });
 
-  it('should keep instructions and skills stable when memories and peers change', async () => {
+  it('should keep the stable half unchanged when every tail section changes between turns (§3.8)', async () => {
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['tasks', 'assign'] }]);
     skillsService.renderManifest.mockReturnValue('- triage: Investigate a problem.');
     const initial = await renderParts();
     memoryService.list.mockResolvedValue([{ description: 'new preference', reference: 'memory-1' }]);
     rosterService.getPeers.mockReturnValue([PEER]);
-    const updated = await renderParts();
+    windowService.readRecentActions.mockResolvedValue(['[read notes.md (12 bytes)]']);
+    tasksService.listOpenFor.mockResolvedValue([
+      {
+        assigneeUsername: 'tess',
+        createdAt: new Date(Date.now() - 60_000),
+        creatorUsername: 'mira',
+        outcome: 'a venue shortlist',
+        reference: 'abcd1234',
+        state: 'assigned'
+      }
+    ]);
+    const updated = await renderParts(new Date(1000));
     expect(updated.stable).toBe(initial.stable);
-    expect(updated.stable).toContain('## Skills');
-    expect(initial.memories).toBe('');
-    expect(initial.dynamic).toBe('');
-    expect(updated.memories).toContain('## Memories');
-    expect(updated.dynamic).toContain('## Peers');
-    expect(await render()).toBe(`${updated.stable}\n\n${updated.memories}\n\n${updated.dynamic}`);
+    expect(updated.tail).not.toBe(initial.tail);
+    for (const heading of ['## Memories', '## Earlier in this channel', '## Peers', '## Open work']) {
+      expect(updated.stable).not.toContain(heading);
+      expect(updated.tail).toContain(heading);
+    }
+  });
+
+  it('should render no tail when no section has anything to say', async () => {
+    expect((await renderParts()).tail).toBeUndefined();
+    expect(await render()).toBe((await renderParts()).stable);
   });
 
   it('should omit the earlier actions section when the window reaches the start of the channel (§3.8)', async () => {
     windowService.readRecentActions.mockResolvedValue(['[read notes.md (12 bytes)]']);
-    expect((await renderParts()).dynamic).not.toContain('## Earlier in this channel');
+    expect(await renderTail()).not.toContain('## Earlier in this channel');
     expect(windowService.readRecentActions).not.toHaveBeenCalled();
   });
 
   it('should omit the earlier actions section when nothing this agent did precedes the window (§3.8)', async () => {
-    expect((await renderParts(new Date(1000))).dynamic).not.toContain('## Earlier in this channel');
+    expect(await renderTail(new Date(1000))).not.toContain('## Earlier in this channel');
   });
 
   it('should ask for twenty of its own actions from before the window (§3.8)', async () => {
@@ -340,18 +369,16 @@ Colleagues in this channel and what each is asked about. The toolsets say what e
       '[fetched https://x/a]',
       '[ran ls (0)]'
     ]);
-    expect((await renderParts(new Date(1000))).dynamic).toContain('- [fetched https://x/a] (x2)\n- [ran ls (0)]');
+    expect(await renderTail(new Date(1000))).toContain('- [fetched https://x/a] (x2)\n- [ran ls (0)]');
   });
 
-  it('should place the earlier actions after the memories boundary and before peers (§3.8)', async () => {
+  it('should place the earlier actions after the memories and before peers (§3.8)', async () => {
     memoryService.list.mockResolvedValue([{ description: 'casey prefers bullets', reference: 'memory-1' }]);
     rosterService.getPeers.mockReturnValue([PEER]);
     windowService.readRecentActions.mockResolvedValue(['[read notes.md (12 bytes)]']);
-    const { dynamic, memories, stable } = await renderParts(new Date(1000));
-    expect(stable).not.toContain('## Earlier in this channel');
-    expect(memories).toContain('## Memories');
-    expect(memories).not.toContain('## Earlier in this channel');
-    expect(dynamic.indexOf('## Earlier in this channel')).toBeLessThan(dynamic.indexOf('## Peers'));
+    const tail = await renderTail(new Date(1000));
+    expect(tail.indexOf('## Memories')).toBeLessThan(tail.indexOf('## Earlier in this channel'));
+    expect(tail.indexOf('## Earlier in this channel')).toBeLessThan(tail.indexOf('## Peers'));
   });
 
   it('should list open work for an agent holding a tasks tool, oldest first, capped with a remainder (§3.15)', async () => {
@@ -375,8 +402,7 @@ Colleagues in this channel and what each is asked about. The toolsets say what e
         state: 'review'
       }
     ]);
-    const { dynamic } = await renderParts();
-    expect(dynamic).toContain(
+    expect(await renderTail()).toContain(
       '## Open work\n\nWork handed over in this channel and still open, oldest first. A line marked `to @name` is one you assigned and are waiting on; `from @name` is one you owe. Read one in full with tasks__read:\n\n- [abcd1234] to @tess · assigned · 2h 0m — a schedule for the offsite\n\n…and 1 more.'
     );
     expect(tasksService.listOpenFor).toHaveBeenCalledWith({ agentUsername: 'mira', channelId: 'channel-1' });
@@ -384,7 +410,7 @@ Colleagues in this channel and what each is asked about. The toolsets say what e
 
   it('should state that no work is open rather than omit the section, for an agent holding a tasks tool (§3.15)', async () => {
     toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['tasks', 'assign'] }]);
-    expect((await renderParts()).dynamic).toContain('## Open work\n\nNo work is open in this channel.');
+    expect(await renderTail()).toContain('## Open work\n\nNo work is open in this channel.');
   });
 
   it('should omit open work for an agent holding no tasks tool (§3.15)', async () => {
@@ -398,7 +424,7 @@ Colleagues in this channel and what each is asked about. The toolsets say what e
         state: 'assigned'
       }
     ]);
-    expect((await renderParts()).dynamic).not.toContain('## Open work');
+    expect(await renderTail()).not.toContain('## Open work');
     expect(tasksService.listOpenFor).not.toHaveBeenCalled();
   });
 });

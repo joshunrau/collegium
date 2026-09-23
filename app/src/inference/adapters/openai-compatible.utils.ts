@@ -15,9 +15,10 @@ type AssistantMessage = Extract<CompletionMessage, { role: 'assistant' }>;
  * assistant message, or a tool-call round still awaiting the model — when that message carries no
  * `reasoning_content`; earlier rounds are accepted without it. The window never ends on the
  * agent's own message (§5.2), so the tail that matters is this turn's own last round; every
- * assistant message is sent with the field regardless, a single space standing in where none was
- * kept, which the Pro model is reported to require over an empty string. OpenRouter instead takes
- * back the structured blocks it returned, exactly as returned, and only where any were kept.
+ * assistant message is sent with the field regardless, a single space standing in where none is
+ * handed back (an earlier turn's never is, §3.12), which the Pro model is reported to require over
+ * an empty string. OpenRouter instead takes back the structured blocks it returned, exactly as
+ * returned, and only where any are handed back.
  */
 const REASONING_PLACEHOLDER = ' ';
 

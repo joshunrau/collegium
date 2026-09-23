@@ -76,7 +76,7 @@ describe('renderInspectResponse', () => {
   it('should quote the prompt so it renders as the Markdown it is, blank lines included', () => {
     const response = renderInspectResponse({ ...REPORT, prompt: '## How you work\n\nBegin when asked.' });
     expect(response).toContain(
-      ['#### System Prompt in This Channel', '', '> ## How you work', '>', '> Begin when asked.'].join('\n')
+      ['#### Prompt in This Channel', '', '> ## How you work', '>', '> Begin when asked.'].join('\n')
     );
   });
 

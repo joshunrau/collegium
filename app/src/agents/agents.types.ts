@@ -15,8 +15,6 @@ export type AgentProfile = {
   /** the §5.3 budget this agent's turns start with: its own where config states one, else the deployment's */
   readonly actionBudget: number;
   readonly contextBudgetTokens: number;
-  /** the whole window, not the §3.8 share of it: what a turn's own accumulation is bounded by */
-  readonly contextWindowTokens: number;
   readonly expertise: string;
   readonly model: $ModelRef;
   /** a shipped stance rendered after the agent's own prompt, or none (§3.8) */
@@ -27,6 +25,8 @@ export type AgentProfile = {
   readonly tools: readonly LiteralUnion<ToolGrant, string>[];
   /** namespace → effective settings, parsed at boot against each granted toolset's own schema (§8) */
   readonly toolSettings: ReadonlyMap<string, unknown>;
+  /** what a turn's own accumulation is bounded by, already capped beneath the model's window; retention is a share of it (§3.8) */
+  readonly turnContextCeilingTokens: number;
   readonly username: string;
   /** {workspaceRoot}/{username} — derived, never configurable per agent (§6.1) */
   readonly workspaceDir: string;

@@ -8,6 +8,9 @@ export const CONFIG_DEFAULTS = {
     debounce: { ceilingMs: 15_000, windowMs: 750 },
     foldLimit: 3
   },
+  agentDefaults: {
+    turnContextCeilingTokens: 200_000
+  },
   display: {
     timezone: 'UTC'
   },
@@ -42,5 +45,12 @@ export const CONFIG_DEFAULTS = {
   }
 } as const;
 
-/** the budget is channel history alone: the prompt, tool definitions, and in-turn tool results fill the rest of the window */
-export const CONTEXT_BUDGET_WINDOW_SHARE = 0.25;
+/** the budget is channel history alone: the prompt, tool definitions, and in-turn tool results fill the rest of the turn's ceiling */
+export const CONTEXT_BUDGET_CEILING_SHARE = 0.25;
+
+/**
+ * §3.8 — the most of a model's window a turn's ceiling may claim, whatever is declared. The
+ * remainder is the completion the model has yet to write and the slack a character-ratio estimate
+ * owes a tokeniser it is not.
+ */
+export const TURN_CONTEXT_WINDOW_SHARE = 0.85;

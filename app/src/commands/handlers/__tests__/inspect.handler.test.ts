@@ -9,7 +9,7 @@ import { buildAgentProfile } from '@/testing/factories/agent-profile.factory.ts'
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
-import { SystemPromptRenderer } from '@/turns/context/system-prompt.renderer.ts';
+import { PromptRenderer } from '@/turns/context/prompt.renderer.ts';
 
 import { InspectHandler } from '../inspect.handler.ts';
 
@@ -19,14 +19,14 @@ const MIRA = buildAgentProfile();
 const JOINER = '⁠';
 
 describe('InspectHandler', () => {
-  let systemPromptRenderer: MockedInstance<SystemPromptRenderer>;
+  let promptRenderer: MockedInstance<PromptRenderer>;
   let inspectHandler: InspectHandler;
 
   beforeEach(async () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.get.mockImplementation((username: string) => (username === 'mira' ? MIRA : undefined));
-    systemPromptRenderer = MockFactory.createMock(SystemPromptRenderer);
-    systemPromptRenderer.render.mockResolvedValue('You are Mira.');
+    promptRenderer = MockFactory.createMock(PromptRenderer);
+    promptRenderer.render.mockResolvedValue('You are Mira.');
     const skillsService = MockFactory.createMock(SkillsService);
     skillsService.listFor.mockReturnValue([{ description: 'How to hand work over.', name: 'handing-work-to-a-peer' }]);
     const dateFormatter = MockFactory.createMock(DateFormatter);
@@ -46,7 +46,7 @@ describe('InspectHandler', () => {
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: DateFormatter, useValue: dateFormatter },
         { provide: SchedulesRegistry, useValue: schedulesRegistry },
-        { provide: SystemPromptRenderer, useValue: systemPromptRenderer },
+        { provide: PromptRenderer, useValue: promptRenderer },
         { provide: SkillsService, useValue: skillsService },
         { provide: ToolRegistry, useValue: toolRegistry }
       ]
@@ -61,7 +61,7 @@ describe('InspectHandler', () => {
       userId: 'casey-id',
       username: 'casey'
     });
-    expect(systemPromptRenderer.render).toHaveBeenCalledWith({ channelId: 'channel-1', profile: MIRA });
+    expect(promptRenderer.render).toHaveBeenCalledWith({ channelId: 'channel-1', profile: MIRA });
     expect(response).toStrictEqual({
       audience: 'invoker',
       text: [
@@ -97,7 +97,7 @@ describe('InspectHandler', () => {
         '| --- | --- | --- |',
         `| **\`morning-${JOINER}sweep\`** | ~ops | September 18, 2026 at 9:00:00 AM UTC |`,
         '',
-        '#### System Prompt in This Channel',
+        '#### Prompt in This Channel',
         '',
         '> You are Mira.'
       ].join('\n')
