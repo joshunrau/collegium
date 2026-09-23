@@ -14,6 +14,8 @@ export type TraceMark = {
 export declare namespace ToolAttempt {
   /** the model receives this as the tool result and the turn continues */
   type Continue = {
+    /** §3.8 — the part of `output` that says what the result holds, where the rest names where it was read */
+    contentIdentity?: string;
     /** a durable record the call created, for the turn to write into the event trail and trace (§3) */
     disclosure?: ToolDisclosure;
     kind: 'continue';

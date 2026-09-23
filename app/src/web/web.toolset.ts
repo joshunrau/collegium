@@ -87,7 +87,8 @@ function toPageResult<TPage extends WebPage>(
   result: Result<TPage, WebFailure>,
   render: (page: TPage) => string,
   describeOutcome: (page: TPage) => string | undefined,
-  describeSubject: (page: TPage) => string = describePageSubject
+  describeSubject: (page: TPage) => string = describePageSubject,
+  identifyContent: (page: TPage) => string | undefined = () => undefined
 ): ToolResult {
   if (!result.success) {
     if (result.error.kind === 'unreachable') {
@@ -97,12 +98,22 @@ function toPageResult<TPage extends WebPage>(
   }
   const text = render(result.value);
   const traceOutcome = describeOutcome(result.value);
+  const contentIdentity = identifyContent(result.value);
   return Result.ok({
     replaySubject: describeReplaySubject(describeSubject(result.value), text),
     text,
+    ...(contentIdentity !== undefined && { contentIdentity }),
     ...(traceOutcome !== undefined && { traceOutcome })
   });
 }
+
+/**
+ * §3.8 — a successful read is its body, whatever address served it. Not an error page's: a site's
+ * 404 page is the same at every address it has nothing at, which says nothing about any of them.
+ */
+const identifyReadBody = (page: WebPage): string | undefined => {
+  return page.status >= 200 && page.status < 300 ? page.markdown : undefined;
+};
 
 /** §8.1 — a status worth a mark is one that is not success: a 403 listed like a success is what the bare line hid */
 const httpStatusOutcome = (page: WebPage): string | undefined => {
@@ -182,14 +193,13 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         'Each call fetches the page again.',
       execute: async (args, context) => {
         const read = toPageRead(args);
-        return toPageResult(
-          await context.web.fetch(args.url, read),
-          renderWebPage,
-          fetchOutcome,
-          read.kind === 'find'
-            ? ({ url }) => `places of ${renderPhrases(read.phrases)} in page ${url}`
-            : describePageSubject
-        );
+        const fetched = await context.web.fetch(args.url, read);
+        if (read.kind === 'find') {
+          return toPageResult(fetched, renderWebPage, fetchOutcome, ({ url }) => {
+            return `places of ${renderPhrases(read.phrases)} in page ${url}`;
+          });
+        }
+        return toPageResult(fetched, renderWebPage, fetchOutcome, describePageSubject, identifyReadBody);
       },
       parameters: $FetchArgs,
       retryable: true,

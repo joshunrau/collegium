@@ -60,3 +60,16 @@ export function renderSupersededLine(subject: string): string {
 export function renderDuplicateLine(subject: string): string {
   return `[${subject} — identical to the result above; nothing changed.]`;
 }
+
+/**
+ * §3.8 — the same content from another address, answered like a repeat. It says what was observed
+ * and not why: a parameter the site ignores, a soft 404 and a login wall all look like this.
+ */
+export function renderSameContentLine(subject: string, earlierSubject: string): string {
+  return `[${subject} — identical content to ${earlierSubject}, which is still shown above.]`;
+}
+
+/** §3.8 — what the same content read again opens with once the earlier copy is no longer shown */
+export function renderSameContentNote(earlierSubject: string): string {
+  return `[identical content to ${earlierSubject}, which you read earlier this turn]`;
+}

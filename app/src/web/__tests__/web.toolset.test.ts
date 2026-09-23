@@ -49,9 +49,21 @@ describe('WEB_TOOLSET', () => {
     expect(web.fetch).toHaveBeenCalledWith('https://example.org/', { kind: 'window', startChar: 0, wholePage: false });
     const text = 'Example — https://example.org/ (HTTP 200)\n\n# Example Domain';
     expect(result.unwrap()).toStrictEqual({
+      contentIdentity: '# Example Domain',
       replaySubject: `page https://example.org/, ${text.length} characters`,
       text
     });
+  });
+
+  it("identifies a successful read by its body alone, and an error page's by nothing (§3.8)", async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, markdown: '# Not Found', status: 404 }));
+    const result = await executeTool(
+      fetch,
+      { startChar: 0, url: 'https://example.org/gone', wholePage: false },
+      context
+    );
+    expect(result.unwrap().contentIdentity).toBeUndefined();
   });
 
   it('reads on from an offset, and names the part of the page the result holds (§3.8)', async () => {
