@@ -49,6 +49,7 @@ import { PostSightingsRegistry } from '@/tasks/sightings/post-sightings.registry
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
+import { renderDenialTraceMark } from '@/tools/tools.renderer.ts';
 import type { ToolAttempt, TraceMark } from '@/tools/tools.types.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
@@ -560,10 +561,48 @@ export class TurnRunner {
     };
   }
 
-  /** every exit but a §7.1 failure, which closes through `closeWithFailureNotice`; a command's exit names its invoker (§7.5) */
-  private close(state: TurnState, status: Exclude<TurnStatus, 'running' | FailureStatus>): Promise<TurnOutcome> {
+  /**
+   * Every exit but a §7.1 failure, which closes through `closeWithFailureNotice`, and a denial,
+   * which closes through `closeOnDenial`; a command's exit names its invoker (§7.5).
+   */
+  private close(
+    state: TurnState,
+    status: Exclude<TurnStatus, 'denied' | 'running' | FailureStatus>
+  ): Promise<TurnOutcome> {
     const aborted = state.control.aborted();
     return this.writeClosingStatus(state, status, aborted?.kind === status ? aborted.byUsername : undefined);
+  }
+
+  /**
+   * §5.4 — a bare denial ends the turn, and its line, its outcome and its notice name who denied it
+   * (§8.1). The unit the turn was working stays assigned: the notice names it, and nothing reports
+   * it to its creator (§3.15).
+   */
+  private async closeOnDenial(
+    input: RunInput,
+    state: TurnState,
+    identified: IdentifiedCall,
+    byUsername: string
+  ): Promise<TurnOutcome> {
+    this.markTraceLine(state, identified, renderDenialTraceMark(byUsername));
+    const unit = await this.tasksService.findWorkedUnit({
+      agentUsername: input.profile.username,
+      channelId: input.channelId,
+      triggeringPostId: input.triggeringPostId
+    });
+    await this.postNotice(
+      input,
+      state,
+      renderDenialNotice({
+        byUsername,
+        toolName: identified.displayName,
+        unit: unit && {
+          creatorDisplayName: this.agentRegistry.displayNameOf(unit.creatorUsername),
+          reference: renderReference(unit.id)
+        }
+      })
+    );
+    return this.writeClosingStatus(state, 'denied', byUsername);
   }
 
   private async closeOnInferenceFailure(
@@ -608,12 +647,14 @@ export class TurnRunner {
     identified: IdentifiedCall,
     attempt: ToolAttempt.Terminal
   ): Promise<TurnOutcome> {
+    if (attempt.status === 'denied') {
+      return this.closeOnDenial(input, state, identified, attempt.byUsername);
+    }
     this.markTraceLine(
       state,
       identified,
-      match<ToolAttempt.Terminal['status'], TraceMark>(attempt.status)
+      match<typeof attempt.status, TraceMark>(attempt.status)
         .with('delivery_failure', () => ({ ran: false, text: '⚠️ undelivered' }))
-        .with('denied', () => ({ ran: false, text: '🛑 denied' }))
         // §8.1 — a call the command or halt cancelled did not run, and must not read as one that did
         .with('halted', 'killed', 'stopped', () => ({ ran: false, text: '⏹️ cancelled' }))
         .with('semantic_error', () => ({ ran: true, text: '⚠️ error' }))
@@ -643,10 +684,6 @@ export class TurnRunner {
             status,
             renderSideEffectAmbiguityNotice(identified.displayName)
           );
-        })
-        .with('denied', async (status) => {
-          await this.postNotice(input, state, renderDenialNotice());
-          return this.close(state, status);
         })
         // §7.5 — a cancellation posts no follow-up; the command or halt already spoke
         .with('halted', 'killed', 'stopped', (status) => this.close(state, status))
@@ -1592,10 +1629,10 @@ export class TurnRunner {
   private async writeClosingStatus(
     state: TurnState,
     status: Exclude<TurnStatus, 'running'>,
-    abortedBy?: string
+    endedBy?: string
   ): Promise<TurnOutcome> {
     try {
-      await state.status.close(status, abortedBy);
+      await state.status.close(status, endedBy);
     } catch (error) {
       this.loggingService.error(new Error('failed to close the status post', { cause: error }));
     }

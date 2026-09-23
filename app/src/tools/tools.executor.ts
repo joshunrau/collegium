@@ -15,7 +15,7 @@ import type { ToolCall } from '@/inference/inference.types.ts';
 import type { TurnEventInput } from '@/turns/turns.types.ts';
 
 import { ToolRegistry } from './tools.registry.ts';
-import { renderAskAnswerResult, renderToolDenialResult } from './tools.renderer.ts';
+import { renderAskAnswerResult, renderDenialTraceMark, renderToolDenialResult } from './tools.renderer.ts';
 
 import type { RegisteredToolset, ResolvedTool } from './tools.registry.ts';
 import type { ToolAttempt } from './tools.types.ts';
@@ -101,16 +101,12 @@ export class ToolExecutor {
     return match(decision.value)
       .with({ kind: 'approved' }, () => this.runBody(tool, args.data, input))
       .with({ kind: 'cancelled' }, ({ reason }): ToolAttempt => ToolExecutor.toCancelledAttempt('approval', reason))
-      .with({ kind: 'denied' }, ({ byUsername }): ToolAttempt => ({
-        detail: `@${byUsername} denied ${tool.displayName}`,
-        kind: 'terminal',
-        status: 'denied'
-      }))
+      .with({ kind: 'denied' }, ({ byUsername }): ToolAttempt => ({ byUsername, kind: 'terminal', status: 'denied' }))
       .with({ kind: 'denied-with-reason' }, ({ byUsername, reason }): ToolAttempt => ({
         kind: 'continue',
         output: renderToolDenialResult({ byUsername, displayName: tool.displayName, reason }),
         reasonedDenial: { byUsername, reason },
-        traceMark: { ran: false, text: `🛑 denied by @${byUsername}` }
+        traceMark: renderDenialTraceMark(byUsername)
       }))
       .exhaustive();
   }

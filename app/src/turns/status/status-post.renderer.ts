@@ -20,15 +20,15 @@ function formatDuration(elapsedMs: number): string {
 }
 
 /**
- * §8.1 — the closing line also states how long the turn ran, and who issued the command that ended
- * it (§7.5); every phrase ends in the closing underscore, which the additions go inside.
+ * §8.1 — the closing line also states how long the turn ran, and who ended it where a person did;
+ * every phrase ends in the closing underscore, which the additions go inside.
  */
 function renderOutcomeLine(
   outcome: Exclude<TurnStatus, 'running'>,
   elapsedMs: number | undefined,
-  abortedBy: string | undefined
+  endedBy: string | undefined
 ): string {
-  const by = abortedBy === undefined ? '' : ` by @${abortedBy}`;
+  const by = endedBy === undefined ? '' : ` by @${endedBy}`;
   const elapsed = elapsedMs === undefined ? '' : ` (${formatDuration(elapsedMs)})`;
   return `${OUTCOME_PHRASES[outcome].slice(0, -1)}${by}${elapsed}_`;
 }
@@ -95,10 +95,10 @@ export type StatusPostPark = {
 };
 
 export type StatusPostState = {
-  /** §7.5 — who issued the stop or kill the outcome records */
-  abortedBy?: string;
   /** wall-clock time the turn ran, approval waits included; absent where its end was never observed */
   elapsedMs?: number;
+  /** §8.1 — the person who ended the turn: who issued its stop or kill (§7.5), or denied its action (§5.4) */
+  endedBy?: string;
   outcome?: Exclude<TurnStatus, 'running'>;
   /** absent while the turn works; an outcome, once there is one, is the head whatever this says */
   parked?: StatusPostPark;
@@ -115,7 +115,7 @@ export function renderStatusPost(state: StatusPostState, limitChars = Number.POS
   const head =
     state.outcome === undefined
       ? renderOpenHead(state.parked)
-      : renderOutcomeLine(state.outcome, state.elapsedMs, state.abortedBy);
+      : renderOutcomeLine(state.outcome, state.elapsedMs, state.endedBy);
   const groups = groupTraceLines(state.traceLines);
   const transient =
     state.outcome === undefined && state.transientText !== undefined && state.transientText !== ''
@@ -236,9 +236,17 @@ export function renderContextExhaustedNotice(cause: ContextExhaustionCause): str
     .exhaustive();
 }
 
-/** §7.1 — a bare denial ends the turn and the agent asks how to proceed */
-export function renderDenialNotice(): string {
-  return 'That was denied, so I stopped. How would you like me to proceed?';
+/** §7.1 — the agent asks how to proceed, naming who denied what and the unit left assigned to it, whose creator an @ would wake (§3.15) */
+export function renderDenialNotice(input: {
+  byUsername: string;
+  toolName: string;
+  unit: undefined | { creatorDisplayName: string; reference: string };
+}): string {
+  const unit =
+    input.unit === undefined
+      ? ''
+      : ` Work unit \`${input.unit.reference}\` from ${input.unit.creatorDisplayName} is still assigned to me.`;
+  return `@${input.byUsername} denied \`${input.toolName}\`, so I stopped.${unit} How would you like me to proceed?`;
 }
 
 export function renderProviderOutageNotice(failure: InferenceFailure.Transport): string {

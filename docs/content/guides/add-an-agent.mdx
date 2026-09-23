@@ -34,7 +34,7 @@ In `config.json`, add a second entry under `agents`, keyed by username:
 docker compose restart app
 ```
 
-Restarting abandons any in-flight turn. The system bot posts a notice naming the downtime window. Queued work survives the restart.
+Restarting abandons any in-flight turn. The system bot posts a notice naming the downtime window and any work unit an abandoned turn left assigned. Queued work survives the restart.
 
 ## 3. Verify
 

@@ -73,13 +73,17 @@ describe('TurnsService abandonment against the store (§7.3)', () => {
     ]);
   });
 
-  it('should not name a turn that had dispatched a call, though no result was recorded', async () => {
+  it('should name a turn that had dispatched a call as acted, though no result was recorded', async () => {
     const parked = await open('post-2');
     await turnsService.appendEvent(parked.id, {
       content: '',
       kind: 'assistant_message',
       toolCalls: [{ args: { path: 'notes.md' }, callId: 'call-1', toolName: ['workspace', 'write'] }]
     });
-    expect((await turnsService.abandonRunning()).unacted).toStrictEqual([]);
+    const abandoned = await turnsService.abandonRunning();
+    expect(abandoned.unacted).toStrictEqual([]);
+    expect(abandoned.acted).toStrictEqual([
+      { agentUsername: 'mira', channelId: 'channel-1', triggeringPostId: 'post-2' }
+    ]);
   });
 });

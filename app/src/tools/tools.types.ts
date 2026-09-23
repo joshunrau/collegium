@@ -33,24 +33,33 @@ export declare namespace ToolAttempt {
     /** §8.1 — what the call came to, from the tool, for its status-post line */
     traceOutcome?: string;
   };
+  /** §5.4 — a bare denial ends the turn, and whoever denied it is named wherever the end is shown (§8.1) */
+  type Denied = {
+    byUsername: string;
+    kind: 'terminal';
+    status: 'denied';
+  };
   /**
    * The turn ends with this status: a §7.1 semantic error, an unconfirmed mutation (§7.2), a §5.4
    * bare denial, an undeliverable prompt, or a §7.5 cancellation reaching the parked turn.
    */
-  type Terminal = {
-    detail: string;
-    kind: 'terminal';
-    status: Exclude<
-      TurnStatus,
-      | 'abandoned'
-      | 'budget_exhausted'
-      | 'completed'
-      | 'context_exhausted'
-      | 'provider_outage'
-      | 'provider_rejected'
-      | 'running'
-    >;
-  };
+  type Terminal =
+    | Denied
+    | {
+        detail: string;
+        kind: 'terminal';
+        status: Exclude<
+          TurnStatus,
+          | 'abandoned'
+          | 'budget_exhausted'
+          | 'completed'
+          | 'context_exhausted'
+          | 'denied'
+          | 'provider_outage'
+          | 'provider_rejected'
+          | 'running'
+        >;
+      };
   /** §7.2 — the call named no tool the agent holds and did not run; the model reads what it can call instead */
   type UnknownTool = {
     kind: 'unknown-tool';

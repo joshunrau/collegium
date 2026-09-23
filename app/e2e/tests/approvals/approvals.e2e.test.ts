@@ -223,7 +223,7 @@ describe('Approval resolution', () => {
     await channels.main.awaitReplyFrom('mira', { text: reply });
   });
 
-  it('terminates the turn on a bare denial and posts asking how to proceed (§5.4)', async () => {
+  it('terminates the turn on a bare denial and posts asking how to proceed, naming the denier (§5.4, §8.1)', async () => {
     const { agents, app, channels, inference } = harness();
     const marker = `denied content ${randomUUID()}`;
     inference.willReply(
@@ -233,10 +233,20 @@ describe('Approval resolution', () => {
 
     await channels.main.mention('mira', 'try something');
     const prompt = await awaitPrompt(marker);
+    const me = await channels.main.whoAmI();
     await channels.main.clickAction(prompt, 'deny');
     await channels.main.awaitPost({
-      description: 'the how-to-proceed follow-up',
-      match: (post) => post.authorId === agents.mira.userId && post.text.includes('How would you like me to proceed')
+      description: 'the how-to-proceed follow-up naming the denier',
+      match: (post) => {
+        return (
+          post.authorId === agents.mira.userId &&
+          post.text === `@${me.username} denied \`workspace::write\`, so I stopped. How would you like me to proceed?`
+        );
+      }
+    });
+    await channels.main.awaitPost({
+      description: 'the status post closed naming the denier',
+      match: (post) => post.text.startsWith(`🛑 _stopped — action denied by @${me.username} (`)
     });
 
     expect(fs.existsSync(path.join(app.workspaceDirFor(agents.mira.username), 'denied.md'))).toBe(false);

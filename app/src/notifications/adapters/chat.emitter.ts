@@ -2,12 +2,14 @@ import type { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ChatGateway } from '@/chat/chat.gateway.ts';
 import type { ChatFailure } from '@/chat/chat.types.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { renderElapsed } from '@/formatting/durations/duration.utils.ts';
+import type { StrandedUnit } from '@/runtime/runtime.types.ts';
 
 import { NotificationsEmitter } from '../notifications.emitter.ts';
 
@@ -16,6 +18,7 @@ import type { SystemEvent } from '../notifications.types.ts';
 @Injectable()
 export class ChatEmitter extends NotificationsEmitter {
   constructor(
+    private readonly agentRegistry: AgentRegistry,
     private readonly chatGateway: ChatGateway,
     private readonly dateFormatter: DateFormatter,
     private readonly rosterService: RosterService,
@@ -54,6 +57,15 @@ export class ChatEmitter extends NotificationsEmitter {
     }
     const posted = await this.chatGateway.postAsSystemIn(event.channelId, content);
     return posted.success ? posted : asAgent();
+  }
+
+  /** §7.3 — one line per unit an abandoned turn was working */
+  private renderStrandedUnit(unit: StrandedUnit): string {
+    const assignee = this.agentRegistry.displayNameOf(unit.assigneeUsername);
+    const creator = this.agentRegistry.displayNameOf(unit.creatorUsername);
+    const channel = this.rosterService.nameOf(unit.channelId, unit.assigneeUsername);
+    const where = channel === undefined ? '' : ` in ${channel}`;
+    return `- Unit \`${unit.reference}\`${where}, from ${creator} to ${assignee}, stays assigned: ${assignee}'s turn on it was abandoned.`;
   }
 
   private renderSystemEvent(event: SystemEvent): string {
@@ -107,7 +119,10 @@ export class ChatEmitter extends NotificationsEmitter {
             event.abandonedTurns === 0 ? '' : ` ${event.abandonedTurns} in-flight turn(s) were abandoned.`;
           const requeued =
             event.requeuedTurns === 0 ? '' : ` ${event.requeuedTurns} that had not yet acted went back into the queue.`;
-          return `🟢 **Online** — the orchestrator started with ${event.agentUsernames.length} agent(s): ${roster}.${downtime}${abandoned}${requeued}`;
+          return [
+            `🟢 **Online** — the orchestrator started with ${event.agentUsernames.length} agent(s): ${roster}.${downtime}${abandoned}${requeued}`,
+            ...event.strandedUnits.map((unit) => this.renderStrandedUnit(unit))
+          ].join('\n');
         })
         .with(
           { kind: 'standing-queue' },

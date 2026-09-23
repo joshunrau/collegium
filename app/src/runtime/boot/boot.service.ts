@@ -8,14 +8,16 @@ import { RosterService } from '@/channels/roster/roster.service.ts';
 import { BackfillService } from '@/conversations/backfill/backfill.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
+import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { StatusPostService } from '@/turns/status/status-post.service.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
-import type { AbandonedStatusPost } from '@/turns/turns.types.ts';
+import type { AbandonedStatusPost, ActedTurn } from '@/turns/turns.types.ts';
+import { renderReference } from '@/utils/reference.utils.ts';
 
 import { LivenessService } from '../liveness/liveness.service.ts';
 
-import type { BootReport } from '../runtime.types.ts';
+import type { BootReport, StrandedUnit } from '../runtime.types.ts';
 
 /** a crash loop can leave hundreds of turns running, and boot must not spend hundreds of chat edits on them */
 const ABANDONED_CLOSE_LIMIT = 50;
@@ -41,6 +43,7 @@ export class BootService {
     private readonly pluginsRegistry: PluginsRegistry,
     private readonly rosterService: RosterService,
     private readonly statusPostService: StatusPostService,
+    private readonly tasksService: TasksService,
     private readonly toolRegistry: ToolRegistry,
     private readonly turnsService: TurnsService
   ) {}
@@ -52,6 +55,7 @@ export class BootService {
     await this.livenessService.startStamping();
     const abandoned = await this.turnsService.abandonRunning();
     await this.closeAbandonedStatusPosts(abandoned.statusPosts);
+    const strandedUnits = await this.findStrandedUnits(abandoned.acted);
     const requeuedTurns = await this.activationService.requeueUnacted(abandoned.unacted);
     await this.pendingDecisionsService.invalidateAll('restart');
     await this.backfillService.run();
@@ -61,7 +65,7 @@ export class BootService {
     }
     await this.activationService.requeueHeld(abandoned.turns);
     void this.activationService.sweep();
-    return { abandonedTurns: abandoned.turns.length, downtime, requeuedTurns };
+    return { abandonedTurns: abandoned.turns.length, downtime, requeuedTurns, strandedUnits };
   }
 
   private async closeAbandonedStatusPosts(posts: readonly AbandonedStatusPost[]): Promise<void> {
@@ -74,6 +78,19 @@ export class BootService {
     for (const batch of chunk(closing, ABANDONED_CLOSE_CONCURRENCY)) {
       await Promise.all(batch.map((post) => this.statusPostService.closeAbandoned(post)));
     }
+  }
+
+  /** §7.3 — the unit each acted turn was working, named in the boot notice; nothing reports it or wakes its creator (§3.15) */
+  private async findStrandedUnits(acted: readonly ActedTurn[]): Promise<StrandedUnit[]> {
+    const stranded: StrandedUnit[] = [];
+    for (const turn of acted) {
+      const unit = await this.tasksService.findWorkedUnit(turn);
+      if (unit) {
+        const { assigneeUsername, channelId, creatorUsername } = unit;
+        stranded.push({ assigneeUsername, channelId, creatorUsername, reference: renderReference(unit.id) });
+      }
+    }
+    return stranded;
   }
 
   /** §3.14 — a warning, not a refusal: withholding a plugin tool is legitimate, and so common a slip that nothing else would show it */

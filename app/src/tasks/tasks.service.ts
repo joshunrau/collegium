@@ -137,6 +137,27 @@ export class TasksService {
     return unit ?? undefined;
   }
 
+  /**
+   * §3.15 — the unit a turn of this agent here was working, or nothing: of the units it holds
+   * assigned in the channel, the one whose assignment post started the turn, else the only one.
+   * With several and none that started the turn, it does not guess which it was.
+   */
+  async findWorkedUnit(input: {
+    agentUsername: string;
+    channelId: string;
+    triggeringPostId: string | undefined;
+  }): Promise<undefined | WorkUnit> {
+    const served = await this.findServedUnit(input);
+    if (served) {
+      return served;
+    }
+    const assigned = await this.units.findMany({
+      take: 2,
+      where: { assigneeUsername: input.agentUsername, channelId: input.channelId, state: 'assigned' }
+    });
+    return assigned.length === 1 ? assigned[0] : undefined;
+  }
+
   async listOpenFor(input: { agentUsername: string; channelId: string }): Promise<OpenUnitSummary[]> {
     const rows = await this.units.findMany({
       orderBy: { createdAt: 'asc' },
@@ -255,23 +276,13 @@ export class TasksService {
     });
   }
 
-  /**
-   * §3.15 — the report the framework makes for a turn that ran out of context, or nothing: of the
-   * units the agent holds assigned here, the one whose assignment post started the turn, else the
-   * only one. With several and none that started the turn, it does not guess which it was working.
-   */
+  /** §3.15 — the report the framework makes for a turn that ran out of context, on the unit it was working, or nothing */
   async prepareExhaustionReport(input: {
     agentUsername: string;
     channelId: string;
     triggeringPostId: string | undefined;
   }): Promise<Addressed<PreparedTransition> | undefined> {
-    const served = await this.findServedUnit(input);
-    const assigned = served
-      ? [served]
-      : await this.units.findMany({
-          where: { assigneeUsername: input.agentUsername, channelId: input.channelId, state: 'assigned' }
-        });
-    const unit = assigned.length === 1 ? assigned[0] : undefined;
+    const unit = await this.findWorkedUnit(input);
     if (!unit) {
       return undefined;
     }
