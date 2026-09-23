@@ -16,6 +16,7 @@ describe('MultiMentionPolicy', () => {
   beforeEach(async () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.list.mockReturnValue([profile('mira'), profile('owen'), profile('tess')]);
+    agentRegistry.has.mockImplementation((username) => ['mira', 'owen', 'tess'].includes(username));
     const rosterService = MockFactory.createMock(RosterService);
     rosterService.listAgentsIn.mockImplementation((channelId) => {
       return channelId === 'channel-dm' ? [profile('mira')] : [profile('mira'), profile('owen'), profile('tess')];
@@ -28,6 +29,18 @@ describe('MultiMentionPolicy', () => {
       ]
     }).compile();
     multiMentionPolicy = moduleRef.get(MultiMentionPolicy);
+  });
+
+  describe('addressesAnyone', () => {
+    it('should count a colleague present or a person mentioned outside code, never the author or an absent colleague (§3.15)', () => {
+      const addresses = (message: string, channelId = 'channel-1') => {
+        return multiMentionPolicy.addressesAnyone({ authorUsername: 'mira', channelId, message });
+      };
+      expect(addresses('@owen here is where it stands')).toBe(true);
+      expect(addresses('@casey here is where it stands')).toBe(true);
+      expect(addresses('@mira noted; `@owen` and `@casey` are handles')).toBe(false);
+      expect(addresses('@owen here is where it stands', 'channel-dm')).toBe(false);
+    });
   });
 
   describe('findAddressee', () => {

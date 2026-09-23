@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
 
 import { defaultDisplayNameOf } from '@collegium/config';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, inject, it } from 'vitest';
 
 import { setupHarness } from '../../support/harness.ts';
 import { textResponse, toolCallResponse } from '../../support/inference.ts';
 import { defineScenario } from '../../support/scenario.ts';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** §3.15 — a reply from an assignee still holding its unit posts first time only if it mentions someone */
+const toPerson = (text: string) => `@${inject('cluster').admin.username} ${text}`;
 
 const SCENARIO = defineScenario({
   agents: [
@@ -114,7 +117,7 @@ describe('Delegation through a work unit', () => {
     const { agents, channels, inference } = harness();
     const phrase = `catering quotes ${randomUUID()}`;
     const closing = `and ask about vegetarian options ${randomUUID()}`;
-    const acknowledged = `on it ${randomUUID()}`;
+    const acknowledged = toPerson(`on it ${randomUUID()}`);
     inference.willReply({ agent: 'mira', contains: phrase }, assignTo(agents.owen.username, phrase));
     const miraClosing = inference.willBlock({ agent: 'mira' }, textResponse(`@${agents.owen.username} ${closing}`));
     // scripted twice so a second activation shows up in the count rather than as an unscripted failure
@@ -149,7 +152,7 @@ describe('Delegation through a work unit', () => {
       { agent: 'mira' },
       toolCallResponse('workspace__write', { content: marker, path: 'deposit.md' })
     );
-    const owenStarted = inference.willBlock({ agent: 'owen' }, textResponse(`started-${randomUUID()}`));
+    const owenStarted = inference.willBlock({ agent: 'owen' }, textResponse(toPerson(`started-${randomUUID()}`)));
 
     await channels.main.mention('mira', `please delegate: ${phrase}`);
     const prompt = await channels.main.awaitPost({
@@ -167,7 +170,7 @@ describe('Delegation through a work unit', () => {
     const phrase = `venue floor plan ${randomUUID()}`;
     const refused = `refused-${randomUUID()}`;
     const closed = `closed-${randomUUID()}`;
-    const working = `working-${randomUUID()}`;
+    const working = toPerson(`working-${randomUUID()}`);
     inference.willReply({ agent: 'mira', contains: phrase }, assignTo(agents.owen.username, phrase));
     inference.willReply({ agent: 'mira' }, textResponse('handed over'));
     const owenWorking = inference.willBlock({ agent: 'owen' }, textResponse(working));
@@ -270,7 +273,7 @@ describe('Delegation through a work unit', () => {
     const { agents, channels, inference } = harness();
     const phrase = `guest list ${randomUUID()}`;
     const next = `seating plan ${randomUUID()}`;
-    const started = `seating-${randomUUID()}`;
+    const started = toPerson(`seating-${randomUUID()}`);
     inference.willReply({ agent: 'mira', contains: phrase }, assignTo(agents.owen.username, phrase));
     inference.willReply({ agent: 'mira' }, textResponse('handed over'));
     const owenFirst = inference.willBlock({ agent: 'owen' }, textResponse('placeholder'));
@@ -338,10 +341,35 @@ describe('Delegation through a work unit', () => {
     expect(inference.requestsFor('tess')).toHaveLength(0);
   });
 
+  it('sends back once an assignee’s reply that reaches nobody while its unit is assigned, then posts it (§3.15, §4.5)', async () => {
+    const { agents, channels, inference } = harness();
+    const phrase = `guest badges ${randomUUID()}`;
+    const interim = `two of five badges printed ${randomUUID()}`;
+    inference.willReply({ agent: 'mira', contains: phrase }, assignTo(agents.owen.username, phrase));
+    inference.willReply({ agent: 'mira' }, textResponse('handed over'));
+    inference.willReply({ agent: 'owen' }, textResponse(interim), { times: 2 });
+
+    await channels.main.mention('mira', `please delegate: ${phrase}`);
+    const handOff = await channels.main.awaitPost({
+      description: 'the assignment post under mira',
+      match: (post) => {
+        return post.authorId === agents.mira.userId && post.text.includes('work unit') && post.text.includes(phrase);
+      }
+    });
+    const reference = /work unit `([a-z0-9]+)`/u.exec(handOff.text)?.[1];
+    expect(reference).toBeDefined();
+    await channels.main.awaitReplyFrom('owen', { text: interim });
+    const rejection = inference.requestsFor('owen').at(-1)!.messages.at(-1)?.content;
+    expect(rejection).toContain(
+      `post rejected: unit ${reference} from ${defaultDisplayNameOf(agents.mira.username)} is still assigned to you`
+    );
+    expect(rejection).toContain(`mention @${agents.mira.username} in the post`);
+  });
+
   it('queues the assignee a restart kept waiting, so the hand-off is answered after boot (§5.2, §7.3)', async () => {
     const { agents, app, channels, inference } = harness();
     const phrase = `survives the restart ${randomUUID()}`;
-    const answered = `answered-after-boot-${randomUUID()}`;
+    const answered = toPerson(`answered-after-boot-${randomUUID()}`);
     inference.willReply({ agent: 'mira', contains: phrase }, assignTo(agents.owen.username, phrase));
     const miraCutOff = inference.willBlock({ agent: 'mira' }, textResponse('never posted'));
 

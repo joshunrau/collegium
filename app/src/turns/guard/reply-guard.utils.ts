@@ -44,3 +44,16 @@ export function lacksProse(text: string): boolean {
   const { lines, repeats } = measureCommonestLine(text);
   return repeats >= DEGENERATE_REPEAT_COUNT && repeats * 2 > lines;
 }
+
+/**
+ * §3.15 — why a reply that reaches nobody goes back while the unit its turn works is still assigned,
+ * with both ways on: the creator named as prose names a colleague, beside the handle a mention takes
+ */
+export function renderUnreportedUnitRejection(unit: {
+  readonly creatorDisplayName: string;
+  readonly creatorUsername: string;
+  readonly reference: string;
+}): string {
+  const { creatorDisplayName: creator, creatorUsername, reference } = unit;
+  return `post rejected: unit ${reference} from ${creator} is still assigned to you, and this reply mentions no colleague here and no person, so nothing starts ${creator}'s turn when yours ends. When the result is ready, or something stops you, report it with tasks__report, which posts the report and starts ${creator}'s turn. For an interim update or a question, mention @${creatorUsername} in the post. The same reply sent again is posted, and the unit stays assigned.`;
+}

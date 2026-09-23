@@ -63,7 +63,7 @@ import { ContextAssembler } from './context/context.assembler.ts';
 import { renderAuthoredMessage } from './context/context.utils.ts';
 import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
-import { containsToolCallTranscript, lacksProse } from './guard/reply-guard.utils.ts';
+import { containsToolCallTranscript, lacksProse, renderUnreportedUnitRejection } from './guard/reply-guard.utils.ts';
 import { renderTurnClosedLog, renderTurnOpenedLog } from './logging/turn-log.utils.ts';
 import { SUPERSEDABLE_RETENTION_FLOOR } from './retention/retention.constants.ts';
 import { hashResult, renderResultCutMarker, retentionBudgetFor, shiftExcerpt } from './retention/retention.utils.ts';
@@ -261,6 +261,8 @@ type TurnState = {
   unparsedCalls: number;
   /** §3.8 — the first message the model has not read yet: a result at or past it is never collapsed or cut short */
   unreadFrom: number;
+  /** §3.15 — whether a reply was already sent back for leaving the unit the turn works unreported, which happens once */
+  unreportedUnitRejected: boolean;
   usage: CompletionUsage | undefined;
   windowPostIds: ReadonlySet<string>;
   /** §3.14 — the unit this turn serves as its assignee, resolved once at setup so a report mid-turn does not unname it */
@@ -385,6 +387,7 @@ export class TurnRunner {
       turn,
       unparsedCalls: 0,
       unreadFrom: 0,
+      unreportedUnitRejected: false,
       usage: undefined,
       windowPostIds: new Set(),
       workUnit
@@ -819,7 +822,8 @@ export class TurnRunner {
       completion.kind === 'text' ? await this.enforceChainLimits(input, state, completion.content) : completion.content;
     let rejection =
       completion.kind === 'text'
-        ? await this.rejectionOf(input, state, content)
+        ? ((await this.rejectionOf(input, state, content)) ??
+          (await this.rejectionOfUnreportedUnit(input, state, completion.content)))
         : UNPOSTABLE_COMPLETION_REJECTIONS[completion.kind];
     const reasoning = reasoningOf(completion);
     if (rejection === undefined) {
@@ -1470,6 +1474,48 @@ export class TurnRunner {
       return `post rejected: the reply is ${oversize.length} characters and a post holds at most ${oversize.limit} — answer more briefly, or post the first part and say what remains`;
     }
     return undefined;
+  }
+
+  /**
+   * §3.15 — a final reply that reaches nobody, while the unit this turn works is still assigned to
+   * it, ends the turn with nothing to start the creator's, so it goes back once. It is read as the
+   * model wrote it, before a loop limit strips a mention (§7.4). Not where the turn has addressed a
+   * colleague already, since that colleague's turn is the way on and a second addressee would be
+   * refused (§4.5); and never as the rejection that ends the turn or asks a person for attempts,
+   * since the reply it would cost is a valid one.
+   */
+  private async rejectionOfUnreportedUnit(
+    input: RunInput,
+    state: TurnState,
+    written: string
+  ): Promise<string | undefined> {
+    if (
+      state.unreportedUnitRejected ||
+      state.addressedPeer !== undefined ||
+      state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT ||
+      state.budget.spentCount >= state.budget.limitCount ||
+      this.multiMentionPolicy.addressesAnyone({
+        authorUsername: input.profile.username,
+        channelId: input.channelId,
+        message: written
+      })
+    ) {
+      return undefined;
+    }
+    const unit = await this.tasksService.findWorkedUnit({
+      agentUsername: input.profile.username,
+      channelId: input.channelId,
+      triggeringPostId: input.triggeringPostId
+    });
+    if (!unit) {
+      return undefined;
+    }
+    state.unreportedUnitRejected = true;
+    return renderUnreportedUnitRejection({
+      creatorDisplayName: this.agentRegistry.displayNameOf(unit.creatorUsername),
+      creatorUsername: unit.creatorUsername,
+      reference: renderReference(unit.id)
+    });
   }
 
   /** §5.2 — takes the hold, so a colleague a park released is not released again when the turn ends */

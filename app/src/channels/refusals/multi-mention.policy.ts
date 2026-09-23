@@ -29,6 +29,18 @@ export class MultiMentionPolicy {
   }
 
   /**
+   * §3.15 — whether a post reaches anyone: a colleague it addresses, read as `findAddressee` reads
+   * one, or a person it mentions. The author and a colleague absent from the channel are nobody.
+   */
+  addressesAnyone(post: { authorUsername: string; channelId: string; message: string }): boolean {
+    const mentionedUsernames = extractMentionedUsernames(post.message);
+    return (
+      this.addresseesOf({ ...post, mentionedUsernames }).length > 0 ||
+      mentionedUsernames.some((username) => !this.agentRegistry.has(username))
+    );
+  }
+
+  /**
    * §5.2 — the colleague a post a turn said addresses, if any: the one rule both the hold a running
    * turn keeps and the hold a restart recomputes (§7.3) read, so the two cannot disagree
    */

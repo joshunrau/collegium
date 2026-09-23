@@ -163,6 +163,7 @@ describe('TurnRunner', () => {
     tasksService.findWorkedUnit.mockResolvedValue(undefined);
     tasksService.prepareExhaustionReport.mockResolvedValue(undefined);
     multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
+    multiMentionPolicy.addressesAnyone.mockImplementation(({ message }) => message.includes('@'));
     multiMentionPolicy.addresseesOf.mockReturnValue([]);
     multiMentionPolicy.refuses.mockReturnValue(false);
     multiMentionPolicy.refusesSecondAddressee.mockReturnValue(false);
@@ -910,6 +911,66 @@ describe('TurnRunner', () => {
       content: 'post rejected: the reply has no prose in it — write the message you mean to send',
       role: 'user'
     });
+  });
+
+  describe('a reply reaching nobody while the turn’s unit is still assigned (§3.15, §4.5)', () => {
+    const REJECTION =
+      "post rejected: unit ab12cd34 from Owen is still assigned to you, and this reply mentions no colleague here and no person, so nothing starts Owen's turn when yours ends.";
+
+    beforeEach(() => {
+      tasksService.findWorkedUnit.mockResolvedValue({ creatorUsername: 'owen', id: 'ab12cd34ef56' } as WorkUnit);
+    });
+
+    it('should send it back once, naming the creator and the way on, then post it sent again', async () => {
+      complete.mockResolvedValue(Result.ok(text('two rows landed')));
+      const outcome = await run();
+      expect(outcome.status).toBe('completed');
+      expect(sends.map((send) => send.text)).toStrictEqual(['two rows landed']);
+      const rejection = complete.mock.calls[1]![0].messages.at(-1)!.content;
+      expect(rejection).toContain(REJECTION);
+      expect(rejection).toContain('report it with tasks__report');
+      expect(rejection).toContain('mention @owen in the post');
+      expect(complete).toHaveBeenCalledTimes(2);
+    });
+
+    it('should post at once a reply that mentions the creator or a person', async () => {
+      complete.mockResolvedValueOnce(Result.ok(text('@owen two rows landed; the third is next')));
+      await run();
+      expect(sends.map((send) => send.text)).toStrictEqual(['@owen two rows landed; the third is next']);
+      expect(complete).toHaveBeenCalledOnce();
+    });
+
+    it('should post at once where the turn has addressed a colleague already, whose turn is the way on', async () => {
+      multiMentionPolicy.findAddressee.mockReturnValue('tess');
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
+      toolExecutor.execute.mockResolvedValueOnce({
+        kind: 'continue',
+        output: 'assigned',
+        post: { addressee: 'tess', onPublished: () => Promise.resolve(), text: '@tess — work unit `cd34ef56`' }
+      });
+      complete.mockResolvedValueOnce(Result.ok(text('handed the parsing on')));
+      await run();
+      expect(sends.map((send) => send.text)).toStrictEqual(['@tess — work unit `cd34ef56`', 'handed the parsing on']);
+    });
+
+    it('should post at once where the unit is no longer assigned, as once the turn has reported it', async () => {
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__report'])));
+      toolExecutor.execute.mockImplementationOnce(() => {
+        tasksService.findWorkedUnit.mockResolvedValue(undefined);
+        return Promise.resolve({ kind: 'continue', output: 'unit ab12cd34 reported review' } satisfies ToolAttempt);
+      });
+      complete.mockResolvedValueOnce(Result.ok(text('reported')));
+      await run();
+      expect(sends.map((send) => send.text)).toStrictEqual(['reported']);
+      expect(complete).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('should post at once a reply reaching nobody from an agent holding no assigned unit (§3.15)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(text('all done')));
+    await run();
+    expect(tasksService.findWorkedUnit).toHaveBeenCalledOnce();
+    expect(sends.map((send) => send.text)).toStrictEqual(['all done']);
   });
 
   it('should replay reasoning with the tool call it produced and keep it on the event, never in a post (§3.12)', async () => {

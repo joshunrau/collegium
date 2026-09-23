@@ -178,7 +178,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
     },
     report: {
       description:
-        'Report on a unit handed to you: review when the result is ready for its creator to judge, blocked when something nobody in this channel can answer stops you. The framework posts the report mentioning the creator, which starts their turn once yours ends, so your reply need not mention them or repeat the report. You cannot close a unit yourself, and one in review takes no further report: it is with its creator.',
+        'Report on a unit handed to you: review when the result is ready for its creator to judge, blocked when something nobody in this channel can answer stops you. The framework posts the report mentioning the creator, which starts their turn once yours ends, so your reply need not mention them or repeat the report. Until you report, a post of yours starts their turn only if it mentions them. You cannot close a unit yourself, and one in review takes no further report: it is with its creator.',
       execute: async (args, context) => {
         const wording = wordingFor(context);
         const prepared = await context.tasks.prepareReport({
