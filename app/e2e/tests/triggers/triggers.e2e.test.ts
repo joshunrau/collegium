@@ -185,6 +185,22 @@ describe('Trigger lifecycle', () => {
     expect(posts.filter((post) => post.authorId === systemBot.userId && post.text.includes(subject))).toHaveLength(0);
   });
 
+  it('resolves the trigger that started the turn when the call names none (§4.2)', async () => {
+    const { channels, inference, systemBot } = harness();
+    const subject = `default-resolve ${randomUUID()}`;
+    const reply = `resolved-by-default-${randomUUID()}`;
+    inference.willReply({ agent: 'mira', contains: subject }, toolCallResponse('triggers__resolve', {}));
+
+    const { id } = await intake(subject);
+    inference.willReply({ agent: 'mira', contains: `trigger ${id} resolved` }, textResponse(reply));
+    const announcement = await channels.main.awaitPost({
+      description: 'the announcement naming the framework id',
+      match: (post) => post.authorId === systemBot.userId && post.text.includes(subject)
+    });
+    expect(announcement.text).toContain(`⟨${id}⟩`);
+    await channels.main.awaitReplyFrom('mira', { text: reply });
+  });
+
   it('refuses intake for a channel the target agent is not in (§4.2)', async () => {
     const { agents, app, channels } = harness();
     const response = await fetch(`${app.url}/triggers`, {

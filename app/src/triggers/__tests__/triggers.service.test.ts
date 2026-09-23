@@ -76,6 +76,10 @@ describe('TriggersService', () => {
     triggersService = moduleRef.get(TriggersService);
   });
 
+  const resolveById = (triggerId: string, agentUsername = 'mira') => {
+    return triggersService.resolve({ agentUsername, channelId: 'channel-1', triggerId, triggeringPostId: null });
+  };
+
   const record = (targetChannelId = 'channel-1', targetAgentUsername = 'mira') => {
     return triggersService.record({
       reference: { subject: 'invoice overdue' },
@@ -196,7 +200,7 @@ describe('TriggersService', () => {
     const first = await record();
     await record('channel-2');
     await record('channel-1', 'owen');
-    await triggersService.resolve(first.value!.id, 'mira');
+    await resolveById(first.value!.id);
     const outstanding = await triggersService.listOutstanding('mira');
     expect(outstanding.map(({ targetChannelId }) => targetChannelId)).toStrictEqual(['channel-2']);
   });
@@ -205,7 +209,7 @@ describe('TriggersService', () => {
     const hook = vi.fn().mockResolvedValue(Result.ok());
     triggersService.onResolving('webhook', hook);
     const recorded = await record();
-    expect((await triggersService.resolve(recorded.value!.id, 'mira')).success).toBe(true);
+    expect((await resolveById(recorded.value!.id)).success).toBe(true);
     expect(hook).toHaveBeenCalledTimes(1);
     expect(rows[0]?.status).toBe('resolved');
   });
@@ -213,7 +217,7 @@ describe('TriggersService', () => {
   it('should leave the trigger outstanding when the source cannot finish its handling', async () => {
     triggersService.onResolving('webhook', () => Promise.resolve(Result.err({ message: 'the mailbox is down' })));
     const recorded = await record();
-    const resolved = await triggersService.resolve(recorded.value!.id, 'mira');
+    const resolved = await resolveById(recorded.value!.id);
     expect(resolved.error).toMatchObject({ kind: 'not-resolvable', message: 'the mailbox is down' });
     expect(rows[0]?.status).not.toBe('resolved');
   });
@@ -221,9 +225,40 @@ describe('TriggersService', () => {
   it('should resolve idempotently and only for the addressed agent', async () => {
     const recorded = await record();
     const triggerId = recorded.value!.id;
-    expect((await triggersService.resolve(triggerId, 'owen')).error).toMatchObject({ kind: 'not-found' });
-    expect((await triggersService.resolve(triggerId, 'mira')).success).toBe(true);
-    expect((await triggersService.resolve(triggerId, 'mira')).success).toBe(true);
+    expect((await resolveById(triggerId, 'owen')).error).toMatchObject({ kind: 'unmatched' });
+    expect((await resolveById(triggerId)).success).toBe(true);
+    expect((await resolveById(triggerId)).success).toBe(true);
     expect(rows[0]?.status).toBe('resolved');
+  });
+
+  it('should resolve the trigger whose announcement started the turn when none is named (§4.2)', async () => {
+    const recorded = await record();
+    await triggersService.post(recorded.value!.id);
+    const resolved = await triggersService.resolve({
+      agentUsername: 'mira',
+      channelId: 'channel-1',
+      triggerId: undefined,
+      triggeringPostId: 'announcement-1'
+    });
+    expect(resolved.value).toStrictEqual({ triggerId: recorded.value!.id });
+    expect(rows[0]?.status).toBe('resolved');
+  });
+
+  it('should answer a miss with the agent’s announced, unresolved ids in the channel (§4.2)', async () => {
+    const announced = await record();
+    await triggersService.post(announced.value!.id);
+    await record();
+    await record('channel-2');
+    const resolved = await triggersService.resolve({
+      agentUsername: 'mira',
+      channelId: 'channel-1',
+      triggerId: undefined,
+      triggeringPostId: null
+    });
+    expect(resolved.error).toStrictEqual({
+      kind: 'unmatched',
+      outstandingIds: [announced.value!.id],
+      triggerId: undefined
+    });
   });
 });

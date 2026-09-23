@@ -257,7 +257,7 @@ export const $ScheduleDeclaration = z.strictObject({
     .min(1)
     .max(2_000)
     .describe(
-      'What the system bot posts when this schedule fires, verbatim. Operator-written, never model-written (§3.2).'
+      'What the system bot posts when this schedule fires, verbatim: the operator’s instruction, which the agent carries out and then marks done (§4.2). Operator-written, never model-written (§3.2).'
     ),
   recurrence: $ScheduleRecurrence,
   timezone: z

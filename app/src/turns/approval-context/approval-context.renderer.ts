@@ -2,15 +2,16 @@ import { match } from 'ts-pattern';
 
 import type { TriggerOrigin, TurnRequest, TurnRequestOrigin } from '@/conversations/conversations.types.ts';
 import type { TriggerSource } from '@/prisma/prisma.types.ts';
+import { isOperatorInstruction } from '@/triggers/triggers.renderer.ts';
 
 /** enough of a request for a sentence of it, never enough for a pasted document */
 const REQUEST_EXCERPT_CHARS = 140;
 
-/** §3.2 — a trigger's source in the approver's words */
-const SOURCE_WORDS: { readonly [Source in TriggerSource]: string } = {
-  cron: 'scheduled',
-  mail: 'mail',
-  webhook: 'webhook'
+/** §3.2 — how a trigger's source raised the turn, in the approver's words */
+const TRIGGER_ORIGINS: { readonly [Source in TriggerSource]: string } = {
+  cron: 'on the operator’s schedule',
+  mail: 'raised by a mail trigger',
+  webhook: 'raised by a webhook trigger'
 };
 
 function renderExcerpt(message: string): string {
@@ -21,13 +22,17 @@ function renderExcerpt(message: string): string {
   return `${collapsed.slice(0, REQUEST_EXCERPT_CHARS)}…`;
 }
 
-/** §3.7 — a trigger-started turn says which trigger, and that no person asked: the item's own text is never an instruction */
+/**
+ * §3.7 — a trigger-started turn says which trigger. Where the item's text is outside content it
+ * also says no person asked; a schedule's text is the operator's own instruction (§4.2).
+ */
 function renderTriggerOrigin(trigger: TriggerOrigin | undefined): string {
   if (trigger === undefined) {
     return 'raised by a trigger, not by a person';
   }
   const item = trigger.reference === undefined ? '' : ` (⟨${trigger.reference}⟩)`;
-  return `raised by a ${SOURCE_WORDS[trigger.source]} trigger${item}, not by a person`;
+  const origin = `${TRIGGER_ORIGINS[trigger.source]}${item}`;
+  return isOperatorInstruction(trigger.source) ? origin : `${origin}, not by a person`;
 }
 
 /** §3.7 — the person whose request a colleague's relay serves, so the approver is not deciding on a colleague's word alone */

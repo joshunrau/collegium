@@ -13,6 +13,14 @@ export type TriggerInput = {
   readonly targetChannelId: string;
 };
 
+/** §4.2 — what triggers::resolve marks: the trigger named by its id, or with none named, the one whose announcement started the turn */
+export type TriggerTarget = {
+  readonly agentUsername: string;
+  readonly channelId: string;
+  readonly triggerId: string | undefined;
+  readonly triggeringPostId: null | string;
+};
+
 /**
  * What a source must finish before its trigger may be marked handled — marking mail read, for
  * one. Registered by the owning module, so triggers never depends on mail. A failure leaves the
@@ -57,8 +65,21 @@ export declare namespace TriggerFailure {
     agentUsername: string;
     kind: 'unknown-agent';
   };
+  /** §4.2 — no trigger of the agent's answers to a resolve, so it gets what it has announced and unresolved in the channel */
+  type Unmatched = {
+    kind: 'unmatched';
+    outstandingIds: readonly string[];
+    triggerId: string | undefined;
+  };
   type Any =
-    AgentAbsent | ChannelUnreachable | DirectMessageTarget | NotFound | NotPending | NotResolvable | UnknownAgent;
+    | AgentAbsent
+    | ChannelUnreachable
+    | DirectMessageTarget
+    | NotFound
+    | NotPending
+    | NotResolvable
+    | UnknownAgent
+    | Unmatched;
 }
 
 export type TriggerFailure = TriggerFailure.Any;
