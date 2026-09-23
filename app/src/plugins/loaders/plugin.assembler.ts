@@ -3,7 +3,7 @@ import type { AnyTool } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
-import { CONFIG_FILE } from '../plugins.constants.ts';
+import { CONFIG_FILE, PLUGIN_TOOLSET_SERVICES } from '../plugins.constants.ts';
 import { assertSyntheticEntry, declaresNoApproval } from './plugin.assembler.utils.ts';
 
 import type { LoadedPlugin, PluginLoadFailure, PluginSource } from '../plugins.types.ts';
@@ -42,6 +42,7 @@ export class PluginAssembler {
       skillsDirectory: source.skillsDirectory,
       toolset: {
         name: source.name,
+        services: PLUGIN_TOOLSET_SERVICES,
         settings: config.data.settings,
         skills: source.skillNames,
         storage: config.data.storage,

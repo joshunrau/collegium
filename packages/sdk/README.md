@@ -52,7 +52,9 @@ Every tool states its gate: `approval` is required, and a tool whose `approval` 
 
 **Storage.** Each declared collection is a set of records: the schema's output plus `id`, `createdAt`, and `updatedAt`, which the store stamps. The handle has `create`, `findMany`, `findFirst`, `findById`, `updateById`, and `deleteById`. `create` takes the schema's input with an optional `id`, minting a cuid2 when none is given. `findMany` with no argument lists everything; with a `where` over the schema's top-level scalar fields and `id` — a value for equality, `{ in: [...] }` for membership, `{ contains: text }` for a case-insensitive substring on a string — and an optional `limit`, it filters. `findFirst` takes the same `where` and returns the earliest match or `null`. Field names and value types come from the schema, so a bad query does not compile.
 
-**Testing.** `@collegium/sdk/testing` builds the context `execute` receives, over in-memory storage that validates and parses as the deployment's store does. Pass your config; settings go through your schema, so defaults apply.
+**Turn and work units.** `execute` also receives `turn`: the acting agent, the channel, the post that started the turn, and `workUnit`, the reference and creator of the work unit the turn serves as its assignee, or `null`. `workUnits.find(reference)` reads a unit the acting agent created or was assigned in the channel, with its state, parties, outcome, criteria, and context. It returns `null` for any other. A plugin can't create, change, or close a unit, so store the reference and read the state when you need it.
+
+**Testing.** `@collegium/sdk/testing` builds the context `execute` receives, over in-memory storage that validates and parses as the deployment's store does. Pass your config; settings go through your schema, so defaults apply. Pass `turn` to change what the tool sees of its turn, and `workUnits` for the units `workUnits.find` can reach.
 
 ```ts
 import { createTestContext, PluginToolFailureError } from '@collegium/sdk/testing';

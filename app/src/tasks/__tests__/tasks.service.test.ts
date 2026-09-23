@@ -144,6 +144,29 @@ describe('TasksService', () => {
     expect(await served('mira', 'post-1')).toBeUndefined();
   });
 
+  it('should show a plugin a unit only to its parties in its channel, as the record and not the row (§3.14)', async () => {
+    const reference = (await assign()).id.slice(0, 8);
+    const view = (agentUsername: string, channelId = 'channel-1') => {
+      return tasksService.findWorkUnitView({ agentUsername, channelId, reference });
+    };
+    expect(await view('owen')).toStrictEqual({
+      assigneeUsername: 'owen',
+      context: 'nothing tried yet',
+      createdAt: expect.any(Date),
+      creatorUsername: 'mira',
+      criteria: 'three venues with prices',
+      outcome: 'a venue shortlist',
+      reference,
+      state: 'assigned',
+      updatedAt: expect.any(Date)
+    });
+    expect(await view('omar')).toBeNull();
+    expect(await view('mira', 'channel-2')).toBeNull();
+    expect(
+      await tasksService.findWorkUnitView({ agentUsername: 'mira', channelId: 'channel-1', reference: '' })
+    ).toBeNull();
+  });
+
   describe('the report the framework makes when an assignee runs out of context (§3.15)', () => {
     const exhausted = (triggeringPostId: string) => {
       return tasksService.prepareExhaustionReport({ agentUsername: 'owen', channelId: 'channel-1', triggeringPostId });

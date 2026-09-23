@@ -2,6 +2,48 @@ import type { Promisable } from 'type-fest';
 import type { z } from 'zod';
 
 import type { ToolApprovalContext, ToolApprovalPayload, ToolDisclosure } from '../tools.ts';
+import type { ServiceToken } from '../utils.ts';
+
+/** §3.15 — where a unit stands: open while `assigned`, `blocked` or `review`, closed once `done` or `cancelled` */
+export type WorkUnitState = 'assigned' | 'blocked' | 'cancelled' | 'done' | 'review';
+
+/** §3.15 — a work unit as a plugin tool reads it (§3.14): what the record says, not how the store holds it */
+export type WorkUnitView = {
+  readonly assigneeUsername: string;
+  /** what the assignee needs to know, as the creator wrote it */
+  readonly context: string;
+  /** when it was assigned */
+  readonly createdAt: Date;
+  readonly creatorUsername: string;
+  /** what the creator will judge the result by */
+  readonly criteria: string;
+  readonly outcome: string;
+  /** what `tasks::` tools take, the prompt lists, and `turn.workUnit` names */
+  readonly reference: string;
+  readonly state: WorkUnitState;
+  /** when it last changed state */
+  readonly updatedAt: Date;
+};
+
+/** §3.14 — the work units a plugin tool may read: those the acting agent created or was assigned in the turn's channel */
+export type WorkUnitReader = {
+  /** null for a unit the agent is no party to here, as for one that never existed, and for a prefix naming more than one */
+  find(reference: string): Promise<null | WorkUnitView>;
+};
+
+/** the framework's side of `WorkUnitReader`, which the perimeter wrapper binds to each call's turn */
+export type WorkUnitLookup = {
+  findWorkUnitView(input: {
+    agentUsername: string;
+    channelId: string;
+    reference: string;
+  }): Promise<null | WorkUnitView>;
+};
+
+/** what the framework registers every plugin toolset with, beside what its config declares; never reaches the tool body */
+export type PluginToolsetServices = {
+  readonly workUnitLookup: ServiceToken<WorkUnitLookup>;
+};
 
 /** what a plugin tool body may return: the text alone, or the text beside a durable record's disclosure and the line later turns replay (§3.4) */
 export type PluginToolOutput =
@@ -16,6 +58,12 @@ export type PluginToolErr = {
   invalidArguments(message: string): never;
   /** a committed side effect whose outcome cannot be established; the turn ends stating the ambiguity */
   unresolved(message: string): never;
+};
+
+/** what the perimeter wrapper hands every plugin tool body beside the context its toolset declared */
+export type PluginToolHandles = {
+  readonly err: PluginToolErr;
+  readonly workUnits: WorkUnitReader;
 };
 
 /** one tool as a plugin declares it: the framework's tool minus `budgetExempt` and `isAvailableWith`, returning plain output */

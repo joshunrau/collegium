@@ -152,7 +152,7 @@ export default defineTool({
 
 ### Render the Stored Record
 
-`approval` receives a second argument beside `args`: the tool's `settings`, and each collection's three reads, `findById`, `findFirst`, and `findMany`. It gets no writes, no `err`, and no `turn`. It may be `async`.
+`approval` receives a second argument beside `args`: the tool's `settings`, and each collection's three reads, `findById`, `findFirst`, and `findMany`. It gets no writes, no `err`, no `turn`, and no `workUnits`. It may be `async`.
 
 When a call acts on a stored record, read the record and show it. The approver then checks what the store holds, not the model's description of it. `src/tools/delete.ts` deletes a contact:
 
@@ -186,6 +186,28 @@ export default defineTool({
 If the model names the wrong identifier, the prompt shows the wrong contact, and the approver denies the call.
 
 Build the payload from the arguments, the settings, and your own records only. Don't call `fetch` or read files in a render. The approver must see what the call acts on, not what a network returned. A render that throws ends the turn as an error before any prompt appears.
+
+### Read the Turn and Its Work Unit
+
+`execute` also receives `turn`, the facts of the turn making the call:
+
+- `agentUsername` names the acting agent, and `channelId` the channel it acts in.
+- `triggeringPostId` names the post that started the turn, or is `null` when no post did.
+- `turnId` identifies the turn.
+- `workUnit` names the work unit the turn serves, or is `null`.
+
+A work unit is the framework's record of work one agent handed another with `tasks::assign`. Each carries a short reference such as `q3m8v1zd`. `turn.workUnit` holds the unit's `reference` and `creatorUsername` when the unit's assignment post started the turn and the unit was still assigned then. It stays set for the whole turn. Every other turn gets `null`, so a record you stamp with it is never attributed to the wrong unit.
+
+`workUnits.find(reference)` reads a unit's `reference`, `state`, `creatorUsername`, `assigneeUsername`, `outcome`, `criteria`, `context`, `createdAt`, and `updatedAt`. It reaches the units the acting agent created or was assigned in this channel, and returns `null` for any other reference.
+
+A plugin can't create, change, or close a unit. Store the reference on your own records and read the unit's state when you need it, rather than keeping a copy that can drift:
+
+```ts
+const unit = await workUnits.find(args.unit);
+if (unit?.state === 'assigned') {
+  err.invalidArguments(`work unit ${unit.reference} is still with @${unit.assigneeUsername}; wait for their report`);
+}
+```
 
 ### Files and Imports
 
@@ -251,7 +273,7 @@ describe('contacts', () => {
 });
 ```
 
-`err.invalidArguments` and `err.unresolved` throw `PluginToolFailureError` here, as they do in a deployment before the framework maps them. Pass `turn` in the options to change the agent, channel, or post the tool sees. The same context serves `approval`, which reads the same in-memory storage.
+`err.invalidArguments` and `err.unresolved` throw `PluginToolFailureError` here, as they do in a deployment before the framework maps them. Pass `turn` in the options to change the agent, channel, post, or work unit the tool sees. Pass `workUnits` to give `workUnits.find` the units it can reach; without them, it finds none. The same context serves `approval`, which reads the same in-memory storage.
 
 ## 5. Install the Plugin
 

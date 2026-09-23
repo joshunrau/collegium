@@ -1,13 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { $PluginTool, toFrameworkTool } from '../../plugins.ts';
 
-import type { PluginToolErr } from '../../plugins.ts';
+import type { PluginToolHandles } from '../../plugins.ts';
 
 const CONTEXT = {} as never;
 
-function wrap(execute: (args: unknown, context: { err: PluginToolErr }) => unknown) {
+function wrap(execute: (args: unknown, context: PluginToolHandles) => unknown) {
   return toFrameworkTool(
     $PluginTool.parse({ approval: null, description: 'Does something.', execute, parameters: z.object({}) })
   );
@@ -51,6 +51,24 @@ describe('toFrameworkTool', () => {
     const tool = wrap((_args, { err }) => err.unresolved('maybe sent'));
     const result = await tool.execute({}, CONTEXT);
     expect(result.error).toStrictEqual({ kind: 'unresolved', message: 'maybe sent' });
+  });
+
+  it('binds the work-unit reader to the calling turn and hides the lookup behind it (§3.14)', async () => {
+    const findWorkUnitView = vi.fn().mockResolvedValue(null);
+    const tool = wrap(async (_args, context) => {
+      expect(context).not.toHaveProperty('workUnitLookup');
+      await context.workUnits.find('q3m8v1zd');
+      return 'read';
+    });
+    await tool.execute({}, {
+      turn: { agentUsername: 'mira', channelId: 'channel-1' },
+      workUnitLookup: { findWorkUnitView }
+    } as never);
+    expect(findWorkUnitView).toHaveBeenCalledWith({
+      agentUsername: 'mira',
+      channelId: 'channel-1',
+      reference: 'q3m8v1zd'
+    });
   });
 
   it('lets any other throw propagate to the executor', async () => {

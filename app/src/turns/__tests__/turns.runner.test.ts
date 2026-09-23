@@ -552,6 +552,26 @@ describe('TurnRunner', () => {
     );
   });
 
+  it('should tell every tool call the unit the turn serves, resolved once at setup (§3.14)', async () => {
+    tasksService.findServedUnit.mockResolvedValueOnce({ creatorUsername: 'owen', id: 'q3m8v1zdx0unit' } as WorkUnit);
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await turnRunner.run({
+      chainLength: 2,
+      channelId: 'channel-1',
+      depth: 1,
+      profile: PROFILE,
+      releaseHeldActivation,
+      rootPostId: 'post-1',
+      triggeringPostId: 'post-2'
+    });
+    expect(toolExecutor.execute.mock.calls.map(([input]) => input.turn.workUnit)).toStrictEqual([
+      { creatorUsername: 'owen', reference: 'q3m8v1zd' },
+      { creatorUsername: 'owen', reference: 'q3m8v1zd' }
+    ]);
+  });
+
   it('should execute tools, record the trace, and loop until the model emits text', async () => {
     complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'], 'checking')));
     complete.mockResolvedValueOnce(Result.ok(text('found it')));

@@ -248,6 +248,8 @@ type TurnState = {
   unreadFrom: number;
   usage: CompletionUsage | undefined;
   windowPostIds: ReadonlySet<string>;
+  /** §3.14 — the unit this turn serves as its assignee, resolved once at setup so a report mid-turn does not unname it */
+  readonly workUnit: ToolTurnScope['workUnit'];
 };
 
 /**
@@ -354,7 +356,8 @@ export class TurnRunner {
       unparsedCalls: 0,
       unreadFrom: 0,
       usage: undefined,
-      windowPostIds: new Set()
+      windowPostIds: new Set(),
+      workUnit: await this.resolveServedUnit(input)
     };
     try {
       return Result.ok(await this.runLoop(input, state));
@@ -776,7 +779,8 @@ export class TurnRunner {
       agentUsername: input.profile.username,
       channelId: input.channelId,
       triggeringPostId: input.triggeringPostId ?? null,
-      turnId: state.turn.id
+      turnId: state.turn.id,
+      workUnit: state.workUnit
     };
   }
 
@@ -1447,6 +1451,16 @@ export class TurnRunner {
         };
       })
       .exhaustive();
+  }
+
+  /** §3.14 — exactly the unit `findServedUnit` names, without the §3.15 exhaustion report's only-unit fallback */
+  private async resolveServedUnit(input: RunInput): Promise<ToolTurnScope['workUnit']> {
+    const unit = await this.tasksService.findServedUnit({
+      agentUsername: input.profile.username,
+      channelId: input.channelId,
+      triggeringPostId: input.triggeringPostId
+    });
+    return unit ? { creatorUsername: unit.creatorUsername, reference: renderReference(unit.id) } : null;
   }
 
   /** §3.8 — oldest read first, past the share and never below the floor; measured from the messages themselves, since a cut can shrink one after it was pushed */
