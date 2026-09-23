@@ -226,7 +226,7 @@ export class WebService {
     }
     const text = extracted.value;
     if (isWithoutTextLayer(text)) {
-      return Result.err({ kind: 'no-text', pageCount: text.pageCount, pagesRead: text.pages.length, url });
+      return Result.err({ kind: 'no-text', pageCount: text.pageCount, url });
     }
     return Result.ok({
       ...readPdfText(text, read),

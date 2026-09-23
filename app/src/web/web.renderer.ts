@@ -103,10 +103,8 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     .with({ kind: 'no-such-option' }, ({ option, ref }) => {
       return `⟨${ref}⟩ offers no option "${option}", so nothing was chosen — pass an option as the latest snapshot lists it`;
     })
-    .with({ kind: 'no-text' }, ({ pageCount, pagesRead, url }) => {
-      const read =
-        pagesRead === pageCount ? `any of its ${pageCount} pages` : `the first ${pagesRead} of its ${pageCount} pages`;
-      return `the PDF at ${url} has no text layer on ${read}: it is most likely scanned, and nothing here reads text from an image`;
+    .with({ kind: 'no-text' }, ({ pageCount, url }) => {
+      return `the PDF at ${url} has no text layer on any of its ${pageCount} pages: it is most likely scanned, and nothing here reads text from an image`;
     })
     .with({ kind: 'not-html' }, ({ contentType, url }) => {
       return `${url} is ${contentType}, not a web page, so the browser does not open it — read it with web::fetch, which reads PDFs and text`;

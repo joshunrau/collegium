@@ -324,7 +324,6 @@ describe('WebService', () => {
       expect(result.error).toStrictEqual({
         kind: 'no-text',
         pageCount: 3,
-        pagesRead: 3,
         url: 'https://northmoor.example/documents/handbook.pdf'
       });
     });

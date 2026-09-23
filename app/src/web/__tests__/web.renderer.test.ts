@@ -74,11 +74,9 @@ describe('renderWebFailure', () => {
     ).toContain('read it with web::fetch');
   });
 
-  it('should say a PDF without a text layer is most likely scanned, and how much of it was read (§3.4)', () => {
-    expect(
-      renderWebFailure({ kind: 'no-text', pageCount: 40, pagesRead: 12, url: 'https://northmoor.example/roster.pdf' })
-    ).toBe(
-      'the PDF at https://northmoor.example/roster.pdf has no text layer on the first 12 of its 40 pages: it is ' +
+  it('should say a PDF without a text layer is most likely scanned (§3.4)', () => {
+    expect(renderWebFailure({ kind: 'no-text', pageCount: 40, url: 'https://northmoor.example/roster.pdf' })).toBe(
+      'the PDF at https://northmoor.example/roster.pdf has no text layer on any of its 40 pages: it is ' +
         'most likely scanned, and nothing here reads text from an image'
     );
   });

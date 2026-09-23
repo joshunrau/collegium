@@ -45,4 +45,8 @@ describe('isWithoutTextLayer', () => {
     expect(isWithoutTextLayer({ pageCount: 2, pages: ['', ' \n '] })).toBe(true);
     expect(isWithoutTextLayer({ pageCount: 2, pages: ['', 'Duval'] })).toBe(false);
   });
+
+  it('should not hold for a read the deadline stopped, however blank the pages it reached (§3.4)', () => {
+    expect(isWithoutTextLayer({ pageCount: 30, pages: [''], stoppedBy: 'deadline' })).toBe(false);
+  });
 });
