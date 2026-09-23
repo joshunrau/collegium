@@ -9,6 +9,7 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
@@ -16,6 +17,8 @@ import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import type { WindowEntry } from '@/conversations/conversations.types.ts';
+import { WindowService } from '@/conversations/window/window.service.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
@@ -42,6 +45,7 @@ import { WebService } from '@/web/web.service.ts';
 import { ContextAssembler } from '../context/context.assembler.ts';
 import { TurnControlRegistry } from '../control/turn-control.registry.ts';
 import { TurnFoldRegistry } from '../folding/turn-fold.registry.ts';
+import { PromptRenderer } from '../prompt/prompt.renderer.ts';
 import { StatusPostService } from '../status/status-post.service.ts';
 import { TurnRunner } from '../turns.runner.ts';
 import { TurnsService } from '../turns.service.ts';
@@ -1132,6 +1136,92 @@ describe('TurnRunner', () => {
       rootPostId: 'post-0'
     });
     expect(statusHandle.appendTrace).not.toHaveBeenCalled();
+  });
+
+  describe('a report drained behind the supervisor’s own turn (§5.2)', () => {
+    const REPORT_ID = 'post-report';
+    const TAIL = '## Open work\n[u1] naomi · review';
+
+    const post = (id: string, author: string, message: string, at: number): WindowEntry => ({
+      kind: 'post',
+      post: {
+        attachments: null,
+        authoringTurnId: null,
+        authorKind: author === 'casey' ? 'human' : 'agent',
+        authorUsername: author,
+        channelId: 'channel-1',
+        createdAt: new Date(at),
+        id,
+        isForgotten: false,
+        kind: 'message',
+        message,
+        observedAt: new Date(at)
+      }
+    });
+
+    const event = (payload: PrismaJson.TurnEventPayload, at: number): WindowEntry => ({
+      event: { createdAt: new Date(at), id: `event-${at}`, kind: payload.kind, payload, sequence: 0, turnId: 'turn-0' },
+      kind: 'event'
+    });
+
+    beforeEach(async () => {
+      const windowService = MockFactory.createMock(WindowService);
+      windowService.build.mockResolvedValue({
+        entries: [
+          post('post-ask', 'casey', '@mira find three venues', 1000),
+          event(
+            {
+              content: '',
+              kind: 'assistant_message',
+              toolCalls: [{ args: { assignee: 'naomi' }, callId: 'c1', toolName: ['tasks', 'assign'] }]
+            },
+            2000
+          ),
+          event({ callId: 'c1', kind: 'tool_result', output: 'assigned [u1] to naomi', toolName: ['tasks', 'assign'] }, 2100),
+          event({ content: 'Handed to Naomi.', kind: 'assistant_message', toolCalls: [] }, 2200),
+          post(REPORT_ID, 'naomi', '@mira [u1] three venues, with prices', 3000)
+        ],
+        oldestAt: new Date(1000)
+      });
+      const promptRenderer = MockFactory.createMock(PromptRenderer);
+      promptRenderer.renderParts.mockResolvedValue({ stable: 'You are Mira.', tail: TAIL });
+      const agentRegistry = MockFactory.createMock(AgentRegistry);
+      agentRegistry.displayNameOf.mockImplementation((username) => (username === 'naomi' ? 'Naomi' : username));
+      const toolRegistryForContext = MockFactory.createMock(ToolRegistry);
+      toolRegistryForContext.describeFor.mockReturnValue([]);
+      const assemblerModule = await Test.createTestingModule({
+        providers: [
+          ContextAssembler,
+          { provide: AgentRegistry, useValue: agentRegistry },
+          { provide: PromptRenderer, useValue: promptRenderer },
+          { provide: ToolRegistry, useValue: toolRegistryForContext },
+          { provide: WindowService, useValue: windowService }
+        ]
+      }).compile();
+      const assembler = assemblerModule.get(ContextAssembler);
+      contextAssembler.assemble.mockImplementation((input) => assembler.assemble(input));
+    });
+
+    it('should hand the model the report as the last window message, just before the per-turn tail (§3.8)', async () => {
+      complete.mockResolvedValueOnce(Result.ok(text('Thanks, Naomi.')));
+      await turnRunner.run({
+        chainLength: 2,
+        channelId: 'channel-1',
+        depth: 1,
+        drainedFromPostId: REPORT_ID,
+        profile: PROFILE,
+        releaseHeldActivation,
+        rootPostId: 'post-ask',
+        triggeringPostId: REPORT_ID
+      });
+      const { messages } = complete.mock.calls[0]![0];
+      expect(messages.slice(-3)).toStrictEqual([
+        { content: 'Handed to Naomi.', role: 'assistant' },
+        { content: 'Naomi (agent): @mira [u1] three venues, with prices', role: 'user' },
+        { content: TAIL, role: 'user' }
+      ]);
+      expect(statusHandle.appendTrace).not.toHaveBeenCalled();
+    });
   });
 
   it('should return killed immediately while a completion is still in flight', async () => {
