@@ -7,12 +7,14 @@ import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
+import { PinsService } from '@/conversations/pins/pins.service.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
 import { DayFormatter } from '@/formatting/dates/day.formatter.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import { toCompletionBody } from '@/inference/adapters/openai-compatible.utils.ts';
 import { MailRegistry } from '@/mail/mail.registry.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
+import type { ModelRow } from '@/prisma/prisma.types.ts';
 import { ShellService } from '@/shell/shell.service.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
@@ -27,6 +29,7 @@ import { EarlierActionsSection } from '../../prompt/sections/earlier-actions.sec
 import { MemoriesSection } from '../../prompt/sections/memories.section.ts';
 import { OpenWorkSection } from '../../prompt/sections/open-work.section.ts';
 import { PeersSection } from '../../prompt/sections/peers.section.ts';
+import { PinnedPostsSection } from '../../prompt/sections/pinned-posts.section.ts';
 import { ContextAssembler } from '../context.assembler.ts';
 
 const PROFILE: AgentProfile = {
@@ -45,21 +48,24 @@ const PROFILE: AgentProfile = {
   workspaceDir: '/tmp/workspaces/mira'
 };
 
+const postRow = (author: string, message: string, at: number): ModelRow<'Post'> => ({
+  attachments: null,
+  authoringTurnId: null,
+  authorKind: author === 'casey' ? 'human' : 'agent',
+  authorUsername: author,
+  channelId: 'channel-1',
+  createdAt: new Date(at),
+  id: `post-${at}`,
+  isForgotten: false,
+  isPinned: false,
+  kind: 'message',
+  message,
+  observedAt: new Date(at)
+});
+
 const post = (author: string, message: string, at: number): WindowEntry => ({
   kind: 'post',
-  post: {
-    attachments: null,
-    authoringTurnId: null,
-    authorKind: author === 'casey' ? 'human' : 'agent',
-    authorUsername: author,
-    channelId: 'channel-1',
-    createdAt: new Date(at),
-    id: `post-${at}`,
-    isForgotten: false,
-    kind: 'message',
-    message,
-    observedAt: new Date(at)
-  }
+  post: postRow(author, message, at)
 });
 
 const event = (payload: PrismaJson.TurnEventPayload, at: number): WindowEntry => ({
@@ -201,6 +207,7 @@ describe('ContextAssembler', () => {
 describe('ContextAssembler across two turns', () => {
   let contextAssembler: ContextAssembler;
   let memoryService: MockedInstance<MemoryService>;
+  let pinsService: MockedInstance<PinsService>;
   let rosterService: MockedInstance<RosterService>;
   let tasksService: MockedInstance<TasksService>;
   let windowService: MockedInstance<WindowService>;
@@ -221,6 +228,8 @@ describe('ContextAssembler across two turns', () => {
     mailRegistry.mailboxFor.mockReturnValue(undefined);
     memoryService = MockFactory.createMock(MemoryService);
     memoryService.list.mockResolvedValue([{ description: 'casey prefers bullets', reference: 'memory-1' }]);
+    pinsService = MockFactory.createMock(PinsService);
+    pinsService.listPinned.mockResolvedValue([]);
     rosterService = MockFactory.createMock(RosterService);
     rosterService.getPeers.mockReturnValue([peer('tess')]);
     const shellService = MockFactory.createMock(ShellService);
@@ -260,12 +269,14 @@ describe('ContextAssembler across two turns', () => {
         MemoriesSection,
         OpenWorkSection,
         PeersSection,
+        PinnedPostsSection,
         PromptRenderer,
         TextFormatter,
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: MailRegistry, useValue: mailRegistry },
         { provide: MemoryService, useValue: memoryService },
+        { provide: PinsService, useValue: pinsService },
         { provide: RosterService, useValue: rosterService },
         { provide: ShellService, useValue: shellService },
         { provide: SkillsService, useValue: skillsService },
@@ -287,7 +298,7 @@ describe('ContextAssembler across two turns', () => {
     { name: 'anthropic/claude-sonnet-5', provider: 'openrouter' },
     { name: 'openai/gpt-5.6-sol', provider: 'openrouter' }
   ])(
-    'should send $name the same bytes through the window when memories, people, peers, ages and the day change (§3.8)',
+    'should send $name the same bytes through the window when memories, pins, people, peers, ages and the day change (§3.8)',
     async (model) => {
       const wireBody = async () => {
         const { request } = await contextAssembler.assemble({
@@ -304,6 +315,7 @@ describe('ContextAssembler across two turns', () => {
         oldestAt: new Date(1000)
       });
       memoryService.list.mockResolvedValue([{ description: 'casey prefers numbered lists', reference: 'memory-2' }]);
+      pinsService.listPinned.mockResolvedValue([postRow('casey', 'cite the registry for every lead', 1000)]);
       rosterService.getPeers.mockReturnValue([peer('tess'), peer('owen')]);
       windowService.listRecentPeople.mockResolvedValue(['robin', 'casey']);
       const second = await wireBody();

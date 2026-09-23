@@ -1,7 +1,7 @@
 import type { Promisable } from 'type-fest';
 
 import type { AgentIdentity } from '@/agents/agents.types.ts';
-import type { ObservedPost } from '@/conversations/conversations.types.ts';
+import type { ObservedPost, RecordablePost } from '@/conversations/conversations.types.ts';
 import type { AuthorKind } from '@/prisma/prisma.types.ts';
 
 export type AgentConnection = {
@@ -32,6 +32,14 @@ export declare namespace ChatEvent {
     kind: 'user_added_to_channel' | 'user_removed_from_channel';
     username: string;
   };
+  /**
+   * §8.2 — a post that is pinned now, with its text as it stands. Mattermost reports pinning a post
+   * and editing a pinned one as the same edit, so this is sent for both.
+   */
+  type Pinned = {
+    kind: 'pinned';
+    post: RecordablePost;
+  };
   type Posted = {
     kind: 'posted';
     post: ObservedPost;
@@ -45,7 +53,15 @@ export declare namespace ChatEvent {
     agentUsername: string;
     kind: 'resync';
   };
-  type Any = Membership | Posted | Resync;
+  /**
+   * §8.2 — a post that is not pinned now: unpinned, deleted, or edited while unpinned. It carries no
+   * text, because the store follows the text of a pinned post alone.
+   */
+  type Unpinned = {
+    kind: 'unpinned';
+    postId: string;
+  };
+  type Any = Membership | Pinned | Posted | Resync | Unpinned;
 }
 
 export type ChatEvent = ChatEvent.Any;

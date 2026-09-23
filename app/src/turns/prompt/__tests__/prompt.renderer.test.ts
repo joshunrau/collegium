@@ -23,6 +23,7 @@ import { EarlierActionsSection } from '../sections/earlier-actions.section.ts';
 import { MemoriesSection } from '../sections/memories.section.ts';
 import { OpenWorkSection } from '../sections/open-work.section.ts';
 import { PeersSection } from '../sections/peers.section.ts';
+import { PinnedPostsSection } from '../sections/pinned-posts.section.ts';
 
 const PROFILE = {
   actionBudget: 7,
@@ -42,6 +43,7 @@ describe('PromptRenderer', () => {
   let memoriesSection: MockedInstance<MemoriesSection>;
   let openWorkSection: MockedInstance<OpenWorkSection>;
   let peersSection: MockedInstance<PeersSection>;
+  let pinnedPostsSection: MockedInstance<PinnedPostsSection>;
   let promptRenderer: PromptRenderer;
   let rosterService: MockedInstance<RosterService>;
   let shellService: MockedInstance<ShellService>;
@@ -64,6 +66,8 @@ describe('PromptRenderer', () => {
     openWorkSection.render.mockResolvedValue(undefined);
     peersSection = MockFactory.createMock(PeersSection);
     peersSection.render.mockResolvedValue(undefined);
+    pinnedPostsSection = MockFactory.createMock(PinnedPostsSection);
+    pinnedPostsSection.render.mockResolvedValue(undefined);
     rosterService = MockFactory.createMock(RosterService);
     rosterService.nameOf.mockReturnValue(undefined);
     shellService = MockFactory.createMock(ShellService);
@@ -88,6 +92,7 @@ describe('PromptRenderer', () => {
         { provide: MemoriesSection, useValue: memoriesSection },
         { provide: OpenWorkSection, useValue: openWorkSection },
         { provide: PeersSection, useValue: peersSection },
+        { provide: PinnedPostsSection, useValue: pinnedPostsSection },
         { provide: RosterService, useValue: rosterService },
         { provide: ShellService, useValue: shellService },
         { provide: SkillsService, useValue: skillsService },
@@ -182,7 +187,7 @@ describe('PromptRenderer', () => {
   it('should pass each tail section this agent, this channel and where the window reaches back to', async () => {
     await renderParts(new Date(1000));
     const input = { channelId: 'channel-1', profile: PROFILE, windowReachesBackTo: new Date(1000) };
-    for (const section of [memoriesSection, earlierActionsSection, peersSection, openWorkSection]) {
+    for (const section of [memoriesSection, pinnedPostsSection, earlierActionsSection, peersSection, openWorkSection]) {
       expect(section.render).toHaveBeenCalledWith(input);
     }
   });
@@ -194,6 +199,7 @@ describe('PromptRenderer', () => {
     const initial = await renderParts();
     dateLineSection.render.mockReturnValue('## Date\n\nToday is Tuesday, September 22, 2026.');
     memoriesSection.render.mockResolvedValue('## Memories');
+    pinnedPostsSection.render.mockResolvedValue('## Pinned in this channel');
     earlierActionsSection.render.mockResolvedValue('## Earlier in this channel');
     peersSection.render.mockResolvedValue('## Peers');
     openWorkSection.render.mockResolvedValue(
@@ -202,7 +208,14 @@ describe('PromptRenderer', () => {
     const updated = await renderParts(new Date(1000));
     expect(updated.stable).toBe(initial.stable);
     expect(updated.tail).not.toBe(initial.tail);
-    for (const heading of ['## Date', '## Memories', '## Earlier in this channel', '## Peers', '## Open work']) {
+    for (const heading of [
+      '## Date',
+      '## Memories',
+      '## Pinned in this channel',
+      '## Earlier in this channel',
+      '## Peers',
+      '## Open work'
+    ]) {
       expect(updated.stable).not.toContain(heading);
       expect(updated.tail).toContain(heading);
     }
@@ -214,14 +227,16 @@ describe('PromptRenderer', () => {
     expect(await render()).toBe(`${stable}\n\n${tail}`);
   });
 
-  it('should place the date first, the earlier actions after the memories and before peers, and open work last (§3.8)', async () => {
+  it('should place the date first, the pinned posts after the memories, the earlier actions before peers, and open work last (§3.8)', async () => {
     memoriesSection.render.mockResolvedValue('## Memories');
+    pinnedPostsSection.render.mockResolvedValue('## Pinned in this channel');
     earlierActionsSection.render.mockResolvedValue('## Earlier in this channel');
     peersSection.render.mockResolvedValue('## Peers');
     openWorkSection.render.mockResolvedValue('## Open work');
     const tail = await renderTail(new Date(1000));
     expect(tail.indexOf('## Date')).toBeLessThan(tail.indexOf('## Memories'));
-    expect(tail.indexOf('## Memories')).toBeLessThan(tail.indexOf('## Earlier in this channel'));
+    expect(tail.indexOf('## Memories')).toBeLessThan(tail.indexOf('## Pinned in this channel'));
+    expect(tail.indexOf('## Pinned in this channel')).toBeLessThan(tail.indexOf('## Earlier in this channel'));
     expect(tail.indexOf('## Earlier in this channel')).toBeLessThan(tail.indexOf('## Peers'));
     expect(tail.indexOf('## Peers')).toBeLessThan(tail.indexOf('## Open work'));
   });

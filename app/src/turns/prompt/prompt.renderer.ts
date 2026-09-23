@@ -21,6 +21,7 @@ import { MemoriesSection } from './sections/memories.section.ts';
 import { OpenWorkSection } from './sections/open-work.section.ts';
 import { PeersSection } from './sections/peers.section.ts';
 import { renderPersonalitySection } from './sections/personality.section.ts';
+import { PinnedPostsSection } from './sections/pinned-posts.section.ts';
 import { renderSkillsSection } from './sections/skills.section.ts';
 
 import type { StablePromptInput, TurnPrompt, TurnPromptInput } from './prompt.types.ts';
@@ -43,6 +44,7 @@ export class PromptRenderer {
     private readonly memoriesSection: MemoriesSection,
     private readonly openWorkSection: OpenWorkSection,
     private readonly peersSection: PeersSection,
+    private readonly pinnedPostsSection: PinnedPostsSection,
     private readonly rosterService: RosterService,
     private readonly shellService: ShellService,
     private readonly skillsService: SkillsService,
@@ -75,6 +77,7 @@ export class PromptRenderer {
     const tail = [
       this.dateLineSection.render(),
       await this.memoriesSection.render(input),
+      await this.pinnedPostsSection.render(input),
       await this.earlierActionsSection.render(input),
       await this.peersSection.render(input),
       await this.openWorkSection.render(input)

@@ -69,6 +69,30 @@ export const $MattermostPostedEventMessage = z.object({
   event: z.literal('posted')
 });
 
+// pinning and unpinning are edits to Mattermost, so this one event carries pin state and new text alike
+export type $MattermostPostEditedEventMessage = z.infer<typeof $MattermostPostEditedEventMessage>;
+export const $MattermostPostEditedEventMessage = z.object({
+  data: z.object({
+    post: $$JSONEncoded(
+      $$CamelCased(
+        $MattermostPostFields.extend({
+          isPinned: z.boolean().default(false),
+          userId: z.string().min(1)
+        })
+      )
+    )
+  }),
+  event: z.literal('post_edited')
+});
+
+export type $MattermostPostDeletedEventMessage = z.infer<typeof $MattermostPostDeletedEventMessage>;
+export const $MattermostPostDeletedEventMessage = z.object({
+  data: z.object({
+    post: $$JSONEncoded(z.object({ id: z.string().min(1) }))
+  }),
+  event: z.literal('post_deleted')
+});
+
 export type $MattermostUserAddedEventMessage = z.infer<typeof $MattermostUserAddedEventMessage>;
 export const $MattermostUserAddedEventMessage = z.object({ event: z.literal('user_added') }).and($MembershipEventSides);
 

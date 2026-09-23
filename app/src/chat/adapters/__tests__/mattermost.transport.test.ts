@@ -75,6 +75,22 @@ const postedEvent = (overrides: { message?: string; senderName?: string; type?: 
   event: 'posted'
 });
 
+const editedEvent = (overrides: { isPinned?: boolean; message?: string; type?: string; userId?: string } = {}) => ({
+  broadcast: { channel_id: 'channel-1' },
+  data: {
+    post: JSON.stringify({
+      channel_id: 'channel-1',
+      create_at: 1700000000000,
+      id: 'post-1',
+      is_pinned: overrides.isPinned ?? true,
+      message: overrides.message ?? 'cite the registry',
+      type: overrides.type ?? '',
+      user_id: overrides.userId ?? 'casey-user-id'
+    })
+  },
+  event: 'post_edited'
+});
+
 const restPost = (overrides: Partial<$MattermostRestPost> = {}): $MattermostRestPost => ({
   channelId: 'channel-1',
   createAt: 1700000000000,
@@ -213,6 +229,49 @@ describe('MattermostTransport', () => {
       await settle();
       expect(events).toHaveLength(0);
       expect((logger.error as Mock).mock.calls.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('pin events (§8.2)', () => {
+    it('should deliver a pinned post with its text as it stands and its author resolved', async () => {
+      client.getUsernamesByIds.mockResolvedValue(new Map([['casey-user-id', 'casey']]));
+      socket.emit(editedEvent({ message: 'cite the registry, then the directory' }));
+      await settle();
+      expect(events).toStrictEqual([
+        {
+          kind: 'pinned',
+          post: {
+            attachments: [],
+            authorKind: 'human',
+            authorUsername: 'casey',
+            channelId: 'channel-1',
+            createdAt: new Date(1700000000000),
+            id: 'post-1',
+            message: 'cite the registry, then the directory'
+          }
+        }
+      ]);
+    });
+
+    it('should deliver an edit of a post that is not pinned as an unpin, carrying no text', async () => {
+      socket.emit(editedEvent({ isPinned: false }));
+      await settle();
+      expect(events).toStrictEqual([{ kind: 'unpinned', postId: 'post-1' }]);
+      expect(client.getUsernamesByIds).not.toHaveBeenCalled();
+    });
+
+    it('should deliver a deleted post as an unpin', async () => {
+      socket.emit({ data: { post: JSON.stringify({ id: 'post-1' }) }, event: 'post_deleted' });
+      await settle();
+      expect(events).toStrictEqual([{ kind: 'unpinned', postId: 'post-1' }]);
+    });
+
+    it('should ignore an edit of a protocol post and discard a malformed one', async () => {
+      socket.emit(editedEvent({ type: 'system_join_channel' }));
+      socket.emit({ data: { post: 'not json' }, event: 'post_edited' });
+      await settle();
+      expect(events).toHaveLength(0);
+      expect(logger.error).toHaveBeenCalledOnce();
     });
   });
 
@@ -385,6 +444,21 @@ describe('MattermostTransport', () => {
       });
       expect(backfilled.value).toHaveLength(61);
     });
+  });
+
+  it('should read a channel’s pinned posts oldest first, dropping protocol and edit rows (§8.2)', async () => {
+    client.getUsernamesByIds.mockResolvedValue(new Map([['casey-user-id', 'casey']]));
+    client.getPinnedPosts.mockResolvedValue([
+      restPost({ createAt: 3, id: 'newer' }),
+      restPost({ createAt: 1, id: 'older' }),
+      restPost({ id: 'edit-history', originalId: 'older' })
+    ]);
+    const pinned = await transport.pinnedPosts('channel-1');
+    expect(client.getPinnedPosts).toHaveBeenCalledWith('channel-1');
+    expect(pinned.value?.map(({ authorUsername, id }) => ({ authorUsername, id }))).toStrictEqual([
+      { authorUsername: 'casey', id: 'older' },
+      { authorUsername: 'casey', id: 'newer' }
+    ]);
   });
 
   describe('maxPostSizeChars', () => {

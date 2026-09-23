@@ -154,6 +154,10 @@ export class MattermostClient {
     return $MattermostUserProfile.parse(await this.sdk.getMe());
   }
 
+  async getPinnedPosts(channelId: string): Promise<$MattermostRestPost[]> {
+    return this.toOrderedPosts(await this.sdk.getPinnedPosts(channelId));
+  }
+
   async getPostsAfter(params: {
     afterPostId: string;
     channelId: string;

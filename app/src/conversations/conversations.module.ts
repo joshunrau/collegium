@@ -7,6 +7,7 @@ import { BackfillService } from './backfill/backfill.service.ts';
 import { ConversationsService } from './conversations.service.ts';
 import { SEARCH_SERVICE_TOKEN } from './conversations.tokens.ts';
 import { EpisodesService } from './episodes/episodes.service.ts';
+import { PinsService } from './pins/pins.service.ts';
 import { ResyncService } from './resync/resync.service.ts';
 import { SearchService } from './search/search.service.ts';
 import { WindowService } from './window/window.service.ts';
@@ -16,6 +17,7 @@ import { WindowService } from './window/window.service.ts';
     BackfillService,
     ConversationsService,
     EpisodesService,
+    PinsService,
     ResyncService,
     SEARCH_SERVICE_TOKEN,
     SearchService,
@@ -26,6 +28,7 @@ import { WindowService } from './window/window.service.ts';
     BackfillService,
     ConversationsService,
     EpisodesService,
+    PinsService,
     ResyncService,
     SearchService,
     { provide: SEARCH_SERVICE_TOKEN, useExisting: SearchService },

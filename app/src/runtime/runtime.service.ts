@@ -12,6 +12,7 @@ import type { ChatEvent } from '@/chat/chat.types.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { CommandReconcilerService } from '@/commands/registration/command-reconciler.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
+import { PinsService } from '@/conversations/pins/pins.service.ts';
 import { ResyncService } from '@/conversations/resync/resync.service.ts';
 import { CredentialsService } from '@/credentials/credentials.service.ts';
 import { HaltService } from '@/halt/halt.service.ts';
@@ -53,6 +54,7 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     private readonly mailBootService: MailBootService,
     private readonly mailInboundService: MailInboundService,
     private readonly notificationsService: NotificationsService,
+    private readonly pinsService: PinsService,
     private readonly resyncService: ResyncService,
     private readonly rosterService: RosterService,
     private readonly schedulesService: SchedulesService,
@@ -138,6 +140,14 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
     }
     if (event.kind === 'posted') {
       await this.activationService.onPost(running.profile, event.post);
+      return;
+    }
+    if (event.kind === 'pinned') {
+      await this.pinsService.pin(event.post);
+      return;
+    }
+    if (event.kind === 'unpinned') {
+      await this.pinsService.unpin(event.postId);
       return;
     }
     if (event.kind === 'resync') {

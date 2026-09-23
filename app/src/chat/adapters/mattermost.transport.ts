@@ -4,17 +4,20 @@ import type { WebSocketMessage } from '@mattermost/client';
 import type { LoggerService } from '@nestjs/common';
 
 import type { AgentIdentity } from '@/agents/agents.types.ts';
-import type { ObservedPost } from '@/conversations/conversations.types.ts';
+import type { ObservedPost, RecordablePost } from '@/conversations/conversations.types.ts';
 
 import { ChatTransport } from '../chat.transport.ts';
 import { MattermostChannelType } from './mattermost.constants.ts';
 import {
+  $MattermostPostDeletedEventMessage,
   $MattermostPostedEventMessage,
+  $MattermostPostEditedEventMessage,
   $MattermostUserAddedEventMessage,
   $MattermostUserRemovedEventMessage
 } from './mattermost.schemas.ts';
 import {
   buildObservedPost,
+  buildRecordablePost,
   isSystemPost,
   toChannelKind,
   toChatResult,
@@ -35,6 +38,7 @@ import type {
   PostUpdate
 } from '../chat.types.ts';
 import type { MattermostClient } from './mattermost.client.ts';
+import type { $MattermostRestPost } from './mattermost.schemas.ts';
 
 const BACKFILL_PAGE_SIZE = 60;
 
@@ -166,31 +170,40 @@ export class MattermostTransport extends ChatTransport {
     return toChatResult(() => this.client.openDialog(request));
   }
 
+  pinnedPosts(channelId: string): Promise<Result<RecordablePost[], ChatFailure>> {
+    return toChatResult(async () => {
+      const authored = await this.withAuthors(await this.client.getPinnedPosts(channelId));
+      return authored.map(({ authorUsername, post }) => {
+        return buildRecordablePost({
+          attachments: toPostAttachments(post.fileIds, post.metadata.files),
+          authorUsername,
+          channelId,
+          classify: this.classifyAuthor,
+          createAt: post.createAt,
+          id: post.id,
+          message: post.message
+        });
+      });
+    });
+  }
+
   postsSince(channelId: string, postId: string | undefined): Promise<Result<ObservedPost[], ChatFailure>> {
     return toChatResult(async () => {
-      const raw = (postId === undefined ? await this.latestPosts(channelId) : await this.postsAfter(channelId, postId))
-        .filter((post) => !isSystemPost(post) && post.originalId === '')
-        .toSorted((left, right) => left.createAt - right.createAt);
+      const authored = await this.withAuthors(
+        postId === undefined ? await this.latestPosts(channelId) : await this.postsAfter(channelId, postId)
+      );
       const isDirectMessage = (await this.client.getChannelType(channelId)) === MattermostChannelType.Direct;
-      const usernames = await this.client.getUsernamesByIds([...new Set(raw.map((post) => post.userId))]);
-      return raw.flatMap((post): ObservedPost[] => {
-        const authorUsername = usernames.get(post.userId);
-        if (authorUsername === undefined) {
-          this.logger.warn(`skipped backfilling post ${post.id}: its author no longer resolves to a user`);
-          return [];
-        }
-        return [
-          buildObservedPost({
-            attachments: toPostAttachments(post.fileIds, post.metadata.files),
-            authorUsername,
-            channelId,
-            classify: this.classifyAuthor,
-            createAt: post.createAt,
-            id: post.id,
-            isDirectMessage,
-            message: post.message
-          })
-        ];
+      return authored.map(({ authorUsername, post }) => {
+        return buildObservedPost({
+          attachments: toPostAttachments(post.fileIds, post.metadata.files),
+          authorUsername,
+          channelId,
+          classify: this.classifyAuthor,
+          createAt: post.createAt,
+          id: post.id,
+          isDirectMessage,
+          message: post.message
+        });
       });
     });
   }
@@ -229,6 +242,10 @@ export class MattermostTransport extends ChatTransport {
 
   private async handleEvent(event: WebSocketMessage, onEvent: ChatEventHandler): Promise<void> {
     switch (event.event) {
+      case 'post_deleted':
+        return this.handlePostDeletedEvent(event, onEvent);
+      case 'post_edited':
+        return this.handlePostEditedEvent(event, onEvent);
       case 'posted':
         return this.handlePostedEvent(event, onEvent);
       case 'user_added':
@@ -259,6 +276,16 @@ export class MattermostTransport extends ChatTransport {
     } satisfies ChatEvent.Membership);
   }
 
+  /** a deleted post is no longer pinned in Mattermost, whatever it was; the store keeps its copy (§8.2) */
+  private async handlePostDeletedEvent(event: WebSocketMessage, onEvent: ChatEventHandler): Promise<void> {
+    const result = $MattermostPostDeletedEventMessage.safeParse(event);
+    if (!result.success) {
+      this.logger.error(new Error(`discarded a malformed mattermost "post_deleted" event`, { cause: result.error }));
+      return;
+    }
+    await onEvent({ kind: 'unpinned', postId: result.data.data.post.id } satisfies ChatEvent.Unpinned);
+  }
+
   private async handlePostedEvent(event: WebSocketMessage, onEvent: ChatEventHandler): Promise<void> {
     const result = $MattermostPostedEventMessage.safeParse(event);
     if (!result.success) {
@@ -269,6 +296,39 @@ export class MattermostTransport extends ChatTransport {
       return;
     }
     await onEvent({ kind: 'posted', post: toObservedPost(result.data, this.classifyAuthor) });
+  }
+
+  private async handlePostEditedEvent(event: WebSocketMessage, onEvent: ChatEventHandler): Promise<void> {
+    const result = $MattermostPostEditedEventMessage.safeParse(event);
+    if (!result.success) {
+      this.logger.error(new Error(`discarded a malformed mattermost "post_edited" event`, { cause: result.error }));
+      return;
+    }
+    const { post } = result.data.data;
+    if (isSystemPost(post)) {
+      return;
+    }
+    if (!post.isPinned) {
+      await onEvent({ kind: 'unpinned', postId: post.id } satisfies ChatEvent.Unpinned);
+      return;
+    }
+    const authorUsername = await this.resolveUsername(post.userId);
+    if (authorUsername === undefined) {
+      this.logger.warn(`dropped a pin of post ${post.id}: its author no longer resolves to a user`);
+      return;
+    }
+    await onEvent({
+      kind: 'pinned',
+      post: buildRecordablePost({
+        attachments: toPostAttachments(post.fileIds, post.metadata.files),
+        authorUsername,
+        channelId: post.channelId,
+        classify: this.classifyAuthor,
+        createAt: post.createAt,
+        id: post.id,
+        message: post.message
+      })
+    } satisfies ChatEvent.Pinned);
   }
 
   private isOwnPost({ data }: $MattermostPostedEventMessage): boolean {
@@ -295,5 +355,23 @@ export class MattermostTransport extends ChatTransport {
       return this.agent.username;
     }
     return (await this.client.getUsernamesByIds([userId])).get(userId);
+  }
+
+  /** a read's real posts, oldest first, each beside its author's username; one whose author no longer resolves is skipped */
+  private async withAuthors(
+    raw: readonly $MattermostRestPost[]
+  ): Promise<{ authorUsername: string; post: $MattermostRestPost }[]> {
+    const posts = raw
+      .filter((post) => !isSystemPost(post) && post.originalId === '')
+      .toSorted((left, right) => left.createAt - right.createAt);
+    const usernames = await this.client.getUsernamesByIds([...new Set(posts.map((post) => post.userId))]);
+    return posts.flatMap((post) => {
+      const authorUsername = usernames.get(post.userId);
+      if (authorUsername === undefined) {
+        this.logger.warn(`skipped reading post ${post.id}: its author no longer resolves to a user`);
+        return [];
+      }
+      return [{ authorUsername, post }];
+    });
   }
 }

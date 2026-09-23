@@ -338,6 +338,7 @@ describe('ActivationService', () => {
       createdAt: new Date(3_000),
       id,
       isForgotten: false,
+      isPinned: false,
       kind: 'message',
       message,
       observedAt: new Date(3_000)

@@ -1,13 +1,23 @@
 import { Result, toErrorMessage } from '@collegium/core/utils';
 import { ClientError } from '@mattermost/client';
 
-import type { ObservedPost, PostAttachment } from '@/conversations/conversations.types.ts';
+import type { ObservedPost, PostAttachment, RecordablePost } from '@/conversations/conversations.types.ts';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 
 import { MattermostChannelType } from './mattermost.constants.ts';
 
 import type { AuthorClassifier, ChannelKind, ChatFailure } from '../chat.types.ts';
 import type { $MattermostPostedEventMessage } from './mattermost.schemas.ts';
+
+type PostBuildInput = {
+  attachments: readonly PostAttachment[];
+  authorUsername: string;
+  channelId: string;
+  classify: AuthorClassifier;
+  createAt: number;
+  id: string;
+  message: string;
+};
 
 /** who a post's author is, judged against the accounts this deployment declares; everyone else is human */
 export function createAuthorClassifier(identities: {
@@ -42,16 +52,7 @@ export function toPostAttachments(
   return fileIds.map((id) => files.find((file) => file.id === id) ?? { id, mimeType: '', name: '', size: 0 });
 }
 
-export function buildObservedPost(input: {
-  attachments: readonly PostAttachment[];
-  authorUsername: string;
-  channelId: string;
-  classify: AuthorClassifier;
-  createAt: number;
-  id: string;
-  isDirectMessage: boolean;
-  message: string;
-}): ObservedPost {
+export function buildRecordablePost(input: PostBuildInput): RecordablePost {
   const authorUsername = toUsername(input.authorUsername);
   return {
     attachments: input.attachments,
@@ -60,9 +61,15 @@ export function buildObservedPost(input: {
     channelId: input.channelId,
     createdAt: new Date(input.createAt),
     id: input.id,
-    isDirectMessage: input.isDirectMessage,
-    mentionedUsernames: extractMentionedUsernames(input.message),
     message: input.message
+  };
+}
+
+export function buildObservedPost(input: PostBuildInput & { isDirectMessage: boolean }): ObservedPost {
+  return {
+    ...buildRecordablePost(input),
+    isDirectMessage: input.isDirectMessage,
+    mentionedUsernames: extractMentionedUsernames(input.message)
   };
 }
 

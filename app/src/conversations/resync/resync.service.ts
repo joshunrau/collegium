@@ -5,6 +5,7 @@ import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 
 import { ConversationsService } from '../conversations.service.ts';
+import { PinsService } from '../pins/pins.service.ts';
 
 import type { ObservedPost } from '../conversations.types.ts';
 
@@ -15,13 +16,15 @@ import type { ObservedPost } from '../conversations.types.ts';
  *
  * The socket says only that events were dropped, never which, so every channel the agent belongs to
  * is re-read from its last recorded post forward. Recording is idempotent on post id, so re-reading
- * a channel that lost nothing costs one request and changes nothing.
+ * a channel that lost nothing costs one request and changes nothing. Its pins are read again too,
+ * since a pin, an unpin or an edit of a pinned post is an event the socket may have dropped.
  */
 @Injectable()
 export class ResyncService {
   constructor(
     private readonly conversationsService: ConversationsService,
     private readonly loggingService: LoggingService,
+    private readonly pinsService: PinsService,
     private readonly transportRegistry: TransportRegistry
   ) {}
 
@@ -47,6 +50,12 @@ export class ResyncService {
         if (await this.conversationsService.record(post)) {
           recovered.push(post);
         }
+      }
+      const pins = await this.pinsService.reconcile(transport, channelId);
+      if (!pins.success) {
+        this.loggingService.error(
+          new Error(`pins not read for channel "${channelId}" of "${profile.username}": ${pins.error.message}`)
+        );
       }
     }
     return recovered;

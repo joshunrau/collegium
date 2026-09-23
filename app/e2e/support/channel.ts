@@ -214,6 +214,11 @@ class Channel<AgentName extends string> {
     return [...rendered, this.socket.describeContents()].join('\n');
   }
 
+  /** edits a post's text in place, as a person does from the client */
+  async edit(post: Channel.Post, text: string): Promise<void> {
+    await this.client.patchPost({ id: post.id, message: text });
+  }
+
   /** emits an ephemeral post to the acting human, so a test can prove the socket observes them */
   async emitEphemeral(message: string): Promise<void> {
     const me = await this.client.getMe();
@@ -234,6 +239,10 @@ class Channel<AgentName extends string> {
 
   async mention(agent: AgentName, text: string): Promise<Channel.Post> {
     return this.say(`@${this.resolveAuthor(agent).username} ${text}`);
+  }
+
+  async pin(post: Channel.Post): Promise<void> {
+    await this.client.pinPost(post.id);
   }
 
   async posts(): Promise<Channel.Post[]> {
@@ -287,6 +296,10 @@ class Channel<AgentName extends string> {
       url: dialog.url,
       user_id: me.id
     });
+  }
+
+  async unpin(post: Channel.Post): Promise<void> {
+    await this.client.unpinPost(post.id);
   }
 
   /** the acting human this channel posts as — whose id a decision must resolve back to (§3.7) */

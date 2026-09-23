@@ -49,6 +49,7 @@ const COLLEGIUM_FIXTURE = {
 const COLLEGIUM_TIMEOUTS = {
   handshake: 30_000,
   idle: 10_000,
+  pin: 10_000,
   shutdown: 5000,
   startup: 30_000
 } as const;
@@ -225,6 +226,34 @@ class CollegiumProcess {
         .map((turn) => `${turn.id} (${turn.agentUsername} in ${turn.channelId})`)
         .join(', ');
     }
+  }
+
+  /**
+   * §8.2 — a pin reaches the store over the socket, not with the post that addressed an agent, so a
+   * test waits for the store to hold it before starting a turn that should read it.
+   */
+  async awaitPinState(postId: string, expected: { isPinned: boolean; message?: string }): Promise<void> {
+    const read = (): undefined | { isPinned: number; message: string } => {
+      const database = new DatabaseSync(this.databasePath, { readOnly: true });
+      try {
+        return database.prepare('SELECT isPinned, message FROM Post WHERE id = ?').get(postId) as
+          undefined | { isPinned: number; message: string };
+      } finally {
+        database.close();
+      }
+    };
+    await waitFor({
+      describeFailure: () => JSON.stringify(read() ?? 'no row'),
+      description: `post ${postId} to be stored ${expected.isPinned ? 'pinned' : 'unpinned'}`,
+      probe: () => {
+        const row = read();
+        const matches =
+          row?.isPinned === Number(expected.isPinned) &&
+          (expected.message === undefined || row.message === expected.message);
+        return matches ? true : PENDING;
+      },
+      timeoutMs: COLLEGIUM_TIMEOUTS.pin
+    });
   }
 
   async dispose(): Promise<void> {

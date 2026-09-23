@@ -9,7 +9,7 @@ import { requireAgentName } from './argument.utils.ts';
 
 import type { CommandInput, CommandResponse } from '../commands.types.ts';
 
-/** §3.8 — context never reaches back past the most recent episode boundary */
+/** §3.8 — context never reaches back past the most recent episode boundary, pinned posts aside */
 @Injectable()
 export class ResetHandler extends CommandHandler {
   readonly trigger = 'reset';
@@ -35,7 +35,7 @@ export class ResetHandler extends CommandHandler {
     await this.episodesService.mark(agentUsername, input.channelId, latestPostId);
     return {
       audience: 'channel',
-      text: `🔄 Episode boundary set: ${agentUsername} will not read past this point.`
+      text: `🔄 Episode boundary set: ${agentUsername} will not read past this point. Posts pinned here still stand.`
     };
   }
 }
