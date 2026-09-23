@@ -215,6 +215,13 @@ describe('TasksService', () => {
       expect((await exhausted('post-2'))?.prepared.unitId).toBe(second.id);
       expect(await exhausted('post-9')).toBeUndefined();
     });
+
+    it('should report nothing for a turn that already reported its own unit, though another stays assigned', async () => {
+      const served = await assign('post-1');
+      await assign('post-2');
+      await tasksService.commitTransition({ to: 'review', unitId: served.id }, 'post-3');
+      expect(await exhausted('post-1')).toBeUndefined();
+    });
   });
 
   it('should let only the assignee report and only the creator close, along the legal transitions', async () => {
@@ -388,7 +395,7 @@ describe('TasksService', () => {
       { ...first, assigneeUsername: 'omar', creatorUsername: 'owen', id: 'unit-4' },
       'post-4'
     );
-    await tasksService.commitTransition({ to: 'cancelled', unitId: 'unit-2' }, 'post-5');
+    await tasksService.commitTransition({ closedByUsername: 'mira', to: 'cancelled', unitId: 'unit-2' }, 'post-5');
     const open = await tasksService.listOpenFor({ agentUsername: 'mira', channelId: 'channel-1' });
     expect(open.map((unit) => unit.reference)).toStrictEqual([first.id.slice(0, 8)]);
     expect(open[0]?.counterpart).toStrictEqual({ awaited: 'report', kind: 'no-turn' });

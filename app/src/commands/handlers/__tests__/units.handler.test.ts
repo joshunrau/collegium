@@ -114,7 +114,10 @@ describe('UnitsHandler', () => {
 
   it('should cancel a unit on a human’s authority, announcing first and moving the row once the post landed (§3.15)', async () => {
     tasksService.prepareCancelOnHumanAuthority.mockResolvedValue(
-      Result.ok({ prepared: { to: 'cancelled', unitId: 'unit-1' }, text: '⛔ Unit `abcd1234` cancelled by @casey' })
+      Result.ok({
+        prepared: { closedByUsername: 'casey', to: 'cancelled', unitId: 'unit-1' },
+        text: '⛔ Unit `abcd1234` cancelled by @casey'
+      })
     );
     tasksService.commitTransition.mockResolvedValue(undefined);
     const response = await handle('mira cancel abcd1234');
@@ -122,7 +125,7 @@ describe('UnitsHandler', () => {
     expect(tasksService.commitTransition).not.toHaveBeenCalled();
     await response.onAnnounced?.('post-7');
     expect(tasksService.commitTransition).toHaveBeenCalledExactlyOnceWith(
-      { to: 'cancelled', unitId: 'unit-1' },
+      { closedByUsername: 'casey', to: 'cancelled', unitId: 'unit-1' },
       'post-7'
     );
   });

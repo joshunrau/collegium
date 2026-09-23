@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
 
-import { PostSightingsRegistry } from '../sightings/post-sightings.registry.ts';
 import { TasksService } from '../tasks.service.ts';
 import { TASKS_TOOLSET } from '../tasks.toolset.ts';
 
@@ -44,13 +43,11 @@ describe('TASKS_TOOLSET', () => {
     has: (username: string) => ['mira', 'owen'].includes(username)
   };
   const moments = { format: (moment: Date) => `${moment.toISOString().slice(11, 16)} UTC` };
-  const sightings = new PostSightingsRegistry();
   const tasksService = MockFactory.createMock(TasksService);
   const context = {
     agents,
     moments,
     settings: { openUnitCap: 20, shownInPrompt: 20 },
-    sightings,
     tasks: tasksService,
     turn: buildToolTurnScope()
   };
@@ -83,7 +80,7 @@ describe('TASKS_TOOLSET', () => {
   it('should hand a refusal back as the call’s result, with nothing to publish', async () => {
     tasksService.prepareAssign.mockResolvedValue(Result.err({ assigneeUsername: 'owen', kind: 'assignee-absent' }));
     const result = await executeTool(TASKS_TOOLSET.tools.assign, ASSIGN_ARGS, context);
-    expect(result.error).toStrictEqual({ kind: 'invalid-arguments', message: '@owen is not in this channel' });
+    expect(result.error).toStrictEqual({ kind: 'invalid-arguments', message: 'Owen is not in this channel' });
   });
 
   it('should require the outcome, the criteria and the context of a hand-off in the schema (§3.5)', () => {
@@ -102,7 +99,7 @@ describe('TASKS_TOOLSET', () => {
     tasksService.prepareClose.mockResolvedValue(
       Result.ok({
         leavesNoneOpen: false,
-        prepared: { to: 'done', unitId: 'unit-1' },
+        prepared: { closedByUsername: 'mira', to: 'done', unitId: 'unit-1' },
         text: 'Unit `unit-1` closed as done: good'
       })
     );
@@ -124,7 +121,11 @@ describe('TASKS_TOOLSET', () => {
 
   it('should say a close leaves the agent nothing open here that would start its next turn (§3.15)', async () => {
     tasksService.prepareClose.mockResolvedValue(
-      Result.ok({ leavesNoneOpen: true, prepared: { to: 'done', unitId: 'unit-1' }, text: 'closed' })
+      Result.ok({
+        leavesNoneOpen: true,
+        prepared: { closedByUsername: 'mira', to: 'done', unitId: 'unit-1' },
+        text: 'closed'
+      })
     );
     const close = await executeTool(
       TASKS_TOOLSET.tools.close,
@@ -236,7 +237,7 @@ describe('TASKS_TOOLSET', () => {
         '>>>'
       ].join('\n')
     );
-    expect(sightings.hasSeen('turn-1', 'post-report')).toBe(true);
+    expect(tasksService.recordPostsRead).toHaveBeenCalledExactlyOnceWith('turn-1', ['post-report']);
   });
 
   it('should name the unit one follows, and count nothing as read where the latest post can no longer be shown (§8.4)', async () => {
@@ -247,9 +248,10 @@ describe('TASKS_TOOLSET', () => {
         unit: { ...UNIT, followsId: 'unit-xyzwvuts', lastPostId: 'p-2' }
       })
     );
+    tasksService.recordPostsRead.mockClear();
     const read = await executeTool(TASKS_TOOLSET.tools.read, { reference: 'unit-abc' }, context);
     expect(read.value?.text).toMatch(/^unit unit-abc — review\nfollows: unit unit-xyz\n/u);
     expect(read.value?.text).toContain('latest report: its post was forgotten, so it can no longer be read');
-    expect(sightings.hasSeen('turn-1', 'p-2')).toBe(false);
+    expect(tasksService.recordPostsRead).not.toHaveBeenCalled();
   });
 });

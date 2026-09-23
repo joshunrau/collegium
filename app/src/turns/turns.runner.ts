@@ -45,7 +45,6 @@ import {
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
 import type { ActivationKind, PostKind, ResultPresentation, TurnStatus } from '@/prisma/prisma.types.ts';
-import { PostSightingsRegistry } from '@/tasks/sightings/post-sightings.registry.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -295,7 +294,6 @@ export class TurnRunner {
     private readonly loggingService: LoggingService,
     private readonly memorySightingsRegistry: MemorySightingsRegistry,
     private readonly multiMentionPolicy: MultiMentionPolicy,
-    private readonly postSightingsRegistry: PostSightingsRegistry,
     private readonly statusPostService: StatusPostService,
     private readonly tasksService: TasksService,
     private readonly toolExecutor: ToolExecutor,
@@ -355,6 +353,7 @@ export class TurnRunner {
       })
     );
     const status = this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id });
+    const workUnit = await this.resolveServedUnit(input);
     const state: TurnState = {
       addressedPeer: undefined,
       budget: new ActionBudget(profile.actionBudget),
@@ -378,7 +377,7 @@ export class TurnRunner {
       promptTokens: 0,
       reasonedDenials: new Map(),
       recordedResults: 0,
-      requestedBy: await this.resolveRequester(input, input.triggeringPostId),
+      requestedBy: await this.resolveRequester(input.triggeringPostId, workUnit),
       resultEventIds: new Map(),
       seenSupersedable: new Map(),
       status,
@@ -390,7 +389,7 @@ export class TurnRunner {
       unreadFrom: 0,
       usage: undefined,
       windowPostIds: new Set(),
-      workUnit: await this.resolveServedUnit(input)
+      workUnit
     };
     try {
       return Result.ok(await this.runLoop(input, state));
@@ -413,7 +412,7 @@ export class TurnRunner {
         this.loggingService.error(new Error('failed to dispose the browsing session', { cause: error }));
       }
       this.memorySightingsRegistry.forgetTurn(turn.id);
-      this.postSightingsRegistry.forgetTurn(turn.id);
+      this.tasksService.forgetPostsReadBy(turn.id);
       state.control.release();
       state.fold.release();
       this.releaseHeldActivation(input, state);
@@ -1188,7 +1187,7 @@ export class TurnRunner {
     state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
     state.contextAssembledAt = assembled.assembledAt;
     state.windowPostIds = assembled.windowPostIds;
-    this.postSightingsRegistry.recordSeen(state.turn.id, assembled.windowPostIds);
+    this.tasksService.recordPostsRead(state.turn.id, assembled.windowPostIds);
     await this.turnsService.recordAssembledWindow(state.turn.id, {
       assembledAt: assembled.assembledAt,
       estimatedTokens: assembled.windowEstimatedTokens,
@@ -1513,11 +1512,14 @@ export class TurnRunner {
   }
 
   /**
-   * §3.7 — who asked, read at turn setup and again at every fold. Peer mentions lose their @
-   * before the words can be quoted back, because an approval prompt repeating one would address
-   * that peer (§4.5).
+   * §3.7 — who asked, read at turn setup and again at every fold, beside the unit the turn serves
+   * where a colleague's assignment started it. Peer mentions lose their @ before the words can be
+   * quoted back, because an approval prompt repeating one would address that peer (§4.5).
    */
-  private async resolveRequester(input: RunInput, postId: string | undefined): Promise<ApprovalRequester | undefined> {
+  private async resolveRequester(
+    postId: string | undefined,
+    workUnit: ToolTurnScope['workUnit']
+  ): Promise<ApprovalRequester | undefined> {
     if (postId === undefined) {
       return undefined;
     }
@@ -1525,17 +1527,12 @@ export class TurnRunner {
     return match(request)
       .with(undefined, () => undefined)
       .with({ kind: 'human' }, (human) => this.stripRequestOrigin(human))
-      .with({ kind: 'agent' }, async ({ onBehalfOf, username }): Promise<ApprovalRequester> => {
-        const unit = await this.tasksService.findServedUnit({
-          agentUsername: input.profile.username,
-          channelId: input.channelId,
-          triggeringPostId: postId
-        });
+      .with({ kind: 'agent' }, ({ onBehalfOf, username }): ApprovalRequester => {
         return {
           displayName: this.agentRegistry.displayNameOf(username),
           kind: 'agent',
           onBehalfOf: this.stripRequestOrigin(onBehalfOf),
-          unitReference: unit && renderReference(unit.id)
+          unitReference: workUnit?.reference
         };
       })
       .with({ kind: 'system' }, async (): Promise<ApprovalRequester> => {
@@ -1617,7 +1614,7 @@ export class TurnRunner {
       if (folded.length > 0) {
         folds += 1;
         // §3.7 — the newest fragment is the request the prompt should quote, not the one it began on
-        state.requestedBy = await this.resolveRequester(input, folded.at(-1));
+        state.requestedBy = await this.resolveRequester(folded.at(-1), state.workUnit);
         state.status.appendTrace({ kind: 'note', text: renderFoldLine() });
         assembled = await this.contextAssembler.assemble({ channelId, profile, turnId: state.turn.id });
         await this.loadAssembledContext(state, assembled);

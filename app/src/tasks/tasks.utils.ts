@@ -210,10 +210,11 @@ export function renderTaskRefusal(failure: TaskFailure, wording: UnitWording, no
   const { nameOf } = wording;
   return match(failure)
     .with({ kind: 'ambiguous' }, { kind: 'not-found' }, (unresolved) => renderUnresolvedUnit(unresolved, wording))
-    .with({ kind: 'assignee-absent' }, ({ assigneeUsername }) => `@${assigneeUsername} is not in this channel`)
+    .with({ kind: 'assignee-absent' }, ({ assigneeUsername }) => `${nameOf(assigneeUsername)} is not in this channel`)
     .with(
       { kind: 'assignee-cannot-report' },
-      ({ assigneeUsername }) => `@${assigneeUsername} holds no tasks tool, so it could not report back through a unit`
+      ({ assigneeUsername }) =>
+        `${nameOf(assigneeUsername)} holds no tasks tool, so it could not report back through a unit`
     )
     .with(
       { kind: 'assignee-working' },

@@ -7,7 +7,7 @@ import { AGENT_REGISTRY_TOKEN } from '@/agents/agents.tokens.ts';
 import type { MomentFormatter } from '@/formatting/dates/moment.formatter.ts';
 import { renderReference } from '@/utils/reference.utils.ts';
 
-import { TASKS_MOMENT_FORMATTER_TOKEN, TASKS_SERVICE_TOKEN, TASKS_SIGHTINGS_TOKEN } from './tasks.tokens.ts';
+import { TASKS_MOMENT_FORMATTER_TOKEN, TASKS_SERVICE_TOKEN } from './tasks.tokens.ts';
 import {
   ASSIGNEE_TARGETS,
   createPartyNamer,
@@ -47,7 +47,6 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
   services: {
     agents: AGENT_REGISTRY_TOKEN,
     moments: TASKS_MOMENT_FORMATTER_TOKEN,
-    sightings: TASKS_SIGHTINGS_TOKEN,
     tasks: TASKS_SERVICE_TOKEN
   },
   tools: {
@@ -168,7 +167,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         const { latestChange } = view.value;
         if (latestChange.kind === 'posted') {
           // §3.15 — a report shown here is one a close may rest on
-          context.sightings.recordSeen(context.turn.turnId, [latestChange.post.id]);
+          context.tasks.recordPostsRead(context.turn.turnId, [latestChange.post.id]);
         }
         return Result.ok({ text: renderUnitView(view.value, context.turn.agentUsername, wording) });
       },

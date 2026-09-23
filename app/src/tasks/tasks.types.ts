@@ -20,7 +20,7 @@ export type PreparedUnit = {
 export type PreparedTransition =
   | {
       /** who closes it, recorded with the close; a refused report names them */
-      readonly closedByUsername?: string;
+      readonly closedByUsername: string;
       readonly to: Extract<WorkUnitState, 'cancelled' | 'done'>;
       readonly unitId: string;
       readonly verdict?: string;

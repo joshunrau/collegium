@@ -185,23 +185,25 @@ export class TasksService {
   }
 
   /**
-   * §3.15 — the unit a turn of this agent here was working, or nothing: of the units it holds
-   * assigned in the channel, the one whose assignment post started the turn, else the only one.
-   * With several and none that started the turn, it does not guess which it was.
+   * §3.15 — the unit a turn of this agent here was working, while it is still assigned: the one whose
+   * assignment post started the turn, else, where no assignment started it, the only one it holds
+   * assigned in the channel. A turn that reported its own unit worked no other; with several and
+   * none that started the turn, it does not guess which it was.
    */
   async findWorkedUnit(input: {
     agentUsername: string;
     channelId: string;
     triggeringPostId: string | undefined;
   }): Promise<undefined | WorkUnit> {
-    const served = await this.findServedUnit(input);
+    const held = { assigneeUsername: input.agentUsername, channelId: input.channelId };
+    const served =
+      input.triggeringPostId === undefined
+        ? null
+        : await this.units.findFirst({ where: { ...held, originPostId: input.triggeringPostId } });
     if (served) {
-      return served;
+      return served.state === 'assigned' ? served : undefined;
     }
-    const assigned = await this.units.findMany({
-      take: 2,
-      where: { assigneeUsername: input.agentUsername, channelId: input.channelId, state: 'assigned' }
-    });
+    const assigned = await this.units.findMany({ take: 2, where: { ...held, state: 'assigned' } });
     return assigned.length === 1 ? assigned[0] : undefined;
   }
 
@@ -231,6 +233,11 @@ export class TasksService {
       state,
       updatedAt
     };
+  }
+
+  /** what one turn has read says nothing about another's, so a turn's reads go when it ends (§3.15) */
+  forgetPostsReadBy(turnId: string): void {
+    this.postSightingsRegistry.forgetTurn(turnId);
   }
 
   /** open units where the agent is creator or assignee, in this channel, oldest first, each with where its counterpart stands (§3.15) */
@@ -451,6 +458,14 @@ export class TasksService {
       latestChange: await this.readLatestChange(unit),
       unit
     });
+  }
+
+  /**
+   * §3.15 — what a close may rest on: the posts a running turn has read, from every window it
+   * assembled and every report tasks::read showed it
+   */
+  recordPostsRead(turnId: string, postIds: Iterable<string>): void {
+    this.postSightingsRegistry.recordSeen(turnId, postIds);
   }
 
   /** §7.4 — the acting turn's own depth, and its chain counted by root as the runner counts it */
