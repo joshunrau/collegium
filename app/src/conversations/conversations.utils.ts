@@ -1,7 +1,10 @@
 import { renderReplayLine, replaySubjectWhenLong } from '@collegium/core/tools';
 
 import type { ModelRow } from '@/prisma/prisma.types.ts';
+import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
+
+import type { ObservedPost } from './conversations.types.ts';
 
 function renderAttachmentLine(file: PrismaJson.PostAttachments['files'][number]): string {
   const details = [file.mimeType, `${file.size} bytes`].filter((detail) => detail !== '');
@@ -24,6 +27,30 @@ export function renderPostWithAttachments(post: Pick<ModelRow<'Post'>, 'attachme
   ]
     .filter((line) => line !== '')
     .join('\n');
+}
+
+/**
+ * A stored post as the live stream observed it (§4.5): its mentions read off its text with the same
+ * grammar, and its channel's kind, which the store does not keep, supplied by whoever knows it.
+ */
+export function restoreObservedPost(
+  post: Pick<
+    ModelRow<'Post'>,
+    'attachments' | 'authorKind' | 'authorUsername' | 'channelId' | 'createdAt' | 'id' | 'message'
+  >,
+  isDirectMessage: boolean
+): ObservedPost {
+  return {
+    attachments: post.attachments?.files ?? [],
+    authorKind: post.authorKind,
+    authorUsername: post.authorUsername,
+    channelId: post.channelId,
+    createdAt: post.createdAt,
+    id: post.id,
+    isDirectMessage,
+    mentionedUsernames: extractMentionedUsernames(post.message),
+    message: post.message
+  };
 }
 
 /**

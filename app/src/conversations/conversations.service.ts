@@ -140,6 +140,32 @@ export class ConversationsService {
   }
 
   /**
+   * §5.2 — what people posted in the channel from a queued post onward, on Mattermost's clock, that
+   * the store took at or after `observedSince`, newest first; a forgotten post is not among them,
+   * and nothing is where the queued post was never recorded
+   */
+  async listPersonPostsFrom(input: {
+    channelId: string;
+    fromPostId: string;
+    observedSince: Date | undefined;
+  }): Promise<ModelRow<'Post'>[]> {
+    const from = await this.posts.findUnique({ select: { createdAt: true }, where: { id: input.fromPostId } });
+    if (!from) {
+      return [];
+    }
+    return this.posts.findMany({
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      where: {
+        authorKind: 'human',
+        channelId: input.channelId,
+        createdAt: { gte: from.createdAt },
+        isForgotten: false,
+        ...(input.observedSince !== undefined && { observedAt: { gte: input.observedSince } })
+      }
+    });
+  }
+
+  /**
    * Idempotent on post id — backfill and the live stream overlap, and ingestion fans out once per
    * agent socket. Reports whether this call inserted the row: the winner owns the once-per-post
    * effects (§4.5), and the row itself is the claim. A losing call still stamps `authoringTurnId`,

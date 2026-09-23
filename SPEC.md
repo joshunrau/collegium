@@ -467,6 +467,8 @@ An unaddressed fragment the running turn absorbs (§4.4) is neither queued nor a
 
 **An agent's post activates its addressee when the turn that wrote it stops acting, not when it lands.** A colleague started by the first post of a turn reads a request its author is still writing, and judges a report before the reply that details it exists; the author's closing mention then queues a second turn over the same work. So the turn holds the one colleague its posts address (§4.5), and when it ends, on any exit, or parks on a person (§3.7, §3.7a), the colleague is queued at the earliest of those posts and drained like any queue — at once where it is free, after its own turn otherwise, acknowledged as any post waiting behind a busy agent is. One turn then reads everything its author addressed to it. §7.4 admission runs at that drain, on the held post: the ceiling, the chain limit, and the depth and return test, read off the turn that wrote it. What this costs is latency: the colleague starts when its author finishes, not when the first post lands. A hold lives only in the turn holding it; a restart recomputes it (§7.3).
 
+**A drain answers the newest person who addressed the agent.** Where what a drain covers holds a post a person addressed to the agent since its previous turn in the channel began, the newest such post is the one the turn answers, as if it had found the agent idle: the turn is human-initiated (§7.4), the approval prompt quotes that person (§3.7), and their further fragments fold into it (§4.4). Otherwise a person's request queued behind a colleague's post would run inside that colleague's chain, and be refused with it at the chain limit. Only a drain covering nothing but colleagues' posts answers the earliest of them. The bound is the previous turn's start: a colleague's post joins the queue only once its author stops acting, so it can sit ahead of the person's post that started the previous turn, which that turn already answered.
+
 **A draining turn never continues its own last message.** Its window ends on the trace of the turn it drains behind, and a model handed its own message as the last thing said continues it rather than answering; the framework closes the window with a line saying the turn ended there, so the completion that follows is a new message.
 
 **The drain is visible even when context is not.** When the window cannot reach back as far as the earliest unprocessed post, the draining turn's status post says how far back context actually reached — detection, not prevention, the same posture as memory-write disclosure (§3.6). What the window could not reach, the agent can search for (§3.8).
@@ -612,7 +614,7 @@ Queue state and outstanding triggers both survive a restart, so pending work is 
 
 Agent-to-agent mentions make unbounded chains possible: each turn is individually well-behaved and under budget while the chain runs until someone notices.
 
-Two counters bound them, both carried in the turn record and never shown to the model. **Depth** measures how far work has been handed _down_ from a human; **chain length** measures how many turns one human post has produced at all.
+Two counters bound them, both carried in the turn record and never shown to the model. **Depth** measures how far work has been handed _down_ from a human; **chain length** measures how many turns one human post has produced at all. Both are read off the post a turn answers, which for a drain is the one §5.2 names.
 
 **Depth counter:**
 
