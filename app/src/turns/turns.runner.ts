@@ -42,6 +42,7 @@ import {
   toReplayableToolCall
 } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
+import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
 import type { PostKind, TurnStatus } from '@/prisma/prisma.types.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
@@ -268,6 +269,7 @@ export class TurnRunner {
     private readonly dateFormatter: DateFormatter,
     private readonly inferenceRegistry: InferenceRegistry,
     private readonly loggingService: LoggingService,
+    private readonly memorySightingsRegistry: MemorySightingsRegistry,
     private readonly multiMentionPolicy: MultiMentionPolicy,
     private readonly statusPostService: StatusPostService,
     private readonly tasksService: TasksService,
@@ -369,6 +371,7 @@ export class TurnRunner {
       } catch (error) {
         this.loggingService.error(new Error('failed to dispose the browsing session', { cause: error }));
       }
+      this.memorySightingsRegistry.forgetTurn(turn.id);
       state.control.release();
       state.fold.release();
       this.releaseHeldActivation(input, state);
@@ -805,6 +808,7 @@ export class TurnRunner {
       description: disclosure.description,
       kind: 'record_written',
       reference: disclosure.reference,
+      ...(disclosure.revision !== undefined && { revision: disclosure.revision }),
       ...(disclosure.revisionOf !== undefined && { revisionOf: disclosure.revisionOf }),
       supersededDescriptions: [...(disclosure.supersededDescriptions ?? [])]
     });

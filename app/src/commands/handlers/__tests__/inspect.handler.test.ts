@@ -9,7 +9,7 @@ import { buildAgentProfile } from '@/testing/factories/agent-profile.factory.ts'
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
-import { PromptRenderer } from '@/turns/context/prompt.renderer.ts';
+import { PromptRenderer } from '@/turns/prompt/prompt.renderer.ts';
 
 import { InspectHandler } from '../inspect.handler.ts';
 

@@ -99,6 +99,12 @@ function renderAssistantEvent(
   ];
 }
 
+/** §3.6 — a record replays as its description and whatever writing it removed, such as the memories a write evicted */
+function renderRecordLine(payload: Extract<PrismaJson.TurnEventPayload, { kind: 'record_written' }>): string {
+  const removed = payload.supersededDescriptions.map((description) => `"${description}"`).join(', ');
+  return `[recorded: ${payload.description}${removed === '' ? '' : `; this removed ${removed}`}]`;
+}
+
 /**
  * The agent's own trace replays in the provider's native shape — assistant messages carrying their
  * tool calls, tool messages carrying the results — because that is the form the model produced it
@@ -134,7 +140,7 @@ function renderEvent(
         return renderAssistantEvent(payload, results, event.turnId === currentTurnId);
       })
       .with({ kind: 'record_written' }, (payload): CompletionMessage[] => [
-        { content: `[recorded: ${payload.description}]`, role: 'user' }
+        { content: renderRecordLine(payload), role: 'user' }
       ])
       // §7.5 — a steer reads exactly as the post it resembles, so a later turn hears the human speaking
       .with({ kind: 'steering_received' }, (payload): CompletionMessage[] => [

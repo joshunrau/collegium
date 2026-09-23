@@ -20,8 +20,12 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
+import { PromptRenderer } from '../../prompt/prompt.renderer.ts';
+import { EarlierActionsSection } from '../../prompt/sections/earlier-actions.section.ts';
+import { MemoriesSection } from '../../prompt/sections/memories.section.ts';
+import { OpenWorkSection } from '../../prompt/sections/open-work.section.ts';
+import { PeersSection } from '../../prompt/sections/peers.section.ts';
 import { ContextAssembler } from '../context.assembler.ts';
-import { PromptRenderer } from '../prompt.renderer.ts';
 
 const PROFILE: AgentProfile = {
   actionBudget: 25,
@@ -239,6 +243,10 @@ describe('ContextAssembler across two turns', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         ContextAssembler,
+        EarlierActionsSection,
+        MemoriesSection,
+        OpenWorkSection,
+        PeersSection,
         PromptRenderer,
         TextFormatter,
         { provide: AgentRegistry, useValue: agentRegistry },

@@ -17,9 +17,13 @@ import { TriggersModule } from '@/triggers/triggers.module.ts';
 import { WebModule } from '@/web/web.module.ts';
 
 import { ContextAssembler } from './context/context.assembler.ts';
-import { PromptRenderer } from './context/prompt.renderer.ts';
 import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
+import { PromptRenderer } from './prompt/prompt.renderer.ts';
+import { EarlierActionsSection } from './prompt/sections/earlier-actions.section.ts';
+import { MemoriesSection } from './prompt/sections/memories.section.ts';
+import { OpenWorkSection } from './prompt/sections/open-work.section.ts';
+import { PeersSection } from './prompt/sections/peers.section.ts';
 import { StatusPostService } from './status/status-post.service.ts';
 import { TurnRunner } from './turns.runner.ts';
 import { TurnsService } from './turns.service.ts';
@@ -54,6 +58,10 @@ import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
   ],
   providers: [
     ContextAssembler,
+    EarlierActionsSection,
+    MemoriesSection,
+    OpenWorkSection,
+    PeersSection,
     PromptRenderer,
     StatusPostService,
     TurnControlRegistry,

@@ -239,6 +239,14 @@ const ROWS: readonly GateRow[] = [
     note: 'a revision inherits the write’s exemption from A5 (§3.6)'
   },
   {
+    args: { body: 'casey prefers email', reference: 'a1b2c3d4' },
+    call: 'memory__rewrite',
+    expected: 'ungated',
+    grants: ['memory'],
+    id: 'memory-rewrite-ungated',
+    note: 'a revision inherits the write’s exemption from A5 (§3.6)'
+  },
+  {
     args: { body: 'casey prefers a phone call', description: 'how casey likes to be reached' },
     call: 'memory__write',
     expected: 'ungated',

@@ -5,8 +5,8 @@ import { WindowService } from '@/conversations/window/window.service.ts';
 import type { CompletionRequest } from '@/inference/inference.types.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
+import { PromptRenderer } from '../prompt/prompt.renderer.ts';
 import { estimateWindowTokens, toCompletionMessages } from './context.utils.ts';
-import { PromptRenderer } from './prompt.renderer.ts';
 
 type AssembleInput = {
   readonly channelId: string;
