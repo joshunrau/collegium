@@ -17,10 +17,13 @@ import { QueueService } from '@/queue/queue.service.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 import { TurnFoldRegistry } from '@/turns/folding/turn-fold.registry.ts';
 import { TurnRunner } from '@/turns/turns.runner.ts';
-import type { TurnOpenFailure, TurnOutcome, UnactedTurn } from '@/turns/turns.types.ts';
+import { TurnsService } from '@/turns/turns.service.ts';
+import type { AbandonedTurn, HeldActivation, TurnOpenFailure, TurnOutcome, UnactedTurn } from '@/turns/turns.types.ts';
+import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 
 import { QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
 import {
+  activatesOnArrival,
   toActivationChainLength,
   toActivationDepth,
   toActivationRootPostId,
@@ -65,7 +68,8 @@ export class ActivationService {
     private readonly transportRegistry: TransportRegistry,
     private readonly triggersService: TriggersService,
     private readonly turnFoldRegistry: TurnFoldRegistry,
-    private readonly turnRunner: TurnRunner
+    private readonly turnRunner: TurnRunner,
+    private readonly turnsService: TurnsService
   ) {}
 
   /**
@@ -144,6 +148,9 @@ export class ActivationService {
       }
       return;
     }
+    if (!activatesOnArrival(post)) {
+      return;
+    }
     if (this.channelLockService.isBusy(profile.username, post.channelId)) {
       await this.enqueueBusy(profile, post);
       return;
@@ -169,6 +176,26 @@ export class ActivationService {
     for (const channelId of queuedChannelIds) {
       await this.drainQueue(profile, channelId);
     }
+  }
+
+  /**
+   * §7.3 — a hold lives only in the turn holding it (§5.2), so for each turn a restart abandoned it
+   * is recomputed from the store: the colleague the turn's posts addressed goes into the queue at
+   * the earliest of them that no turn of that colleague in the channel has started since, for the
+   * boot sweep to drain. Who a post addressed is read against the roster (§4.5), so this runs only
+   * once the roster has reconciled. Returns how many went into the queue.
+   */
+  async requeueHeld(turns: readonly AbandonedTurn[]): Promise<number> {
+    let requeued = 0;
+    for (const turn of turns) {
+      const held = await this.findUnreleasedHold(turn);
+      if (held === undefined) {
+        continue;
+      }
+      await this.putBackInQueue(held.addresseeUsername, turn.channelId, held.postId);
+      requeued += 1;
+    }
+    return requeued;
   }
 
   /**
@@ -205,6 +232,18 @@ export class ActivationService {
     }
   }
 
+  /** §5.2 — the 👀 on a post that waits behind a busy agent; a failure to react is logged, and the post stays queued */
+  private async acknowledgeQueued(agentUsername: string, postId: string): Promise<void> {
+    const acknowledged = await this.transportRegistry
+      .get(agentUsername)
+      .addReaction(postId, QUEUED_ACKNOWLEDGEMENT_EMOJI);
+    if (!acknowledged.success) {
+      this.loggingService.error(
+        new Error(`failed to acknowledge queued post ${postId}: ${acknowledged.error.message}`)
+      );
+    }
+  }
+
   /** during a halt the post is queued rather than lost — it simply starts no turn (§7.4) */
   private activate(profile: AgentProfile, post: ObservedPost): void {
     if (this.haltService.isHalted()) {
@@ -217,6 +256,32 @@ export class ActivationService {
       return;
     }
     void this.admitAndRun(profile, post, lock);
+  }
+
+  /**
+   * §5.2 — the colleague an agent's turn addressed, started once that turn ends or parks. The held
+   * post joins the colleague's queue first, so a halt, the ceiling or a busy colleague leaves it
+   * standing rather than lost, and the drain runs §7.4 admission on it as on any other. Nothing
+   * awaits this: the turn that released it must not wait on its colleague's.
+   */
+  private async activateHeld(channelId: string, held: HeldActivation): Promise<void> {
+    const profile = this.agentRegistry.get(held.addresseeUsername);
+    if (!profile) {
+      this.loggingService.warn(`dropping a held activation for unknown agent "${held.addresseeUsername}"`);
+      return;
+    }
+    try {
+      await this.putBackInQueue(profile.username, channelId, held.postId);
+      if (this.channelLockService.isBusy(profile.username, channelId)) {
+        await this.acknowledgeQueued(profile.username, held.postId);
+        return;
+      }
+      await this.drainQueue(profile, channelId);
+    } catch (error) {
+      this.loggingService.error(
+        new Error(`failed to start "${profile.username}" in ${channelId} from a held post`, { cause: error })
+      );
+    }
   }
 
   /** the ceiling-refused post takes the queue path, where enqueueBusy already enforces §5.2 */
@@ -322,14 +387,29 @@ export class ActivationService {
       return;
     }
     await this.queueService.enqueue(profile.username, post.channelId, post.id);
-    const acknowledged = await this.transportRegistry
-      .get(profile.username)
-      .addReaction(post.id, QUEUED_ACKNOWLEDGEMENT_EMOJI);
-    if (!acknowledged.success) {
-      this.loggingService.error(
-        new Error(`failed to acknowledge queued post ${post.id}: ${acknowledged.error.message}`)
-      );
+    await this.acknowledgeQueued(profile.username, post.id);
+  }
+
+  /** §7.3 — the earliest post of the turn addressing its one colleague (§4.5) that no turn of that colleague here started after */
+  private async findUnreleasedHold(turn: AbandonedTurn): Promise<HeldActivation | undefined> {
+    const authored = await this.conversationsService.listAuthoredBy(turn.turnId);
+    const addressing = authored.flatMap((post) => {
+      const [addresseeUsername] = this.multiMentionPolicy.addresseesOf({
+        authorUsername: turn.agentUsername,
+        channelId: turn.channelId,
+        mentionedUsernames: extractMentionedUsernames(post.message)
+      });
+      return addresseeUsername === undefined ? [] : [{ addresseeUsername, post }];
+    });
+    const first = addressing[0];
+    if (first === undefined) {
+      return undefined;
     }
+    const since = await this.turnsService.findLatestStartIn(first.addresseeUsername, turn.channelId);
+    const pending = addressing.find(({ addresseeUsername, post }) => {
+      return addresseeUsername === first.addresseeUsername && (since === undefined || post.observedAt > since);
+    });
+    return pending && { addresseeUsername: pending.addresseeUsername, postId: pending.post.id };
   }
 
   /**
@@ -399,7 +479,7 @@ export class ActivationService {
 
   /** whether this post is work for the agent, and if so, the queue entry that says so (§5.2) */
   private async queueIfAddressed(profile: AgentProfile, post: ObservedPost): Promise<boolean> {
-    if (this.multiMentionPolicy.refuses(post)) {
+    if (!activatesOnArrival(post) || this.multiMentionPolicy.refuses(post)) {
       return false;
     }
     const mode = this.channelsService.getTriggeringMode({
@@ -465,6 +545,7 @@ export class ActivationService {
         drainedFromPostId: input.drainedFromPostId,
         foldAuthorUsername: toFoldAuthorUsername(source),
         profile,
+        releaseHeldActivation: (held) => void this.activateHeld(input.channelId, held),
         rootPostId: toActivationRootPostId(source, input.triggeringPostId),
         triggeringPostId: input.triggeringPostId
       });

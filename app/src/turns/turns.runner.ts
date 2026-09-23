@@ -82,7 +82,7 @@ import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle, TraceLineHandle } from './status/status-post.service.ts';
-import type { Steering, Turn, TurnOpenFailure, TurnOutcome } from './turns.types.ts';
+import type { HeldActivation, Steering, Turn, TurnEventInput, TurnOpenFailure, TurnOutcome } from './turns.types.ts';
 
 /** §3.8 — what a re-read of a result already collapsed opens with, so the model learns the page did not change without paying to compare */
 const REPEATED_READ_NOTE = '[identical to a result you read earlier this turn; nothing changed]';
@@ -128,6 +128,8 @@ type RunInput = {
   /** §4.4 — the human whose further fragments this turn absorbs; absent on every other turn */
   foldAuthorUsername?: string;
   profile: AgentProfile;
+  /** §5.2 — handed the colleague this turn's posts addressed once the turn ends or parks; must not wait on that colleague's turn */
+  releaseHeldActivation: (held: HeldActivation) => void;
   /** §7.4 — the human or trigger post this turn's chain descends from */
   rootPostId: string;
   triggeringPostId?: string;
@@ -201,6 +203,8 @@ type TurnState = {
   contextAssembledAt: Date;
   readonly control: TurnControlHandle;
   readonly fold: TurnFoldHandle;
+  /** §5.2 — the colleague this turn has addressed since it last stopped acting, not yet started */
+  heldActivation: HeldActivation | undefined;
   /** §5.3 — the agent's most recent interim text, quoted on the extension prompt as its own last words */
   lastInterimText: string | undefined;
   readonly messages: CompletionMessage[];
@@ -314,6 +318,7 @@ export class TurnRunner {
         authorUsername: input.foldAuthorUsername,
         channelId
       }),
+      heldActivation: undefined,
       lastInterimText: undefined,
       messages: [],
       promptTokens: 0,
@@ -353,6 +358,7 @@ export class TurnRunner {
       }
       state.control.release();
       state.fold.release();
+      this.releaseHeldActivation(input, state);
     }
   }
 
@@ -476,6 +482,19 @@ export class TurnRunner {
         toolName: identified.recordedName
       });
       this.pushMessage(state, { content: text, role: 'tool', toolCallId: identified.call.id });
+    }
+  }
+
+  /**
+   * The appender handed to tool execution and the approval flow. A prompt's requested event is
+   * written as the prompt lands and before the turn waits on it, so it is the moment the turn
+   * parks on a person (§3.7, §3.7a), and a parked turn releases its colleague rather than hold it
+   * for as long as that person takes (§5.2).
+   */
+  private async appendEventReleasingOnPark(input: RunInput, state: TurnState, event: TurnEventInput): Promise<void> {
+    await this.turnsService.appendEvent(state.turn.id, event);
+    if (event.kind === 'approval_requested' || event.kind === 'ask_requested') {
+      this.releaseHeldActivation(input, state);
     }
   }
 
@@ -824,7 +843,7 @@ export class TurnRunner {
         Promise.all(
           batch.map((identified, index) => {
             return this.toolExecutor.execute({
-              appendEvent: (event) => this.turnsService.appendEvent(state.turn.id, event),
+              appendEvent: (event) => this.appendEventReleasingOnPark(input, state, event),
               call: identified.call,
               contextText: renderApprovalContext(this.assembleApprovalContext(state, identified, positions[index]!)),
               ...(interimText !== undefined && { preface: interimText }),
@@ -960,7 +979,7 @@ export class TurnRunner {
     );
     const decision = await this.approvalsService.request({
       agentUsername: input.profile.username,
-      appendEvent: (event) => this.turnsService.appendEvent(state.turn.id, event),
+      appendEvent: (event) => this.appendEventReleasingOnPark(input, state, event),
       args: { attemptsSoFar: state.budget.spentCount, extensionNumber },
       channelId: input.channelId,
       payloadPresentation: 'collapse',
@@ -1090,7 +1109,8 @@ export class TurnRunner {
   /**
    * The one door onto the channel for a turn's own posts: sent under the agent's account, recorded
    * with the turn that authored it, and the peer it addresses remembered for the rest of the turn
-   * (§4.5). The record is what makes a later return recognisable (§7.4).
+   * (§4.5) and held until the turn stops acting (§5.2). The record is what makes a later return
+   * recognisable (§7.4).
    */
   private async publish(
     input: RunInput,
@@ -1102,8 +1122,11 @@ export class TurnRunner {
     if (!sent.success) {
       return sent;
     }
-    const post = this.asAddressablePost(input, text);
-    state.addressedPeer = this.multiMentionPolicy.addresseesOf(post)[0] ?? state.addressedPeer;
+    const addressee = this.multiMentionPolicy.addresseesOf(this.asAddressablePost(input, text))[0];
+    if (addressee !== undefined) {
+      state.addressedPeer = addressee;
+      state.heldActivation ??= { addresseeUsername: addressee, postId: sent.value.postId };
+    }
     await this.conversationsService.record(
       {
         attachments: [],
@@ -1277,6 +1300,15 @@ export class TurnRunner {
       return `post rejected: the reply is ${oversize.length} characters and a post holds at most ${oversize.limit} — answer more briefly, or post the first part and say what remains`;
     }
     return undefined;
+  }
+
+  /** §5.2 — takes the hold, so a colleague a park released is not released again when the turn ends */
+  private releaseHeldActivation(input: RunInput, state: TurnState): void {
+    const held = state.heldActivation;
+    state.heldActivation = undefined;
+    if (held !== undefined) {
+      input.releaseHeldActivation(held);
+    }
   }
 
   /**

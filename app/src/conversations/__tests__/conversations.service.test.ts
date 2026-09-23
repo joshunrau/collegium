@@ -254,6 +254,23 @@ describe('ConversationsService', () => {
     });
   });
 
+  describe('listAuthoredBy', () => {
+    it("should list one turn's posts earliest first, leaving out its status post and every other turn's (§7.3)", async () => {
+      await conversationsService.record(post({ createdAt: new Date(2000), id: 'post-2' }), {
+        kind: 'reply',
+        turnId: 'turn-1'
+      });
+      await conversationsService.record(post({ createdAt: new Date(1000), id: 'post-1' }), {
+        kind: 'notice',
+        turnId: 'turn-1'
+      });
+      await conversationsService.record(post({ id: 'post-3' }), { kind: 'status', turnId: 'turn-1' });
+      await conversationsService.record(post({ id: 'post-4' }), { kind: 'reply', turnId: 'turn-0' });
+      const listed = await conversationsService.listAuthoredBy('turn-1');
+      expect(listed.map(({ id }) => id)).toStrictEqual(['post-1', 'post-2']);
+    });
+  });
+
   describe('summarizeBacklog', () => {
     it('should return the pointer post beside the count of live posts from it forward', async () => {
       await conversationsService.record(post({ createdAt: new Date(1000), id: 'post-1', message: 'older' }));

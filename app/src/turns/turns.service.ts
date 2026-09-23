@@ -42,6 +42,7 @@ export class TurnsService {
         _count: { select: { events: { where: { kind: 'assistant_message' } } } },
         agentUsername: true,
         channelId: true,
+        id: true,
         statusPostId: true,
         triggeringPostId: true
       },
@@ -62,7 +63,12 @@ export class TurnsService {
         { agentUsername: turn.agentUsername, channelId: turn.channelId, triggeringPostId: turn.triggeringPostId }
       ];
     });
-    return { count: running.length, statusPosts, unacted };
+    const turns = running.map((turn) => ({
+      agentUsername: turn.agentUsername,
+      channelId: turn.channelId,
+      turnId: turn.id
+    }));
+    return { statusPosts, turns, unacted };
   }
 
   /**
@@ -141,6 +147,16 @@ export class TurnsService {
       data: { rootPostId: null, statusPostId: null, triggeringPostId: null },
       where: turn
     });
+  }
+
+  /** when the agent's most recent turn in the channel started, whatever became of it; undefined where it has had none */
+  async findLatestStartIn(agentUsername: string, channelId: string): Promise<Date | undefined> {
+    const latest = await this.turns.findFirst({
+      orderBy: { startedAt: 'desc' },
+      select: { startedAt: true },
+      where: { agentUsername, channelId }
+    });
+    return latest?.startedAt;
   }
 
   /** the full §8.3 trace, in the order it happened */
