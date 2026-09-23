@@ -16,7 +16,7 @@ describe('renderSkillsSection', () => {
       )
     ).toBe(`## Skills
 
-Procedures written for situations you will meet here. Load one with skills__load before acting when the work in front of you is the situation its description names; a load you did not need still costs a round trip:
+Procedures written for situations you will meet here. A skill loaded with skills__load lasts only this turn; a later turn sees one line saying it was loaded. Before starting work that one of these descriptions matches, load that skill, even if an earlier turn loaded it:
 
 - handing-work-to-a-peer: How to hand work over.`);
   });
