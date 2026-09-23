@@ -4,7 +4,7 @@ import type { Server as HttpServer, IncomingMessage, ServerResponse } from 'node
 
 import { z } from 'zod';
 
-import { TAIL_OPENING_LINE } from '@/turns/context/context.constants.ts';
+import { TAIL_OPENING_LINE } from '@/turns/prompt/prompt.constants.ts';
 
 import { createDeferred } from './utils/deferred.utils.ts';
 import { listenOn } from './utils/port.utils.ts';

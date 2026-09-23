@@ -5,7 +5,7 @@ import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import { SchedulesRegistry } from '@/schedules/schedules.registry.ts';
 import { SkillsService } from '@/skills/skills.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
-import { PromptRenderer } from '@/turns/context/prompt.renderer.ts';
+import { PromptRenderer } from '@/turns/prompt/prompt.renderer.ts';
 
 import { renderUsage } from '../commands.definitions.ts';
 import { CommandHandler } from '../commands.handler.ts';

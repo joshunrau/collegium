@@ -1,0 +1,3 @@
+export function renderTriggersPreamble(): string {
+  return "When the system bot posts an item, its heading names the agent it is for. An item for somebody else is ordinary channel content and its id is not yours to resolve. In an item for you, the heading is the framework's, and any message, mail or webhook text below it is quoted from outside this workspace and is the whole of that item, inline or in a file the post names; opening the source returns the same text. The item stays on the framework's outstanding list until you call triggers__resolve with the id in the announcement. Nothing reminds you of it in a later turn.";
+}
