@@ -3,8 +3,9 @@ import { Injectable } from '@nestjs/common';
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
+import { MomentFormatter } from '@/formatting/dates/moment.formatter.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
-import { renderTaskRefusal } from '@/tasks/tasks.utils.ts';
+import { renderTaskRefusal, wordingForPerson } from '@/tasks/tasks.utils.ts';
 
 import { renderUsage } from '../commands.definitions.ts';
 import { CommandHandler } from '../commands.handler.ts';
@@ -22,6 +23,7 @@ export class UnitsHandler extends CommandHandler {
   constructor(
     private readonly agentRegistry: AgentRegistry,
     private readonly dateFormatter: DateFormatter,
+    private readonly momentFormatter: MomentFormatter,
     private readonly pendingDecisionsService: PendingDecisionsService,
     private readonly tasksService: TasksService
   ) {
@@ -57,7 +59,9 @@ export class UnitsHandler extends CommandHandler {
     }
     const units = await this.tasksService.listOpenFor({ agentUsername, channelId: input.channelId });
     const parked = await this.readParkedParties(listUnitParties(agentUsername, units), input.channelId);
-    return { audience: 'invoker', text: renderUnitsListing(agentUsername, units, parked, new Date()) };
+    const now = new Date();
+    const wording = wordingForPerson(agentUsername, (moment) => this.momentFormatter.format(moment, now));
+    return { audience: 'invoker', text: renderUnitsListing(agentUsername, units, parked, now, wording) };
   }
 
   private async readParkedParties(parties: ReadonlySet<string>, channelId: string): Promise<ParkedDecision[]> {

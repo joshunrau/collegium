@@ -103,6 +103,15 @@ export class ConversationsService {
       .exhaustive();
   }
 
+  /** one post by id, of any kind, as agent context may show it: absent once forgotten (§8.4) or where the store never took it */
+  async findUnforgotten(postId: string): Promise<Pick<ModelRow<'Post'>, 'createdAt' | 'id' | 'message'> | undefined> {
+    const post = await this.posts.findFirst({
+      select: { createdAt: true, id: true, message: true },
+      where: { id: postId, isForgotten: false }
+    });
+    return post ?? undefined;
+  }
+
   /**
    * §5.2 — whether the channel's store took, at or after `since`, a post a finished turn could owe
    * an answer to. The agent's own posts, the system bot's and status posts are never such a post.

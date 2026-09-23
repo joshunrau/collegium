@@ -2,18 +2,20 @@ import { TASKS_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
+import { MomentFormatter } from '@/formatting/dates/moment.formatter.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
-import { renderOpenUnitLine } from '@/tasks/tasks.utils.ts';
+import { renderOpenUnitLine, wordingForAgent } from '@/tasks/tasks.utils.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 import type { TurnPromptInput } from '../prompt.types.ts';
 
-/** §3.15 — the units this agent owes or is owed here; a unit is never truncated, the list is */
+/** §3.15 — the units this agent owes or is owed here, and where the other party to each stands; a unit is never truncated, the list is */
 @Injectable()
 export class OpenWorkSection {
   constructor(
     private readonly agentRegistry: AgentRegistry,
+    private readonly momentFormatter: MomentFormatter,
     private readonly tasksService: TasksService,
     private readonly textFormatter: TextFormatter,
     private readonly toolRegistry: ToolRegistry
@@ -31,12 +33,13 @@ export class OpenWorkSection {
     }
     const shown = this.agentRegistry.settingsFor(TASKS_TOOLSET_DEF, profile.username)?.shownInPrompt ?? units.length;
     const now = new Date();
-    const lines = units.slice(0, shown).map((unit) => renderOpenUnitLine(unit, profile.username, now));
+    const wording = wordingForAgent((moment) => this.momentFormatter.format(moment, now));
+    const lines = units.slice(0, shown).map((unit) => renderOpenUnitLine(unit, profile.username, now, wording));
     const remainder = units.length - lines.length;
     return this.textFormatter.formatParagraphs(
       [
         '## Open work',
-        'Work handed over in this channel and still open, oldest first. A line marked `to @name` is one you assigned and are waiting on; `from @name` is one you owe. Read one in full with tasks__read:',
+        'Work handed over in this channel and still open, oldest first. A line marked `to @name` is one you assigned and are waiting on; `from @name` is one you owe. In brackets is where that colleague stood as this turn began. Read one in full with tasks__read:',
         '{listing}',
         ...(remainder > 0 ? [`…and ${remainder} more.`] : [])
       ],

@@ -21,8 +21,8 @@ _ephemeral_ result is visible only to the person who ran it; the rest post to th
   or all, oldest first. Ephemeral.
 - `/collegium triggers {agent}` — outstanding triggers. Ephemeral.
 - `/collegium units {agent}` — the open work units in this channel for an agent, each line carrying
-  the unit's reference that `cancel` takes, then the agent or counterpart whose turn here waits on a
-  person. Ephemeral.
+  the unit's reference that `cancel` takes and where the other party stands, then the agent or
+  counterpart whose turn here waits on a person. Ephemeral.
 
 ## Changing what an agent sees
 

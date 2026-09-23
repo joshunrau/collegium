@@ -2,8 +2,14 @@ import { implementToolset, TASKS_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
 
-import { TASKS_SERVICE_TOKEN } from './tasks.tokens.ts';
-import { ASSIGNEE_TARGETS, CREATOR_TARGETS, renderTaskRefusal, renderUnitRecord } from './tasks.utils.ts';
+import { TASKS_MOMENT_FORMATTER_TOKEN, TASKS_SERVICE_TOKEN, TASKS_SIGHTINGS_TOKEN } from './tasks.tokens.ts';
+import {
+  ASSIGNEE_TARGETS,
+  CREATOR_TARGETS,
+  renderTaskRefusal,
+  renderUnitView,
+  wordingForAgent
+} from './tasks.utils.ts';
 
 import type { TaskFailure } from './tasks.types.ts';
 
@@ -26,7 +32,7 @@ const refused = (failure: TaskFailure) => {
 
 /** §3.15 — every verb renders a post the framework publishes first, and writes only once told the post has landed */
 export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
-  services: { tasks: TASKS_SERVICE_TOKEN },
+  services: { moments: TASKS_MOMENT_FORMATTER_TOKEN, sightings: TASKS_SIGHTINGS_TOKEN, tasks: TASKS_SERVICE_TOKEN },
   tools: {
     assign: {
       description:
@@ -111,13 +117,29 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
       budgetExempt: true,
       concurrent: true,
       description:
-        'Read one work unit in full: its outcome, criteria, context, parties and state. A unit you created or were assigned in this channel reads whether it is open or closed.',
+        'Read one work unit in full: its outcome, criteria, context, parties and state, when it was assigned and last changed, where the other party stands now, and the post of its latest report or close. A report read here counts as read when you close the unit. A unit you created or were assigned in this channel reads whether it is open or closed.',
       execute: async (args, context) => {
-        const unit = await context.tasks.read(context.turn.agentUsername, context.turn.channelId, args.reference);
-        if (!unit.success) {
-          return refused(unit.error);
+        const view = await context.tasks.readView({
+          agentUsername: context.turn.agentUsername,
+          channelId: context.turn.channelId,
+          reference: args.reference
+        });
+        if (!view.success) {
+          return refused(view.error);
         }
-        return Result.ok({ text: renderUnitRecord(unit.value) });
+        const { latestChange } = view.value;
+        if (latestChange.kind === 'posted') {
+          // §3.15 — a report shown here is one a close may rest on
+          context.sightings.recordSeen(context.turn.turnId, [latestChange.post.id]);
+        }
+        const now = new Date();
+        return Result.ok({
+          text: renderUnitView(
+            view.value,
+            context.turn.agentUsername,
+            wordingForAgent((moment) => context.moments.format(moment, now))
+          )
+        });
       },
       parameters: z.object({ reference: $AnyReference }),
       retryable: true,

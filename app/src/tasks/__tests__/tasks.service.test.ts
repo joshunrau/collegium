@@ -6,6 +6,7 @@ import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
+import { ConversationsService } from '@/conversations/conversations.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { getModelToken } from '@/prisma/prisma.utils.ts';
 import { buildAgentProfile } from '@/testing/factories/agent-profile.factory.ts';
@@ -14,6 +15,7 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { createModelTable } from '@/testing/factories/model-table.factory.ts';
 
+import { CounterpartStateService } from '../counterparts/counterpart-state.service.ts';
 import { PostSightingsRegistry } from '../sightings/post-sightings.registry.ts';
 import { TasksService } from '../tasks.service.ts';
 
@@ -27,6 +29,8 @@ const MIRA = buildAgentProfile({ tools: ['tasks'], username: 'mira' });
 
 describe('TasksService', () => {
   let channelLockService: MockedInstance<ChannelLockService>;
+  let conversationsService: MockedInstance<ConversationsService>;
+  let counterpartStateService: MockedInstance<CounterpartStateService>;
   let loggingService: MockedInstance<LoggingService>;
   let postSightingsRegistry: PostSightingsRegistry;
   let tasksService: TasksService;
@@ -46,6 +50,9 @@ describe('TasksService', () => {
     });
     channelLockService = MockFactory.createMock(ChannelLockService);
     channelLockService.isBusyWithTurnOpenedAfter.mockReturnValue(false);
+    conversationsService = MockFactory.createMock(ConversationsService);
+    counterpartStateService = MockFactory.createMock(CounterpartStateService);
+    counterpartStateService.readFor.mockResolvedValue({ awaited: 'report', kind: 'no-turn' });
     loggingService = MockFactory.createMock(LoggingService);
     const multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
     multiMentionPolicy.stripAgentMentions.mockImplementation((text: string) => text.replaceAll('@omar', 'omar'));
@@ -58,6 +65,8 @@ describe('TasksService', () => {
           provide: ConfigService,
           useValue: createConfigServiceMock({ turns: { chainLengthLimit: 3, delegationDepthLimit: 2 } })
         },
+        { provide: ConversationsService, useValue: conversationsService },
+        { provide: CounterpartStateService, useValue: counterpartStateService },
         { provide: LoggingService, useValue: loggingService },
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
         PostSightingsRegistry,
@@ -323,6 +332,8 @@ describe('TasksService', () => {
     await tasksService.commitTransition({ to: 'cancelled', unitId: 'unit-2' }, 'post-5');
     const open = await tasksService.listOpenFor({ agentUsername: 'mira', channelId: 'channel-1' });
     expect(open.map((unit) => unit.reference)).toStrictEqual([first.id.slice(0, 8)]);
+    expect(open[0]?.counterpart).toStrictEqual({ awaited: 'report', kind: 'no-turn' });
+    expect(counterpartStateService.readFor).toHaveBeenCalledExactlyOnceWith(units.rows[0], 'mira');
     expect((await tasksService.read('mira', 'channel-1', first.id.slice(0, 8))).value?.id).toBe(first.id);
     expect((await tasksService.read('mira', 'channel-1', 'unit-4')).error).toStrictEqual({
       kind: 'not-found',
@@ -331,6 +342,42 @@ describe('TasksService', () => {
     expect((await tasksService.read('owen', 'channel-1', 'unit-')).error).toStrictEqual({
       kind: 'ambiguous',
       reference: 'unit-'
+    });
+  });
+
+  describe('the view tasks::read shows (§3.15)', () => {
+    const view = (reference: string) => {
+      return tasksService.readView({ agentUsername: 'mira', channelId: 'channel-1', reference });
+    };
+
+    it('should show an assigned unit with where its counterpart stands, and no later post', async () => {
+      const unit = await assign();
+      const shown = (await view(unit.id.slice(0, 8))).unwrap();
+      expect(shown).toMatchObject({ counterpart: { kind: 'no-turn' }, latestChange: { kind: 'none' } });
+      expect(conversationsService.findUnforgotten).not.toHaveBeenCalled();
+    });
+
+    it('should show the report a unit last moved by, and say so when that post was forgotten (§8.4)', async () => {
+      const unit = await assign();
+      await tasksService.commitTransition({ to: 'review', unitId: unit.id }, 'post-report');
+      const report = { createdAt: new Date(5), id: 'post-report', message: '@mira — unit is ready for review: done' };
+      conversationsService.findUnforgotten.mockResolvedValueOnce(report);
+      expect((await view(unit.id.slice(0, 8))).value?.latestChange).toStrictEqual({ kind: 'posted', post: report });
+      expect(conversationsService.findUnforgotten).toHaveBeenCalledWith('post-report');
+      conversationsService.findUnforgotten.mockResolvedValueOnce(undefined);
+      expect((await view(unit.id.slice(0, 8))).value?.latestChange).toStrictEqual({ kind: 'unreadable' });
+    });
+
+    it('should describe no counterpart for a closed unit', async () => {
+      const unit = await assign();
+      await tasksService.commitTransition(
+        { closedByUsername: 'mira', to: 'done', unitId: unit.id, verdict: 'ok' },
+        'p-2'
+      );
+      conversationsService.findUnforgotten.mockResolvedValue({ createdAt: new Date(5), id: 'p-2', message: 'closed' });
+      counterpartStateService.readFor.mockClear();
+      expect((await view(unit.id.slice(0, 8))).value?.counterpart).toBeUndefined();
+      expect(counterpartStateService.readFor).not.toHaveBeenCalled();
     });
   });
 });

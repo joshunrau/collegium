@@ -9,6 +9,8 @@ import { ConfigService } from '@/config/config.service.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
 import { DayFormatter } from '@/formatting/dates/day.formatter.ts';
+import { MomentFormatter } from '@/formatting/dates/moment.formatter.ts';
+import { TimeOfDayFormatter } from '@/formatting/dates/time-of-day.formatter.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import { toCompletionBody } from '@/inference/adapters/openai-compatible.utils.ts';
 import { MailRegistry } from '@/mail/mail.registry.ts';
@@ -231,6 +233,7 @@ describe('ContextAssembler across two turns', () => {
     tasksService.listOpenFor.mockResolvedValue([
       {
         assigneeUsername: 'tess',
+        counterpart: { awaited: 'report', kind: 'no-turn' },
         createdAt: new Date('2026-09-21T11:55:00Z'),
         creatorUsername: 'mira',
         outcome: 'a venue shortlist',
@@ -258,10 +261,12 @@ describe('ContextAssembler across two turns', () => {
         DayFormatter,
         EarlierActionsSection,
         MemoriesSection,
+        MomentFormatter,
         OpenWorkSection,
         PeersSection,
         PromptRenderer,
         TextFormatter,
+        TimeOfDayFormatter,
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: MailRegistry, useValue: mailRegistry },
@@ -287,7 +292,7 @@ describe('ContextAssembler across two turns', () => {
     { name: 'anthropic/claude-sonnet-5', provider: 'openrouter' },
     { name: 'openai/gpt-5.6-sol', provider: 'openrouter' }
   ])(
-    'should send $name the same bytes through the window when memories, people, peers, ages and the day change (§3.8)',
+    'should send $name the same bytes through the window when memories, people, peers, ages, a colleague’s state and the day change (§3.8)',
     async (model) => {
       const wireBody = async () => {
         const { request } = await contextAssembler.assemble({
@@ -306,6 +311,23 @@ describe('ContextAssembler across two turns', () => {
       memoryService.list.mockResolvedValue([{ description: 'casey prefers numbered lists', reference: 'memory-2' }]);
       rosterService.getPeers.mockReturnValue([peer('tess'), peer('owen')]);
       windowService.listRecentPeople.mockResolvedValue(['robin', 'casey']);
+      tasksService.listOpenFor.mockResolvedValue([
+        {
+          assigneeUsername: 'tess',
+          counterpart: {
+            awaited: 'report',
+            beganBeforeChange: false,
+            kind: 'in-turn',
+            since: new Date('2026-09-22T12:58:00Z'),
+            waitingOn: undefined
+          },
+          createdAt: new Date('2026-09-21T11:55:00Z'),
+          creatorUsername: 'mira',
+          outcome: 'a venue shortlist',
+          reference: 'abcd1234',
+          state: 'assigned'
+        }
+      ]);
       const second = await wireBody();
       const tailIndex = first.messages.length - 1;
       expect(first.messages[tailIndex]).toMatchObject({

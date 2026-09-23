@@ -6,6 +6,9 @@ import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
+import { DayFormatter } from '@/formatting/dates/day.formatter.ts';
+import { MomentFormatter } from '@/formatting/dates/moment.formatter.ts';
+import { TimeOfDayFormatter } from '@/formatting/dates/time-of-day.formatter.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { buildAgentProfile } from '@/testing/factories/agent-profile.factory.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
@@ -32,6 +35,7 @@ describe('UnitsHandler', () => {
     tasksService.listOpenFor.mockResolvedValue([
       {
         assigneeUsername: 'owen',
+        counterpart: { awaited: 'report', kind: 'no-turn' },
         createdAt: new Date(Date.now() - 17 * 60_000),
         creatorUsername: 'mira',
         outcome: 'a venue shortlist',
@@ -45,6 +49,9 @@ describe('UnitsHandler', () => {
       providers: [
         UnitsHandler,
         DateFormatter,
+        DayFormatter,
+        MomentFormatter,
+        TimeOfDayFormatter,
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: PendingDecisionsService, useValue: pendingDecisionsService },
@@ -57,12 +64,12 @@ describe('UnitsHandler', () => {
   it('should list an agent’s open units in this channel to the invoker alone (§8.4)', async () => {
     expect(await handle('mira')).toStrictEqual({
       audience: 'invoker',
-      text: 'Open work for mira in this channel:\n- [abcd1234] to @owen · assigned · 17m — a venue shortlist'
+      text: 'Open work for mira in this channel:\n- [abcd1234] to @owen (no turn here since the assignment) · assigned · 17m — a venue shortlist'
     });
     expect(tasksService.listOpenFor).toHaveBeenCalledWith({ agentUsername: 'mira', channelId: 'channel-1' });
   });
 
-  it('should name a party to the work whose turn here waits on a person, and leave out one elsewhere (§8.1)', async () => {
+  it('should name a party to the work whose turn here waits on a person once, and leave out one elsewhere (§8.1)', async () => {
     const decision = {
       actionName: 'workspace::write',
       agentUsername: 'owen',
@@ -73,7 +80,26 @@ describe('UnitsHandler', () => {
       turnId: 'turn-1'
     } as const;
     pendingDecisionsService.listPending.mockResolvedValue([decision, { ...decision, agentUsername: 'tess' }]);
+    tasksService.listOpenFor.mockResolvedValue([
+      {
+        assigneeUsername: 'owen',
+        counterpart: {
+          awaited: 'report',
+          beganBeforeChange: false,
+          kind: 'in-turn',
+          since: new Date('2026-09-22T11:58:00Z'),
+          waitingOn: { on: 'approval', since: decision.requestedAt }
+        },
+        createdAt: new Date('2026-09-22T11:50:00Z'),
+        creatorUsername: 'mira',
+        outcome: 'a venue shortlist',
+        reference: 'abcd1234',
+        state: 'assigned'
+      }
+    ]);
     const { text } = await handle('mira');
+    expect(text).toContain('to @owen (working here since 11:58 UTC');
+    expect(text).not.toContain('waiting on a decision');
     expect(text).toContain('Waiting on a person in this channel:\n- owen · 🔐 `workspace::write` · for ');
     expect(text).toContain('since September 22, 2026 at 12:00:00 PM UTC · prompt `prompt-1`');
     expect(text).not.toContain('tess');

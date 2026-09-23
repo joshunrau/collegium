@@ -6,6 +6,7 @@ import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
+import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
@@ -13,6 +14,7 @@ import type { Model, TransactionClient } from '@/prisma/prisma.types.ts';
 import { createRecordId } from '@/prisma/prisma.utils.ts';
 import { renderReference } from '@/utils/reference.utils.ts';
 
+import { CounterpartStateService } from './counterparts/counterpart-state.service.ts';
 import { PostSightingsRegistry } from './sightings/post-sightings.registry.ts';
 import {
   ASSIGNEE_TARGETS,
@@ -20,6 +22,7 @@ import {
   CREATOR_TARGETS,
   findTransitionRefusal,
   holdsReportTool,
+  isOpenUnit,
   OPEN_STATES,
   renderAssignmentPost,
   renderClosePost,
@@ -28,7 +31,15 @@ import {
   statesThatMayReach
 } from './tasks.utils.ts';
 
-import type { OpenUnitSummary, PreparedTransition, PreparedUnit, TaskFailure, WorkUnit } from './tasks.types.ts';
+import type {
+  LatestChange,
+  OpenUnitSummary,
+  PreparedTransition,
+  PreparedUnit,
+  TaskFailure,
+  UnitView,
+  WorkUnit
+} from './tasks.types.ts';
 
 type AssignInput = {
   readonly actingAgentUsername: string;
@@ -71,6 +82,8 @@ export class TasksService {
     private readonly agentRegistry: AgentRegistry,
     private readonly channelLockService: ChannelLockService,
     configService: ConfigService,
+    private readonly conversationsService: ConversationsService,
+    private readonly counterpartStateService: CounterpartStateService,
     private readonly loggingService: LoggingService,
     private readonly multiMentionPolicy: MultiMentionPolicy,
     private readonly postSightingsRegistry: PostSightingsRegistry,
@@ -111,12 +124,12 @@ export class TasksService {
     }
   }
 
-  /** open units where the agent is creator or assignee, in this channel, oldest first (§3.15) */
   /** §8.5 — units are control state pointing at posts (§3.15), and the posts they point at are going */
   async eraseBefore(channelId: string, boundary: EpisodeBoundary, transaction: TransactionClient): Promise<void> {
     await transaction.workUnit.deleteMany({ where: { channelId, createdAt: { lt: boundary.eventsAfter } } });
   }
 
+  /** open units where the agent is creator or assignee, in this channel, oldest first, each with where its counterpart stands (§3.15) */
   async listOpenFor(input: { agentUsername: string; channelId: string }): Promise<OpenUnitSummary[]> {
     const rows = await this.units.findMany({
       orderBy: { createdAt: 'asc' },
@@ -126,14 +139,17 @@ export class TasksService {
         state: { in: [...OPEN_STATES] }
       }
     });
-    return rows.map((row) => ({
-      assigneeUsername: row.assigneeUsername,
-      createdAt: row.createdAt,
-      creatorUsername: row.creatorUsername,
-      outcome: row.outcome,
-      reference: renderReference(row.id),
-      state: row.state
-    }));
+    return Promise.all(
+      rows.filter(isOpenUnit).map(async (row) => ({
+        assigneeUsername: row.assigneeUsername,
+        counterpart: await this.counterpartStateService.readFor(row, input.agentUsername),
+        createdAt: row.createdAt,
+        creatorUsername: row.creatorUsername,
+        outcome: row.outcome,
+        reference: renderReference(row.id),
+        state: row.state
+      }))
+    );
   }
 
   /**
@@ -302,6 +318,24 @@ export class TasksService {
     return Result.err({ kind: matches.length === 0 ? 'not-found' : 'ambiguous', reference });
   }
 
+  /** §3.15 — tasks::read: the unit, where its counterpart stands while it is open, and the post of its latest change */
+  async readView(input: {
+    agentUsername: string;
+    channelId: string;
+    reference: string;
+  }): Promise<Result<UnitView, TaskFailure.Unresolved>> {
+    const read = await this.read(input.agentUsername, input.channelId, input.reference);
+    if (!read.success) {
+      return read;
+    }
+    const unit = read.value;
+    return Result.ok({
+      counterpart: isOpenUnit(unit) ? await this.counterpartStateService.readFor(unit, input.agentUsername) : undefined,
+      latestChange: await this.readLatestChange(unit),
+      unit
+    });
+  }
+
   /** §7.4 — the acting turn's own depth, and its chain counted by root as the runner counts it */
   private async atLoopLimit(turnId: string): Promise<'chain-limit' | 'depth-limit' | undefined> {
     const turn = await this.turns.findUnique({ select: { depth: true, rootPostId: true }, where: { id: turnId } });
@@ -318,5 +352,14 @@ export class TasksService {
       return 'chain-limit';
     }
     return undefined;
+  }
+
+  /** the assignment post is the record's own fields; a later post is the report or close the unit last moved by */
+  private async readLatestChange(unit: WorkUnit): Promise<LatestChange> {
+    if (unit.lastPostId === unit.originPostId) {
+      return { kind: 'none' };
+    }
+    const post = await this.conversationsService.findUnforgotten(unit.lastPostId);
+    return post === undefined ? { kind: 'unreadable' } : { kind: 'posted', post };
   }
 }

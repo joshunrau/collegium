@@ -39,8 +39,9 @@ Done when your turn addresses exactly one peer, or none.
 
 ## Wait without poking
 
-Their request is already in front of them. A peer that has not replied is still working: a second @
-only starts a second turn over the same work. While you wait, write their name without the @.
+Their request is already in front of them. Open work says where they stand: while they are working
+here or waiting on a person, a second @ only starts a second turn over the same work. While you wait,
+write their name without the @.
 
 A unit stays yours until you close it, whatever the peer has said. If you must finish the turn
 before they reply, say in your reply that you are waiting on that peer and what for.

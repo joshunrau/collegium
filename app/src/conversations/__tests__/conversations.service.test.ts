@@ -225,6 +225,21 @@ describe('ConversationsService', () => {
     });
   });
 
+  describe('findUnforgotten', () => {
+    it('should read a post of any kind by id, and nothing once it is forgotten (§8.4)', async () => {
+      await conversationsService.record(post({ id: 'post-1', message: 'unit ready for review' }), {
+        kind: 'notice',
+        turnId: 'turn-1'
+      });
+      expect(await conversationsService.findUnforgotten('post-1')).toMatchObject({
+        id: 'post-1',
+        message: 'unit ready for review'
+      });
+      table.rows[0]!.isForgotten = true;
+      expect(await conversationsService.findUnforgotten('post-1')).toBeUndefined();
+    });
+  });
+
   describe('hasPostsObservedSince', () => {
     const since = { agentUsername: 'mira', channelId: 'channel-1', since: new Date(1) };
 

@@ -1,4 +1,4 @@
-import type { OpenUnitSummary } from '@/tasks/tasks.types.ts';
+import type { CounterpartWording, OpenUnitSummary } from '@/tasks/tasks.types.ts';
 import { renderOpenUnitLine } from '@/tasks/tasks.utils.ts';
 
 import { renderParkedOn } from './approvals.utils.ts';
@@ -16,20 +16,21 @@ export function listUnitParties(agentUsername: string, units: readonly OpenUnitS
 /**
  * §8.4 — the same lines the agent reads in its prompt, so a human and the agent see one listing;
  * then each party whose turn here waits on a person, since a unit on either side of a parked turn
- * moves only once someone decides (§8.1).
+ * moves only once someone decides (§8.1). The lines leave that wait to the list, which says it once.
  */
 export function renderUnitsListing(
   agentUsername: string,
   units: readonly OpenUnitSummary[],
   parked: readonly ParkedDecision[],
-  now: Date
+  now: Date,
+  wording: CounterpartWording
 ): string {
   const work =
     units.length === 0
       ? [`${agentUsername} has no open work in this channel.`]
       : [
           `Open work for ${agentUsername} in this channel:`,
-          ...units.map((unit) => `- ${renderOpenUnitLine(unit, agentUsername, now)}`)
+          ...units.map((unit) => `- ${renderOpenUnitLine(unit, agentUsername, now, wording)}`)
         ];
   const waiting =
     parked.length === 0

@@ -4,7 +4,17 @@ import { renderElapsed } from '@/formatting/durations/duration.utils.ts';
 import type { WorkUnitState } from '@/prisma/prisma.types.ts';
 import { renderReference } from '@/utils/reference.utils.ts';
 
-import type { OpenUnitSummary, PreparedUnit, TaskFailure, WorkUnit } from './tasks.types.ts';
+import { renderCounterpartState } from './counterparts/counterpart-state.utils.ts';
+
+import type {
+  CounterpartWording,
+  OpenUnitState,
+  OpenUnitSummary,
+  PreparedUnit,
+  TaskFailure,
+  UnitView,
+  WorkUnit
+} from './tasks.types.ts';
 
 function renderClosedUnit(closed: TaskFailure.Closed, now: Date): string {
   const ago = `${renderElapsed(now.getTime() - closed.closedAt.getTime())} ago`;
@@ -22,7 +32,7 @@ export const ASSIGNEE_TARGETS = ['blocked', 'review'] as const satisfies readonl
 /** §3.15 — only the agent that handed the unit over closes it */
 export const CREATOR_TARGETS = ['cancelled', 'done'] as const satisfies readonly WorkUnitState[];
 
-export const OPEN_STATES = ['assigned', 'blocked', 'review'] as const satisfies readonly WorkUnitState[];
+export const OPEN_STATES = ['assigned', 'blocked', 'review'] as const satisfies readonly OpenUnitState[];
 
 export const LEGAL_FROM: { readonly [State in WorkUnitState]: readonly WorkUnitState[] } = {
   assigned: ['blocked', 'cancelled', 'done', 'review'],
@@ -40,6 +50,10 @@ export function statesThatMayReach(target: WorkUnitState): WorkUnitState[] {
 /** §3.15 — in review or blocked, the unit's last post is its assignee's report, which a close judges */
 export function awaitsVerdictOnReport(state: WorkUnitState): boolean {
   return (ASSIGNEE_TARGETS as readonly WorkUnitState[]).includes(state);
+}
+
+export function isOpenUnit(unit: WorkUnit): unit is WorkUnit & { state: OpenUnitState } {
+  return (OPEN_STATES as readonly WorkUnitState[]).includes(unit.state);
 }
 
 /** why the unit may not move to `target`, if it may not: a closed unit says who closed it, when, and the verdict (§3.15) */
@@ -91,23 +105,60 @@ export function renderHumanCancellationPost(unit: WorkUnit, byUsername: string):
   return `⛔ Unit \`${renderReference(unit.id)}\` cancelled by @${byUsername} — \`${unit.creatorUsername}\` had handed it to \`${unit.assigneeUsername}\`: ${unit.outcome}`;
 }
 
-/** the full record, for tasks::read: what the prompt line abbreviates */
-export function renderUnitRecord(unit: WorkUnit): string {
-  return [
+/** §3.15 — the agent reading its own units: what is awaited of it is "your", and a colleague's wait on a person is named */
+export function wordingForAgent(formatMoment: (moment: Date) => string): CounterpartWording {
+  return { formatMoment, namesPersonWait: true, readerPossessive: 'your' };
+}
+
+/** §8.4 — a person reading an agent's units: what is awaited of the agent is under its name, and a wait on a person is left to the listing's own list */
+export function wordingForPerson(agentUsername: string, formatMoment: (moment: Date) => string): CounterpartWording {
+  return { formatMoment, namesPersonWait: false, readerPossessive: `${agentUsername}'s` };
+}
+
+/**
+ * §3.15 — the full record, for tasks::read: what the prompt line abbreviates, the counterpart's state
+ * beside its name, and the post of the latest change delimited rather than requoted, since a verdict
+ * rests on its words
+ */
+export function renderUnitView(
+  { counterpart, latestChange, unit }: UnitView,
+  readerUsername: string,
+  wording: CounterpartWording
+): string {
+  const standing = counterpart === undefined ? '' : ` (${renderCounterpartState(counterpart, wording)})`;
+  const readerCreated = unit.creatorUsername === readerUsername;
+  const changed = latestChange.kind === 'none' ? '' : `, last changed ${wording.formatMoment(unit.updatedAt)}`;
+  const record = [
     `unit ${renderReference(unit.id)} — ${unit.state}`,
-    `creator: @${unit.creatorUsername}`,
-    `assignee: @${unit.assigneeUsername}`,
+    `assigned ${wording.formatMoment(unit.createdAt)}${changed}`,
+    `creator: @${unit.creatorUsername}${readerCreated ? '' : standing}`,
+    `assignee: @${unit.assigneeUsername}${readerCreated ? standing : ''}`,
     `outcome: ${unit.outcome}`,
     `criteria: ${unit.criteria}`,
     `context: ${unit.context}`
   ].join('\n');
+  const change = awaitsVerdictOnReport(unit.state) ? 'report' : 'close';
+  return match(latestChange)
+    .with({ kind: 'none' }, () => record)
+    .with({ kind: 'posted' }, ({ post }) => `${record}\n\nlatest ${change}:\n<<<post ${post.id}\n${post.message}\n>>>`)
+    .with(
+      { kind: 'unreadable' },
+      () => `${record}\n\nlatest ${change}: its post was forgotten, so it can no longer be read`
+    )
+    .exhaustive();
 }
 
-/** one line of the prompt block: the counterpart from this agent's side, the state, the age, the outcome (§3.15) */
-export function renderOpenUnitLine(unit: OpenUnitSummary, selfUsername: string, now: Date): string {
+/** one line of the prompt block: the counterpart from this agent's side and where it stands, the state, the age, the outcome (§3.15) */
+export function renderOpenUnitLine(
+  unit: OpenUnitSummary,
+  readerUsername: string,
+  now: Date,
+  wording: CounterpartWording
+): string {
   const counterpart =
-    unit.creatorUsername === selfUsername ? `to @${unit.assigneeUsername}` : `from @${unit.creatorUsername}`;
-  return `[${unit.reference}] ${counterpart} · ${unit.state} · ${renderElapsed(now.getTime() - unit.createdAt.getTime())} — ${unit.outcome}`;
+    unit.creatorUsername === readerUsername ? `to @${unit.assigneeUsername}` : `from @${unit.creatorUsername}`;
+  const standing = renderCounterpartState(unit.counterpart, wording);
+  return `[${unit.reference}] ${counterpart} (${standing}) · ${unit.state} · ${renderElapsed(now.getTime() - unit.createdAt.getTime())} — ${unit.outcome}`;
 }
 
 export function renderUnresolvedUnit(failure: TaskFailure.Unresolved): string {

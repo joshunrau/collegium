@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
 
+import { PostSightingsRegistry } from '../sightings/post-sightings.registry.ts';
 import { TasksService } from '../tasks.service.ts';
 import { TASKS_TOOLSET } from '../tasks.toolset.ts';
 
@@ -24,9 +25,29 @@ const ASSIGN_ARGS = {
   outcome: 'a venue shortlist'
 };
 
+const UNIT = {
+  ...PREPARED,
+  closedAt: null,
+  closedByUsername: null,
+  createdAt: new Date('2026-09-22T18:40:00Z'),
+  lastPostId: 'post-report',
+  originPostId: 'post-assign',
+  state: 'review',
+  updatedAt: new Date('2026-09-22T19:02:00Z'),
+  verdict: null
+} as const;
+
 describe('TASKS_TOOLSET', () => {
+  const moments = { format: (moment: Date) => `${moment.toISOString().slice(11, 16)} UTC` };
+  const sightings = new PostSightingsRegistry();
   const tasksService = MockFactory.createMock(TasksService);
-  const context = { settings: { openUnitCap: 20, shownInPrompt: 20 }, tasks: tasksService, turn: buildToolTurnScope() };
+  const context = {
+    moments,
+    settings: { openUnitCap: 20, shownInPrompt: 20 },
+    sightings,
+    tasks: tasksService,
+    turn: buildToolTurnScope()
+  };
 
   it('should return the assignment post addressed to the assignee, whose landing commits the unit (§3.15)', async () => {
     tasksService.prepareAssign.mockResolvedValue(
@@ -100,5 +121,45 @@ describe('TASKS_TOOLSET', () => {
       kind: 'invalid-arguments',
       message: 'unit unit-1 is closed: @mira closed it as cancelled 5m ago, with the verdict "no longer needed"'
     });
+  });
+
+  it('should show a unit’s latest report and where its counterpart stands, and count the report as read (§3.15)', async () => {
+    tasksService.readView.mockResolvedValue(
+      Result.ok({
+        counterpart: { awaited: 'verdict', kind: 'awaiting-reader', since: UNIT.updatedAt },
+        latestChange: {
+          kind: 'posted',
+          post: { createdAt: UNIT.updatedAt, id: 'post-report', message: '@mira — unit is ready for review: done' }
+        },
+        unit: UNIT
+      })
+    );
+    const read = await executeTool(TASKS_TOOLSET.tools.read, { reference: 'unit-abc' }, context);
+    expect(read.value?.text).toBe(
+      [
+        'unit unit-abc — review',
+        'assigned 18:40 UTC, last changed 19:02 UTC',
+        'creator: @mira',
+        'assignee: @owen (awaiting your verdict since 19:02 UTC)',
+        'outcome: a venue shortlist',
+        'criteria: three venues with prices',
+        'context: nothing tried yet',
+        '',
+        'latest report:',
+        '<<<post post-report',
+        '@mira — unit is ready for review: done',
+        '>>>'
+      ].join('\n')
+    );
+    expect(sightings.hasSeen('turn-1', 'post-report')).toBe(true);
+  });
+
+  it('should count nothing as read where the latest post can no longer be shown (§8.4)', async () => {
+    tasksService.readView.mockResolvedValue(
+      Result.ok({ counterpart: undefined, latestChange: { kind: 'unreadable' }, unit: { ...UNIT, lastPostId: 'p-2' } })
+    );
+    const read = await executeTool(TASKS_TOOLSET.tools.read, { reference: 'unit-abc' }, context);
+    expect(read.value?.text).toContain('latest report: its post was forgotten, so it can no longer be read');
+    expect(sightings.hasSeen('turn-1', 'p-2')).toBe(false);
   });
 });

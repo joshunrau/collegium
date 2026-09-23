@@ -85,6 +85,7 @@ describe('Delegation through a work unit', () => {
     const closing = inference.requestsFor('mira').at(-1)!;
     expect(closing.tail).toContain('## Open work');
     expect(closing.tail).not.toContain('No work is open in this channel.');
+    expect(closing.tail).toContain(`to @${agents.owen.username} (awaiting your verdict since `);
     const afterwards = `afterwards-${randomUUID()}`;
     inference.willReply({ agent: 'mira', contains: 'anything open' }, textResponse(afterwards));
     await channels.main.mention('mira', 'anything open?');
@@ -198,6 +199,61 @@ describe('Delegation through a work unit', () => {
     await channels.main.awaitReplyFrom('mira', { text: closed });
     const posts = await channels.main.posts();
     expect(posts.some((post) => post.text.includes(`\`${reference}\` closed as cancelled: not needed`))).toBe(true);
+  });
+
+  it('shows a turn the report it never saw through tasks::read, and closes on it (§3.15)', async () => {
+    const { agents, channels, inference } = harness();
+    const phrase = `speaker list ${randomUUID()}`;
+    const summary = `four speakers confirmed ${randomUUID()}`;
+    const closed = `closed-${randomUUID()}`;
+    inference.willReply({ agent: 'mira', contains: phrase }, assignTo(agents.owen.username, phrase));
+    inference.willReply({ agent: 'mira' }, textResponse('handed over'));
+    const owenWorking = inference.willBlock({ agent: 'owen' }, textResponse('placeholder'));
+
+    await channels.main.mention('mira', `please delegate: ${phrase}`);
+    const handOff = await channels.main.awaitPost({
+      description: 'the assignment post under mira',
+      match: (post) => {
+        return post.authorId === agents.mira.userId && post.text.includes('work unit') && post.text.includes(phrase);
+      }
+    });
+    const reference = /work unit `([a-z0-9]+)`/u.exec(handOff.text)?.[1];
+    expect(reference).toBeDefined();
+    await owenWorking.arrived;
+
+    const miraChecking = inference.willBlock(
+      { agent: 'mira', contains: 'how is the speaker list' },
+      textResponse('placeholder')
+    );
+    await channels.main.mention('mira', 'how is the speaker list going?');
+    await miraChecking.arrived;
+    expect(inference.requestsFor('mira').at(-1)!.tail).toContain(`to @${agents.owen.username} (working here since `);
+
+    inference.willReply({ agent: 'owen' }, textResponse('reported'));
+    owenWorking.release(toolCallResponse('tasks__report', { reference: reference!, state: 'review', summary }));
+    await channels.main.awaitReplyFrom('owen', { text: 'reported' });
+
+    const closeUnit = toolCallResponse('tasks__close', {
+      reference: reference!,
+      state: 'done',
+      verdict: 'meets the criteria'
+    });
+    inference.willReply({ agent: 'mira' }, toolCallResponse('tasks__read', { reference: reference! }));
+    inference.willReply({ agent: 'mira' }, closeUnit);
+    inference.willReply({ agent: 'mira' }, textResponse(closed));
+    // the report addressed mira while she was working; it drains into one more turn of hers
+    inference.willReply({ agent: 'mira' }, textResponse(`drained-${randomUUID()}`));
+    miraChecking.release(closeUnit);
+    await channels.main.awaitReplyFrom('mira', { text: closed });
+
+    const read = inference
+      .requestsFor('mira')
+      .find((request) => request.messages.some((message) => message.content?.includes('latest report:')));
+    const shown = read!.messages.map((message) => message.content ?? '').join('\n');
+    expect(shown).toContain(`the latest report on unit ${reference} is not in what this turn has read`);
+    expect(shown).toContain(summary);
+    const posts = await channels.main.posts();
+    expect(posts.some((post) => post.text.includes(`\`${reference}\` closed as done: meets the criteria`))).toBe(true);
   });
 
   it('queues the assignee a restart kept waiting, so the hand-off is answered after boot (§5.2, §7.3)', async () => {
