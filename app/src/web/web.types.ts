@@ -192,10 +192,10 @@ export declare namespace WebFailure {
     kind: 'unsupported-content';
     url: string;
   };
-  /** the address is outside what this instrument reads — the open web, over http(s) (§3.4) */
+  /** the address is outside what this instrument reads — the open web, over http(s), less what the operator denied (§3.4) */
   type UrlRefused = {
     kind: 'url-refused';
-    reason: 'not-public-host' | 'not-web-scheme';
+    reason: 'denied-host' | 'not-public-host' | 'not-web-scheme';
     url: string;
   };
   type Any =

@@ -33,7 +33,7 @@ const baseConfig = (): $Config => ({
   plugins: [],
   providers: { deepseek: { apiKey: 'key', baseUrl: CONFIG_DEFAULTS.providers.deepseek.baseUrl } },
   turns: { ...CONFIG_DEFAULTS.turns },
-  web: { ...CONFIG_DEFAULTS.web }
+  web: { ...CONFIG_DEFAULTS.web, deniedHosts: [] }
 });
 
 /**

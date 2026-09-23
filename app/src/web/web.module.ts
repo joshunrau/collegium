@@ -32,13 +32,16 @@ import { ADDRESS_POLICY_TOKEN, SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from '.
       inject: [ConfigService, LoggerFactory],
       provide: ADDRESS_POLICY_TOKEN,
       useFactory: (configService: ConfigService, loggerFactory: LoggerFactory) => {
+        const logger = loggerFactory.createLogger('WebModule');
         const allowPrivateAddresses = configService.get('web.allowPrivateAddresses');
+        const deniedHosts = configService.get('web.deniedHosts');
         if (allowPrivateAddresses) {
-          loggerFactory
-            .createLogger('WebModule')
-            .warn('web.allowPrivateAddresses is on: loopback and private-network addresses are browsable (§3.4)');
+          logger.warn('web.allowPrivateAddresses is on: loopback and private-network addresses are browsable (§3.4)');
         }
-        return createAddressPolicy({ allowPrivateAddresses });
+        if (deniedHosts.length > 0) {
+          logger.log(`web.deniedHosts: the web toolset refuses ${deniedHosts.join(', ')} and their subdomains (§3.4)`);
+        }
+        return createAddressPolicy({ allowPrivateAddresses, deniedHosts });
       }
     },
     { provide: SEARCH_SERVICE_TOKEN, useExisting: SearchService },

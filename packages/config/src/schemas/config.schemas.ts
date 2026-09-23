@@ -514,6 +514,17 @@ export const $ProvidersConfig = z.strictObject({
     .describe('OpenRouter, fronting many providers under one key')
 });
 
+/** a host as a URL names it, without scheme, port or path: a DNS name or an IPv4 address */
+export type $HostName = z.infer<typeof $HostName>;
+export const $HostName = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(
+    /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/u,
+    'a bare host name such as archive.org, with no scheme, port or path'
+  );
+
 export type $WebConfig = z.infer<typeof $WebConfig>;
 export const $WebConfig = z.strictObject({
   allowPrivateAddresses: z
@@ -521,6 +532,13 @@ export const $WebConfig = z.strictObject({
     .default(CONFIG_DEFAULTS.web.allowPrivateAddresses)
     .describe(
       'Lifts the refusal of loopback, private-network and link-local addresses for every agent and every request the web toolset makes (§3.4). Only http(s) is still enforced. Meant for a deployment that serves its own test pages; it is logged at boot whenever it is on.'
+    ),
+  deniedHosts: z
+    .array($HostName)
+    .refine((hosts) => isUnique(hosts), { message: 'denied hosts must be unique' })
+    .default([])
+    .describe(
+      'Hosts the web toolset refuses, each with every subdomain beneath it, for every agent and every request: a fetch and each redirect it follows, a navigation, and anything a page loads itself (§3.4). Empty by default, so the open web is reachable. Set by the operator alone, and logged at boot whenever it names a host.'
     ),
   maxBrowserSessions: z
     .number()

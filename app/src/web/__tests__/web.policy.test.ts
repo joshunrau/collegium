@@ -107,8 +107,8 @@ describe('resolveAndVetHost', () => {
 
 describe('createAddressPolicy', () => {
   it('should refuse a loopback literal and a privately resolving name unless the deployment declared its network browsable (§3.4)', async () => {
-    const strict = createAddressPolicy({ allowPrivateAddresses: false });
-    const open = createAddressPolicy({ allowPrivateAddresses: true });
+    const strict = createAddressPolicy({ allowPrivateAddresses: false, deniedHosts: [] });
+    const open = createAddressPolicy({ allowPrivateAddresses: true, deniedHosts: [] });
     expect(strict.refuse('http://127.0.0.1:8080/')?.reason).toBe('not-public-host');
     expect(open.refuse('http://127.0.0.1:8080/')).toBeUndefined();
     lookupMock.mockResolvedValue([{ address: '172.18.0.4', family: 4 }]);
@@ -118,7 +118,20 @@ describe('createAddressPolicy', () => {
   });
 
   it('should keep the scheme rule with the network declared browsable', () => {
-    const open = createAddressPolicy({ allowPrivateAddresses: true });
+    const open = createAddressPolicy({ allowPrivateAddresses: true, deniedHosts: [] });
     expect(open.refuse('file:///etc/passwd')?.reason).toBe('not-web-scheme');
+  });
+
+  it('should refuse a denied host and its subdomains by name, and nothing that merely ends like it (§3.4)', () => {
+    const policy = createAddressPolicy({ allowPrivateAddresses: true, deniedHosts: ['archive.org'] });
+    expect(policy.refuse('https://archive.org/')?.reason).toBe('denied-host');
+    expect(policy.refuse('https://web.archive.org./web/2023/https://northmoor.example/')?.reason).toBe('denied-host');
+    expect(policy.refuse('https://notarchive.org/')).toBeUndefined();
+  });
+
+  it('should refuse a denied host on the browser route before any lookup (§3.4)', async () => {
+    const policy = createAddressPolicy({ allowPrivateAddresses: false, deniedHosts: ['r.jina.ai'] });
+    expect(await policy.vet(new URL('https://r.jina.ai/https://northmoor.example/'))).toBeUndefined();
+    expect(lookupMock).not.toHaveBeenCalled();
   });
 });

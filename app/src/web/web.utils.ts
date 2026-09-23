@@ -442,6 +442,9 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     })
     .with({ kind: 'url-refused', reason: 'not-web-scheme' }, ({ url }) => `${url} is not an http or https page`)
     .with({ kind: 'url-refused', reason: 'not-public-host' }, ({ url }) => `${url} is not on the public web`)
+    .with({ kind: 'url-refused', reason: 'denied-host' }, ({ url }) => {
+      return `${url} is on a host this deployment has closed to its agents, so no web tool reads it`;
+    })
     .exhaustive();
 }
 
