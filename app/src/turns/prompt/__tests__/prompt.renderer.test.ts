@@ -18,6 +18,7 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 import { PromptRenderer } from '../prompt.renderer.ts';
+import { DateLineSection } from '../sections/date-line.section.ts';
 import { EarlierActionsSection } from '../sections/earlier-actions.section.ts';
 import { MemoriesSection } from '../sections/memories.section.ts';
 import { OpenWorkSection } from '../sections/open-work.section.ts';
@@ -35,6 +36,7 @@ const PROFILE = {
 
 describe('PromptRenderer', () => {
   let agentRegistry: MockedInstance<AgentRegistry>;
+  let dateLineSection: MockedInstance<DateLineSection>;
   let earlierActionsSection: MockedInstance<EarlierActionsSection>;
   let mailRegistry: MockedInstance<MailRegistry>;
   let memoriesSection: MockedInstance<MemoriesSection>;
@@ -50,6 +52,8 @@ describe('PromptRenderer', () => {
   beforeEach(async () => {
     agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.settingsFor.mockReturnValue(undefined);
+    dateLineSection = MockFactory.createMock(DateLineSection);
+    dateLineSection.render.mockReturnValue('## Date');
     earlierActionsSection = MockFactory.createMock(EarlierActionsSection);
     earlierActionsSection.render.mockResolvedValue(undefined);
     mailRegistry = MockFactory.createMock(MailRegistry);
@@ -78,6 +82,7 @@ describe('PromptRenderer', () => {
         TextFormatter,
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ConfigService, useValue: createConfigServiceMock() },
+        { provide: DateLineSection, useValue: dateLineSection },
         { provide: EarlierActionsSection, useValue: earlierActionsSection },
         { provide: MailRegistry, useValue: mailRegistry },
         { provide: MemoriesSection, useValue: memoriesSection },
@@ -100,7 +105,7 @@ describe('PromptRenderer', () => {
   };
 
   const renderTail = async (windowReachesBackTo: Date | undefined = undefined) => {
-    return (await renderParts(windowReachesBackTo)).tail ?? '';
+    return (await renderParts(windowReachesBackTo)).tail;
   };
 
   it('should include the behavioral baseline without an optional personality', async () => {
@@ -148,9 +153,9 @@ describe('PromptRenderer', () => {
     expect(rosterService.nameOf).toHaveBeenCalledWith('channel-mail', 'mira');
   });
 
-  it('should carry the directories in the stable half and no clock or host state in either (§3.8)', async () => {
+  it('should carry the directories in the stable half and no time of day or host state in either (§3.8)', async () => {
     toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['workspace', 'read'] }]);
-    const { stable, tail = '' } = await renderParts();
+    const { stable, tail } = await renderParts();
     expect(stable).toContain('share one directory');
     expect(tail).not.toContain('share one directory');
     expect(`${stable}\n${tail}`).not.toMatch(/\bgit\b|\bbranch\b|\bcommit\b|\d{4}-\d{2}-\d{2}/u);
@@ -166,6 +171,8 @@ describe('PromptRenderer', () => {
       .toBe(`- handing-work-to-a-peer: How to hand work over.
 
 [the framework's notes as this turn starts; not a post]
+
+## Date
 
 ## Memories
 
@@ -185,6 +192,7 @@ describe('PromptRenderer', () => {
     skillsService.renderManifest.mockReturnValue('- triage: Investigate a problem.');
     openWorkSection.render.mockResolvedValue('## Open work\n\nNo work is open in this channel.');
     const initial = await renderParts();
+    dateLineSection.render.mockReturnValue('## Date\n\nToday is Tuesday, September 22, 2026.');
     memoriesSection.render.mockResolvedValue('## Memories');
     earlierActionsSection.render.mockResolvedValue('## Earlier in this channel');
     peersSection.render.mockResolvedValue('## Peers');
@@ -194,23 +202,25 @@ describe('PromptRenderer', () => {
     const updated = await renderParts(new Date(1000));
     expect(updated.stable).toBe(initial.stable);
     expect(updated.tail).not.toBe(initial.tail);
-    for (const heading of ['## Memories', '## Earlier in this channel', '## Peers', '## Open work']) {
+    for (const heading of ['## Date', '## Memories', '## Earlier in this channel', '## Peers', '## Open work']) {
       expect(updated.stable).not.toContain(heading);
       expect(updated.tail).toContain(heading);
     }
   });
 
-  it('should render no tail when no section has anything to say', async () => {
-    expect((await renderParts()).tail).toBeUndefined();
-    expect(await render()).toBe((await renderParts()).stable);
+  it('should render the tail with the date alone when no other section has anything to say (§3.8)', async () => {
+    const { stable, tail } = await renderParts();
+    expect(tail).toBe("[the framework's notes as this turn starts; not a post]\n\n## Date");
+    expect(await render()).toBe(`${stable}\n\n${tail}`);
   });
 
-  it('should place the earlier actions after the memories and before peers, and open work last (§3.8)', async () => {
+  it('should place the date first, the earlier actions after the memories and before peers, and open work last (§3.8)', async () => {
     memoriesSection.render.mockResolvedValue('## Memories');
     earlierActionsSection.render.mockResolvedValue('## Earlier in this channel');
     peersSection.render.mockResolvedValue('## Peers');
     openWorkSection.render.mockResolvedValue('## Open work');
     const tail = await renderTail(new Date(1000));
+    expect(tail.indexOf('## Date')).toBeLessThan(tail.indexOf('## Memories'));
     expect(tail.indexOf('## Memories')).toBeLessThan(tail.indexOf('## Earlier in this channel'));
     expect(tail.indexOf('## Earlier in this channel')).toBeLessThan(tail.indexOf('## Peers'));
     expect(tail.indexOf('## Peers')).toBeLessThan(tail.indexOf('## Open work'));

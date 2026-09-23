@@ -15,6 +15,7 @@ import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { renderBaselineSection } from './baseline/baseline.section.ts';
 import { renderPreambleSection } from './preamble/preamble.section.ts';
 import { TAIL_OPENING_LINE } from './prompt.constants.ts';
+import { DateLineSection } from './sections/date-line.section.ts';
 import { EarlierActionsSection } from './sections/earlier-actions.section.ts';
 import { MemoriesSection } from './sections/memories.section.ts';
 import { OpenWorkSection } from './sections/open-work.section.ts';
@@ -36,6 +37,7 @@ export class PromptRenderer {
   constructor(
     private readonly agentRegistry: AgentRegistry,
     configService: ConfigService,
+    private readonly dateLineSection: DateLineSection,
     private readonly earlierActionsSection: EarlierActionsSection,
     private readonly mailRegistry: MailRegistry,
     private readonly memoriesSection: MemoriesSection,
@@ -57,7 +59,7 @@ export class PromptRenderer {
       ...input,
       windowReachesBackTo: this.windowService.reachesBackTo(input.profile.username, input.channelId)
     });
-    return tail === undefined ? stable : `${stable}\n\n${tail}`;
+    return `${stable}\n\n${tail}`;
   }
 
   /** §3.8 — `stable` precedes the window and `tail` follows it, so a section whose text can change between turns goes in the tail */
@@ -71,6 +73,7 @@ export class PromptRenderer {
       renderSkillsSection(stableInput)
     ].filter((section) => section !== undefined);
     const tail = [
+      this.dateLineSection.render(),
       await this.memoriesSection.render(input),
       await this.earlierActionsSection.render(input),
       await this.peersSection.render(input),
@@ -78,7 +81,7 @@ export class PromptRenderer {
     ].filter((section) => section !== undefined);
     return {
       stable: this.textFormatter.formatParagraphs(stable, {}),
-      tail: tail.length === 0 ? undefined : this.textFormatter.formatParagraphs([TAIL_OPENING_LINE, ...tail], {})
+      tail: this.textFormatter.formatParagraphs([TAIL_OPENING_LINE, ...tail], {})
     };
   }
 
