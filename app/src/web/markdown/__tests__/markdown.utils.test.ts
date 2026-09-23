@@ -127,6 +127,17 @@ describe('pageToMarkdown with Cloudflare-cloaked addresses (§3.4)', () => {
     expect(pageToMarkdown(html, PAGE_URL)).toContain('| Duval, P. | duval@northmoor.example |');
   });
 
+  it('should leave an address as written in its link, where a model copies it from', () => {
+    const cloaked = cloakEmail('p_duval@northmoor.example');
+    const html =
+      `<a href="/cdn-cgi/l/email-protection#${cloaked}">Email</a> ` +
+      '<a href="mailto:p_duval@northmoor.example">Write</a> <a href="/people/p_duval">Profile</a>';
+    expect(pageToMarkdown(html, PAGE_URL)).toBe(
+      '[Email](mailto:p_duval@northmoor.example) [Write](mailto:p_duval@northmoor.example) ' +
+        '[Profile](https://northmoor.example/people/p%5Fduval)'
+    );
+  });
+
   it('should leave a link it cannot decode as it was served', () => {
     const html = '<a href="/cdn-cgi/l/email-protection#zz">[email&#160;protected]</a>';
     const markdown = pageToMarkdown(html, PAGE_URL);

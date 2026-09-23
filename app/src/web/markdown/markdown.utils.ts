@@ -11,9 +11,18 @@ const DOCTYPE = /^\s*<!DOCTYPE[^>]*>/i;
 
 const BASE_HREF = /<base\b[^>]*\bhref\s*=\s*["']([^"']+)["']/i;
 
-/** node-html-markdown's own escaping of a link target, so a resolved address renders as an authored one does */
+const MAILTO = /^mailto:/i;
+
+/**
+ * node-html-markdown's own escaping of a link target, so a resolved address renders as an authored
+ * one does. An email address is left as its owner writes it, since `first%5Flast@` is what a model
+ * would copy into a record (§3.4): only the parentheses that would end the link are escaped.
+ */
 function encodeHref(href: string): string {
-  return href.replaceAll('(', '%28').replaceAll(')', '%29').replaceAll('_', '%5F').replaceAll('*', '%2A');
+  const parenthesesEscaped = href.replaceAll('(', '%28').replaceAll(')', '%29');
+  return MAILTO.test(parenthesesEscaped)
+    ? parenthesesEscaped
+    : parenthesesEscaped.replaceAll('_', '%5F').replaceAll('*', '%2A');
 }
 
 /** absolute as written, resolved when relative, and as authored when it will not parse at all */
