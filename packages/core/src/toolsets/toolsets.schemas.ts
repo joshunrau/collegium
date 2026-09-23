@@ -135,7 +135,7 @@ export const $MemorySettings = z
       .positive()
       .default(200)
       .describe(
-        'Longest description one entry may hold. Descriptions enter the system prompt every turn, so this bounds that cost.'
+        'Longest description one entry may hold. Every description is listed after the channel window on every turn (§3.8), so this bounds that cost.'
       ),
     maxEntries: z
       .number()
