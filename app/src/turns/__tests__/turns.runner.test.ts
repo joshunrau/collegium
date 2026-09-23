@@ -123,9 +123,9 @@ describe('TurnRunner', () => {
 
   beforeEach(async () => {
     const agentRegistry = MockFactory.createMock(AgentRegistry);
-    agentRegistry.displayNameOf.mockImplementation((username: string) =>
-      username.replace(/^./u, (first) => first.toUpperCase())
-    );
+    agentRegistry.displayNameOf.mockImplementation((username: string) => {
+      return username.replace(/^./u, (first) => first.toUpperCase());
+    });
     approvalsService = MockFactory.createMock(ApprovalsService);
     approvalsService.request.mockResolvedValue(Result.ok({ byUsername: 'casey', kind: 'denied' }));
     complete = vi.fn<InferenceClient['complete']>();
