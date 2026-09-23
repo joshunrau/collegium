@@ -1,3 +1,67 @@
+## [0.0.1-beta.26](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.25...v0.0.1-beta.26) (2026-09-23)
+
+### Features
+
+- **activation:** start a colleague once the turn that addressed it ends or parks ([0be2962](https://github.com/joshunrau/collegium/commit/0be2962c51b66792d2fab1e1bd311b7aecc8bc09))
+- **approvals:** lead an ask prompt with the agent's own reason for asking ([2887b2a](https://github.com/joshunrau/collegium/commit/2887b2ae132c4d6bcb006a587ca5aa610164790e))
+- **approvals:** name the denial a re-requested call follows ([86e10f3](https://github.com/joshunrau/collegium/commit/86e10f31532c4ddf15e88c06b3b23c1897672526))
+- **approvals:** name the person behind a colleague's relay and the trigger behind a system post ([fbd95e8](https://github.com/joshunrau/collegium/commit/fbd95e8eb3b581a091442ce660de13851f4dbb7f))
+- **commands:** show whether a turn is running in /collegium queue ([a0e4637](https://github.com/joshunrau/collegium/commit/a0e463753761821a2fe5f25b9bffc12be72bc809))
+- **commands:** steer one named agent's turn, and refuse a steer that would reach several ([daee5f4](https://github.com/joshunrau/collegium/commit/daee5f4fd233dadec4a0034e1ce2182b8fc2176a))
+- **config:** bound what one turn may accumulate with a declared turnContextCeilingTokens ([19d8d4a](https://github.com/joshunrau/collegium/commit/19d8d4a863cfa872f93be412a0c949334ab6dc00))
+- **conversations:** bound each search hit and read one post whole by id ([ce3c620](https://github.com/joshunrau/collegium/commit/ce3c62048f623474d831843532baa8769dc4eddb))
+- **memory:** render a memory's written-at date beside its age when read ([bdf0d28](https://github.com/joshunrau/collegium/commit/bdf0d2814c687147943721c1b0b198cf7988c239))
+- **memory:** revise a memory in place under the reference it was written with ([a8aaf2c](https://github.com/joshunrau/collegium/commit/a8aaf2c422225d54cc7b00484da37ccb20c28558))
+- **memory:** rewrite or re-describe a memory in one step, and report its size and evictions ([351d175](https://github.com/joshunrau/collegium/commit/351d175c1b889a943ff4616ff5765f7ddb819830))
+- **shell:** let the shell user read its own workspace, and probe that at boot ([f161fb6](https://github.com/joshunrau/collegium/commit/f161fb6016e187d90ea1432bcef0e917876ab595))
+- **skills:** add round 3 of the live benchmark: delegation, mail, triggers, commands, concurrency ([ed1a27d](https://github.com/joshunrau/collegium/commit/ed1a27d567b05a16a04a62b52a5cada3adc23f7c))
+- **tools:** derive the effects line from a mutating flag rather than retryable ([a5c38e4](https://github.com/joshunrau/collegium/commit/a5c38e4a62f26f98d2f95fe4f2758d04fba823f1))
+- **turns:** answer a page that repeats one already read at another address with one line ([5ed6c24](https://github.com/joshunrau/collegium/commit/5ed6c247fa1a19b54ac84a1dcfa849686ed7a512))
+- **turns:** drop the effects line from the status post ([8913ac1](https://github.com/joshunrau/collegium/commit/8913ac1e2a275658709ff9a1df1ddb1e1892427c))
+- **turns:** give a long tool-less turn a status post, and name who stopped or killed a turn ([efacf97](https://github.com/joshunrau/collegium/commit/efacf97338ddc6e12dc23af11d39efbcb76e6f1a))
+- **turns:** redraft the preamble and baseline for identity, folding, drains, mail and triggers ([e48fdfb](https://github.com/joshunrau/collegium/commit/e48fdfb4ddcaaaef1227272d6a91bb6f1b238bfc))
+- **turns:** redraft the reply rule and fund the preamble within its budget ([e343cd5](https://github.com/joshunrau/collegium/commit/e343cd506e74be9c39b93898a3f3605bfeb70eaf))
+- **web:** choose an option in a drop-down with web::select ([c569ed1](https://github.com/joshunrau/collegium/commit/c569ed1f557390dbc28a7a526dabb682dac6cd4f))
+- **web:** find phrases in a fetched page, and read 30k characters of it by default ([48175fd](https://github.com/joshunrau/collegium/commit/48175fddc5a77512373b9b875734ab6e94b387ab))
+- **web:** leave a fetched page's navigation, header and footer out unless asked for ([6b7e09c](https://github.com/joshunrau/collegium/commit/6b7e09c3b883280b1962699bbb12e943d27f91d9))
+- **web:** let the operator close hosts to the web toolset with web.deniedHosts ([e419f25](https://github.com/joshunrau/collegium/commit/e419f2553949dac8f8ff12211adb5bfa952d4615))
+- **web:** mark a failed web call and name the page a click landed on ([df32e74](https://github.com/joshunrau/collegium/commit/df32e74ef81677cc9689a9a939c520190b9373f5))
+- **web:** read a page by window length or from its end, and say where a page ends ([f0f2b7a](https://github.com/joshunrau/collegium/commit/f0f2b7af17b606b70ac40fd233281ab0503b9480))
+- **web:** read a PDF's text layer with web::fetch ([f50deba](https://github.com/joshunrau/collegium/commit/f50debafcaa4ef6179d94464f8ce0a2c5e78ec6c))
+- **web:** read email addresses Cloudflare cloaks on a fetched page ([0acf7ad](https://github.com/joshunrau/collegium/commit/0acf7ad50c5e73d53ad97dac2b7c408938c26634))
+- **web:** report a site's refusal, a failed certificate and a missing page as what they are ([02de07c](https://github.com/joshunrau/collegium/commit/02de07ced14a34c14388add688305173518ba109))
+- **web:** retry a rate-limited fetch once when the wait fits, and say so in the result ([ca012f5](https://github.com/joshunrau/collegium/commit/ca012f5dec36f3996291d852b55d64a534dec4f5))
+- **web:** say why the browser is busy and what still works, and make the session cap a setting ([7d2fd5e](https://github.com/joshunrau/collegium/commit/7d2fd5ef4348537a9121b7f4200a41f89d512a6a))
+- **web:** ship a web::reading-websites skill an operator can grant to agents that browse ([ba22777](https://github.com/joshunrau/collegium/commit/ba22777920a88821ab278f7126749fd6795e05cc))
+- **web:** show an image on a web page as its alt text alone ([9d481b4](https://github.com/joshunrau/collegium/commit/9d481b4902dad1be7e4cdf678fbee9b8274b5bde))
+
+### Bug Fixes
+
+- **activation:** fold only a post addressing nobody, and requote the newest fragment after a fold ([7e11a30](https://github.com/joshunrau/collegium/commit/7e11a30571773e7a6554415417e5cb239984896d))
+- **approvals:** record an approval or ask prompt as the turn's own notice ([339fb3d](https://github.com/joshunrau/collegium/commit/339fb3d88873370c491951187ecc67e305f2385d))
+- **ask:** say when to omit options and when to say a list is partial ([d32af2d](https://github.com/joshunrau/collegium/commit/d32af2d287787372676e341500cef02acc12c10d))
+- **context:** charge the window for what it sends and stop replaying earlier turns' reasoning ([f7c075a](https://github.com/joshunrau/collegium/commit/f7c075ae242b718102276b0004e4bda49a7b7f62))
+- **notifications:** narrow a stall event before reading its agent, and settle lint's ordering ([a90d920](https://github.com/joshunrau/collegium/commit/a90d9200252fd95e40cc29970cb1cb1e40dd8ac1))
+- **notifications:** post a DM's interrupt and stall notices under the agent's account ([16a2940](https://github.com/joshunrau/collegium/commit/16a29403f95cc81f52e8cb2c04000dac19fabe8f))
+- **shell:** keep the first line's indentation when trimming a captured stream ([0f7b0b9](https://github.com/joshunrau/collegium/commit/0f7b0b9eb174d3ada6ab8ce85c5a9c13e1c92a37))
+- **skills:** harden the live-benchmark driver and refresh its stale tasks after run 2 ([f114303](https://github.com/joshunrau/collegium/commit/f1143035f609f8abe7e30e08345772e4f32e9589))
+- **skills:** let the mail-injection task accept a memory that carries no canary ([91b96d8](https://github.com/joshunrau/collegium/commit/91b96d8e0f66a0f0cffb22f387cca838186dde1e))
+- **skills:** refuse a blank reference at the perimeter and quote it in the trace ([e8c89c9](https://github.com/joshunrau/collegium/commit/e8c89c9676e2ddea2df214b2d68f8c34a5d865ec))
+- **skills:** rewrite the round-3 pass clauses a correct agent could not satisfy ([aefe449](https://github.com/joshunrau/collegium/commit/aefe449d6463a7725a192266c1042e8c1634b228))
+- **tools:** say what search, tasks and mail results leave out, and count what they hold ([bfc7f5e](https://github.com/joshunrau/collegium/commit/bfc7f5e2d83d6a18ad1779beabbd4e27aeb421f7))
+- **turns:** close a window ending on the agent's own turn so a drained turn starts a new message ([548098e](https://github.com/joshunrau/collegium/commit/548098e842b0ea07411c5495e8bfe007af389d0e))
+- **turns:** drop the effect detail from a call the gate did not run ([bc605f4](https://github.com/joshunrau/collegium/commit/bc605f41962335475547d5c5333f6cda7a395dbe))
+- **turns:** say in the preamble that a long search hit is cut and readable whole by id ([9a7011f](https://github.com/joshunrau/collegium/commit/9a7011fa78d53b7a8b58c2821ef96263402bd8ba))
+- **turns:** say in the preamble that text beside an ask reaches the person asked ([ce03379](https://github.com/joshunrau/collegium/commit/ce033790f955511fb5f8135747f2fcdf9b7f7c50))
+- **web:** decode character references in a fetched page's title ([35c7bd0](https://github.com/joshunrau/collegium/commit/35c7bd03ff8b7cf6ba449356ced4530a53cc7578)), references [#8217](https://github.com/joshunrau/collegium/issues/8217)
+- **web:** describe the fetch and search surfaces accurately and decode search snippets ([135d445](https://github.com/joshunrau/collegium/commit/135d445692fc190a7f2064130f8509eda8c0a1dd)), references [#x27](https://github.com/joshunrau/collegium/issues/x27)
+- **web:** keep a click on the effects line, since it can submit a form ([805c8ca](https://github.com/joshunrau/collegium/commit/805c8cad8a9e85b9e0067d6286b26509acd072ec))
+- **workspace:** count lines without the terminator and confirm the bytes as given ([be59e41](https://github.com/joshunrau/collegium/commit/be59e41db6800f5860f23eeb31a642be38766844))
+
+### Performance
+
+- **turns:** move per-turn prompt sections after the window so the provider cache reuses it ([587a525](https://github.com/joshunrau/collegium/commit/587a525f4e2dae9ee0a0087d6e73e0ee9e353e30))
+
 ## [0.0.1-beta.25](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.24...v0.0.1-beta.25) (2026-09-21)
 
 ### Features
