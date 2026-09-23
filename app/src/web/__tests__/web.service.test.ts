@@ -8,13 +8,14 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { BrowserClient } from '../browser/browser.client.ts';
 import { BrowserSession } from '../browser/browser.session.ts';
 import { FetchClient } from '../fetch/fetch.client.ts';
+import { PdfTextExtractor } from '../pdf/pdf-text.extractor.ts';
 import { MARKDOWN_CAP_CHARS, MAX_LIVE_SESSIONS } from '../web.constants.ts';
 import { refuseUnbrowsableUrl } from '../web.policy.ts';
 import { WebService } from '../web.service.ts';
 import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
 import { pageToMarkdown } from '../web.utils.ts';
 
-import type { FetchedResource } from '../fetch/fetch.types.ts';
+import type { FetchedDocument, FetchedPdf } from '../fetch/fetch.types.ts';
 import type { AddressPolicy, PageRead, RenderedCapture, WebFailure } from '../web.types.ts';
 
 /** the strict scheme rule, with the resolved half scripted per test */
@@ -72,7 +73,7 @@ const rendered = (over: Partial<RenderedCapture>): RenderedCapture => ({
   ...over
 });
 
-const fetched = (over: Partial<FetchedResource>): FetchedResource => ({
+const fetched = (over: Partial<FetchedDocument>): FetchedDocument => ({
   body: '<title>Faculty</title><h1>Faculty</h1>',
   kind: 'html',
   status: 200,
@@ -80,9 +81,19 @@ const fetched = (over: Partial<FetchedResource>): FetchedResource => ({
   ...over
 });
 
+const fetchedPdf = (over: Partial<FetchedPdf> = {}): FetchedPdf => ({
+  bytes: new Uint8Array(Buffer.from('%PDF-1.4')),
+  isTruncated: false,
+  kind: 'pdf',
+  status: 200,
+  url: 'https://northmoor.example/documents/handbook.pdf',
+  ...over
+});
+
 describe('WebService', () => {
   let browserClient: MockedInstance<BrowserClient>;
   let fetchClient: MockedInstance<FetchClient>;
+  let pdfTextExtractor: MockedInstance<PdfTextExtractor>;
   let session: MockedInstance<BrowserSession>;
   let webService: WebService;
 
@@ -91,6 +102,7 @@ describe('WebService', () => {
     policy.resolve.mockResolvedValue(Result.ok({ address: '203.0.113.7', family: 4 }));
     browserClient = MockFactory.createMock(BrowserClient);
     fetchClient = MockFactory.createMock(FetchClient);
+    pdfTextExtractor = MockFactory.createMock(PdfTextExtractor);
     session = MockFactory.createMock(BrowserSession);
     browserClient.createSession.mockResolvedValue(Result.ok(session as unknown as BrowserSession));
     const moduleRef = await Test.createTestingModule({
@@ -98,7 +110,8 @@ describe('WebService', () => {
         WebService,
         { provide: ADDRESS_POLICY_TOKEN, useValue: policy },
         { provide: BrowserClient, useValue: browserClient },
-        { provide: FetchClient, useValue: fetchClient }
+        { provide: FetchClient, useValue: fetchClient },
+        { provide: PdfTextExtractor, useValue: pdfTextExtractor }
       ]
     }).compile();
     webService = moduleRef.get(WebService);
@@ -280,6 +293,33 @@ describe('WebService', () => {
         markdown: '{"a":1}\n…end of page, 7 characters in all',
         title: '/api/people.json'
       });
+    });
+
+    it("should read a PDF's text layer, each page under its marker, titled by its path (§3.4)", async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetchedPdf()));
+      pdfTextExtractor.extract.mockResolvedValue(Result.ok({ pageCount: 2, pages: ['Faculty Handbook', 'Duval, P.'] }));
+      const result = await webService.fetch('https://northmoor.example/documents/handbook.pdf', FROM_THE_TOP);
+      expect(result.value?.markdown).toContain('[page 1 of 2]\nFaculty Handbook\n\n[page 2 of 2]\nDuval, P.');
+      expect(result.value?.title).toBe('/documents/handbook.pdf');
+    });
+
+    it('should refuse a PDF with no text layer as the scan it most likely is (§3.4)', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetchedPdf()));
+      pdfTextExtractor.extract.mockResolvedValue(Result.ok({ pageCount: 3, pages: ['', ' ', '\n'] }));
+      const result = await webService.fetch('https://northmoor.example/documents/handbook.pdf', FROM_THE_TOP);
+      expect(result.error).toStrictEqual({
+        kind: 'no-text',
+        pageCount: 3,
+        pagesRead: 3,
+        url: 'https://northmoor.example/documents/handbook.pdf'
+      });
+    });
+
+    it('should refuse a PDF cut at the byte cap without parsing it', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetchedPdf({ isTruncated: true })));
+      const result = await webService.fetch('https://northmoor.example/documents/handbook.pdf', FROM_THE_TOP);
+      expect(result.error).toMatchObject({ kind: 'unreadable-pdf', reason: 'too-large' });
+      expect(pdfTextExtractor.extract).not.toHaveBeenCalled();
     });
 
     it('should surface a transport failure untouched', async () => {

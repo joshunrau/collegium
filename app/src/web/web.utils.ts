@@ -3,7 +3,7 @@ import type { TranslatorConfigFactory, TranslatorConfigObject } from 'node-html-
 import { match } from 'ts-pattern';
 
 import { findPhrases, renderFoundPhrases } from './fetch/find.utils.ts';
-import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS } from './web.constants.ts';
+import { DEFAULT_WINDOW_CHARS, FETCH_BODY_CAP_BYTES, MARKDOWN_CAP_CHARS } from './web.constants.ts';
 
 import type { FormElement } from './snapshot/snapshot.types.ts';
 import type {
@@ -67,6 +67,13 @@ const BUILT_URL_CAVEAT =
   "If you built this URL rather than read it off a page, this says nothing about the page you were after; use the site's index or search to find it.";
 
 const SITE_TLS_FAULT = "a fault in the site's TLS configuration, which retrying will not fix";
+
+/** §3.4 — why nothing of a PDF was read, each a dead end the model should not retry */
+const UNREADABLE_PDFS: { readonly [Reason in WebFailure.UnreadablePdf['reason']]: string } = {
+  encrypted: 'is protected by a password, so its text cannot be read',
+  malformed: 'does not parse: it is damaged, or not a PDF despite its content type',
+  'too-large': `is larger than the ${FETCH_BODY_CAP_BYTES / 1_000_000} MB web::fetch reads, and a PDF cut short does not parse`
+};
 
 /** §3.4 — each reason in the app's words; only a fault the error itself establishes is laid on the site */
 const TLS_FAILURES: { readonly [Reason in TlsReason]: string } = {
@@ -368,6 +375,14 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     })
     .with({ kind: 'navigation' }, ({ message }) => `the page could not be loaded: ${message}`)
     .with({ kind: 'no-session' }, () => 'no page is open in this turn — navigate to a URL first')
+    .with({ kind: 'no-text' }, ({ pageCount, pagesRead, url }) => {
+      const read =
+        pagesRead === pageCount ? `any of its ${pageCount} pages` : `the first ${pagesRead} of its ${pageCount} pages`;
+      return `the PDF at ${url} has no text layer on ${read}: it is most likely scanned, and nothing here reads text from an image`;
+    })
+    .with({ kind: 'not-html' }, ({ contentType, url }) => {
+      return `${url} is ${contentType}, not a web page, so the browser does not open it — read it with web::fetch, which reads PDFs and text`;
+    })
     .with({ kind: 'not-visible' }, ({ ref }) => {
       return `⟨${ref}⟩ is on the page but CSS hides it, so no click or fill can land — reveal it first, e.g. web::hover on the menu or control that opens it`;
     })
@@ -380,8 +395,9 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     .with({ kind: 'tls' }, ({ code, reason }) => {
       return `the page could not be loaded securely: ${TLS_FAILURES[reason]} (${code})`;
     })
+    .with({ kind: 'unreadable-pdf' }, ({ reason, url }) => `the PDF at ${url} ${UNREADABLE_PDFS[reason]}`)
     .with({ kind: 'unsupported-content' }, ({ contentType, url }) => {
-      return `${url} is ${contentType}, which this tool cannot read as text`;
+      return `${url} is ${contentType}, which no web tool reads: web::fetch reads web pages, PDFs and text`;
     })
     .with({ kind: 'url-refused', reason: 'not-web-scheme' }, ({ url }) => `${url} is not an http or https page`)
     .with({ kind: 'url-refused', reason: 'not-public-host' }, ({ url }) => `${url} is not on the public web`)
@@ -397,10 +413,13 @@ export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailur
     .with({ kind: 'http-error' }, ({ status }) => `⚠️ HTTP ${status}`)
     .with({ kind: 'navigation' }, () => '⚠️ did not load')
     .with({ kind: 'no-session' }, () => '⚠️ no page open')
+    .with({ kind: 'no-text' }, () => '⚠️ no text layer')
+    .with({ kind: 'not-html' }, () => '⚠️ not HTML')
     .with({ kind: 'not-visible' }, () => '⚠️ hidden ref')
     .with({ kind: 'no-static-content' }, () => '⚠️ no static content')
     .with({ kind: 'stale-ref' }, () => '⚠️ stale ref')
     .with({ kind: 'tls' }, () => '⚠️ TLS failed')
+    .with({ kind: 'unreadable-pdf' }, () => '⚠️ unreadable PDF')
     .with({ kind: 'unsupported-content' }, () => '⚠️ not text')
     .with({ kind: 'url-refused' }, () => '⚠️ refused')
     .exhaustive();

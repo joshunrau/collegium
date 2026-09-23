@@ -83,5 +83,12 @@ export const FETCH_USER_AGENT = 'Collegium (+https://github.com/joshunrau/colleg
  */
 export const FETCH_BODY_CAP_BYTES = 10_000_000;
 
+/**
+ * The ceiling on reading one PDF's text layer, past which the read stops at the next page boundary.
+ * A few pages read in well under a second; what this catches is a document of tens of thousands of
+ * pages, whose parse would otherwise outlast the tool call and keep the process busy after it.
+ */
+export const PDF_READ_TIMEOUT_MS = 10_000;
+
 /** each hop is re-judged against the URL policy, so a chain is bounded rather than followed blindly */
 export const MAX_REDIRECTS = 5;

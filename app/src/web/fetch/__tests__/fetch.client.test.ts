@@ -117,12 +117,24 @@ describe('FetchClient', () => {
     expect(result.value).toMatchObject({ body: '<p>moved</p>', status: 302 });
   });
 
-  it('should refuse a body that is not text', async () => {
-    pinnedGetMock.mockResolvedValueOnce(respond('%PDF', { headers: { 'content-type': 'application/pdf' } }));
-    const result = await client.get('https://northmoor.example/handbook.pdf');
+  it('should refuse a body that is none of a page, a PDF or text', async () => {
+    pinnedGetMock.mockResolvedValueOnce(respond('GIF89a', { headers: { 'content-type': 'image/gif' } }));
+    const result = await client.get('https://northmoor.example/crest.gif');
     expect(result.error).toStrictEqual({
-      contentType: 'application/pdf',
+      contentType: 'image/gif',
       kind: 'unsupported-content',
+      url: 'https://northmoor.example/crest.gif'
+    });
+  });
+
+  it("should hand back a PDF's bytes as served, undecoded", async () => {
+    pinnedGetMock.mockResolvedValueOnce(respond('%PDF-1.4', { headers: { 'content-type': 'application/pdf' } }));
+    const result = await client.get('https://northmoor.example/handbook.pdf');
+    expect(result.value).toStrictEqual({
+      bytes: Buffer.from('%PDF-1.4'),
+      isTruncated: false,
+      kind: 'pdf',
+      status: 200,
       url: 'https://northmoor.example/handbook.pdf'
     });
   });
@@ -153,12 +165,12 @@ describe('FetchClient', () => {
     pinnedGetMock.mockResolvedValueOnce(
       respond(Readable.from([Buffer.from([0xe9])]), { headers: { 'content-type': 'text/plain; charset=iso-8859-1' } })
     );
-    expect((await client.get('https://northmoor.example/')).value?.body).toBe('é');
+    expect((await client.get('https://northmoor.example/')).value).toMatchObject({ body: 'é' });
   });
 
   it('should read an empty body as an empty string', async () => {
     pinnedGetMock.mockResolvedValueOnce(respond(Readable.from([]), { status: 204 }));
-    expect((await client.get('https://northmoor.example/')).value?.body).toBe('');
+    expect((await client.get('https://northmoor.example/')).value).toMatchObject({ body: '' });
   });
 
   it('should cut a body past the byte cap and say so', async () => {
@@ -169,11 +181,25 @@ describe('FetchClient', () => {
       }
     });
     pinnedGetMock.mockResolvedValueOnce(respond(endless, { headers: { 'content-type': 'text/plain' } }));
-    const body = (await client.get('https://northmoor.example/log')).value?.body;
+    const fetched = (await client.get('https://northmoor.example/log')).value;
+    const body = fetched?.kind === 'text' ? fetched.body : undefined;
     expect(body?.length).toBe(
       FETCH_BODY_CAP_BYTES + `\n…body truncated at ${FETCH_BODY_CAP_BYTES} bytes; the server was still sending`.length
     );
     expect(body?.endsWith(`…body truncated at ${FETCH_BODY_CAP_BYTES} bytes; the server was still sending`)).toBe(true);
+    expect(endless.destroyed).toBe(true);
+  });
+
+  it('should mark a PDF past the byte cap as truncated rather than cut it silently', async () => {
+    const chunk = Buffer.alloc(FETCH_BODY_CAP_BYTES / 2, 0x78);
+    const endless = new Readable({
+      read() {
+        this.push(chunk);
+      }
+    });
+    pinnedGetMock.mockResolvedValueOnce(respond(endless, { headers: { 'content-type': 'application/pdf' } }));
+    const result = await client.get('https://northmoor.example/archive.pdf');
+    expect(result.value).toMatchObject({ isTruncated: true, kind: 'pdf' });
     expect(endless.destroyed).toBe(true);
   });
 

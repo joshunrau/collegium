@@ -2,6 +2,8 @@ import * as http from 'node:http';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { createPdf } from '@/testing/factories/pdf.factory.ts';
+
 import { toMarkdown } from '../../web.utils.ts';
 import { BrowserClient } from '../browser.client.ts';
 import { CamoufoxLauncher } from '../browser.launcher.ts';
@@ -226,6 +228,11 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
         response.end(SELF_CLEARING_CHECK);
         return;
       }
+      if (request.url === '/handbook.pdf') {
+        response.writeHead(200, { 'content-type': 'application/pdf' });
+        response.end(createPdf([['Faculty Handbook']]));
+        return;
+      }
       if (request.url === '/outbound') {
         response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         response.end(`<a href="${elsewhereUrl}/">Elsewhere</a>`);
@@ -418,5 +425,14 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     const capture = (await session.navigate(`${baseUrl}/missing`)).unwrap();
     expect(capture.status).toBe(404);
     expect(toMarkdown(capture.html)).toContain('Not Found');
+  });
+
+  it('should refuse a PDF as not HTML, leaving it to web::fetch (§3.4)', async () => {
+    const result = await session.navigate(`${baseUrl}/handbook.pdf`);
+    expect(result.error).toStrictEqual({
+      contentType: 'application/pdf',
+      kind: 'not-html',
+      url: `${baseUrl}/handbook.pdf`
+    });
   });
 });

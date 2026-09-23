@@ -8,6 +8,8 @@ import { CamoufoxLauncher } from './browser/browser.launcher.ts';
 import { BrowserProcess } from './browser/browser.process.ts';
 import { PolicyProxy } from './browser/policy.proxy.ts';
 import { FetchClient } from './fetch/fetch.client.ts';
+import { UnpdfTextExtractor } from './pdf/adapters/unpdf.extractor.ts';
+import { PdfTextExtractor } from './pdf/pdf-text.extractor.ts';
 import { BraveSearchClient } from './search/brave.client.ts';
 import { SearchService } from './search/search.service.ts';
 import { createAddressPolicy } from './web.policy.ts';
@@ -25,6 +27,7 @@ import { ADDRESS_POLICY_TOKEN, SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from '.
     PolicyProxy,
     SearchService,
     WebService,
+    { provide: PdfTextExtractor, useClass: UnpdfTextExtractor },
     {
       inject: [ConfigService, LoggerFactory],
       provide: ADDRESS_POLICY_TOKEN,

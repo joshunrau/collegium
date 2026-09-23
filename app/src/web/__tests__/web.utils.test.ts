@@ -284,14 +284,25 @@ describe('renderWebFailure', () => {
     );
   });
 
-  it('should name the content type it cannot read', () => {
+  it('should name the content type nothing reads, and what can be read', () => {
     expect(
-      renderWebFailure({
-        contentType: 'application/pdf',
-        kind: 'unsupported-content',
-        url: 'https://northmoor.example/a.pdf'
-      })
-    ).toBe('https://northmoor.example/a.pdf is application/pdf, which this tool cannot read as text');
+      renderWebFailure({ contentType: 'image/png', kind: 'unsupported-content', url: 'https://northmoor.example/crest.png' })
+    ).toBe('https://northmoor.example/crest.png is image/png, which no web tool reads: web::fetch reads web pages, PDFs and text');
+  });
+
+  it("should name web::fetch as the reader of a PDF the browser will not open (§3.4)", () => {
+    expect(
+      renderWebFailure({ contentType: 'application/pdf', kind: 'not-html', url: 'https://northmoor.example/cv.pdf' })
+    ).toContain('read it with web::fetch');
+  });
+
+  it('should say a PDF without a text layer is most likely scanned, and how much of it was read (§3.4)', () => {
+    expect(
+      renderWebFailure({ kind: 'no-text', pageCount: 40, pagesRead: 12, url: 'https://northmoor.example/roster.pdf' })
+    ).toBe(
+      'the PDF at https://northmoor.example/roster.pdf has no text layer on the first 12 of its 40 pages: it is ' +
+        'most likely scanned, and nothing here reads text from an image'
+    );
   });
 
   it('should name hover as the way out of a ref CSS hides', () => {

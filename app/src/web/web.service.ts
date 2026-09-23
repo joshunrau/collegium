@@ -6,11 +6,14 @@ import { FetchClient } from './fetch/fetch.client.ts';
 import { extractTitle } from './fetch/fetch.utils.ts';
 import { stripPageChrome } from './fetch/page-chrome.utils.ts';
 import { refuseUnreadablePage } from './fetch/readability.utils.ts';
+import { PdfTextExtractor } from './pdf/pdf-text.extractor.ts';
+import { createPdfReadBudget, isWithoutTextLayer, readPdfText } from './pdf/pdf.utils.ts';
 import { MAX_LIVE_SESSIONS } from './web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
 import { capMarkdown, pageToMarkdown, readPage } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
+import type { FetchedPdf } from './fetch/fetch.types.ts';
 import type {
   AddressPolicy,
   FetchedPage,
@@ -42,7 +45,8 @@ export class WebService {
   constructor(
     @Inject(ADDRESS_POLICY_TOKEN) private readonly addressPolicy: AddressPolicy,
     private readonly browserClient: BrowserClient,
-    private readonly fetchClient: FetchClient
+    private readonly fetchClient: FetchClient,
+    private readonly pdfTextExtractor: PdfTextExtractor
   ) {}
 
   async click(
@@ -86,7 +90,9 @@ export class WebService {
       | WebFailure.HttpError
       | WebFailure.Navigation
       | WebFailure.NoStaticContent
+      | WebFailure.NoText
       | WebFailure.Tls
+      | WebFailure.UnreadablePdf
       | WebFailure.UnsupportedContent
       | WebFailure.UrlRefused
     >
@@ -94,6 +100,9 @@ export class WebService {
     const fetched = await this.fetchClient.get(url);
     if (!fetched.success) {
       return fetched;
+    }
+    if (fetched.value.kind === 'pdf') {
+      return this.readPdf(fetched.value, read);
     }
     const { body, kind, status, url: finalUrl } = fetched.value;
     if (kind === 'text') {
@@ -183,6 +192,25 @@ export class WebService {
       this.sessions.delete(turnId);
     }
     return opened;
+  }
+
+  /** §3.4 — the text layer alone, under the same windowing as a page; a cut PDF does not parse, so it is not read */
+  private async readPdf(
+    { bytes, isTruncated, status, url }: FetchedPdf,
+    read: PageRead
+  ): Promise<Result<FetchedPage, WebFailure.NoText | WebFailure.UnreadablePdf>> {
+    if (isTruncated) {
+      return Result.err({ kind: 'unreadable-pdf', reason: 'too-large', url });
+    }
+    const extracted = await this.pdfTextExtractor.extract(bytes, createPdfReadBudget());
+    if (!extracted.success) {
+      return Result.err({ kind: 'unreadable-pdf', reason: extracted.error, url });
+    }
+    const text = extracted.value;
+    if (isWithoutTextLayer(text)) {
+      return Result.err({ kind: 'no-text', pageCount: text.pageCount, pagesRead: text.pages.length, url });
+    }
+    return Result.ok({ ...readPdfText(text, read), status, title: new URL(url).pathname, url });
   }
 
   private toSnapshot<TFailure extends WebFailure>(

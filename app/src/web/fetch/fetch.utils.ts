@@ -4,6 +4,8 @@ import type { TlsReason, WebFailure } from '../web.types.ts';
 
 const HTML_TYPES: ReadonlySet<string> = new Set(['application/xhtml+xml', 'text/html']);
 
+const PDF_TYPES: ReadonlySet<string> = new Set(['application/pdf', 'application/x-pdf']);
+
 const TEXT_TYPES: ReadonlySet<string> = new Set(['application/json', 'application/xml']);
 
 const TITLE_PATTERN = /<title[^>]*>([^<]*)<\/title>/i;
@@ -38,10 +40,13 @@ function mediaTypeOf(contentType: string): string {
 }
 
 /** an absent header is read as HTML — the web's default, and what the accept header asked for first */
-export function classifyContentType(contentType: string): 'html' | 'text' | 'unsupported' {
+export function classifyContentType(contentType: string): 'html' | 'pdf' | 'text' | 'unsupported' {
   const mediaType = mediaTypeOf(contentType);
   if (mediaType === '' || HTML_TYPES.has(mediaType)) {
     return 'html';
+  }
+  if (PDF_TYPES.has(mediaType)) {
+    return 'pdf';
   }
   if (
     mediaType.startsWith('text/') ||

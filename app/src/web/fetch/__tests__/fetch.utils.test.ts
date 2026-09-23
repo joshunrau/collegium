@@ -24,7 +24,11 @@ describe('classifyContentType', () => {
     }
   );
 
-  it.each(['application/pdf', 'image/png', 'application/octet-stream'])('should refuse %s', (contentType) => {
+  it.each(['application/pdf', 'application/x-pdf'])('should read %s as a PDF', (contentType) => {
+    expect(classifyContentType(contentType)).toBe('pdf');
+  });
+
+  it.each(['image/png', 'application/octet-stream'])('should refuse %s', (contentType) => {
     expect(classifyContentType(contentType)).toBe('unsupported');
   });
 });

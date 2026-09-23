@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { SEARCH_TIMEOUT_MS } from './search/search.constants.ts';
 import { renderSearchResults } from './search/search.utils.ts';
-import { DEFAULT_WINDOW_CHARS, FETCH_TIMEOUT_MS, MARKDOWN_CAP_CHARS } from './web.constants.ts';
+import { DEFAULT_WINDOW_CHARS, FETCH_TIMEOUT_MS, MARKDOWN_CAP_CHARS, PDF_READ_TIMEOUT_MS } from './web.constants.ts';
 import { SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from './web.tokens.ts';
 import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from './web.utils.ts';
 
@@ -45,7 +45,7 @@ const $FetchArgs = z
       .int()
       .default(0)
       .describe('Where in the page to start reading, in characters; a negative value counts back from the end'),
-    url: z.url().describe('The absolute http(s) URL of a page or text resource to fetch'),
+    url: z.url().describe('The absolute http(s) URL of a page, PDF or text resource to fetch'),
     wholePage: z
       .boolean()
       .default(false)
@@ -177,7 +177,9 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         'out unless wholePage is set, and the result says how many characters that left out. A result holds the first ' +
         `${DEFAULT_WINDOW_CHARS} characters and says where to read on from. To find a field in a long page, such as ` +
         'an email, a phone number or a heading, pass find with a few phrases instead: the result is where each ' +
-        'occurs, with the text around it and an offset to read from. Each call fetches the page again.',
+        'occurs, with the text around it and an offset to read from. A PDF is read the same way, as its text layer ' +
+        'with each page under a [page N of M] marker; a scanned PDF has no text layer and says so. ' +
+        'Each call fetches the page again.',
       execute: async (args, context) => {
         const read = toPageRead(args);
         return toPageResult(
@@ -192,7 +194,7 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       parameters: $FetchArgs,
       retryable: true,
       supersedable: true,
-      timeoutMs: FETCH_TIMEOUT_MS + 5_000,
+      timeoutMs: FETCH_TIMEOUT_MS + PDF_READ_TIMEOUT_MS + 5_000,
       traceDetail: (args) => {
         const scope = args.wholePage ? ' (whole page)' : '';
         if (args.find !== undefined) {
@@ -233,7 +235,9 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
       traceDetail: (args) => `⟨${args.ref}⟩`
     },
     navigate: {
-      description: `${DESCRIPTION_PREAMBLE}Open a URL in this turn's page, replacing whatever it showed.`,
+      description:
+        `${DESCRIPTION_PREAMBLE}Open a URL in this turn's page, replacing whatever it showed. ` +
+        'A PDF or a text file is not opened here; read it with fetch.',
       execute: async (args, context) => {
         return toSnapshotResult(await context.web.navigate(context.turn.turnId, args.url), httpStatusOutcome);
       },

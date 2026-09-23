@@ -24,9 +24,9 @@ describe('classifyNavigationError', () => {
   });
 
   it('should pass a message it does not know through unchanged', () => {
-    expect(classifyNavigationError('not an HTML page: application/pdf')).toStrictEqual({
+    expect(classifyNavigationError('page.goto: Navigation interrupted by another navigation')).toStrictEqual({
       kind: 'navigation',
-      message: 'not an HTML page: application/pdf'
+      message: 'page.goto: Navigation interrupted by another navigation'
     });
   });
 

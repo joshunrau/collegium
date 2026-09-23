@@ -1,6 +1,7 @@
 import { Result } from '@collegium/core/utils';
 import type { BrowserContext, Locator, Page, Response } from 'playwright-core';
 
+import { classifyContentType } from '../fetch/fetch.utils.ts';
 import { waitForDomSettled } from '../settle/settle.script.ts';
 import { captureSnapshot } from '../snapshot/snapshot.script.ts';
 import {
@@ -83,12 +84,19 @@ export class BrowserSession {
     return this.act(ref, (locator) => locator.hover({ timeout: ACTION_TIMEOUT_MS }));
   }
 
-  async navigate(url: string): Promise<Result<RenderedCapture, LoadFailure>> {
+  /** §3.4 — a PDF or a text file is web::fetch's to read, so the refusal names it; anything else neither tool reads */
+  async navigate(
+    url: string
+  ): Promise<Result<RenderedCapture, LoadFailure | WebFailure.NotHtml | WebFailure.UnsupportedContent>> {
     try {
       const response = await this.page.goto(url, { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'load' });
       const contentType = (await response?.headerValue('content-type')) ?? '';
-      if (contentType && !contentType.includes('text/html')) {
-        return Result.err({ kind: 'navigation', message: `not an HTML page: ${contentType}` });
+      const kind = classifyContentType(contentType);
+      if (kind === 'unsupported') {
+        return Result.err({ contentType, kind: 'unsupported-content', url: response?.url() ?? url });
+      }
+      if (kind !== 'html') {
+        return Result.err({ contentType, kind: 'not-html', url: response?.url() ?? url });
       }
     } catch (error) {
       return Result.err(this.asFailure(error));

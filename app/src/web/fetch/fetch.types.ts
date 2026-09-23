@@ -1,13 +1,26 @@
 import type { Readable } from 'node:stream';
 
-/** what one plain fetch hands back before conversion — the transport's raw view of the resource */
-export type FetchedResource = {
-  readonly body: string;
-  /** whether the body converts as HTML or is handed over as the text it already is */
-  readonly kind: 'html' | 'text';
+type FetchedResponse = {
   readonly status: number;
   /** after redirects — not necessarily what was asked for */
   readonly url: string;
+};
+
+/** what one plain fetch hands back before conversion — the transport's raw view of the resource */
+export type FetchedResource = FetchedDocument | FetchedPdf;
+
+/** a body read as text, cut at the byte cap with a marker saying so */
+export type FetchedDocument = FetchedResponse & {
+  readonly body: string;
+  /** whether the body converts as HTML or is handed over as the text it already is */
+  readonly kind: 'html' | 'text';
+};
+
+/** a PDF's bytes as served; one past the byte cap holds its first part alone */
+export type FetchedPdf = FetchedResponse & {
+  readonly bytes: Uint8Array;
+  readonly isTruncated: boolean;
+  readonly kind: 'pdf';
 };
 
 /** one response over a connection pinned to a vetted address, its body already decoded */

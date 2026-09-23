@@ -11,7 +11,8 @@ import { pinnedGet } from './pinned-request.utils.ts';
 import type { AddressPolicy, WebFailure } from '../web.types.ts';
 import type { FetchedResource, PinnedResponse } from './fetch.types.ts';
 
-const ACCEPT = 'text/html, application/xhtml+xml, text/*;q=0.9, application/json;q=0.8, */*;q=0.1';
+const ACCEPT =
+  'text/html, application/xhtml+xml, text/*;q=0.9, application/json;q=0.8, application/pdf;q=0.8, */*;q=0.1';
 
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
@@ -42,11 +43,19 @@ export class FetchClient {
       response.body.destroy();
       return Result.err({ contentType, kind: 'unsupported-content', url: finalUrl });
     }
-    const body = await this.readBody(response.body, charsetOf(contentType));
-    if (!body.success) {
-      return body;
+    const read = await this.readBody(response.body);
+    if (!read.success) {
+      return read;
     }
-    return Result.ok({ body: body.value, kind, status: response.status, url: finalUrl });
+    const { bytes, isTruncated } = read.value;
+    if (kind === 'pdf') {
+      return Result.ok({ bytes, isTruncated, kind, status: response.status, url: finalUrl });
+    }
+    const text = toDecoder(charsetOf(contentType)).decode(bytes);
+    const body = isTruncated
+      ? `${text}\n…body truncated at ${FETCH_BODY_CAP_BYTES} bytes; the server was still sending`
+      : text;
+    return Result.ok({ body, kind, status: response.status, url: finalUrl });
   }
 
   private async follow(
@@ -91,27 +100,23 @@ export class FetchClient {
     return Result.err({ kind: 'navigation', message: `more than ${MAX_REDIRECTS} redirects from ${url}` });
   }
 
-  /** past the cap the stream is destroyed, not drained — the cut is marked so the model knows it holds a part */
-  private async readBody(body: Readable, charset: string): Promise<Result<string, WebFailure.Navigation>> {
-    const decoder = toDecoder(charset);
-    const chunks: string[] = [];
+  /** past the cap the stream is destroyed, not drained — the cut is reported so the model knows it holds a part */
+  private async readBody(
+    body: Readable
+  ): Promise<Result<{ bytes: Uint8Array; isTruncated: boolean }, WebFailure.Navigation>> {
+    const chunks: Uint8Array[] = [];
     let received = 0;
     try {
       for await (const chunk of body) {
-        const bytes = new Uint8Array(chunk);
+        const bytes = new Uint8Array(chunk).slice();
         received += bytes.byteLength;
-        chunks.push(decoder.decode(bytes, { stream: true }));
+        chunks.push(bytes);
         if (received >= FETCH_BODY_CAP_BYTES) {
           body.destroy();
-          chunks.push(
-            decoder.decode(),
-            `\n…body truncated at ${FETCH_BODY_CAP_BYTES} bytes; the server was still sending`
-          );
-          return Result.ok(chunks.join(''));
+          return Result.ok({ bytes: Buffer.concat(chunks), isTruncated: true });
         }
       }
-      chunks.push(decoder.decode());
-      return Result.ok(chunks.join(''));
+      return Result.ok({ bytes: Buffer.concat(chunks), isTruncated: false });
     } catch (error) {
       return Result.err({ kind: 'navigation', message: describeFetchError(error) });
     }

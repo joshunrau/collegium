@@ -1,5 +1,6 @@
 import type { Result } from '@collegium/core/utils';
 
+import type { PdfUnreadableReason } from './pdf/pdf.types.ts';
 import type { FormElement } from './snapshot/snapshot.types.ts';
 
 /** what one browser action hands back before conversion — the session's raw view of the page */
@@ -116,6 +117,19 @@ export declare namespace WebFailure {
   type NoSession = {
     kind: 'no-session';
   };
+  /** the address serves a PDF or text, which the browser does not open and web::fetch reads (§3.4) */
+  type NotHtml = {
+    contentType: string;
+    kind: 'not-html';
+    url: string;
+  };
+  /** no page of the PDF that was read carries a text layer — a scan, most likely, and nothing here reads an image (§3.4) */
+  type NoText = {
+    kind: 'no-text';
+    pageCount: number;
+    pagesRead: number;
+    url: string;
+  };
   /** the ref is on the page but CSS hides it, so no click or fill can land until it is revealed */
   type NotVisible = {
     kind: 'not-visible';
@@ -143,7 +157,13 @@ export declare namespace WebFailure {
     kind: 'unreachable';
     message: string;
   };
-  /** the body is not text — a PDF, an image — and nothing here reads it (§3.4) */
+  /** served as a PDF, and nothing of it could be read; one past the body cap is not parsed, since a cut PDF does not */
+  type UnreadablePdf = {
+    kind: 'unreadable-pdf';
+    reason: 'too-large' | PdfUnreadableReason;
+    url: string;
+  };
+  /** the body is none of a page, a PDF or text — an image, an archive — and nothing here reads it (§3.4) */
   type UnsupportedContent = {
     contentType: string;
     kind: 'unsupported-content';
@@ -163,10 +183,13 @@ export declare namespace WebFailure {
     | Navigation
     | NoSession
     | NoStaticContent
+    | NoText
+    | NotHtml
     | NotVisible
     | StaleRef
     | Tls
     | Unreachable
+    | UnreadablePdf
     | UnsupportedContent
     | UrlRefused;
 }
