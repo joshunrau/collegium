@@ -9,6 +9,7 @@ export function buildStablePromptInput(overrides: Partial<StablePromptInput> = {
     foldLimit: 3,
     granted: [],
     mailbox: undefined,
+    memoryCaps: undefined,
     presentCommands: [],
     profile: buildAgentProfile(),
     skillsManifest: '',

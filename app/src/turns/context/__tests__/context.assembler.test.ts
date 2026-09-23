@@ -206,7 +206,7 @@ describe('ContextAssembler across two turns', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: new Date('2026-09-21T12:00:00Z'), toFake: ['Date'] });
     const agentRegistry = MockFactory.createMock(AgentRegistry);
-    agentRegistry.settingsFor.mockReturnValue(undefined);
+    agentRegistry.settingsFor.mockReturnValue({ maxBodyChars: 16_000, maxDescriptionChars: 200, maxEntries: 50 });
     const mailRegistry = MockFactory.createMock(MailRegistry);
     mailRegistry.mailboxFor.mockReturnValue(undefined);
     memoryService = MockFactory.createMock(MemoryService);
