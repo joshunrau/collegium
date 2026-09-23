@@ -29,6 +29,10 @@ type ProvisionedCredential = {
 };
 
 type Provisioning = {
+  /** the display name config declares for the agent */
+  agentDisplayName: string;
+  /** the name Mattermost shows for a bot account */
+  displayNameOf: (username: string) => Promise<string | undefined>;
   /** the username a minted token actually authenticates as */
   identify: (token: string) => Promise<string>;
   isMainChannelMember: (username: string) => Promise<boolean>;
@@ -56,6 +60,7 @@ export function setupProvisioning(options: { runs: number }): Provisioning {
   const databaseTemplate = inject('databaseTemplate');
   const workspaceId = createWorkspaceId();
   const usernames = { agent: `${workspaceId}-vera`, systemBot: `${workspaceId}-orch` };
+  const agentDisplayName = 'Vera';
 
   const runs: ProvisionedCredential[][] = [];
   let adminClient: Client4;
@@ -72,6 +77,7 @@ export function setupProvisioning(options: { runs: number }): Provisioning {
       JSON.stringify({
         agents: {
           [usernames.agent]: {
+            displayName: agentDisplayName,
             expertise: 'provisioning',
             model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
             systemPrompt: 'You are Vera.',
@@ -123,6 +129,12 @@ export function setupProvisioning(options: { runs: number }): Provisioning {
   });
 
   return {
+    agentDisplayName,
+    displayNameOf: async (username) => {
+      const user = await adminClient.getUserByUsername(username);
+      const bot = await adminClient.getBot(user.id);
+      return bot.display_name;
+    },
     identify: async (token) => {
       const client = new Client4();
       client.setUrl(cluster.url);

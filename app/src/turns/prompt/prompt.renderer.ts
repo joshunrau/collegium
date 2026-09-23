@@ -73,7 +73,7 @@ export class PromptRenderer {
     const tail = [
       await this.memoriesSection.render(input),
       await this.earlierActionsSection.render(input),
-      this.peersSection.render(input),
+      await this.peersSection.render(input),
       await this.openWorkSection.render(input)
     ].filter((section) => section !== undefined);
     return {

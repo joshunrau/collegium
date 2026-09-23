@@ -42,6 +42,7 @@ import { RuntimeService } from '../runtime.service.ts';
 
 const DEFINITION: AgentDefinition = {
   contextBudgetTokens: 8000,
+  displayName: 'Mira',
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   personality: undefined,
@@ -124,6 +125,7 @@ describe('RuntimeService', () => {
     mira = {
       actionBudget: 25,
       contextBudgetTokens: 1000,
+      displayName: 'Mira',
       expertise: 'testing',
       model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
       personality: undefined,

@@ -21,6 +21,10 @@ describe('Provisioning', () => {
     await expect(provisioning.identify(agent?.token ?? '')).resolves.toBe(provisioning.usernames.agent);
   });
 
+  it('should show an agent’s bot under the display name config declares (§3.1)', async () => {
+    await expect(provisioning.displayNameOf(provisioning.usernames.agent)).resolves.toBe(provisioning.agentDisplayName);
+  });
+
   it('should join every account it creates to the main channel', async () => {
     await expect(provisioning.isMainChannelMember(provisioning.usernames.agent)).resolves.toBe(true);
     await expect(provisioning.isMainChannelMember(provisioning.usernames.systemBot)).resolves.toBe(true);

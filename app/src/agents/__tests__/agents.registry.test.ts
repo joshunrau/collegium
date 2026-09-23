@@ -19,6 +19,7 @@ import type { AgentProfile } from '../agents.types.ts';
 const MIRA: AgentDefinition = {
   actionBudget: 120,
   contextBudgetTokens: 8000,
+  displayName: 'Mira Turner',
   expertise: 'code review',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   schedules: {},
@@ -32,6 +33,7 @@ const MIRA: AgentDefinition = {
 
 const TESS: AgentDefinition = {
   contextBudgetTokens: 8000,
+  displayName: 'Tess',
   expertise: 'scheduling',
   model: { name: 'deepseek-v4-pro', provider: 'deepseek' },
   schedules: {},
@@ -90,6 +92,11 @@ describe('AgentRegistry', () => {
   it('should give an agent the action budget it states, and the deployment’s to one that does not (§5.3)', () => {
     expect(mira.actionBudget).toBe(120);
     expect(agentRegistry.get('tess')?.actionBudget).toBe(25);
+  });
+
+  it('should name an agent by its display name, and one config no longer declares by its username capitalised (§3.1)', () => {
+    expect(agentRegistry.displayNameOf('mira')).toBe('Mira Turner');
+    expect(agentRegistry.displayNameOf('dana')).toBe('Dana');
   });
 
   it('should report an unknown username as absent', () => {

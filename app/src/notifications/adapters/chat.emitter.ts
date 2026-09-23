@@ -80,9 +80,9 @@ export class ChatEmitter extends NotificationsEmitter {
           const waiting = postsWaiting ? ` A post addressing \`${agentUsername}\` is waiting behind this turn.` : '';
           return `${held}${shown}${waiting}`;
         })
-        // §4.5 — the refusal carries its remedy: a handle inside code is no mention in Mattermost's grammar
+        // §4.5 — the refusal carries its remedy
         .with({ kind: 'multi-mention-refusal' }, () => {
-          return '⚠️ Address one agent per message. To name an agent without addressing it, put its handle in backticks: `@username`.';
+          return '⚠️ Address one agent per message. To name an agent without addressing it, write its name without the @.';
         })
         .with({ kind: 'offline' }, (event) => {
           return event.reason === 'crash'

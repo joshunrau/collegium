@@ -110,7 +110,7 @@ describe('ChatEmitter', () => {
     await chatEmitter.notify({ channelId: 'channel-1', kind: 'multi-mention-refusal' });
     expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
       'channel-1',
-      '⚠️ Address one agent per message. To name an agent without addressing it, put its handle in backticks: `@username`.'
+      '⚠️ Address one agent per message. To name an agent without addressing it, write its name without the @.'
     );
     expect(chatGateway.postAsSystem).not.toHaveBeenCalled();
   });

@@ -104,6 +104,11 @@ describe('$AgentDeclaration', () => {
   it('should reject a toolSettings key outside the namespace grammar', () => {
     expect($AgentDeclaration.safeParse({ ...declaration([]), toolSettings: { 'no-good': {} } }).success).toBe(false);
   });
+
+  it('should reject a display name holding an @, which would be a mention wherever it is copied (§3.1)', () => {
+    expect($AgentDeclaration.safeParse({ ...declaration([]), displayName: 'Mira Turner' }).success).toBe(true);
+    expect($AgentDeclaration.safeParse({ ...declaration([]), displayName: '@mira' }).success).toBe(false);
+  });
 });
 
 describe('$Config', () => {
@@ -139,6 +144,15 @@ describe('$Config', () => {
       contextBudgetTokens: 12_000,
       model: { name: 'deepseek-v4-pro', provider: 'deepseek' }
     });
+  });
+
+  it('should name an agent by its declared display name, else by its username capitalised (§3.1)', () => {
+    const parsed = $Config.parse({
+      ...config,
+      agents: { mira: declaration([]), tess: { ...declaration([]), displayName: 'Tess Okafor' } }
+    });
+    expect(parsed.agents.mira?.displayName).toBe('Mira');
+    expect(parsed.agents.tess?.displayName).toBe('Tess Okafor');
   });
 
   it('should resolve an agent’s personality from agentDefaults and let the agent override it', () => {

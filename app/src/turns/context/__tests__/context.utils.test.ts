@@ -1,9 +1,12 @@
+import { defaultDisplayNameOf } from '@collegium/config';
 import { describe, expect, it } from 'vitest';
 
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import type { AuthorKind } from '@/prisma/prisma.types.ts';
 
 import { containsToolCallTranscript, estimateWindowTokens, toCompletionMessages } from '../context.utils.ts';
+
+import type { WindowReader } from '../context.utils.ts';
 
 const event = (payload: PrismaJson.TurnEventPayload, turnId = 'turn-1'): WindowEntry => ({
   event: { createdAt: new Date(0), id: 'event-1', kind: payload.kind, payload, sequence: 0, turnId },
@@ -13,7 +16,9 @@ const event = (payload: PrismaJson.TurnEventPayload, turnId = 'turn-1'): WindowE
 /** the turn being assembled for; the fixture events belong to an earlier one unless a test says otherwise */
 const CURRENT_TURN_ID = 'turn-2';
 
-const render = (entries: WindowEntry[]) => toCompletionMessages(entries, 'mira', CURRENT_TURN_ID);
+const READER: WindowReader = { displayNameOf: defaultDisplayNameOf, username: 'mira' };
+
+const render = (entries: WindowEntry[]) => toCompletionMessages(entries, READER, CURRENT_TURN_ID);
 
 const post = (
   authorUsername: string,
@@ -43,11 +48,11 @@ const replayOf = (entries: WindowEntry[]) => {
 };
 
 describe('toCompletionMessages', () => {
-  it('should name a post’s author as a person, an agent or the system, and speak the agent’s own posts as the assistant (§3.8)', () => {
+  it('should name a post’s author as a person, an agent by its display name or the system, and speak the agent’s own posts as the assistant (§3.8)', () => {
     const agentPost = post('tess', 'I can take it', null, 'agent');
     const systemPost = post('collegium', '[trigger] mail', null, 'system');
     expect(render([agentPost, systemPost])).toStrictEqual([
-      { content: 'tess (agent): I can take it', role: 'user' },
+      { content: 'Tess (agent): I can take it', role: 'user' },
       { content: 'collegium (system): [trigger] mail', role: 'user' }
     ]);
     expect(render([post('casey', 'hello @mira'), post('mira', 'on it'), post('casey', 'thanks')])).toStrictEqual([
@@ -325,9 +330,9 @@ describe('estimateWindowTokens', () => {
   const result = event({ callId: 'c1', kind: 'tool_result', output: 'x'.repeat(40_000), toolName: ['memory', 'read'] });
 
   it("should charge a call its text, name and arguments beside its result's replay line, never its reasoning (§3.8, §3.12)", () => {
-    const cost = estimateWindowTokens([call(), result], 'mira');
+    const cost = estimateWindowTokens([call(), result], READER);
     expect(cost).toBeLessThan(60);
-    expect(estimateWindowTokens([call('y'.repeat(40_000)), result], 'mira')).toBe(cost);
+    expect(estimateWindowTokens([call('y'.repeat(40_000)), result], READER)).toBe(cost);
   });
 
   it('should charge a written memory its one line, not its body', () => {
@@ -338,13 +343,13 @@ describe('estimateWindowTokens', () => {
       reference: 'memory-1',
       supersededDescriptions: []
     });
-    expect(estimateWindowTokens([record], 'mira')).toBe(Math.ceil('[recorded: casey on formatting]'.length / 4));
+    expect(estimateWindowTokens([record], READER)).toBe(Math.ceil('[recorded: casey on formatting]'.length / 4));
   });
 
   it("should charge a post's attachment lines as well as its text", () => {
     const files = [{ id: 'file-1', mimeType: 'application/pdf', name: 'q3-report.pdf', size: 421888 }];
-    expect(estimateWindowTokens([post('casey', 'hi', { files })], 'mira')).toBeGreaterThan(
-      estimateWindowTokens([post('casey', 'hi')], 'mira')
+    expect(estimateWindowTokens([post('casey', 'hi', { files })], READER)).toBeGreaterThan(
+      estimateWindowTokens([post('casey', 'hi')], READER)
     );
   });
 });

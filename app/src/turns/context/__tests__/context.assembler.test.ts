@@ -30,6 +30,7 @@ import { ContextAssembler } from '../context.assembler.ts';
 const PROFILE: AgentProfile = {
   actionBudget: 25,
   contextBudgetTokens: 1000,
+  displayName: 'Mira',
   expertise: 'testing',
   model: { name: 'deepseek-v4-flash', provider: 'deepseek' },
   personality: undefined,
@@ -83,9 +84,12 @@ describe('ContextAssembler', () => {
     toolRegistry.describeFor.mockReturnValue([{ description: 'Load a skill.', name: 'load_skill', parameters: {} }]);
     windowService = MockFactory.createMock(WindowService);
     windowService.build.mockResolvedValue({ entries: [], oldestAt: undefined });
+    const agentRegistry = MockFactory.createMock(AgentRegistry);
+    agentRegistry.displayNameOf.mockImplementation((username) => (username === 'tess' ? 'Tess Okafor' : username));
     const moduleRef = await Test.createTestingModule({
       providers: [
         ContextAssembler,
+        { provide: AgentRegistry, useValue: agentRegistry },
         { provide: PromptRenderer, useValue: promptRenderer },
         { provide: ToolRegistry, useValue: toolRegistry },
         { provide: WindowService, useValue: windowService }
@@ -145,7 +149,7 @@ describe('ContextAssembler', () => {
         post('mira', 'on it', 2000),
         event({ content: 'checking', kind: 'assistant_message', toolCalls: [] }, 3000),
         event({ callId: 'c1', kind: 'tool_result', output: 'the body', toolName: 'read_memory' }, 4000),
-        post('casey', 'thanks', 5000)
+        post('tess', 'thanks', 5000)
       ],
       oldestAt: new Date(1000)
     });
@@ -154,7 +158,7 @@ describe('ContextAssembler', () => {
       { content: 'casey (person): hello @mira', role: 'user' },
       { content: 'on it', role: 'assistant' },
       { content: 'checking', role: 'assistant' },
-      { content: 'casey (person): thanks', role: 'user' }
+      { content: 'Tess Okafor (agent): thanks', role: 'user' }
     ]);
   });
 
@@ -195,7 +199,7 @@ describe('ContextAssembler across two turns', () => {
   let tasksService: MockedInstance<TasksService>;
   let windowService: MockedInstance<WindowService>;
 
-  const peer = (username: string) => ({ ...PROFILE, expertise: 'scheduling', username });
+  const peer = (username: string) => ({ ...PROFILE, displayName: username, expertise: 'scheduling', username });
 
   const firstWindow = [
     post('casey', 'hello @mira', 1000),
@@ -240,6 +244,7 @@ describe('ContextAssembler across two turns', () => {
     windowService = MockFactory.createMock(WindowService);
     windowService.build.mockResolvedValue({ entries: firstWindow, oldestAt: new Date(1000) });
     windowService.readRecentActions.mockResolvedValue([]);
+    windowService.listRecentPeople.mockResolvedValue(['casey']);
     const moduleRef = await Test.createTestingModule({
       providers: [
         ContextAssembler,
@@ -274,7 +279,7 @@ describe('ContextAssembler across two turns', () => {
     { name: 'anthropic/claude-sonnet-5', provider: 'openrouter' },
     { name: 'openai/gpt-5.6-sol', provider: 'openrouter' }
   ])(
-    'should send $name the same bytes through the window when memories, peers and ages change (§3.8)',
+    'should send $name the same bytes through the window when memories, people, peers and ages change (§3.8)',
     async (model) => {
       const wireBody = async () => {
         const { request } = await contextAssembler.assemble({
@@ -292,6 +297,7 @@ describe('ContextAssembler across two turns', () => {
       });
       memoryService.list.mockResolvedValue([{ description: 'casey prefers numbered lists', reference: 'memory-2' }]);
       rosterService.getPeers.mockReturnValue([peer('tess'), peer('owen')]);
+      windowService.listRecentPeople.mockResolvedValue(['robin', 'casey']);
       const second = await wireBody();
       const tailIndex = first.messages.length - 1;
       expect(first.messages[tailIndex]).toMatchObject({

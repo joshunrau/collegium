@@ -24,6 +24,12 @@ type RecentActionsInput = {
   take: number;
 };
 
+type RecentPeopleInput = {
+  agentUsername: string;
+  channelId: string;
+  take: number;
+};
+
 type PageQuery = {
   /** only rows at or after this instant — the anchored read, which takes no page bound */
   since?: Date;
@@ -89,6 +95,28 @@ export class WindowService {
         this.anchors.delete(key);
       }
     }
+  }
+
+  /**
+   * §3.11 — who has posted here as a person, the latest poster first, read off the kind the store
+   * recorded rather than off membership, which does not say who is a person. It reaches back no
+   * further than the window may, so a reset or a forgotten post hides an author as it hides the post.
+   */
+  async listRecentPeople(input: RecentPeopleInput): Promise<string[]> {
+    const boundary = await this.episodesService.latestBoundary(input.agentUsername, input.channelId);
+    const authors = await this.posts.groupBy({
+      _max: { createdAt: true },
+      by: ['authorUsername'],
+      orderBy: { _max: { createdAt: 'desc' } },
+      take: input.take,
+      where: {
+        authorKind: 'human',
+        channelId: input.channelId,
+        ...(boundary && { createdAt: { gt: boundary.postsAfter } }),
+        isForgotten: false
+      }
+    });
+    return authors.map(({ authorUsername }) => authorUsername);
   }
 
   /** §8.4 — where the last window built here reached back to, for a reader outside a turn; nothing built yet means nothing to be earlier than */

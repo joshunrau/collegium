@@ -74,14 +74,18 @@ export class MattermostAdminClient {
     }
   }
 
-  async ensureBot(params: { teamId: string; username: string }): Promise<string> {
+  /** the bot under the display name config declares, set afresh on one that exists so a changed name converges */
+  async ensureBot(params: { displayName: string; teamId: string; username: string }): Promise<string> {
     const existing = await this.findUser(params.username);
     if (existing && !existing.is_bot) {
       throw new Error(
         `a non-bot account already holds "${params.username}" — provisioning refuses to adopt it, because the framework would then post as that user`
       );
     }
-    const userId = existing?.id ?? (await this.createBot(params.username));
+    if (existing) {
+      await this.sdk.patchBot(existing.id, { display_name: params.displayName });
+    }
+    const userId = existing?.id ?? (await this.createBot(params));
     // repeat membership blindly: Mattermost answers an already-member add with success
     await this.sdk.addToTeam(params.teamId, userId);
     return userId;
@@ -187,11 +191,11 @@ export class MattermostAdminClient {
     }
   }
 
-  private async createBot(username: string): Promise<string> {
+  private async createBot(params: { displayName: string; username: string }): Promise<string> {
     const created = await this.sdk.createBot({
       description: BOT_DESCRIPTION,
-      display_name: username,
-      username
+      display_name: params.displayName,
+      username: params.username
     });
     return $MattermostBot.parse(created).user_id;
   }

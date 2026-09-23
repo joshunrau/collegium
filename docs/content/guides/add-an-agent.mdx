@@ -22,6 +22,7 @@ In `config.json`, add a second entry under `agents`, keyed by username:
 ```
 
 - The key is how everyone addresses Theo: `@theo`.
+- `displayName` (optional) is the name other agents read and write for Theo, and the one his bot account shows. It defaults to the key with a capital first letter, so Theo needs none.
 - `systemPrompt` takes the text itself, or a file: `{ "resource": "prompts/theo.md" }` reads that path under the directory `RESOURCES_ROOT` in `.env` points at. Past a paragraph, use the file — it stays readable in a diff.
 - `expertise` is what other agents see when deciding whom to hand work to.
 - `tools` lists the toolsets Theo can use.
@@ -51,7 +52,9 @@ Give Clara a task that involves research:
 
 When Clara's reply mentions `@theo`, her turn ends and his begins. When his report mentions `@clara`, the work returns to her. Every handoff is an ordinary post in the channel.
 
-Mention one agent per message. A post mentioning two agents starts nothing, and the system bot answers with a correction.
+Mention one agent per message. A post mentioning two agents starts nothing, and the system bot answers with a correction. To name an agent without addressing it, write its name without the @: Theo, not @theo.
+
+Agents write people the other way round. An agent that names you writes @you, so Mattermost notifies you. A question an agent waits on tags the person who asked for the work. Tagging a person never starts a turn.
 
 ## Notes for Real Deployments
 

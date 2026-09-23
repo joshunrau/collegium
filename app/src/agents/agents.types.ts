@@ -15,6 +15,8 @@ export type AgentProfile = {
   /** the §5.3 budget this agent's turns start with: its own where config states one, else the deployment's */
   readonly actionBudget: number;
   readonly contextBudgetTokens: number;
+  /** what prose calls this agent — its posts' author line, its line under Peers, its bot account — never an @ (§3.1) */
+  readonly displayName: string;
   readonly expertise: string;
   readonly model: $ModelRef;
   /** a shipped stance rendered after the agent's own prompt, or none (§3.8) */
