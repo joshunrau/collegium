@@ -153,6 +153,53 @@ describe('Delegation through a work unit', () => {
     await channels.main.clickAction(prompt, 'deny');
   });
 
+  it('refuses a close while the turn the assignee opened on the unit runs, and closes once it ends (§3.15)', async () => {
+    const { agents, channels, inference } = harness();
+    const phrase = `venue floor plan ${randomUUID()}`;
+    const refused = `refused-${randomUUID()}`;
+    const closed = `closed-${randomUUID()}`;
+    const working = `working-${randomUUID()}`;
+    inference.willReply({ agent: 'mira', contains: phrase }, assignTo(agents.owen.username, phrase));
+    inference.willReply({ agent: 'mira' }, textResponse('handed over'));
+    const owenWorking = inference.willBlock({ agent: 'owen' }, textResponse(working));
+
+    await channels.main.mention('mira', `please delegate: ${phrase}`);
+    const handOff = await channels.main.awaitPost({
+      description: 'the assignment post under mira',
+      match: (post) => {
+        return post.authorId === agents.mira.userId && post.text.includes('work unit') && post.text.includes(phrase);
+      }
+    });
+    const reference = /work unit `([a-z0-9]+)`/u.exec(handOff.text)?.[1];
+    expect(reference).toBeDefined();
+    await owenWorking.arrived;
+
+    const cancel = toolCallResponse('tasks__close', {
+      reference: reference!,
+      state: 'cancelled',
+      verdict: 'not needed'
+    });
+    inference.willReply({ agent: 'mira', contains: 'drop the floor plan' }, cancel);
+    inference.willReply({ agent: 'mira' }, textResponse(refused));
+    await channels.main.mention('mira', 'drop the floor plan, we no longer need it');
+    await channels.main.awaitReplyFrom('mira', { text: refused });
+    const read = inference
+      .requestsFor('mira')
+      .at(-1)!
+      .messages.map((message) => message.content ?? '')
+      .join('\n');
+    expect(read).toContain(`unit ${reference} is still being worked on`);
+
+    owenWorking.release();
+    await channels.main.awaitReplyFrom('owen', { text: working });
+    inference.willReply({ agent: 'mira', contains: 'drop it now' }, cancel);
+    inference.willReply({ agent: 'mira' }, textResponse(closed));
+    await channels.main.mention('mira', 'drop it now');
+    await channels.main.awaitReplyFrom('mira', { text: closed });
+    const posts = await channels.main.posts();
+    expect(posts.some((post) => post.text.includes(`\`${reference}\` closed as cancelled: not needed`))).toBe(true);
+  });
+
   it('queues the assignee a restart kept waiting, so the hand-off is answered after boot (§5.2, §7.3)', async () => {
     const { agents, app, channels, inference } = harness();
     const phrase = `survives the restart ${randomUUID()}`;

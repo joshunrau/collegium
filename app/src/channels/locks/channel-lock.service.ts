@@ -47,6 +47,12 @@ export class ChannelLockService {
     return this.holders.get(channelId)?.has(agentUsername) ?? false;
   }
 
+  /** whether the agent is running a turn in the channel that took the lane after `instant`, and so may be working on what arrived then (§3.15) */
+  isBusyWithTurnOpenedAfter(agentUsername: string, channelId: string, instant: Date): boolean {
+    const acquiredAt = this.heldSince(agentUsername, channelId);
+    return acquiredAt !== undefined && acquiredAt.getTime() > instant.getTime();
+  }
+
   /** one input to §4.2 idle-gating — activation composes it with pending approvals and debounce */
   isChannelIdle(channelId: string): boolean {
     return (this.holders.get(channelId)?.size ?? 0) === 0;

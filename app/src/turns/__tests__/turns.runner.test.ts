@@ -27,6 +27,7 @@ import type {
 } from '@/inference/inference.types.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
+import { PostSightingsRegistry } from '@/tasks/sightings/post-sightings.registry.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
@@ -107,6 +108,7 @@ describe('TurnRunner', () => {
   let typingIndicatorService: MockedInstance<TypingIndicatorService>;
   let webService: MockedInstance<WebService>;
   let memorySightingsRegistry: MockedInstance<MemorySightingsRegistry>;
+  let postSightingsRegistry: MockedInstance<PostSightingsRegistry>;
 
   beforeEach(async () => {
     approvalsService = MockFactory.createMock(ApprovalsService);
@@ -166,6 +168,7 @@ describe('TurnRunner', () => {
     typingIndicatorService.start.mockReturnValue(typingHandle);
     webService = MockFactory.createMock(WebService);
     memorySightingsRegistry = MockFactory.createMock(MemorySightingsRegistry);
+    postSightingsRegistry = MockFactory.createMock(PostSightingsRegistry);
     turnsService = MockFactory.createMock(TurnsService);
     turnsService.countInChain.mockResolvedValue(1);
     turnsService.open.mockResolvedValue(Result.ok({ id: 'turn-1' } as Turn));
@@ -186,6 +189,7 @@ describe('TurnRunner', () => {
         MockFactory.createForService(LoggingService),
         { provide: MemorySightingsRegistry, useValue: memorySightingsRegistry },
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
+        { provide: PostSightingsRegistry, useValue: postSightingsRegistry },
         { provide: StatusPostService, useValue: statusPostService },
         { provide: TasksService, useValue: tasksService },
         { provide: ToolExecutor, useValue: toolExecutor },
@@ -1168,6 +1172,13 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
     expect(memorySightingsRegistry.forgetTurn).toHaveBeenCalledExactlyOnceWith('turn-1');
+  });
+
+  it('should count the posts its window held as read by the turn, and forget them once it ends (§3.15)', async () => {
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(postSightingsRegistry.recordSeen).toHaveBeenCalledExactlyOnceWith('turn-1', new Set(['post-0']));
+    expect(postSightingsRegistry.forgetTurn).toHaveBeenCalledExactlyOnceWith('turn-1');
   });
 
   it('should close as a delivery failure rather than completed when the final output cannot be posted', async () => {

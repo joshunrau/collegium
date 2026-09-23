@@ -61,9 +61,22 @@ describe('ChannelLockService', () => {
 
   it('should say since when a lane is held, and nothing once it is released', () => {
     const handle = channelLockService.acquire('mira', 'channel-1')!;
-    expect(channelLockService.heldSince('mira', 'channel-1')).toStrictEqual(channelLockService.listHeld()[0]?.acquiredAt);
+    expect(channelLockService.heldSince('mira', 'channel-1')).toStrictEqual(
+      channelLockService.listHeld()[0]?.acquiredAt
+    );
     handle.release();
     expect(channelLockService.heldSince('mira', 'channel-1')).toBeUndefined();
+  });
+
+  it('should say whether the lane was taken after an instant, and nothing once it is released', () => {
+    const handle = channelLockService.acquire('mira', 'channel-1')!;
+    const acquiredAt = channelLockService.heldSince('mira', 'channel-1')!;
+    expect(channelLockService.isBusyWithTurnOpenedAfter('mira', 'channel-1', new Date(acquiredAt.getTime() - 1))).toBe(
+      true
+    );
+    expect(channelLockService.isBusyWithTurnOpenedAfter('mira', 'channel-1', acquiredAt)).toBe(false);
+    handle.release();
+    expect(channelLockService.isBusyWithTurnOpenedAfter('mira', 'channel-1', new Date(0))).toBe(false);
   });
 
   it('should report a channel idle only when no agent holds its lock', () => {

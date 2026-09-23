@@ -74,13 +74,14 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
     },
     close: {
       description:
-        'Close a unit you handed over, after reading the result: done when it meets your criteria, or when the report shows a criterion of yours could not be met from what you supplied, with that verdict; cancelled with the reason when the work will never be right. Only the creator closes a unit; to try again, hand over a fresh unit with corrected criteria.',
+        'Close a unit you handed over, after reading the result: done when it meets your criteria, or when the report shows a criterion of yours could not be met from what you supplied, with that verdict; cancelled with the reason when the work will never be right. Only the creator closes a unit, and not while the assignee is still working on it or before you have read its latest report; to try again, hand over a fresh unit with corrected criteria.',
       execute: async (args, context) => {
         const prepared = await context.tasks.prepareClose({
           actingAgentUsername: context.turn.agentUsername,
           channelId: context.turn.channelId,
           reference: args.reference,
           to: args.state,
+          turnId: context.turn.turnId,
           verdict: args.verdict
         });
         if (!prepared.success) {

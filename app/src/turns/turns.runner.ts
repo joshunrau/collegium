@@ -44,6 +44,7 @@ import {
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
 import type { PostKind, TurnStatus } from '@/prisma/prisma.types.ts';
+import { PostSightingsRegistry } from '@/tasks/sightings/post-sightings.registry.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -271,6 +272,7 @@ export class TurnRunner {
     private readonly loggingService: LoggingService,
     private readonly memorySightingsRegistry: MemorySightingsRegistry,
     private readonly multiMentionPolicy: MultiMentionPolicy,
+    private readonly postSightingsRegistry: PostSightingsRegistry,
     private readonly statusPostService: StatusPostService,
     private readonly tasksService: TasksService,
     private readonly toolExecutor: ToolExecutor,
@@ -372,6 +374,7 @@ export class TurnRunner {
         this.loggingService.error(new Error('failed to dispose the browsing session', { cause: error }));
       }
       this.memorySightingsRegistry.forgetTurn(turn.id);
+      this.postSightingsRegistry.forgetTurn(turn.id);
       state.control.release();
       state.fold.release();
       this.releaseHeldActivation(input, state);
@@ -1077,12 +1080,16 @@ export class TurnRunner {
     return { ...identity, call, detail: described?.detail, effect: described?.effect, kind: 'runnable' };
   }
 
-  /** §3.8 — the request as assembled is measured whole; everything pushed afterwards adds its own estimate */
+  /**
+   * §3.8 — the request as assembled is measured whole; everything pushed afterwards adds its own
+   * estimate. The window's posts are what this turn has read, which a close rests on (§3.15).
+   */
   private loadAssembledContext(state: TurnState, assembled: AssembledContext): void {
     state.messages.splice(0, state.messages.length, ...assembled.request.messages);
     state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
     state.contextAssembledAt = assembled.assembledAt;
     state.windowPostIds = assembled.windowPostIds;
+    this.postSightingsRegistry.recordSeen(state.turn.id, assembled.windowPostIds);
   }
 
   /** §8.1 — the line was written at admission; the call's disposition is known only now */

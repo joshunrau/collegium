@@ -6,6 +6,16 @@ import { renderReference } from '@/utils/reference.utils.ts';
 
 import type { OpenUnitSummary, PreparedUnit, TaskFailure, WorkUnit } from './tasks.types.ts';
 
+function renderClosedUnit(closed: TaskFailure.Closed, now: Date): string {
+  const ago = `${renderElapsed(now.getTime() - closed.closedAt.getTime())} ago`;
+  const closer =
+    closed.closedByUsername === null
+      ? `it was closed as ${closed.state} ${ago}`
+      : `@${closed.closedByUsername} closed it as ${closed.state} ${ago}`;
+  const verdict = closed.verdict === null ? '' : `, with the verdict "${closed.verdict}"`;
+  return `unit ${closed.reference} is closed: ${closer}${verdict}`;
+}
+
 /** §3.15 — the assignee finishes by moving to review; done is the creator's verdict after reading it */
 export const ASSIGNEE_TARGETS = ['blocked', 'review'] as const satisfies readonly WorkUnitState[];
 
@@ -25,6 +35,32 @@ export const LEGAL_FROM: { readonly [State in WorkUnitState]: readonly WorkUnitS
 /** the states a transition to `target` may leave from — the commit's own guard against a row that moved under it */
 export function statesThatMayReach(target: WorkUnitState): WorkUnitState[] {
   return (Object.keys(LEGAL_FROM) as WorkUnitState[]).filter((from) => LEGAL_FROM[from].includes(target));
+}
+
+/** §3.15 — in review or blocked, the unit's last post is its assignee's report, which a close judges */
+export function awaitsVerdictOnReport(state: WorkUnitState): boolean {
+  return (ASSIGNEE_TARGETS as readonly WorkUnitState[]).includes(state);
+}
+
+/** why the unit may not move to `target`, if it may not: a closed unit says who closed it, when, and the verdict (§3.15) */
+export function findTransitionRefusal(
+  unit: WorkUnit,
+  target: WorkUnitState
+): TaskFailure.TransitionRefused | undefined {
+  if (unit.state === 'cancelled' || unit.state === 'done') {
+    return {
+      closedAt: unit.closedAt ?? unit.updatedAt,
+      closedByUsername: unit.closedByUsername,
+      kind: 'closed',
+      reference: renderReference(unit.id),
+      state: unit.state,
+      verdict: unit.verdict
+    };
+  }
+  if (!LEGAL_FROM[unit.state].includes(target)) {
+    return { from: unit.state, kind: 'illegal-transition', to: target };
+  }
+  return undefined;
 }
 
 /** whether an agent's grants let it answer through the record — a namespace grant or the one tool by ref (§8) */
@@ -81,7 +117,7 @@ export function renderUnresolvedUnit(failure: TaskFailure.Unresolved): string {
 }
 
 /** every refusal names its rule and nothing the agent was not already told (§7.2) */
-export function renderTaskRefusal(failure: TaskFailure): string {
+export function renderTaskRefusal(failure: TaskFailure, now = new Date()): string {
   return match(failure)
     .with({ kind: 'ambiguous' }, { kind: 'not-found' }, (unresolved) => renderUnresolvedUnit(unresolved))
     .with({ kind: 'assignee-absent' }, ({ assigneeUsername }) => `@${assigneeUsername} is not in this channel`)
@@ -89,11 +125,17 @@ export function renderTaskRefusal(failure: TaskFailure): string {
       { kind: 'assignee-cannot-report' },
       ({ assigneeUsername }) => `@${assigneeUsername} holds no tasks tool, so it could not report back through a unit`
     )
+    .with(
+      { kind: 'assignee-working' },
+      ({ assigneeUsername, reference }) =>
+        `unit ${reference} is still being worked on: the turn @${assigneeUsername} started here after it was assigned has not ended, so it cannot close yet. A report from that turn starts your next one, where you can close it; a person can cancel it at once with /collegium units`
+    )
     .with({ kind: 'cap-reached' }, ({ cap }) => `you already hold ${cap} open units in this channel, the cap`)
     .with(
       { kind: 'chain-limit' },
       () => 'this chain has reached its limit of turns, so no further hand-off runs (§7.4)'
     )
+    .with({ kind: 'closed' }, (closed) => renderClosedUnit(closed, now))
     .with(
       { kind: 'depth-limit' },
       () => 'this turn is at the delegation depth limit, so no further hand-off runs (§7.4)'
@@ -106,6 +148,11 @@ export function renderTaskRefusal(failure: TaskFailure): string {
     .with(
       { kind: 'not-the-creator' },
       ({ creatorUsername }) => `only the creator, @${creatorUsername}, closes this unit`
+    )
+    .with(
+      { kind: 'report-unread' },
+      ({ reference }) =>
+        `the latest report on unit ${reference} is not in what this turn has read; read it with tasks__read, then close the unit`
     )
     .with({ kind: 'self-assignment' }, () => 'a unit is handed to a colleague, not to yourself')
     .exhaustive();

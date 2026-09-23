@@ -161,6 +161,9 @@ model WorkUnit {
   assigneeUsername String
   channelId        String
   closedAt         DateTime?
+  /// §3.15 — who closed it: the creator, or a person cancelling on their own authority (§8.4); null
+  /// while open, and on a unit closed before the column existed
+  closedByUsername String?
   context          String
   createdAt        DateTime      @default(now())
   creatorUsername  String
@@ -170,6 +173,8 @@ model WorkUnit {
   outcome          String
   state            WorkUnitState
   updatedAt        DateTime      @updatedAt
+  /// §3.15 — the creator's judgement on closing; a person's cancellation carries none
+  verdict          String?
 
   @@index([channelId, state])
   @@index([channelId, creatorUsername])

@@ -15,10 +15,15 @@ export type PreparedUnit = {
 };
 
 /** §3.15 — a transition validated against the row as it was read; committed only against the row as it is when the post has landed */
-export type PreparedTransition = {
-  readonly to: Exclude<WorkUnitState, 'assigned'>;
-  readonly unitId: string;
-};
+export type PreparedTransition =
+  | {
+      /** who closes it, recorded with the close; a refused report names them */
+      readonly closedByUsername?: string;
+      readonly to: Extract<WorkUnitState, 'cancelled' | 'done'>;
+      readonly unitId: string;
+      readonly verdict?: string;
+    }
+  | { readonly to: Extract<WorkUnitState, 'blocked' | 'review'>; readonly unitId: string };
 
 /** what the prompt block renders per unit (§3.15) */
 export type OpenUnitSummary = {
@@ -39,11 +44,26 @@ export declare namespace TaskFailure {
     | { kind: 'depth-limit' }
     | { kind: 'self-assignment' };
   type Unresolved = { kind: 'ambiguous' | 'not-found'; reference: string };
+  /** §3.15 — a closed unit takes no transition, and says who closed it, when, and the verdict */
+  type Closed = {
+    closedAt: Date;
+    closedByUsername: null | string;
+    kind: 'closed';
+    reference: string;
+    state: Extract<WorkUnitState, 'cancelled' | 'done'>;
+    verdict: null | string;
+  };
+  type TransitionRefused = Closed | { from: WorkUnitState; kind: 'illegal-transition'; to: WorkUnitState };
   type StateRefused =
+    | TransitionRefused
     | { assigneeUsername: string; kind: 'not-the-assignee' }
-    | { creatorUsername: string; kind: 'not-the-creator' }
-    | { from: WorkUnitState; kind: 'illegal-transition'; to: WorkUnitState };
-  type Any = AssignRefused | StateRefused | Unresolved;
+    | { creatorUsername: string; kind: 'not-the-creator' };
+  /** §3.15 — a close waits for the assignee's turn on the unit, and rests on the report it judges */
+  type CloseRefused =
+    | StateRefused
+    | { assigneeUsername: string; kind: 'assignee-working'; reference: string }
+    | { kind: 'report-unread'; reference: string };
+  type Any = AssignRefused | CloseRefused | Unresolved;
 }
 
 export type TaskFailure = TaskFailure.Any;
