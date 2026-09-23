@@ -53,6 +53,7 @@ type TurnEventPayloadByKind = {
     body: string;
     description: string;
     reference: string;
+    revision?: { count: number; replacedPassage?: string };
     revisionOf?: string;
     supersededDescriptions: string[];
   };

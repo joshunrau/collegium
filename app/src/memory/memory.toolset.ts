@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import type { ModelRow } from '@/prisma/prisma.types.ts';
 
-import { MEMORY_DATE_FORMATTER_TOKEN, MEMORY_SERVICE_TOKEN } from './memory.tokens.ts';
+import { MEMORY_DATE_FORMATTER_TOKEN, MEMORY_SERVICE_TOKEN, MEMORY_SIGHTINGS_TOKEN } from './memory.tokens.ts';
 import {
   appendToBody,
   renderMemoryBody,
@@ -18,25 +18,37 @@ import type { MemoryFailure, MemoryRevisionReceipt } from './memory.types.ts';
 
 const $Reference = z.string().min(1).describe('The reference of the memory entry, as listed beside its description');
 
-/** §3.6 — the trace records the revision beside the reference it replaced, and the model reads both */
-function toRevisionResult(revised: Result<MemoryRevisionReceipt<ModelRow<'Memory'>>, MemoryFailure>): ToolResult {
+/** §3.6 — the trace records the revision with its count and whatever it replaced; the model reads that it was revised */
+function toRevisionResult(
+  revised: Result<MemoryRevisionReceipt<ModelRow<'Memory'>>, MemoryFailure>,
+  replacedPassage?: string
+): ToolResult {
   if (!revised.success) {
     return Result.err({ kind: 'invalid-arguments', message: renderMemoryFailure(revised.error) });
   }
-  const { entry, reference, revisionOf } = revised.value;
+  const { entry, reference } = revised.value;
   return Result.ok({
-    disclosure: { body: entry.body, description: entry.description, reference, revisionOf },
-    text: `memory ${revisionOf} revised as ${reference}`
+    disclosure: {
+      body: entry.body,
+      description: entry.description,
+      reference,
+      revision: { count: entry.revision, ...(replacedPassage !== undefined && { replacedPassage }) }
+    },
+    text: `memory ${reference} revised`
   });
 }
 
 export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
-  services: { dateFormatter: MEMORY_DATE_FORMATTER_TOKEN, memory: MEMORY_SERVICE_TOKEN },
+  services: {
+    dateFormatter: MEMORY_DATE_FORMATTER_TOKEN,
+    memory: MEMORY_SERVICE_TOKEN,
+    sightings: MEMORY_SIGHTINGS_TOKEN
+  },
   tools: {
     // §3.6 — ungated like a write, and one step rather than a delete and a write
     append: {
       description:
-        'Add text to the end of one of your memories, on a new line. The memory keeps its description and gets a new reference.',
+        'Add text to the end of one of your memories, on a new line. It is applied to the memory as stored, in one step. The memory keeps its reference and its description.',
       execute: async (args, context) => {
         const revised = await context.memory.revise(
           {
@@ -47,6 +59,9 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
           (body) => Result.ok(appendToBody(body, args.text)),
           context.settings
         );
+        if (revised.success) {
+          context.sightings.recordRevised(context.turn.turnId, revised.value.entry);
+        }
         return toRevisionResult(revised);
       },
       parameters: z.object({
@@ -55,14 +70,16 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
       }),
       traceDetail: (args) => args.reference
     },
-    // §3.6 — ungated for the same reason a write is
+    // §3.6 — ungated for the same reason a write is, and only of the revision this turn has seen
     delete: {
       description:
-        'Delete one of your memories. To correct or extend a memory instead, use memory__append or memory__replace.',
+        'Delete one of your memories. Only a memory you read or wrote in this turn can be deleted, and only while no other turn has revised it since. To correct or extend a memory instead, use memory__append or memory__replace.',
       execute: async (args, context) => {
-        const deleted = await context.memory.delete(context.turn.agentUsername, args.reference);
+        const deleted = await context.memory.deleteAdmitted(context.turn.agentUsername, args.reference, (entry) => {
+          return context.sightings.confirmSeen(context.turn.turnId, entry);
+        });
         if (!deleted.success) {
-          return Result.err({ kind: 'invalid-arguments', message: renderUnresolvedReference(deleted.error) });
+          return Result.err({ kind: 'invalid-arguments', message: renderMemoryFailure(deleted.error) });
         }
         return Result.ok({ text: `memory ${args.reference} deleted: ${deleted.value.description}` });
       },
@@ -81,6 +98,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
           return Result.err({ kind: 'invalid-arguments', message: renderUnresolvedReference(memory.error) });
         }
         await context.memory.markUsed(memory.value.id);
+        context.sightings.recordSeen(context.turn.turnId, memory.value);
         return Result.ok({
           text: renderMemoryBody(memory.value, new Date(), (date) => context.dateFormatter.format(date))
         });
@@ -92,7 +110,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
     // §3.6 — ungated like a write, and one step rather than a delete and a write
     replace: {
       description:
-        'Replace one passage of one of your memories with new text. The passage must occur exactly once in the memory. The memory keeps its description and gets a new reference.',
+        'Replace one passage of one of your memories with new text. The passage must occur exactly once in the memory. It is applied to the memory as stored, in one step. The memory keeps its reference and its description.',
       execute: async (args, context) => {
         const revised = await context.memory.revise(
           {
@@ -103,7 +121,10 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
           (body) => replaceSinglePassage(body, args.passage, args.replacement),
           context.settings
         );
-        return toRevisionResult(revised);
+        if (revised.success) {
+          context.sightings.recordRevised(context.turn.turnId, revised.value.entry);
+        }
+        return toRevisionResult(revised, args.passage);
       },
       parameters: z.object({
         passage: z.string().min(1).describe('The exact text to replace, as it appears in the memory'),
@@ -129,6 +150,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
         if (!written.success) {
           return Result.err({ kind: 'invalid-arguments', message: renderMemoryFailure(written.error) });
         }
+        context.sightings.recordSeen(context.turn.turnId, written.value.entry);
         return Result.ok({
           disclosure: {
             body: args.body,

@@ -12,6 +12,12 @@ export type MemoryListing = {
   readonly reference: string;
 };
 
+/** §3.6 — one entry as an operator's listing shows it: how often and how lately it was revised in place */
+export type MemoryListingWithRevisions = MemoryListing & {
+  readonly revisedAt: Date | null;
+  readonly revision: number;
+};
+
 /** what a write reports back, so the eviction it caused can be disclosed beside it (§3.6) */
 export type MemoryWriteReceipt<TEntry> = {
   readonly entry: TEntry;
@@ -19,18 +25,17 @@ export type MemoryWriteReceipt<TEntry> = {
   readonly reference: string;
 };
 
-/** the entry a revision replaces, and the provenance the entry replacing it carries (§3.6) */
+/** the entry a revision edits, and the provenance it carries once revised (§3.6) */
 export type MemoryRevision = {
   readonly agentUsername: string;
   readonly originPostId: null | string;
   readonly reference: string;
 };
 
-/** what a revision reports back: the entry it wrote, and the reference of the one it deleted (§3.6) */
+/** what a revision reports back: the entry as revised, under the reference it has always had (§3.6) */
 export type MemoryRevisionReceipt<TEntry> = {
   readonly entry: TEntry;
   readonly reference: string;
-  readonly revisionOf: string;
 };
 
 export declare namespace MemoryFailure {
@@ -61,7 +66,13 @@ export declare namespace MemoryFailure {
   type EmptyBody = {
     kind: 'empty-body';
   };
-  type Any = EmptyBody | PassageUnmatched | TooLong | Unresolved;
+  /** §3.6 — the turn has not seen the entry's stored revision: it never has, or it saw an earlier one */
+  type UnseenRevision = {
+    kind: 'unseen-revision';
+    lastSeen: 'earlier' | 'never';
+    reference: string;
+  };
+  type Any = EmptyBody | PassageUnmatched | TooLong | Unresolved | UnseenRevision;
 }
 
 export type MemoryFailure = MemoryFailure.Any;

@@ -308,15 +308,20 @@ model ToolsetRecord {
 }
 
 model Memory {
-  id            String   @id @default(cuid(2))
+  id            String    @id @default(cuid(2))
   agentUsername String
   body          String
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
   description   String
-  /// §3.6 — when this entry's body was last read, by the agent or by a person; its write time until
-  /// then. What eviction orders by, so the entry nobody has needed goes before yesterday's note.
-  lastUsedAt    DateTime @default(now())
+  /// §3.6 — when this entry's body was last read, by the agent or by a person, or revised; its write
+  /// time until then. What eviction orders by, so the entry nobody has needed goes before yesterday's note.
+  lastUsedAt    DateTime  @default(now())
   originPostId  String?
+  /// §3.6 — when the body was last revised in place; null for an entry never revised
+  revisedAt     DateTime?
+  /// §3.6 — how many times the body has been revised in place. What a turn's delete compares with
+  /// the revision that turn last saw.
+  revision      Int       @default(0)
 
   @@index([agentUsername, createdAt])
   @@index([agentUsername, lastUsedAt])
