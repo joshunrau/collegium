@@ -1600,7 +1600,7 @@ export class TurnRunner {
   /** everything here may throw; run() owns the boundary so no exit can leave the turn 'running' */
   private async runLoop(input: RunInput, state: TurnState): Promise<TurnOutcome> {
     const { channelId, profile } = input;
-    let assembled = await this.contextAssembler.assemble({ channelId, profile, turnId: state.turn.id });
+    let assembled = await this.contextAssembler.assemble({ channelId, profile });
     await this.loadAssembledContext(state, assembled);
     if (this.exceedsCeiling(input, state)) {
       return this.closeWithFailureNotice(input, state, 'context_exhausted', renderContextExhaustedNotice('initial'));
@@ -1640,7 +1640,7 @@ export class TurnRunner {
         // §3.7 — the newest fragment is the request the prompt should quote, not the one it began on
         state.requestedBy = await this.resolveRequester(folded.at(-1), state.workUnit);
         state.status.appendTrace({ kind: 'note', text: renderFoldLine() });
-        assembled = await this.contextAssembler.assemble({ channelId, profile, turnId: state.turn.id });
+        assembled = await this.contextAssembler.assemble({ channelId, profile });
         await this.loadAssembledContext(state, assembled);
         if (this.exceedsCeiling(input, state)) {
           return this.closeWithFailureNotice(

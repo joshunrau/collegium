@@ -33,7 +33,7 @@ function renderUsage(usage: CompletionUsage | undefined): string {
   return `${usage.promptTokens} prompt tokens${cached}, ${usage.completionTokens} completion`;
 }
 
-/** §8.3 — why the turn started, in one line an operator can follow a drain by */
+/** why the turn started, in one log line an operator can follow a drain by */
 export function renderTurnOpenedLog(turn: OpenedTurn): string {
   const answering = turn.triggeringPostId === undefined ? '' : `, answering post ${turn.triggeringPostId}`;
   const draining = turn.drainedFromPostId === undefined ? '' : `, draining from post ${turn.drainedFromPostId}`;

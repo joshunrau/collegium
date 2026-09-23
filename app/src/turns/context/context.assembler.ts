@@ -14,8 +14,6 @@ import type { WindowReader } from './context.utils.ts';
 type AssembleInput = {
   readonly channelId: string;
   readonly profile: AgentProfile;
-  /** the turn in progress: its own rounds are the only ones handed back with their reasoning (§3.12) */
-  readonly turnId: string;
 };
 
 export type AssembledContext = {
@@ -47,7 +45,7 @@ export class ContextAssembler {
   ) {}
 
   async assemble(input: AssembleInput): Promise<AssembledContext> {
-    const { channelId, profile, turnId } = input;
+    const { channelId, profile } = input;
     const assembledAt = new Date();
     const reader: WindowReader = {
       displayNameOf: (agentUsername) => this.agentRegistry.displayNameOf(agentUsername),
@@ -70,7 +68,7 @@ export class ContextAssembler {
       request: {
         cacheKey: JSON.stringify([profile.username, channelId]),
         // §3.8 — a user-role message, since a provider may hoist a system message ahead of the window
-        messages: [...toCompletionMessages(entries, reader, turnId), { content: tail, role: 'user' }],
+        messages: [...toCompletionMessages(entries, reader), { content: tail, role: 'user' }],
         model: profile.model,
         systemPrompt: stable,
         tools: this.toolRegistry.describeFor(profile)

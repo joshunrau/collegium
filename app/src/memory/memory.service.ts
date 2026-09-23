@@ -65,7 +65,7 @@ export class MemoryService {
     });
   }
 
-  /** oldest first; loaded into the system prompt on every turn, which is why bodies are not selected (§3.6) */
+  /** oldest first; listed after the window on every turn, which is why bodies are not selected (§3.6, §3.8) */
   async list(agentUsername: string): Promise<MemoryListing[]> {
     const entries = await this.memories.findMany({
       orderBy: { createdAt: 'asc' },

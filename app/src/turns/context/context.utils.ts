@@ -5,7 +5,6 @@ import { renderDenialLine } from '@/approvals/approvals.renderer.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import { renderPostWithAttachments, replayTextOf } from '@/conversations/conversations.utils.ts';
 import type { CompletionMessage } from '@/inference/inference.types.ts';
-import { reasoningOf } from '@/inference/inference.utils.ts';
 import type { AuthorKind, ModelRow } from '@/prisma/prisma.types.ts';
 import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
 
@@ -52,8 +51,7 @@ function collectCallResults(entries: readonly WindowEntry[]): ReadonlyMap<string
 
 function renderAssistantEvent(
   payload: Extract<PrismaJson.TurnEventPayload, { kind: 'assistant_message' }>,
-  results: ReadonlyMap<string, string>,
-  carriesReasoning: boolean
+  results: ReadonlyMap<string, string>
 ): CompletionMessage[] {
   const answered = payload.toolCalls.filter((call) => results.has(call.callId));
   if (payload.content === '' && answered.length === 0) {
@@ -63,7 +61,6 @@ function renderAssistantEvent(
     {
       content: payload.content,
       role: 'assistant',
-      ...(carriesReasoning && reasoningOf(payload)),
       ...(answered.length > 0 && {
         toolCalls: answered.map((call) => ({
           arguments: call.args,
@@ -89,16 +86,12 @@ function renderRecordLine(payload: Extract<PrismaJson.TurnEventPayload, { kind: 
 /**
  * The agent's own trace replays in the provider's native shape — assistant messages carrying their
  * tool calls, tool messages carrying the results — because that is the form the model produced it
- * in. Reasoning rides only on the rounds of the turn in progress (§3.12). A result is emitted beside
+ * in, without its reasoning: an earlier turn's is never handed back (§3.12). A result is emitted beside
  * its call rather than where it fell in the trace, and an approval that names its call is folded
  * into that call's result; only a framework action with no call (the budget extension) still reads
  * as a line of transcript.
  */
-function renderEvent(
-  event: ModelRow<'TurnEvent'>,
-  results: ReadonlyMap<string, string>,
-  currentTurnId: string | undefined
-): CompletionMessage[] {
+function renderEvent(event: ModelRow<'TurnEvent'>, results: ReadonlyMap<string, string>): CompletionMessage[] {
   return (
     match(event.payload)
       .with({ kind: 'approval_decided' }, (payload): CompletionMessage[] => {
@@ -117,9 +110,7 @@ function renderEvent(
       // replays it through the call itself and neither ask event folds into anything here
       .with({ kind: 'ask_answered' }, (): CompletionMessage[] => [])
       .with({ kind: 'ask_requested' }, (): CompletionMessage[] => [])
-      .with({ kind: 'assistant_message' }, (payload) => {
-        return renderAssistantEvent(payload, results, event.turnId === currentTurnId);
-      })
+      .with({ kind: 'assistant_message' }, (payload) => renderAssistantEvent(payload, results))
       // §8.3 — the model was told why and answered again; the trace alone keeps what was refused
       .with({ kind: 'output_rejected' }, (): CompletionMessage[] => [])
       .with({ kind: 'record_written' }, (payload): CompletionMessage[] => [
@@ -142,14 +133,10 @@ function renderPost(post: ModelRow<'Post'>, reader: WindowReader): CompletionMes
   return { content: renderAuthoredMessage(renderAuthorName(post, reader), post.authorKind, content), role: 'user' };
 }
 
-function renderEntries(
-  entries: readonly WindowEntry[],
-  reader: WindowReader,
-  currentTurnId: string | undefined
-): CompletionMessage[] {
+function renderEntries(entries: readonly WindowEntry[], reader: WindowReader): CompletionMessage[] {
   const results = collectCallResults(entries);
   return entries.flatMap((entry) => {
-    return entry.kind === 'post' ? [renderPost(entry.post, reader)] : renderEvent(entry.event, results, currentTurnId);
+    return entry.kind === 'post' ? [renderPost(entry.post, reader)] : renderEvent(entry.event, results);
   });
 }
 
@@ -173,12 +160,8 @@ export type WindowReader = {
  * handed its own message as the last thing said continues it; the closing line makes the next
  * completion a new message.
  */
-export function toCompletionMessages(
-  entries: readonly WindowEntry[],
-  reader: WindowReader,
-  currentTurnId: string
-): CompletionMessage[] {
-  const messages = renderEntries(entries, reader, currentTurnId);
+export function toCompletionMessages(entries: readonly WindowEntry[], reader: WindowReader): CompletionMessage[] {
+  const messages = renderEntries(entries, reader);
   const last = messages.at(-1);
   if (last === undefined || last.role === 'user') {
     return messages;
@@ -188,7 +171,7 @@ export function toCompletionMessages(
 
 /** §3.8 — what entries cost the window, measured on the messages they render to, so the budget and what the model reads cannot disagree */
 export function estimateWindowTokens(entries: readonly WindowEntry[], reader: WindowReader): number {
-  return renderEntries(entries, reader, undefined).reduce((sum, message) => {
+  return renderEntries(entries, reader).reduce((sum, message) => {
     return sum + estimateTokens(chargedTextOf(message));
   }, 0);
 }

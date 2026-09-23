@@ -8,17 +8,14 @@ import { estimateWindowTokens, toCompletionMessages } from '../context.utils.ts'
 
 import type { WindowReader } from '../context.utils.ts';
 
-const event = (payload: PrismaJson.TurnEventPayload, turnId = 'turn-1'): WindowEntry => ({
-  event: { createdAt: new Date(0), id: 'event-1', kind: payload.kind, payload, sequence: 0, turnId },
+const event = (payload: PrismaJson.TurnEventPayload): WindowEntry => ({
+  event: { createdAt: new Date(0), id: 'event-1', kind: payload.kind, payload, sequence: 0, turnId: 'turn-1' },
   kind: 'event'
 });
 
-/** the turn being assembled for; the fixture events belong to an earlier one unless a test says otherwise */
-const CURRENT_TURN_ID = 'turn-2';
-
 const READER: WindowReader = { displayNameOf: defaultDisplayNameOf, username: 'mira' };
 
-const render = (entries: WindowEntry[]) => toCompletionMessages(entries, READER, CURRENT_TURN_ID);
+const render = (entries: WindowEntry[]) => toCompletionMessages(entries, READER);
 
 const post = (
   authorUsername: string,
@@ -94,24 +91,18 @@ describe('toCompletionMessages', () => {
     ]);
   });
 
-  it('should replay a call beside its result in native form, with its reasoning only in the turn in progress (§3.12)', () => {
-    const entries = (turnId: string) => [
-      event(
-        {
-          content: 'checking',
-          kind: 'assistant_message',
-          reasoningContent: 'the skill says how',
-          toolCalls: [{ args: { name: 'handing-work-to-a-peer' }, callId: 'c1', toolName: ['skills', 'load'] }]
-        },
-        turnId
-      ),
-      event(
-        { callId: 'c1', kind: 'tool_result', output: '# Handing work to a peer', toolName: ['skills', 'load'] },
-        turnId
-      )
+  it('should replay a call beside its result in native form, without its reasoning (§3.12)', () => {
+    const entries = [
+      event({
+        content: 'checking',
+        kind: 'assistant_message',
+        reasoningContent: 'the skill says how',
+        toolCalls: [{ args: { name: 'handing-work-to-a-peer' }, callId: 'c1', toolName: ['skills', 'load'] }]
+      }),
+      event({ callId: 'c1', kind: 'tool_result', output: '# Handing work to a peer', toolName: ['skills', 'load'] })
     ];
 
-    expect(replayOf(entries('turn-1'))).toStrictEqual([
+    expect(replayOf(entries)).toStrictEqual([
       {
         content: 'checking',
         role: 'assistant',
@@ -119,7 +110,6 @@ describe('toCompletionMessages', () => {
       },
       { content: '# Handing work to a peer', role: 'tool', toolCallId: 'c1' }
     ]);
-    expect(replayOf(entries(CURRENT_TURN_ID))[0]).toMatchObject({ reasoningContent: 'the skill says how' });
   });
 
   it('should replay a result by its replay text when the tool gave one', () => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { renderTurnClosedLog, renderTurnOpenedLog } from '../turn-log.utils.ts';
 
 describe('renderTurnOpenedLog', () => {
-  it('should name what started the turn and the posts a drain began from (§8.3)', () => {
+  it('should name what started the turn and the posts a drain began from', () => {
     expect(
       renderTurnOpenedLog({
         activationKind: 'handoff',

@@ -509,7 +509,7 @@ export class ActivationService {
     }
   }
 
-  /** §8.3 — the activation decision that starts no turn yet, one line each */
+  /** the activation decision that starts no turn yet, one log line each */
   private logQueued(
     profile: AgentProfile,
     channelId: string,

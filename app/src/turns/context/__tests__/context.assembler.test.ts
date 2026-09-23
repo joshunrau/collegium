@@ -109,9 +109,7 @@ describe('ContextAssembler', () => {
   });
 
   const assemble = () => {
-    return contextAssembler
-      .assemble({ channelId: 'channel-1', profile: PROFILE, turnId: 'turn-2' })
-      .then(({ request }) => request);
+    return contextAssembler.assemble({ channelId: 'channel-1', profile: PROFILE }).then(({ request }) => request);
   };
 
   it('should put the stable prompt and the tool definitions on the request', async () => {
@@ -140,13 +138,11 @@ describe('ContextAssembler', () => {
     expect((await assemble()).cacheKey).toBe(initial.cacheKey);
     const otherChannel = await contextAssembler.assemble({
       channelId: 'channel-2',
-      profile: PROFILE,
-      turnId: 'turn-2'
+      profile: PROFILE
     });
     const otherAgent = await contextAssembler.assemble({
       channelId: 'channel-1',
-      profile: { ...PROFILE, username: 'tess' },
-      turnId: 'turn-2'
+      profile: { ...PROFILE, username: 'tess' }
     });
     expect(otherChannel.request.cacheKey).not.toBe(initial.cacheKey);
     expect(otherAgent.request.cacheKey).not.toBe(initial.cacheKey);
@@ -309,8 +305,7 @@ describe('ContextAssembler across two turns', () => {
       const wireBody = async () => {
         const { request } = await contextAssembler.assemble({
           channelId: 'channel-1',
-          profile: { ...PROFILE, model },
-          turnId: 'turn-2'
+          profile: { ...PROFILE, model }
         });
         return toCompletionBody(request);
       };
