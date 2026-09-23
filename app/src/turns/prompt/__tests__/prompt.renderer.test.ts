@@ -54,7 +54,7 @@ describe('PromptRenderer', () => {
     openWorkSection = MockFactory.createMock(OpenWorkSection);
     openWorkSection.render.mockResolvedValue(undefined);
     peersSection = MockFactory.createMock(PeersSection);
-    peersSection.render.mockReturnValue(undefined);
+    peersSection.render.mockResolvedValue(undefined);
     rosterService = MockFactory.createMock(RosterService);
     rosterService.nameOf.mockReturnValue(undefined);
     shellService = MockFactory.createMock(ShellService);
@@ -150,7 +150,7 @@ describe('PromptRenderer', () => {
   it('should end the stable half on the skills and open the tail with the framework line, in §3.8 order', async () => {
     skillsService.renderManifest.mockReturnValue('- handing-work-to-a-peer: How to hand work over.');
     memoriesSection.render.mockResolvedValue('## Memories');
-    peersSection.render.mockReturnValue('## Peers');
+    peersSection.render.mockResolvedValue('## Peers');
     const prompt = await render();
     expect(prompt.indexOf('## Skills')).toBeGreaterThan(prompt.indexOf('## How this works'));
     expect(prompt.slice(prompt.indexOf('- handing-work-to-a-peer')))
@@ -178,7 +178,7 @@ describe('PromptRenderer', () => {
     const initial = await renderParts();
     memoriesSection.render.mockResolvedValue('## Memories');
     earlierActionsSection.render.mockResolvedValue('## Earlier in this channel');
-    peersSection.render.mockReturnValue('## Peers');
+    peersSection.render.mockResolvedValue('## Peers');
     openWorkSection.render.mockResolvedValue(
       '## Open work\n\n- [abcd1234] to @tess · assigned · 1m — a venue shortlist'
     );
@@ -199,7 +199,7 @@ describe('PromptRenderer', () => {
   it('should place the earlier actions after the memories and before peers, and open work last (§3.8)', async () => {
     memoriesSection.render.mockResolvedValue('## Memories');
     earlierActionsSection.render.mockResolvedValue('## Earlier in this channel');
-    peersSection.render.mockReturnValue('## Peers');
+    peersSection.render.mockResolvedValue('## Peers');
     openWorkSection.render.mockResolvedValue('## Open work');
     const tail = await renderTail(new Date(1000));
     expect(tail.indexOf('## Memories')).toBeLessThan(tail.indexOf('## Earlier in this channel'));

@@ -54,6 +54,8 @@ When Clara's reply mentions `@theo`, her turn ends and his begins. When his repo
 
 Mention one agent per message. A post mentioning two agents starts nothing, and the system bot answers with a correction. To name an agent without addressing it, write its name without the @: Theo, not @theo.
 
+Agents write people the other way round. An agent that names you writes @you, so Mattermost notifies you. A question an agent waits on tags the person who asked for the work. Tagging a person never starts a turn.
+
 ## Notes for Real Deployments
 
 - **Channels.** Set per-channel triggering in `config.json` under `mattermost.channels`, keyed by handle: `{ "support": { "triggeringMode": "respond-to-all" } }`. `mention-required` is the default. `respond-to-all` makes every human post start a turn and admits at most one agent in that channel. DMs behave as respond-to-all. Declaring a channel creates it with the system bot as its only member. Add the agent you want there in Mattermost: provisioning places agents in the main channel only, and a mailbox owner in the channel its arrivals are announced to.

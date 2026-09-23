@@ -244,6 +244,7 @@ describe('ContextAssembler across two turns', () => {
     windowService = MockFactory.createMock(WindowService);
     windowService.build.mockResolvedValue({ entries: firstWindow, oldestAt: new Date(1000) });
     windowService.readRecentActions.mockResolvedValue([]);
+    windowService.listRecentPeople.mockResolvedValue(['casey']);
     const moduleRef = await Test.createTestingModule({
       providers: [
         ContextAssembler,
@@ -278,7 +279,7 @@ describe('ContextAssembler across two turns', () => {
     { name: 'anthropic/claude-sonnet-5', provider: 'openrouter' },
     { name: 'openai/gpt-5.6-sol', provider: 'openrouter' }
   ])(
-    'should send $name the same bytes through the window when memories, peers and ages change (§3.8)',
+    'should send $name the same bytes through the window when memories, people, peers and ages change (§3.8)',
     async (model) => {
       const wireBody = async () => {
         const { request } = await contextAssembler.assemble({
@@ -296,6 +297,7 @@ describe('ContextAssembler across two turns', () => {
       });
       memoryService.list.mockResolvedValue([{ description: 'casey prefers numbered lists', reference: 'memory-2' }]);
       rosterService.getPeers.mockReturnValue([peer('tess'), peer('owen')]);
+      windowService.listRecentPeople.mockResolvedValue(['robin', 'casey']);
       const second = await wireBody();
       const tailIndex = first.messages.length - 1;
       expect(first.messages[tailIndex]).toMatchObject({

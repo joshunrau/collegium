@@ -172,6 +172,14 @@ describe('ToolExecutor', () => {
     );
   });
 
+  it('should put the turn’s line above a question as above an approval, tagging whoever asked (§3.7a)', async () => {
+    asksService.request.mockResolvedValue(Result.ok({ answerText: 'yes', byUsername: 'casey', kind: 'answered' }));
+    await execute('fixture__asker', { value: 'ship it?' });
+    expect(asksService.request).toHaveBeenCalledWith(
+      expect.objectContaining({ contextText: 'Action 7 of 25 · requested by @casey: "deploy it"' })
+    );
+  });
+
   it('should end the turn when a pending question is cancelled (§7.5)', async () => {
     asksService.request.mockResolvedValue(Result.ok({ kind: 'cancelled', reason: 'stop' }));
     const attempt = await execute('fixture__asker', { value: 'ship it?' });

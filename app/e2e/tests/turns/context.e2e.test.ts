@@ -57,11 +57,12 @@ describe('Context assembly', () => {
     expect(request?.systemPrompt).not.toContain(description);
   });
 
-  it('carries the peer roster after the window, as the last message of the first request (§3.8, §3.11)', async () => {
+  it('carries the people here and the peer roster after the window, as the last message of the first request (§3.8, §3.11)', async () => {
     const { agents } = harness();
     const request = await completeTurn('roster check');
     expect(request?.tail).toContain(`@${agents.owen.username}`);
     expect(request?.tail).toContain('Research and information gathering');
+    expect(request?.tail).toMatch(/## People here\n\n.*latest first: @[\w.-]+\n/u);
     expect(request?.systemPrompt).not.toContain('## Peers');
     expect(request?.messages.at(-1)).toStrictEqual({ content: request?.tail, role: 'user' });
   });
