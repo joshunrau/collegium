@@ -1,9 +1,11 @@
 import { Result, toErrorMessage } from '@collegium/core/utils';
 import type { BrowserContext, Locator, Page, Request, Response } from 'playwright-core';
+import { z } from 'zod';
 
 import { classifyContentType } from '../fetch/fetch.utils.ts';
 import { lacksOption } from '../select/select.script.ts';
 import { waitForDomSettled } from '../settle/settle.script.ts';
+import { $SnapshotCapture } from '../snapshot/snapshot.schemas.ts';
 import { captureSnapshot } from '../snapshot/snapshot.script.ts';
 import {
   ACTION_TIMEOUT_MS,
@@ -22,7 +24,9 @@ import type { AddressPolicy, RenderedCapture, WebFailure } from '../web.types.ts
 type LoadFailure = WebFailure.Navigation | WebFailure.Tls | WebFailure.Unreachable | WebFailure.UrlRefused;
 
 /** what an action finds wrong with its element before it acts, so nothing was done */
-type ActionRefusal = WebFailure.NoSuchOption;
+type ActionRefusal = WebFailure.ActionFailed | WebFailure.NoSuchOption;
+
+const MALFORMED_ANSWER = 'the browser answered a read of the page with something malformed';
 
 /** and what can go wrong acting on a ref besides */
 type ActionFailure =
@@ -113,7 +117,11 @@ export class BrowserSession {
   /** by the option's label or its value, as Playwright matches either */
   async select(ref: string, option: string): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, async (locator) => {
-      if (await locator.evaluate(lacksOption, option)) {
+      const lacks = z.boolean().safeParse(await locator.evaluate(lacksOption, option));
+      if (!lacks.success) {
+        return { kind: 'action-failed', message: MALFORMED_ANSWER, ref };
+      }
+      if (lacks.data) {
         return { kind: 'no-such-option', option, ref };
       }
       await locator.selectOption(option, { timeout: ACTION_TIMEOUT_MS });
@@ -163,7 +171,11 @@ export class BrowserSession {
         return Result.err(refused);
       }
       const openedUrls = await this.closeOpenedTabs();
-      const snapshot = await this.page.evaluate(captureSnapshot, this.nextRefIndex);
+      const captured = $SnapshotCapture.safeParse(await this.page.evaluate(captureSnapshot, this.nextRefIndex));
+      if (!captured.success) {
+        return Result.err({ kind: 'navigation', message: MALFORMED_ANSWER });
+      }
+      const snapshot = captured.data;
       this.nextRefIndex = snapshot.nextRefIndex;
       return Result.ok({
         formElements: snapshot.formElements,
