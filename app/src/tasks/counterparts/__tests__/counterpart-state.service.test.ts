@@ -91,8 +91,9 @@ describe('CounterpartStateService', () => {
       waitingOn: { on: 'ask', since: requestedAt }
     });
     expect(pendingDecisionsService.listPending).toHaveBeenCalledWith({ agentUsername: 'owen', channelId: 'channel-1' });
-    const reported = { ...ASSIGNED, state: 'review', updatedAt: new Date(heldSince.getTime() + 1) } as const;
     channelLockService.acquire('mira', 'channel-1');
+    const reportedAt = new Date(channelLockService.heldSince('mira', 'channel-1')!.getTime() + 1);
+    const reported = { ...ASSIGNED, state: 'review', updatedAt: reportedAt } as const;
     expect(await counterpartStateService.readFor(reported, 'owen')).toMatchObject({ beganBeforeChange: true });
   });
 
