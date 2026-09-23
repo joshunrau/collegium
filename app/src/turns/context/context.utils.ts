@@ -151,11 +151,6 @@ function renderEvent(
   );
 }
 
-/** §3.8 — an agent by its display name; a person keeps the username, so a reply that tags them copies it */
-function renderAuthorName(post: ModelRow<'Post'>, reader: WindowReader): string {
-  return post.authorKind === 'agent' ? reader.displayNameOf(post.authorUsername) : post.authorUsername;
-}
-
 function renderPost(post: ModelRow<'Post'>, reader: WindowReader): CompletionMessage {
   const content = renderPostWithAttachments(post);
   if (post.authorUsername === reader.username) {
@@ -236,5 +231,18 @@ export function containsToolCallTranscript(text: string): boolean {
  * back into replies.
  */
 export function renderAuthoredMessage(authorName: string, kind: AuthorKind, content: string): string {
-  return `${authorName} (${AUTHOR_KIND_WORDS[kind]}): ${content}`;
+  return `${renderAuthorLabel(authorName, kind)}: ${content}`;
+}
+
+/** §3.8 — an author's name beside what they are, as the window writes it */
+export function renderAuthorLabel(authorName: string, kind: AuthorKind): string {
+  return `${authorName} (${AUTHOR_KIND_WORDS[kind]})`;
+}
+
+/** §3.8 — an agent by its display name; a person keeps the username, so a reply that tags them copies it */
+export function renderAuthorName(
+  post: Pick<ModelRow<'Post'>, 'authorKind' | 'authorUsername'>,
+  reader: Pick<WindowReader, 'displayNameOf'>
+): string {
+  return post.authorKind === 'agent' ? reader.displayNameOf(post.authorUsername) : post.authorUsername;
 }

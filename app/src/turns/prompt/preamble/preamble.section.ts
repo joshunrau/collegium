@@ -9,6 +9,7 @@ import { renderMailPreamble } from './mail.preamble.ts';
 import { renderMarkdownPreamble } from './markdown.preamble.ts';
 import { renderMemoryPreamble } from './memory.preamble.ts';
 import { renderOperatorPreamble } from './operator.preamble.ts';
+import { renderPinnedPostsPreamble } from './pinned-posts.preamble.ts';
 import { renderRepliesPreamble } from './replies.preamble.ts';
 import { renderSearchPreamble } from './search.preamble.ts';
 import { renderShellPreamble } from './shell.preamble.ts';
@@ -23,6 +24,7 @@ const PREAMBLE_PARAGRAPHS: readonly StableParagraph[] = [
   renderContextPreamble,
   renderContextBudgetPreamble,
   renderEarlierActionsPreamble,
+  renderPinnedPostsPreamble,
   renderRepliesPreamble,
   renderTurnStartsPreamble,
   renderMarkdownPreamble,

@@ -35,14 +35,31 @@ function renderTriggerOrigin(trigger: TriggerOrigin | undefined): string {
   return isOperatorInstruction(trigger.source) ? origin : `${origin}, not by a person`;
 }
 
-/** §3.7 — the person whose request a colleague's relay serves, so the approver is not deciding on a colleague's word alone */
-function renderRelayOrigin(origin: TurnRequestOrigin | undefined): string {
-  return match(origin)
-    .with(undefined, () => '')
-    .with({ kind: 'human' }, ({ message, username }) => `, for @${username}: "${renderExcerpt(message)}"`)
-    .with({ kind: 'system' }, () => ', on an item a trigger raised')
+/** §3.7 — a colleague by display name (§3.1), and the unit whose assignment post started the turn (§3.15) */
+type ColleagueRequest = Omit<Extract<TurnRequest, { kind: 'agent' }>, 'username'> & {
+  readonly displayName: string;
+  readonly unitReference: string | undefined;
+};
+
+/** §3.7 — a colleague that asked, beside the person or trigger its chain descends from (§7.4) */
+function renderColleagueRequest({ displayName, onBehalfOf, unitReference }: ColleagueRequest): string {
+  const asked =
+    unitReference === undefined
+      ? `asked by colleague ${displayName}`
+      : `asked by colleague ${displayName} on work unit \`${unitReference}\``;
+  return match(onBehalfOf)
+    .with(undefined, () => asked)
+    .with({ kind: 'human' }, ({ message, username }) => {
+      return unitReference === undefined
+        ? `${asked}, for @${username}: "${renderExcerpt(message)}"`
+        : `${asked}, for @${username}`;
+    })
+    .with({ kind: 'system' }, () => `${asked}, on an item a trigger raised`)
     .exhaustive();
 }
+
+/** who asked, as the line names them: a person or trigger as the triggering post says, a colleague as §3.7 names it */
+export type ApprovalRequester = ColleagueRequest | TurnRequestOrigin;
 
 export type ApprovalContext = {
   readonly actionBudget: number;
@@ -50,24 +67,21 @@ export type ApprovalContext = {
   /** §3.7 — the reasoned denial of this tool earlier in the turn, so the payload reads as the amendment it is */
   readonly follows?: { readonly byUsername: string; readonly reason: string; readonly toolName: string };
   /** a human's message already stripped of peer mentions (§4.5), because quoting one back would address it */
-  readonly requestedBy: TurnRequest | undefined;
+  readonly requestedBy: ApprovalRequester | undefined;
 };
 
 /**
  * §3.7 — the line above an approval payload: where in the turn's budget this action falls, who
  * asked for the work, and the denial this call answers. Every word is the framework's or a
  * person's, read from the turn record; nothing a tool
- * returned reaches it. A colleague is named without its @, since the prompt posts under the agent's
- * account and a mention there would start the colleague's turn (§4.5).
+ * returned reaches it. A colleague is named by its display name, never its @, since the prompt posts
+ * under the agent's account and a mention there would start the colleague's turn (§4.5).
  */
 export function renderApprovalContext(context: ApprovalContext): string {
   const asked = match(context.requestedBy)
     .with(undefined, () => renderTriggerOrigin(undefined))
     .with({ kind: 'system' }, ({ trigger }) => renderTriggerOrigin(trigger))
-    .with(
-      { kind: 'agent' },
-      ({ onBehalfOf, username }) => `asked by colleague ${username}${renderRelayOrigin(onBehalfOf)}`
-    )
+    .with({ kind: 'agent' }, (colleague) => renderColleagueRequest(colleague))
     .with({ kind: 'human' }, ({ message, username }) => `requested by @${username}: "${renderExcerpt(message)}"`)
     .exhaustive();
   const follows =

@@ -5,13 +5,15 @@ import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 
 import { ConversationsService } from '../conversations.service.ts';
+import { PinsService } from '../pins/pins.service.ts';
 
 /**
  * §8.2 — posts made while the process was down are absent from the store. Each channel is
  * backfilled from its last recorded post id forward, per agent using that agent's own token —
  * never a privileged one, or the framework would import posts from channels the agent has no
  * membership in and write them into a store the agent reads from. Backfilled posts are recorded
- * and context-eligible but never trigger a turn: they are history, not missed requests.
+ * and context-eligible but never trigger a turn: they are history, not missed requests. Each
+ * channel's pins are read afresh, since a pin or an edit made while the process was down is no post.
  */
 @Injectable()
 export class BackfillService {
@@ -19,6 +21,7 @@ export class BackfillService {
     private readonly agentRegistry: AgentRegistry,
     private readonly conversationsService: ConversationsService,
     private readonly loggingService: LoggingService,
+    private readonly pinsService: PinsService,
     private readonly transportRegistry: TransportRegistry
   ) {}
 
@@ -43,6 +46,12 @@ export class BackfillService {
         }
         for (const post of posts.value) {
           await this.conversationsService.record(post);
+        }
+        const pins = await this.pinsService.reconcile(transport, channelId);
+        if (!pins.success) {
+          this.loggingService.error(
+            new Error(`pins not read for channel "${channelId}" of "${profile.username}": ${pins.error.message}`)
+          );
         }
       }
     }

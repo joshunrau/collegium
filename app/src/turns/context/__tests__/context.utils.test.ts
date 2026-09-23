@@ -36,6 +36,7 @@ const post = (
     createdAt: new Date(0),
     id: 'post-1',
     isForgotten: false,
+    isPinned: false,
     kind: 'message',
     message,
     observedAt: new Date(0)

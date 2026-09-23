@@ -102,6 +102,8 @@ model Post {
   channelId       String
   createdAt       DateTime
   isForgotten     Boolean    @default(false)
+  /// §3.8 — pinned in Mattermost now; the one state of a post the store follows after recording it (§8.2)
+  isPinned        Boolean    @default(false)
   kind            PostKind   @default(message)
   message         String
   observedAt      DateTime   @default(now())
@@ -109,6 +111,7 @@ model Post {
   authoringTurn   Turn?      @relation(fields: [authoringTurnId], references: [id], onDelete: SetNull)
 
   @@index([channelId, createdAt])
+  @@index([channelId, isPinned])
 }
 
 model Turn {

@@ -18,6 +18,7 @@ import type { ChatEvent, ChatEventHandler } from '@/chat/chat.types.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { CommandReconcilerService } from '@/commands/registration/command-reconciler.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
+import { PinsService } from '@/conversations/pins/pins.service.ts';
 import { ResyncService } from '@/conversations/resync/resync.service.ts';
 import { CredentialsService } from '@/credentials/credentials.service.ts';
 import { HaltService } from '@/halt/halt.service.ts';
@@ -72,6 +73,7 @@ describe('RuntimeService', () => {
   let haltService: MockedInstance<HaltService>;
   let inferenceRegistry: MockedInstance<InferenceRegistry>;
   let notificationsService: MockedInstance<NotificationsService>;
+  let pinsService: MockedInstance<PinsService>;
   let resyncService: MockedInstance<ResyncService>;
   let rosterService: MockedInstance<RosterService>;
   let schedulesService: MockedInstance<SchedulesService>;
@@ -105,6 +107,7 @@ describe('RuntimeService', () => {
         MockFactory.createForService(MailBootService),
         MockFactory.createForService(MailInboundService),
         { provide: NotificationsService, useValue: notificationsService },
+        { provide: PinsService, useValue: pinsService },
         { provide: ResyncService, useValue: resyncService },
         { provide: RosterService, useValue: rosterService },
         { provide: SchedulesService, useValue: schedulesService },
@@ -160,6 +163,7 @@ describe('RuntimeService', () => {
     inferenceRegistry = MockFactory.createMock(InferenceRegistry);
     inferenceRegistry.assertCredentialsVerified.mockResolvedValue(undefined);
     notificationsService = MockFactory.createMock(NotificationsService);
+    pinsService = MockFactory.createMock(PinsService);
     resyncService = MockFactory.createMock(ResyncService);
     resyncService.recover.mockResolvedValue([]);
     rosterService = MockFactory.createMock(RosterService);
@@ -289,6 +293,17 @@ describe('RuntimeService', () => {
     await runtimeService.onApplicationBootstrap();
     await handleEvent({ kind: 'posted', post });
     expect(activationService.onPost).toHaveBeenCalledExactlyOnceWith(mira, post);
+  });
+
+  it('should record a pin and an unpin in the store, never in activation (§8.2)', async () => {
+    const post = createObservedPost();
+    const runtimeService = await compile();
+    await runtimeService.onApplicationBootstrap();
+    await handleEvent({ kind: 'pinned', post });
+    await handleEvent({ kind: 'unpinned', postId: post.id });
+    expect(pinsService.pin).toHaveBeenCalledExactlyOnceWith(post);
+    expect(pinsService.unpin).toHaveBeenCalledExactlyOnceWith(post.id);
+    expect(activationService.onPost).not.toHaveBeenCalled();
   });
 
   // §7.3/§4.5 — the roster is empty until it reconciles, so a post evaluated during boot slips the

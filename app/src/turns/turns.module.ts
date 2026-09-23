@@ -25,6 +25,7 @@ import { EarlierActionsSection } from './prompt/sections/earlier-actions.section
 import { MemoriesSection } from './prompt/sections/memories.section.ts';
 import { OpenWorkSection } from './prompt/sections/open-work.section.ts';
 import { PeersSection } from './prompt/sections/peers.section.ts';
+import { PinnedPostsSection } from './prompt/sections/pinned-posts.section.ts';
 import { StatusPostService } from './status/status-post.service.ts';
 import { TurnRunner } from './turns.runner.ts';
 import { TurnsService } from './turns.service.ts';
@@ -64,6 +65,7 @@ import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
     MemoriesSection,
     OpenWorkSection,
     PeersSection,
+    PinnedPostsSection,
     PromptRenderer,
     StatusPostService,
     TurnControlRegistry,

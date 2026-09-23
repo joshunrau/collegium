@@ -1,6 +1,6 @@
 import type { Result } from '@collegium/core/utils';
 
-import type { ObservedPost } from '@/conversations/conversations.types.ts';
+import type { ObservedPost, RecordablePost } from '@/conversations/conversations.types.ts';
 
 import type {
   ChannelDescription,
@@ -28,6 +28,8 @@ export abstract class ChatTransport {
   /** §6.2 — the substrate's own post-size limit (`MaxPostSize`), read here so nothing hardcodes it */
   abstract maxPostSizeChars(): Promise<Result<number, ChatFailure>>;
   abstract openDialog(request: DialogRequest): Promise<Result<void, ChatFailure>>;
+  /** §8.2 — the posts pinned in a channel now, which the store's pin state is reconciled to where events may have been missed */
+  abstract pinnedPosts(channelId: string): Promise<Result<RecordablePost[], ChatFailure>>;
   /** the backfill read (§8.2): everything after the named post, oldest first; recent history when unnamed */
   abstract postsSince(channelId: string, postId: string | undefined): Promise<Result<ObservedPost[], ChatFailure>>;
   abstract send(message: OutgoingChatMessage): Promise<Result<{ createdAt: Date; postId: string }, ChatFailure>>;

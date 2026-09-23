@@ -27,9 +27,9 @@ describe('renderApprovalContext', () => {
       renderApprovalContext({
         actionBudget: 25,
         actionNumber: 4,
-        requestedBy: { kind: 'agent', onBehalfOf: undefined, username: 'owen' }
+        requestedBy: { displayName: 'Owen', kind: 'agent', onBehalfOf: undefined, unitReference: undefined }
       })
-    ).toBe('Action 4 of 25 · asked by colleague owen');
+    ).toBe('Action 4 of 25 · asked by colleague Owen');
   });
 
   it('should name the person whose request a colleague relays, quoting their words (§3.7)', () => {
@@ -38,19 +38,35 @@ describe('renderApprovalContext', () => {
         actionBudget: 200,
         actionNumber: 5,
         requestedBy: {
+          displayName: 'Owen',
           kind: 'agent',
           onBehalfOf: { kind: 'human', message: 'owen please ask mira to clear the scratch dir', username: 'joshua' },
-          username: 'owen'
+          unitReference: undefined
         }
       })
-    ).toBe('Action 5 of 200 · asked by colleague owen, for @joshua: "owen please ask mira to clear the scratch dir"');
+    ).toBe('Action 5 of 200 · asked by colleague Owen, for @joshua: "owen please ask mira to clear the scratch dir"');
     expect(
       renderApprovalContext({
         actionBudget: 25,
         actionNumber: 1,
-        requestedBy: { kind: 'agent', onBehalfOf: { kind: 'system' }, username: 'owen' }
+        requestedBy: { displayName: 'Owen', kind: 'agent', onBehalfOf: { kind: 'system' }, unitReference: undefined }
       })
-    ).toBe('Action 1 of 25 · asked by colleague owen, on an item a trigger raised');
+    ).toBe('Action 1 of 25 · asked by colleague Owen, on an item a trigger raised');
+  });
+
+  it('should name the work unit a colleague assigned, tagging the person it descends from without their words (§3.7)', () => {
+    expect(
+      renderApprovalContext({
+        actionBudget: 200,
+        actionNumber: 1,
+        requestedBy: {
+          displayName: 'Owen',
+          kind: 'agent',
+          onBehalfOf: { kind: 'human', message: 'owen please sort the backlog', username: 'joshua' },
+          unitReference: 'q3m8v1zd'
+        }
+      })
+    ).toBe('Action 1 of 200 · asked by colleague Owen on work unit `q3m8v1zd`, for @joshua');
   });
 
   it('should name the trigger that raised the turn and say no person asked (§3.7)', () => {

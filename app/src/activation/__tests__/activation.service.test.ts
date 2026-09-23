@@ -338,6 +338,7 @@ describe('ActivationService', () => {
       createdAt: new Date(3_000),
       id,
       isForgotten: false,
+      isPinned: false,
       kind: 'message',
       message,
       observedAt: new Date(3_000)
@@ -369,9 +370,9 @@ describe('ActivationService', () => {
         );
       });
       turnsService.findLatestStartIn.mockResolvedValue(LATEST_START);
-      agentRegistry.isAddressedBy.mockImplementation((_profile, observed) =>
-        { return observed.mentionedUsernames.includes('mira'); }
-      );
+      agentRegistry.isAddressedBy.mockImplementation((_profile, observed) => {
+        return observed.mentionedUsernames.includes('mira');
+      });
     });
 
     it("should answer the newest person's post addressing the agent since its last turn began, in a fresh chain", async () => {

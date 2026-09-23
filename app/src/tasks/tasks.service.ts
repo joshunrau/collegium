@@ -129,6 +129,26 @@ export class TasksService {
     await transaction.workUnit.deleteMany({ where: { channelId, createdAt: { lt: boundary.eventsAfter } } });
   }
 
+  /** §3.15 — the unit still assigned to this agent here whose assignment post started its turn */
+  async findServedUnit(input: {
+    agentUsername: string;
+    channelId: string;
+    triggeringPostId: string | undefined;
+  }): Promise<undefined | WorkUnit> {
+    if (input.triggeringPostId === undefined) {
+      return undefined;
+    }
+    const unit = await this.units.findFirst({
+      where: {
+        assigneeUsername: input.agentUsername,
+        channelId: input.channelId,
+        originPostId: input.triggeringPostId,
+        state: 'assigned'
+      }
+    });
+    return unit ?? undefined;
+  }
+
   /** open units where the agent is creator or assignee, in this channel, oldest first, each with where its counterpart stands (§3.15) */
   async listOpenFor(input: { agentUsername: string; channelId: string }): Promise<OpenUnitSummary[]> {
     const rows = await this.units.findMany({
@@ -261,12 +281,13 @@ export class TasksService {
     channelId: string;
     triggeringPostId: string | undefined;
   }): Promise<Addressed<PreparedTransition> | undefined> {
-    const assigned = await this.units.findMany({
-      where: { assigneeUsername: input.agentUsername, channelId: input.channelId, state: 'assigned' }
-    });
-    const unit =
-      assigned.find((candidate) => candidate.originPostId === input.triggeringPostId) ??
-      (assigned.length === 1 ? assigned[0] : undefined);
+    const served = await this.findServedUnit(input);
+    const assigned = served
+      ? [served]
+      : await this.units.findMany({
+          where: { assigneeUsername: input.agentUsername, channelId: input.channelId, state: 'assigned' }
+        });
+    const unit = assigned.length === 1 ? assigned[0] : undefined;
     if (!unit) {
       return undefined;
     }

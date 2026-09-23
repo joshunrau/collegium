@@ -14,6 +14,7 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { createObservedPost } from '@/testing/factories/observed-post.factory.ts';
 
 import { ConversationsService } from '../../conversations.service.ts';
+import { PinsService } from '../../pins/pins.service.ts';
 import { BackfillService } from '../backfill.service.ts';
 
 const post = (id: string): ObservedPost => createObservedPost({ id });
@@ -23,8 +24,10 @@ describe('BackfillService', () => {
   let conversationsService: MockedInstance<ConversationsService>;
   let loggingService: MockedInstance<LoggingService>;
   let memberships: { [username: string]: Result<string[], ChatFailure> };
+  let pinsService: MockedInstance<PinsService>;
   let postsSince: (channelId: string) => Result<ObservedPost[], ChatFailure>;
   let reads: { channelId: string; since: string | undefined; username: string }[];
+  let transports: { [username: string]: ChatTransport };
 
   beforeEach(async () => {
     conversationsService = MockFactory.createMock(ConversationsService);
@@ -34,27 +37,30 @@ describe('BackfillService', () => {
     conversationsService.record.mockResolvedValue(true);
     loggingService = MockFactory.createMock(LoggingService);
     memberships = { mira: Result.ok(['channel-1']), owen: Result.ok(['channel-2']) };
+    pinsService = MockFactory.createMock(PinsService);
+    pinsService.reconcile.mockResolvedValue(Result.ok());
     postsSince = (channelId) => Result.ok([post(`${channelId}-new`)]);
     reads = [];
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.list.mockReturnValue([{ username: 'mira' } as AgentProfile, { username: 'owen' } as AgentProfile]);
-    const transportRegistry = {
-      get: (username: string): ChatTransport => {
-        return {
-          getChannelMemberships: () => Promise.resolve(memberships[username]!),
-          postsSince: (channelId: string, since: string | undefined) => {
-            reads.push({ channelId, since, username });
-            return Promise.resolve(postsSince(channelId));
-          }
-        } as ChatTransport;
-      }
+    const createTransport = (username: string): ChatTransport => {
+      return {
+        getChannelMemberships: () => Promise.resolve(memberships[username]!),
+        postsSince: (channelId: string, since: string | undefined) => {
+          reads.push({ channelId, since, username });
+          return Promise.resolve(postsSince(channelId));
+        }
+      } as ChatTransport;
     };
+    transports = { mira: createTransport('mira'), owen: createTransport('owen') };
+    const transportRegistry = { get: (username: string): ChatTransport => transports[username]! };
     const moduleRef = await Test.createTestingModule({
       providers: [
         BackfillService,
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ConversationsService, useValue: conversationsService },
         { provide: LoggingService, useValue: loggingService },
+        { provide: PinsService, useValue: pinsService },
         { provide: TransportRegistry, useValue: transportRegistry }
       ]
     }).compile();
@@ -68,6 +74,17 @@ describe('BackfillService', () => {
       { channelId: 'channel-2', since: undefined, username: 'owen' }
     ]);
     expect(conversationsService.record).toHaveBeenCalledTimes(2);
+  });
+
+  it('should reconcile each channel’s pins after its posts, through the agent that read them (§8.2)', async () => {
+    await backfillService.run();
+    expect(pinsService.reconcile.mock.calls).toStrictEqual([
+      [transports.mira, 'channel-1'],
+      [transports.owen, 'channel-2']
+    ]);
+    expect(pinsService.reconcile.mock.invocationCallOrder[0]).toBeGreaterThan(
+      conversationsService.record.mock.invocationCallOrder[0]!
+    );
   });
 
   it('should skip an agent whose memberships cannot be read and carry on with the next', async () => {
