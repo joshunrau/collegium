@@ -45,10 +45,12 @@ enum AuthorKind {
   system
 }
 
-/// what a post is to the agent whose turn authored it; `message` is every post observed rather than authored
+/// what a post is to the agent whose turn authored it; `message` is every post observed rather than authored,
+/// and `prompt` an approval or ask prompt the turn parked on, which addresses no colleague (§4.5)
 enum PostKind {
   message
   notice
+  prompt
   reply
   status
 }

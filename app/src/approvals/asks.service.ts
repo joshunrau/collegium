@@ -150,7 +150,7 @@ export class AsksService {
    * always find a resolver to fire, or the turn it belongs to would park forever.
    */
   async request(request: AskRequest): Promise<Result<AskDecision, AskFailureRequest>> {
-    // §4.5 — the question posts under the agent's account and addresses people; a peer named in it would be activated
+    // §4.5 — the question addresses people and never a colleague, so a colleague it names loses its @
     const input: AskRequest = {
       ...request,
       ...(request.options && {
@@ -297,7 +297,7 @@ export class AsksService {
     if (!sent.success) {
       return Result.err({ kind: 'prompt-undeliverable', message: sent.error.message });
     }
-    // §3.7a — the turn's own notice, as an approval prompt is (§3.7): left out of the agent's window, replayed through the call
+    // §3.7a — the turn's own prompt, as an approval's is (§3.7): left out of the agent's window, replayed through the call
     await this.conversationsService.record(
       {
         attachments: [],
@@ -308,7 +308,7 @@ export class AsksService {
         id: sent.value.postId,
         message: text
       },
-      { kind: 'notice', turnId: input.turnId }
+      { kind: 'prompt', turnId: input.turnId }
     );
     return Result.ok({ postId: sent.value.postId });
   }

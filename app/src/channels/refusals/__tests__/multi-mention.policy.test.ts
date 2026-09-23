@@ -30,6 +30,16 @@ describe('MultiMentionPolicy', () => {
     multiMentionPolicy = moduleRef.get(MultiMentionPolicy);
   });
 
+  describe('findAddressee', () => {
+    it('should find the colleague a post addresses outside code, and none where it names only itself (§5.2)', () => {
+      const addresseeOf = (message: string) => {
+        return multiMentionPolicy.findAddressee({ authorUsername: 'mira', channelId: 'channel-1', message });
+      };
+      expect(addresseeOf('@owen — work unit `ab12cd34`')).toBe('owen');
+      expect(addresseeOf('@mira noted; `@owen` is the handle')).toBeUndefined();
+    });
+  });
+
   describe('refuses', () => {
     it('should refuse a post mentioning two agents present in the channel', () => {
       expect(

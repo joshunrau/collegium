@@ -127,11 +127,11 @@ describe('ApprovalsService', () => {
     expect(events[0]).toMatchObject({ contextText: 'Action 7 of 25 · raised by a trigger' });
   });
 
-  it('should record the prompt as the turn’s own notice and keep the stored copy current once resolved (§3.7)', async () => {
+  it('should record the prompt as a prompt of the turn’s own and keep the stored copy current once resolved (§3.7)', async () => {
     const { outcome: pending } = await request();
     expect(conversationsService.record).toHaveBeenCalledWith(
       expect.objectContaining({ authorKind: 'agent', authorUsername: 'mira', channelId: 'channel-1', id: 'prompt-1' }),
-      { kind: 'notice', turnId: 'turn-1' }
+      { kind: 'prompt', turnId: 'turn-1' }
     );
     await approvalsService.resolve(rows[0]!.id, { byUsername: 'casey', kind: 'approved' });
     await pending;

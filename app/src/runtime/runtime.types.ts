@@ -25,6 +25,8 @@ export type StrandedUnit = {
 export type BootReport = {
   readonly abandonedTurns: number;
   readonly downtime: Downtime | undefined;
+  /** colleagues the abandoned turns had addressed and none of their turns has read since, queued at those posts (§7.3) */
+  readonly requeuedHandoffs: number;
   /** abandoned turns that had not acted, their posts queued again (§7.3) */
   readonly requeuedTurns: number;
   readonly strandedUnits: readonly StrandedUnit[];

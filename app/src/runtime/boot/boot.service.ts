@@ -63,9 +63,9 @@ export class BootService {
     if (!reconciled.success) {
       throw new Error(`failed to reconcile channel membership: ${reconciled.error.message}`);
     }
-    await this.activationService.requeueHeld(abandoned.turns);
+    const requeuedHandoffs = await this.activationService.requeueHeld(abandoned.turns);
     void this.activationService.sweep();
-    return { abandonedTurns: abandoned.turns.length, downtime, requeuedTurns, strandedUnits };
+    return { abandonedTurns: abandoned.turns.length, downtime, requeuedHandoffs, requeuedTurns, strandedUnits };
   }
 
   private async closeAbandonedStatusPosts(posts: readonly AbandonedStatusPost[]): Promise<void> {

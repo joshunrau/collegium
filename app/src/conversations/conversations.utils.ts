@@ -1,6 +1,6 @@
 import { renderReplayLine, replaySubjectWhenLong } from '@collegium/core/tools';
 
-import type { ModelRow } from '@/prisma/prisma.types.ts';
+import type { ModelRow, PostKind } from '@/prisma/prisma.types.ts';
 import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
 
@@ -10,6 +10,11 @@ function renderAttachmentLine(file: PrismaJson.PostAttachments['files'][number])
   const details = [file.mimeType, `${file.size} bytes`].filter((detail) => detail !== '');
   return `[attached: ${file.name} (${details.join(', ')})]`;
 }
+
+/** §5.2 — the posts a turn speaks in, the only ones that address a colleague: never its status post, nor a prompt it parks on (§4.5) */
+export const SPOKEN_POST_KINDS = ['notice', 'reply'] as const satisfies readonly PostKind[];
+
+export type SpokenPostKind = (typeof SPOKEN_POST_KINDS)[number];
 
 /**
  * A post as the model reads it: its text, then one line naming each file it carried (§3.8). The one

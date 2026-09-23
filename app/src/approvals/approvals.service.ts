@@ -138,7 +138,7 @@ export class ApprovalsService {
    * always find a resolver to fire, or the turn it belongs to would park forever.
    */
   async request(request: ApprovalRequest): Promise<Result<ApprovalDecision, ApprovalFailureRequest>> {
-    // §4.5 — the prompt posts under the agent's account and addresses people; a peer named in the payload would be activated
+    // §4.5 — the prompt addresses people and never a colleague, so a colleague the payload names loses its @
     const input: ApprovalRequest = {
       ...request,
       payloadText: this.multiMentionPolicy.stripAgentMentions(request.payloadText)
@@ -340,9 +340,10 @@ export class ApprovalsService {
   }
 
   /**
-   * §3.7 — the prompt is the turn's own notice: recorded with the turn that raised it, so the
-   * agent's window leaves it out as it leaves out every post the turn authored (§3.8), and the
-   * decision reaches the model through the call's result rather than as its own words.
+   * §3.7 — the prompt is the turn's own: recorded with the turn that raised it, so the agent's
+   * window leaves it out as it leaves out every post the turn authored (§3.8), and the decision
+   * reaches the model through the call's result rather than as its own words. Recorded as a prompt,
+   * never as something the turn said, so it holds no colleague's turn (§5.2).
    */
   private async recordPrompt(
     input: ApprovalRequest,
@@ -358,7 +359,7 @@ export class ApprovalsService {
         id: posted.postId,
         message: posted.text
       },
-      { kind: 'notice', turnId: input.turnId }
+      { kind: 'prompt', turnId: input.turnId }
     );
   }
 

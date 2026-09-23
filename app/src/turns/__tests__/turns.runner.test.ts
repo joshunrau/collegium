@@ -540,6 +540,22 @@ describe('TurnRunner', () => {
     );
   });
 
+  it('should strip agent mentions from the reason of the denial an amended call answers (§4.5)', async () => {
+    multiMentionPolicy.stripAgentMentions.mockImplementation((content: string) => content.replaceAll('@owen', 'owen'));
+    toolExecutor.execute.mockResolvedValueOnce({
+      kind: 'continue',
+      output: 'denied',
+      reasonedDenial: { byUsername: 'casey', reason: 'ask @owen first' }
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(toolExecutor.execute.mock.calls[1]?.[0].contextText).toMatch(
+      / · after @casey denied .+: "ask owen first"$/u
+    );
+  });
+
   it('should name the unit whose assignment started the turn, tagging the person without their words (§3.7)', async () => {
     conversationsService.findRequester.mockResolvedValue({
       kind: 'agent',
@@ -1560,7 +1576,7 @@ describe('TurnRunner', () => {
         );
         return Promise.resolve();
       });
-      multiMentionPolicy.addresseesOf.mockReturnValue(['owen']);
+      multiMentionPolicy.findAddressee.mockReturnValue('owen');
       complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
       toolExecutor.execute.mockResolvedValueOnce(post(onPublished));
       complete.mockResolvedValueOnce(Result.ok(text('handed over')));
@@ -1601,7 +1617,7 @@ describe('TurnRunner', () => {
     });
 
     it('should hold the colleague it addressed until the turn ends, then release the earliest post once (§5.2)', async () => {
-      multiMentionPolicy.addresseesOf.mockReturnValue(['owen']);
+      multiMentionPolicy.findAddressee.mockReturnValue('owen');
       complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
       toolExecutor.execute.mockResolvedValueOnce(post(() => Promise.resolve()));
       complete.mockImplementationOnce(() => {
@@ -1613,7 +1629,7 @@ describe('TurnRunner', () => {
     });
 
     it('should release the colleague when the turn parks on a person, and not again when it ends (§5.2)', async () => {
-      multiMentionPolicy.addresseesOf.mockReturnValueOnce(['owen']);
+      multiMentionPolicy.findAddressee.mockReturnValueOnce('owen');
       complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
       toolExecutor.execute.mockResolvedValueOnce(post(() => Promise.resolve()));
       complete.mockResolvedValueOnce(Result.ok(toolUse(['workspace__write'])));

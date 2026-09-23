@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
-import { stripMentionsOf } from '@/utils/mention.utils.ts';
+import { extractMentionedUsernames, stripMentionsOf } from '@/utils/mention.utils.ts';
 
 import { RosterService } from '../roster/roster.service.ts';
 
@@ -26,6 +26,15 @@ export class MultiMentionPolicy {
       .filter((agent) => agent.username !== post.authorUsername)
       .filter((agent) => post.mentionedUsernames.includes(agent.username))
       .map((agent) => agent.username);
+  }
+
+  /**
+   * §5.2 — the colleague a post a turn said addresses, if any: the one rule both the hold a running
+   * turn keeps and the hold a restart recomputes (§7.3) read, so the two cannot disagree
+   */
+  findAddressee(post: { authorUsername: string; channelId: string; message: string }): string | undefined {
+    const [addressee] = this.addresseesOf({ ...post, mentionedUsernames: extractMentionedUsernames(post.message) });
+    return addressee;
   }
 
   refuses(post: AddressablePost): boolean {

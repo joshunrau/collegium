@@ -148,6 +148,7 @@ describe('RuntimeService', () => {
     bootService.run.mockResolvedValue({
       abandonedTurns: 2,
       downtime: { kind: 'clean', startedAt: new Date(2000), stoppedAt: new Date(1000) },
+      requeuedHandoffs: 0,
       requeuedTurns: 1,
       strandedUnits: []
     });
@@ -263,6 +264,7 @@ describe('RuntimeService', () => {
       agentUsernames: ['mira'],
       downtime: { kind: 'clean', startedAt: new Date(2000), stoppedAt: new Date(1000) },
       kind: 'online',
+      requeuedHandoffs: 0,
       requeuedTurns: 1,
       strandedUnits: []
     });
@@ -316,7 +318,7 @@ describe('RuntimeService', () => {
     bootService.run.mockReturnValue(
       new Promise((resolve) => {
         finishBoot = () => {
-          resolve({ abandonedTurns: 0, downtime: undefined, requeuedTurns: 0, strandedUnits: [] });
+          resolve({ abandonedTurns: 0, downtime: undefined, requeuedHandoffs: 0, requeuedTurns: 0, strandedUnits: [] });
         };
       })
     );

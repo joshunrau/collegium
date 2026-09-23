@@ -64,18 +64,17 @@ export type ApprovalRequester = ColleagueRequest | TurnRequestOrigin;
 export type ApprovalContext = {
   readonly actionBudget: number;
   readonly actionNumber: number;
-  /** §3.7 — the reasoned denial of this tool earlier in the turn, so the payload reads as the amendment it is */
+  /** §3.7 — the reasoned denial of this tool earlier in the turn, so the payload reads as the amendment it is; its reason already stripped of peer mentions (§4.5) */
   readonly follows?: { readonly byUsername: string; readonly reason: string; readonly toolName: string };
-  /** a human's message already stripped of peer mentions (§4.5), because quoting one back would address it */
+  /** a human's message already stripped of peer mentions, since a prompt addresses no colleague (§4.5) */
   readonly requestedBy: ApprovalRequester | undefined;
 };
 
 /**
  * §3.7 — the line above an approval payload: where in the turn's budget this action falls, who
  * asked for the work, and the denial this call answers. Every word is the framework's or a
- * person's, read from the turn record; nothing a tool
- * returned reaches it. A colleague is named by its display name, never its @, since the prompt posts
- * under the agent's account and a mention there would start the colleague's turn (§4.5).
+ * person's, read from the turn record; nothing a tool returned reaches it. A colleague is named by
+ * its display name, never its @, since a prompt addresses no colleague (§4.5).
  */
 export function renderApprovalContext(context: ApprovalContext): string {
   const asked = match(context.requestedBy)

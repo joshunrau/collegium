@@ -766,11 +766,11 @@ describe('ActivationService', () => {
     const abandoned = { agentUsername: 'mira', channelId: 'channel-1', turnId: 'turn-9' };
 
     beforeEach(() => {
-      conversationsService.listAuthoredBy.mockResolvedValue([
+      conversationsService.listSpokenBy.mockResolvedValue([
         { id: 'post-4', message: '@owen — work unit', observedAt: new Date(1_000) },
         { id: 'post-6', message: '@owen and one more thing', observedAt: new Date(3_000) }
       ]);
-      multiMentionPolicy.addresseesOf.mockReturnValue(['owen']);
+      multiMentionPolicy.findAddressee.mockReturnValue('owen');
     });
 
     it('should queue the colleague at the earliest post it has had no turn here since', async () => {
@@ -786,7 +786,7 @@ describe('ActivationService', () => {
     });
 
     it('should queue nothing for a turn whose posts addressed no colleague', async () => {
-      multiMentionPolicy.addresseesOf.mockReturnValue([]);
+      multiMentionPolicy.findAddressee.mockReturnValue(undefined);
       expect(await activationService.requeueHeld([abandoned])).toBe(0);
       expect(turnsService.findLatestStartIn).not.toHaveBeenCalled();
     });

@@ -5,6 +5,8 @@ import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import type { Model, ModelRow, TransactionClient } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
+import { SPOKEN_POST_KINDS } from './conversations.utils.ts';
+
 import type {
   ActivationSource,
   DelegatingTurn,
@@ -139,15 +141,6 @@ export class ConversationsService {
     return latest?.id;
   }
 
-  /** what one turn posted, earliest first, its status post aside (§7.3) */
-  listAuthoredBy(turnId: string): Promise<Pick<ModelRow<'Post'>, 'id' | 'message' | 'observedAt'>[]> {
-    return this.posts.findMany({
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      select: { id: true, message: true, observedAt: true },
-      where: { authoringTurnId: turnId, kind: { not: 'status' } }
-    });
-  }
-
   /**
    * §5.2 — what people posted in the channel from a queued post onward, on Mattermost's clock, that
    * the store took at or after `observedSince`, newest first; a forgotten post is not among them,
@@ -171,6 +164,15 @@ export class ConversationsService {
         isForgotten: false,
         ...(input.observedSince !== undefined && { observedAt: { gte: input.observedSince } })
       }
+    });
+  }
+
+  /** what one turn said, earliest first: the posts that may address a colleague, never its status post or prompts (§7.3) */
+  listSpokenBy(turnId: string): Promise<Pick<ModelRow<'Post'>, 'id' | 'message' | 'observedAt'>[]> {
+    return this.posts.findMany({
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, message: true, observedAt: true },
+      where: { authoringTurnId: turnId, kind: { in: [...SPOKEN_POST_KINDS] } }
     });
   }
 

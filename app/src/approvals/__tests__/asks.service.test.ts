@@ -120,11 +120,11 @@ describe('AsksService', () => {
     expect(updates.at(-1)?.text).toContain('**Answered** by @casey');
   });
 
-  it('should record the question as the turn’s own notice and keep the stored copy current once answered (§3.7a)', async () => {
+  it('should record the question as a prompt of the turn’s own and keep the stored copy current once answered (§3.7a)', async () => {
     const { outcome: pending } = await request();
     expect(conversationsService.record).toHaveBeenCalledWith(
       expect.objectContaining({ authorKind: 'agent', authorUsername: 'mira', id: 'prompt-1' }),
-      { kind: 'notice', turnId: 'turn-1' }
+      { kind: 'prompt', turnId: 'turn-1' }
     );
     await asksService.answer({ answerText: 'Gatwick', askId: rows[0]!.id, byUserId: 'casey-id' });
     await pending;

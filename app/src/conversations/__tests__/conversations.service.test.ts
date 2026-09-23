@@ -269,8 +269,8 @@ describe('ConversationsService', () => {
     });
   });
 
-  describe('listAuthoredBy', () => {
-    it("should list one turn's posts earliest first, leaving out its status post and every other turn's (§7.3)", async () => {
+  describe('listSpokenBy', () => {
+    it("should list one turn's replies and notices earliest first, leaving out its status post, its prompts and every other turn's (§7.3)", async () => {
       await conversationsService.record(post({ createdAt: new Date(2000), id: 'post-2' }), {
         kind: 'reply',
         turnId: 'turn-1'
@@ -281,7 +281,8 @@ describe('ConversationsService', () => {
       });
       await conversationsService.record(post({ id: 'post-3' }), { kind: 'status', turnId: 'turn-1' });
       await conversationsService.record(post({ id: 'post-4' }), { kind: 'reply', turnId: 'turn-0' });
-      const listed = await conversationsService.listAuthoredBy('turn-1');
+      await conversationsService.record(post({ id: 'post-5' }), { kind: 'prompt', turnId: 'turn-1' });
+      const listed = await conversationsService.listSpokenBy('turn-1');
       expect(listed.map(({ id }) => id)).toStrictEqual(['post-1', 'post-2']);
     });
   });

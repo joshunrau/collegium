@@ -20,6 +20,7 @@ import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { TurnRequestOrigin } from '@/conversations/conversations.types.ts';
+import type { SpokenPostKind } from '@/conversations/conversations.utils.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
@@ -44,7 +45,7 @@ import {
 } from '@/inference/inference.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
-import type { ActivationKind, PostKind, ResultPresentation, TurnStatus } from '@/prisma/prisma.types.ts';
+import type { ActivationKind, ResultPresentation, TurnStatus } from '@/prisma/prisma.types.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
@@ -590,7 +591,13 @@ export class TurnRunner {
     const denial = state.reasonedDenials.get(identified.displayName);
     return {
       ...position,
-      ...(denial && { follows: { ...denial, toolName: identified.displayName } }),
+      ...(denial && {
+        follows: {
+          byUsername: denial.byUsername,
+          reason: this.multiMentionPolicy.stripAgentMentions(denial.reason),
+          toolName: identified.displayName
+        }
+      }),
       requestedBy: state.requestedBy
     };
   }
@@ -1243,13 +1250,17 @@ export class TurnRunner {
     input: RunInput,
     state: TurnState,
     text: string,
-    kind: Exclude<PostKind, 'message'>
+    kind: SpokenPostKind
   ): Promise<Result<{ postId: string }, { message: string }>> {
     const sent = await state.transport.send({ channelId: input.channelId, text });
     if (!sent.success) {
       return sent;
     }
-    const addressee = this.multiMentionPolicy.addresseesOf(this.asAddressablePost(input, text))[0];
+    const addressee = this.multiMentionPolicy.findAddressee({
+      authorUsername: input.profile.username,
+      channelId: input.channelId,
+      message: text
+    });
     if (addressee !== undefined) {
       state.addressedPeer = addressee;
       state.heldActivation ??= { addresseeUsername: addressee, postId: sent.value.postId };
@@ -1514,7 +1525,7 @@ export class TurnRunner {
   /**
    * §3.7 — who asked, read at turn setup and again at every fold, beside the unit the turn serves
    * where a colleague's assignment started it. Peer mentions lose their @ before the words can be
-   * quoted back, because an approval prompt repeating one would address that peer (§4.5).
+   * quoted back, since an approval prompt addresses no colleague (§4.5).
    */
   private async resolveRequester(
     postId: string | undefined,

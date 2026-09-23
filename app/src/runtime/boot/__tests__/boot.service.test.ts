@@ -53,7 +53,7 @@ describe('BootService', () => {
     });
     activationService.requeueHeld.mockImplementation(() => {
       calls.push('requeue-held');
-      return Promise.resolve(0);
+      return Promise.resolve(2);
     });
     activationService.sweep.mockImplementation(() => {
       calls.push('sweep');
@@ -138,7 +138,13 @@ describe('BootService', () => {
       'requeue-held',
       'sweep'
     ]);
-    expect(report).toStrictEqual({ abandonedTurns: 3, downtime: undefined, requeuedTurns: 1, strandedUnits: [] });
+    expect(report).toStrictEqual({
+      abandonedTurns: 3,
+      downtime: undefined,
+      requeuedHandoffs: 2,
+      requeuedTurns: 1,
+      strandedUnits: []
+    });
   });
 
   it('should hand activation the abandoned turns that had not acted (§7.3)', async () => {

@@ -64,6 +64,7 @@ describe('ChatEmitter', () => {
         stoppedAt: new Date('2026-07-26T12:00:00Z')
       },
       kind: 'online',
+      requeuedHandoffs: 0,
       requeuedTurns: 0,
       strandedUnits: []
     });
@@ -84,6 +85,7 @@ describe('ChatEmitter', () => {
         startedAt: new Date('2026-07-26T12:05:00Z')
       },
       kind: 'online',
+      requeuedHandoffs: 0,
       requeuedTurns: 0,
       strandedUnits: []
     });
@@ -98,6 +100,7 @@ describe('ChatEmitter', () => {
       agentUsernames: ['mira', 'robin'],
       downtime: undefined,
       kind: 'online',
+      requeuedHandoffs: 0,
       requeuedTurns: 0,
       strandedUnits: []
     });
@@ -106,12 +109,12 @@ describe('ChatEmitter', () => {
     );
   });
 
-  it('should state how many abandoned turns went back into the queue, and only when any did (§7.3)', async () => {
+  it('should state how many abandoned turns and hand-offs went back into the queue, and only when any did (§7.3)', async () => {
     const online = { agentUsernames: ['mira'], downtime: undefined, kind: 'online' as const, strandedUnits: [] };
-    await chatEmitter.notify({ ...online, abandonedTurns: 2, requeuedTurns: 1 });
-    await chatEmitter.notify({ ...online, abandonedTurns: 2, requeuedTurns: 0 });
+    await chatEmitter.notify({ ...online, abandonedTurns: 2, requeuedHandoffs: 1, requeuedTurns: 1 });
+    await chatEmitter.notify({ ...online, abandonedTurns: 2, requeuedHandoffs: 0, requeuedTurns: 0 });
     expect(chatGateway.postAsSystem.mock.calls.map(([content]) => content)).toStrictEqual([
-      '🟢 **Online** — the orchestrator started with 1 agent(s): Mira. 2 in-flight turn(s) were abandoned. 1 that had not yet acted went back into the queue.',
+      '🟢 **Online** — the orchestrator started with 1 agent(s): Mira. 2 in-flight turn(s) were abandoned. 1 that had not yet acted went back into the queue. 1 hand-off(s) they had made to a colleague went back into the queue.',
       '🟢 **Online** — the orchestrator started with 1 agent(s): Mira. 2 in-flight turn(s) were abandoned.'
     ]);
   });
@@ -122,6 +125,7 @@ describe('ChatEmitter', () => {
       agentUsernames: ['mira', 'owen'],
       downtime: undefined,
       kind: 'online',
+      requeuedHandoffs: 0,
       requeuedTurns: 0,
       strandedUnits: [
         { assigneeUsername: 'owen', channelId: 'channel-1', creatorUsername: 'mira', reference: 'ab12cd34' }

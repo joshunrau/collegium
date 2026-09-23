@@ -40,6 +40,7 @@ export declare namespace SystemEvent {
     agentUsernames: string[];
     downtime: Downtime | undefined;
     kind: 'online';
+    requeuedHandoffs: number;
     requeuedTurns: number;
     strandedUnits: readonly StrandedUnit[];
   };

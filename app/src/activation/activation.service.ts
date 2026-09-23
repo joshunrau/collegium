@@ -21,7 +21,6 @@ import { TurnFoldRegistry } from '@/turns/folding/turn-fold.registry.ts';
 import { TurnRunner } from '@/turns/turns.runner.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
 import type { AbandonedTurn, HeldActivation, TurnOpenFailure, TurnOutcome, UnactedTurn } from '@/turns/turns.types.ts';
-import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
 
 import { QUEUE_REASONS, QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
 import {
@@ -452,12 +451,12 @@ export class ActivationService {
 
   /** §7.3 — the earliest post of the turn addressing its one colleague (§4.5) that no turn of that colleague here started after */
   private async findUnreleasedHold(turn: AbandonedTurn): Promise<HeldActivation | undefined> {
-    const authored = await this.conversationsService.listAuthoredBy(turn.turnId);
-    const addressing = authored.flatMap((post) => {
-      const [addresseeUsername] = this.multiMentionPolicy.addresseesOf({
+    const spoken = await this.conversationsService.listSpokenBy(turn.turnId);
+    const addressing = spoken.flatMap((post) => {
+      const addresseeUsername = this.multiMentionPolicy.findAddressee({
         authorUsername: turn.agentUsername,
         channelId: turn.channelId,
-        mentionedUsernames: extractMentionedUsernames(post.message)
+        message: post.message
       });
       return addresseeUsername === undefined ? [] : [{ addresseeUsername, post }];
     });
