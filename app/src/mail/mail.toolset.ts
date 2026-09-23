@@ -14,7 +14,12 @@ import type { MailFailure } from './mail.types.ts';
 
 const MAIL_TIMEOUT_MS = 45_000;
 
-const $Ref = z.string().min(1);
+const $Ref = z
+  .string()
+  .min(1)
+  .describe(
+    'Which message: the ⟨…⟩ token opening its line in a mail tool’s result, or the value after "mail ref" in a New Mail announcement. The ⟨…⟩ token in an announcement is its trigger id, never a mail ref.'
+  );
 
 const $Count = z.number().int().min(1).max(25).default(10);
 
@@ -99,9 +104,7 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
           );
         });
       },
-      parameters: z.object({
-        ref: $Ref.describe('A message ref (shown as ⟨ref⟩); returns its whole conversation, oldest first')
-      }),
+      parameters: z.object({ ref: $Ref }),
       retryable: true,
       timeoutMs: MAIL_TIMEOUT_MS,
       traceDetail: (args) => `⟨${args.ref}⟩`
@@ -129,9 +132,7 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
           return toReadResult(await provider.open(args.ref), renderMailMessage, `mail message ${args.ref}`);
         });
       },
-      parameters: z.object({
-        ref: $Ref.describe('The message ref to open in full')
-      }),
+      parameters: z.object({ ref: $Ref }),
       retryable: true,
       timeoutMs: MAIL_TIMEOUT_MS,
       traceDetail: (args) => `⟨${args.ref}⟩`
@@ -153,7 +154,7 @@ export const MAIL_TOOLSET = implementToolset(MAIL_TOOLSET_DEF, {
       },
       parameters: z.object({
         ...$Outbound,
-        ref: $Ref.describe('The message being replied to; it stays in that conversation for the recipient'),
+        ref: $Ref,
         to: z
           .array(z.email())
           .min(1)
