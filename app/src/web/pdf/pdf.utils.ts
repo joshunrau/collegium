@@ -1,5 +1,5 @@
 import { prependParagraph, readPage } from '../reading/reading.utils.ts';
-import { MARKDOWN_CAP_CHARS, PDF_READ_TIMEOUT_MS } from '../web.constants.ts';
+import { MARKDOWN_CAP_CHARS, PDF_READ_MEMORY_CAP_BYTES, PDF_READ_TIMEOUT_MS } from '../web.constants.ts';
 
 import type { FetchedPage, PageRead } from '../web.types.ts';
 import type { PdfReadBudget, PdfText } from './pdf.types.ts';
@@ -24,6 +24,9 @@ function describeRead({ pageCount, pages, stoppedBy }: PdfText): string {
   }
   if (stoppedBy === 'deadline') {
     return `${document} up to page ${pages.length} in the ${PDF_READ_TIMEOUT_MS / 1000} seconds one read may take; the pages after it are not read.`;
+  }
+  if (stoppedBy === 'memory-limit') {
+    return `${document} up to page ${pages.length}, where reading the next page took more than the ${PDF_READ_MEMORY_CAP_BYTES / 1_000_000} MB of memory one read may use; the pages after it are not read.`;
   }
   return `${document}: a figure or a scanned page reads as nothing, and a table as lines of text.`;
 }

@@ -1,7 +1,13 @@
 import type { ToolExcerpt } from '@collegium/core/tools';
 import { match } from 'ts-pattern';
 
-import { FETCH_BODY_CAP_BYTES, SELECT_OPTIONS_SHOWN } from './web.constants.ts';
+import {
+  FETCH_BODY_CAP_BYTES,
+  PDF_READ_MEMORY_CAP_BYTES,
+  PDF_READ_TIMEOUT_MS,
+  PDF_READS_AT_ONCE,
+  SELECT_OPTIONS_SHOWN
+} from './web.constants.ts';
 
 import type { FormElement } from './snapshot/snapshot.types.ts';
 import type { FetchedPage, RateLimitRetry, TlsReason, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
@@ -14,10 +20,19 @@ const BUILT_URL_CAVEAT =
 
 const SITE_TLS_FAULT = "a fault in the site's TLS configuration, which retrying will not fix";
 
-/** §3.4 — why nothing of a PDF was read, each a dead end the model should not retry */
+const PDF_READ_SECONDS = `${PDF_READ_TIMEOUT_MS / 1000} seconds`;
+
+/** §3.4 — why nothing of a PDF was read; only a busy reader is worth asking again */
 const UNREADABLE_PDFS: { readonly [Reason in WebFailure.UnreadablePdf['reason']]: string } = {
+  busy:
+    `was not read: the ${PDF_READS_AT_ONCE} PDFs this deployment reads at once were all being read for the ` +
+    `${PDF_READ_SECONDS} one read may take, waiting included. Asking again once they are done may read it`,
+  deadline: `did not yield even its first page in the ${PDF_READ_SECONDS} one read may take, so its read was stopped`,
   encrypted: 'is protected by a password, so its text cannot be read',
   malformed: 'does not parse: it is damaged, or not a PDF despite its content type',
+  'memory-limit':
+    `took more than the ${PDF_READ_MEMORY_CAP_BYTES / 1_000_000} MB of memory one read may use before its first ` +
+    'page was read, so its read was stopped',
   'too-large': `is larger than the ${FETCH_BODY_CAP_BYTES / 1_000_000} MB web::fetch reads, and a PDF cut short does not parse`
 };
 
@@ -159,6 +174,7 @@ export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailur
     .with({ kind: 'no-static-content' }, () => '⚠️ no static content')
     .with({ kind: 'stale-ref' }, () => '⚠️ stale ref')
     .with({ kind: 'tls' }, () => '⚠️ TLS failed')
+    .with({ kind: 'unreadable-pdf', reason: 'busy' }, () => '⚠️ PDF reader busy')
     .with({ kind: 'unreadable-pdf' }, () => '⚠️ unreadable PDF')
     .with({ kind: 'unsupported-content' }, () => '⚠️ not text')
     .with({ kind: 'url-refused' }, () => '⚠️ refused')

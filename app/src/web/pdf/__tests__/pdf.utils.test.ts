@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MARKDOWN_CAP_CHARS, PDF_READ_TIMEOUT_MS } from '../../web.constants.ts';
+import { MARKDOWN_CAP_CHARS, PDF_READ_MEMORY_CAP_BYTES, PDF_READ_TIMEOUT_MS } from '../../web.constants.ts';
 import { isWithoutTextLayer, readPdfText } from '../pdf.utils.ts';
 
 import type { PageRead } from '../../web.types.ts';
@@ -28,6 +28,11 @@ describe('readPdfText', () => {
     const late = readPdfText({ pageCount: 400, pages: ['a'], stoppedBy: 'deadline' }, FROM_THE_TOP);
     expect(late.markdown).toContain(
       `A PDF of 400 pages, read as its text layer up to page 1 in the ${PDF_READ_TIMEOUT_MS / 1000} seconds`
+    );
+    const heavy = readPdfText({ pageCount: 400, pages: ['a'], stoppedBy: 'memory-limit' }, FROM_THE_TOP);
+    expect(heavy.markdown).toContain(
+      `A PDF of 400 pages, read as its text layer up to page 1, where reading the next page took more than the ` +
+        `${PDF_READ_MEMORY_CAP_BYTES / 1_000_000} MB of memory one read may use;`
     );
   });
 

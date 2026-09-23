@@ -12,6 +12,7 @@ import { UnpdfTextExtractor } from './pdf/adapters/unpdf.extractor.ts';
 import { PdfTextExtractor } from './pdf/pdf-text.extractor.ts';
 import { BraveSearchClient } from './search/brave.client.ts';
 import { SearchService } from './search/search.service.ts';
+import { PDF_READ_MEMORY_CAP_BYTES, PDF_READS_AT_ONCE } from './web.constants.ts';
 import { createAddressPolicy } from './web.policy.ts';
 import { WebService } from './web.service.ts';
 import { ADDRESS_POLICY_TOKEN, SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from './web.tokens.ts';
@@ -27,7 +28,12 @@ import { ADDRESS_POLICY_TOKEN, SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from '.
     PolicyProxy,
     SearchService,
     WebService,
-    { provide: PdfTextExtractor, useClass: UnpdfTextExtractor },
+    {
+      provide: PdfTextExtractor,
+      useFactory: () => {
+        return new UnpdfTextExtractor({ memoryCapBytes: PDF_READ_MEMORY_CAP_BYTES, readsAtOnce: PDF_READS_AT_ONCE });
+      }
+    },
     {
       inject: [ConfigService, LoggerFactory],
       provide: ADDRESS_POLICY_TOKEN,

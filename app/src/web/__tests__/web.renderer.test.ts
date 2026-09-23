@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { SELECT_OPTIONS_SHOWN } from '../web.constants.ts';
 import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from '../web.renderer.ts';
 
-import type { WebSnapshot } from '../web.types.ts';
+import type { WebFailure, WebSnapshot } from '../web.types.ts';
 
 describe('renderWebFailure', () => {
   it('should tell the model which tool can read a page that needs client rendering, and the status it got', () => {
@@ -79,6 +79,12 @@ describe('renderWebFailure', () => {
       'the PDF at https://northmoor.example/roster.pdf has no text layer on any of its 40 pages: it is ' +
         'most likely scanned, and nothing here reads text from an image'
     );
+  });
+
+  it('should say a PDF refused for want of a free reader may be read if asked again (§3.4)', () => {
+    const failure: WebFailure = { kind: 'unreadable-pdf', reason: 'busy', url: 'https://northmoor.example/roster.pdf' };
+    expect(renderWebFailure(failure)).toContain('Asking again once they are done may read it');
+    expect(describeWebFailureOutcome(failure)).toBe('⚠️ PDF reader busy');
   });
 
   it('should name hover as the way out of a ref CSS hides', () => {

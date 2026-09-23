@@ -1,67 +1,86 @@
-import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
-
 import { Result } from '@collegium/core/utils';
-import { Injectable } from '@nestjs/common';
-import { getDocumentProxy } from 'unpdf';
+import type { OnApplicationShutdown } from '@nestjs/common';
 
 import { PdfTextExtractor } from '../pdf-text.extractor.ts';
+import { UnpdfReaderProcess } from './unpdf-reader.process.ts';
 
 import type { PdfReadBudget, PdfText, PdfUnreadableReason } from '../pdf.types.ts';
 
-type PdfDocument = Awaited<ReturnType<typeof getDocumentProxy>>;
-
-/** PDF.js's own level for errors alone: its warnings about a damaged cross-reference table would reach the log */
-const ERRORS_ONLY = 0;
+type UnpdfReadLimits = {
+  /** the resident memory one reading process may reach before it is killed */
+  readonly memoryCapBytes: number;
+  /** how many reading processes run at once; a read beyond them waits for one to exit */
+  readonly readsAtOnce: number;
+};
 
 /**
- * PDF.js, as unpdf packages it for server runtimes: in-process, with no worker file, no native
- * canvas and no fetch. It parses on this thread and yields to no timer while a page is parsed, so
- * the event loop is given a turn between pages, and the budget is what bounds the whole read.
+ * PDF.js, as unpdf packages it for server runtimes, run in a child process per document (§3.4). A
+ * parse that inflates a stream to gigabytes, or never yields, is killed with its process, so the
+ * server spends no more on one PDF than the limits allow, and no more on all of them than the
+ * limits allow each times the reads at once.
  */
-@Injectable()
-export class UnpdfTextExtractor extends PdfTextExtractor {
+export class UnpdfTextExtractor extends PdfTextExtractor implements OnApplicationShutdown {
+  private freeSlots: number;
+  private readonly readers = new Set<UnpdfReaderProcess>();
+  private readonly waiting: (() => void)[] = [];
+
+  constructor(private readonly limits: UnpdfReadLimits) {
+    super();
+    this.freeSlots = limits.readsAtOnce;
+  }
+
   async extract(bytes: Uint8Array, budget: PdfReadBudget): Promise<Result<PdfText, PdfUnreadableReason>> {
-    let document: PdfDocument;
-    try {
-      // a copy, because PDF.js detaches the buffer it is handed
-      document = await getDocumentProxy(new Uint8Array(bytes), { verbosity: ERRORS_ONLY });
-    } catch (error) {
-      return Result.err(this.toUnreadableReason(error));
+    if (!(await this.takeSlot(budget.deadline))) {
+      return Result.err('busy');
     }
     try {
-      return Result.ok(await this.readPages(document, budget));
-    } catch (error) {
-      return Result.err(this.toUnreadableReason(error));
+      const reader = new UnpdfReaderProcess(bytes, budget, this.limits.memoryCapBytes);
+      this.readers.add(reader);
+      try {
+        return await reader.result;
+      } finally {
+        this.readers.delete(reader);
+      }
     } finally {
-      await document.loadingTask.destroy();
+      this.releaseSlot();
     }
   }
 
-  private async readPage(document: PdfDocument, pageNumber: number): Promise<string> {
-    const content = await (await document.getPage(pageNumber)).getTextContent();
-    return content.items.map((item) => ('str' in item ? `${item.str}${item.hasEOL ? '\n' : ''}` : '')).join('');
-  }
-
-  private async readPages(document: PdfDocument, budget: PdfReadBudget): Promise<PdfText> {
-    const pageCount = document.numPages;
-    const pages: string[] = [];
-    let chars = 0;
-    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
-      if (chars >= budget.maxChars) {
-        return { pageCount, pages, stoppedBy: 'char-limit' };
-      }
-      if (pageNumber > 1 && budget.deadline.aborted) {
-        return { pageCount, pages, stoppedBy: 'deadline' };
-      }
-      const text = await this.readPage(document, pageNumber);
-      pages.push(text);
-      chars += text.length;
-      await yieldToEventLoop();
+  onApplicationShutdown(): void {
+    for (const reader of this.readers) {
+      reader.stop();
     }
-    return { pageCount, pages };
   }
 
-  private toUnreadableReason(error: unknown): PdfUnreadableReason {
-    return error instanceof Error && error.name === 'PasswordException' ? 'encrypted' : 'malformed';
+  private releaseSlot(): void {
+    const next = this.waiting.shift();
+    if (next) {
+      next();
+    } else {
+      this.freeSlots += 1;
+    }
+  }
+
+  /** resolves once a slot is held, handed over by the read that frees it, or false if the deadline passes first */
+  private takeSlot(deadline: AbortSignal): Promise<boolean> {
+    if (this.freeSlots > 0) {
+      this.freeSlots -= 1;
+      return Promise.resolve(true);
+    }
+    if (deadline.aborted) {
+      return Promise.resolve(false);
+    }
+    return new Promise((resolve) => {
+      const onDeadline = (): void => {
+        this.waiting.splice(this.waiting.indexOf(grant), 1);
+        resolve(false);
+      };
+      const grant = (): void => {
+        deadline.removeEventListener('abort', onDeadline);
+        resolve(true);
+      };
+      deadline.addEventListener('abort', onDeadline, { once: true });
+      this.waiting.push(grant);
+    });
   }
 }

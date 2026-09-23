@@ -94,11 +94,22 @@ export const FETCH_USER_AGENT = 'Collegium (+https://github.com/joshunrau/colleg
 export const FETCH_BODY_CAP_BYTES = 10_000_000;
 
 /**
- * The ceiling on reading one PDF's text layer, past which the read stops at the next page boundary.
- * A few pages read in well under a second; what this catches is a document of tens of thousands of
- * pages, whose parse would otherwise outlast the tool call and keep the process busy after it.
+ * The ceiling on reading one PDF's text layer, waiting for a turn to read included, past which the
+ * process reading it is killed and the pages it finished are kept. A few pages read in well under a
+ * second; what this catches is a document of tens of thousands of pages, whose parse would
+ * otherwise outlast the tool call.
  */
 export const PDF_READ_TIMEOUT_MS = 10_000;
+
+/**
+ * The resident memory the process reading one PDF may reach before it is killed (§3.4). A typical
+ * paper takes about 120 MB, most of it the reader's own code; what this stops is a compressed stream
+ * a megabyte long that inflates to gigabytes inside the parser.
+ */
+export const PDF_READ_MEMORY_CAP_BYTES = 500_000_000;
+
+/** how many PDFs are read at once (§3.4), so that the cap above bounds their sum as well as each one */
+export const PDF_READS_AT_ONCE = 2;
 
 /** each hop is re-judged against the URL policy, so a chain is bounded rather than followed blindly */
 export const MAX_REDIRECTS = 5;
