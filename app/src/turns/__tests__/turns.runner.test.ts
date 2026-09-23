@@ -9,6 +9,7 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
@@ -29,6 +30,7 @@ import { LoggingService } from '@/logging/logging.service.ts';
 import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
 import { PostSightingsRegistry } from '@/tasks/sightings/post-sightings.registry.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
+import type { WorkUnit } from '@/tasks/tasks.types.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -120,6 +122,10 @@ describe('TurnRunner', () => {
   let postSightingsRegistry: MockedInstance<PostSightingsRegistry>;
 
   beforeEach(async () => {
+    const agentRegistry = MockFactory.createMock(AgentRegistry);
+    agentRegistry.displayNameOf.mockImplementation((username: string) => {
+      return username.replace(/^./u, (first) => first.toUpperCase());
+    });
     approvalsService = MockFactory.createMock(ApprovalsService);
     approvalsService.request.mockResolvedValue(Result.ok({ byUsername: 'casey', kind: 'denied' }));
     complete = vi.fn<InferenceClient['complete']>();
@@ -151,6 +157,7 @@ describe('TurnRunner', () => {
     const inferenceRegistry = MockFactory.createMock(InferenceRegistry);
     inferenceRegistry.getClientForModel.mockReturnValue({ complete });
     tasksService = MockFactory.createMock(TasksService);
+    tasksService.findServedUnit.mockResolvedValue(undefined);
     tasksService.prepareExhaustionReport.mockResolvedValue(undefined);
     multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
     multiMentionPolicy.addresseesOf.mockReturnValue([]);
@@ -191,6 +198,7 @@ describe('TurnRunner', () => {
         TurnRunner,
         TurnControlRegistry,
         TurnFoldRegistry,
+        { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ApprovalsService, useValue: approvalsService },
         { provide: ConfigService, useValue: createConfigServiceMock({ turns: { chainLengthLimit: 3 } }) },
         { provide: ContextAssembler, useValue: contextAssembler },
@@ -512,7 +520,35 @@ describe('TurnRunner', () => {
       triggeringPostId: 'post-2'
     });
     expect(toolExecutor.execute.mock.calls[0]?.[0].contextText).toBe(
-      'Action 1 of 10 · asked by colleague owen, for @casey: "owen ask mira to run it"'
+      'Action 1 of 10 · asked by colleague Owen, for @casey: "owen ask mira to run it"'
+    );
+  });
+
+  it('should name the unit whose assignment started the turn, tagging the person without their words (§3.7)', async () => {
+    conversationsService.findRequester.mockResolvedValue({
+      kind: 'agent',
+      onBehalfOf: { kind: 'human', message: 'sort the backlog', username: 'casey' },
+      username: 'owen'
+    });
+    tasksService.findServedUnit.mockResolvedValue({ id: 'q3m8v1zdx0unit' } as WorkUnit);
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await turnRunner.run({
+      chainLength: 2,
+      channelId: 'channel-1',
+      depth: 1,
+      profile: PROFILE,
+      releaseHeldActivation,
+      rootPostId: 'post-1',
+      triggeringPostId: 'post-2'
+    });
+    expect(tasksService.findServedUnit).toHaveBeenCalledWith({
+      agentUsername: 'mira',
+      channelId: 'channel-1',
+      triggeringPostId: 'post-2'
+    });
+    expect(toolExecutor.execute.mock.calls[0]?.[0].contextText).toBe(
+      'Action 1 of 10 · asked by colleague Owen on work unit `q3m8v1zd`, for @casey'
     );
   });
 
