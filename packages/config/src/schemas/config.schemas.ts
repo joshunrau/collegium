@@ -257,7 +257,7 @@ export const $ScheduleDeclaration = z.strictObject({
     .min(1)
     .max(2_000)
     .describe(
-      'What the system bot posts when this schedule fires, verbatim. Operator-written, never model-written (§3.2).'
+      'What the system bot posts when this schedule fires, verbatim: the operator’s instruction, which the agent carries out and then marks done (§4.2). Operator-written, never model-written (§3.2).'
     ),
   recurrence: $ScheduleRecurrence,
   timezone: z
@@ -529,6 +529,17 @@ export const $ProvidersConfig = z.strictObject({
     .describe('OpenRouter, fronting many providers under one key')
 });
 
+/** a host as a URL names it, without scheme, port or path: a DNS name or an IPv4 address */
+export type $HostName = z.infer<typeof $HostName>;
+export const $HostName = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(
+    /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/u,
+    'a bare host name such as archive.org, with no scheme, port or path'
+  );
+
 export type $WebConfig = z.infer<typeof $WebConfig>;
 export const $WebConfig = z.strictObject({
   allowPrivateAddresses: z
@@ -536,6 +547,21 @@ export const $WebConfig = z.strictObject({
     .default(CONFIG_DEFAULTS.web.allowPrivateAddresses)
     .describe(
       'Lifts the refusal of loopback, private-network and link-local addresses for every agent and every request the web toolset makes (§3.4). Only http(s) is still enforced. Meant for a deployment that serves its own test pages; it is logged at boot whenever it is on.'
+    ),
+  deniedHosts: z
+    .array($HostName)
+    .refine((hosts) => isUnique(hosts), { message: 'denied hosts must be unique' })
+    .default([])
+    .describe(
+      'Hosts the web toolset refuses, each with every subdomain beneath it, for every agent and every request: a fetch and each redirect it follows, a navigation, and anything a page loads itself (§3.4). Empty by default, so the open web is reachable. Set by the operator alone, and logged at boot whenever it names a host.'
+    ),
+  maxBrowserSessions: z
+    .number()
+    .int()
+    .positive()
+    .default(CONFIG_DEFAULTS.web.maxBrowserSessions)
+    .describe(
+      "How many browser sessions may be live at once, across every agent (§3.4). A turn holds one from its first web::navigate until it ends, and each is a browser context holding a rendered page, so this bounds the browser's memory. A turn that would open one past it is refused rather than queued; web::fetch needs no session and still works."
     )
 });
 
@@ -591,5 +617,7 @@ export const $ConfigDeclaration = z.strictObject({
       'Credentials for each model provider an agent may name. A provider a model names must be configured here.'
     ),
   turns: $TurnsConfig.prefault({}).describe('The bounds on a turn and on chains of turns (§5.3, §7.4)'),
-  web: $WebConfig.prefault({}).describe('What the web toolset may reach beyond the public internet (§3.4)')
+  web: $WebConfig
+    .prefault({})
+    .describe('What the web toolset may reach, and how many browser sessions it may hold open at once (§3.4)')
 });

@@ -1,4 +1,9 @@
-import { describeReplaySubject, renderDuplicateLine, renderSupersededLine } from '@collegium/core/tools';
+import {
+  describeReplaySubject,
+  renderDuplicateLine,
+  renderSameContentLine,
+  renderSupersededLine
+} from '@collegium/core/tools';
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -938,7 +943,7 @@ describe('TurnRunner', () => {
 
   describe('steering (§7.5)', () => {
     const steer = (text = 'use staging') => {
-      return turnControlRegistry.steerChannel('channel-1', { byUsername: 'casey', text });
+      return turnControlRegistry.steer('channel-1', undefined, { byUsername: 'casey', text });
     };
 
     it('should read a steer that arrived during a tool call before the next completion, as the human speaking', async () => {
@@ -1855,6 +1860,25 @@ describe('TurnRunner', () => {
       pageText('three'),
       renderDuplicateLine('page two'),
       `[identical to a result you read earlier this turn; nothing changed]\n\n${pageText('one')}`
+    ]);
+  });
+
+  it('should answer the same content read at another address with one line naming the first (§3.8)', async () => {
+    toolRegistry.isSupersedable.mockImplementation((_profile, name: string) => name === 'web__fetch');
+    for (const url of ['https://northmoor.example/people', 'https://northmoor.example/people?page=2']) {
+      toolExecutor.execute.mockResolvedValueOnce({
+        contentIdentity: '# Faculty',
+        kind: 'continue',
+        output: `Faculty — ${url} (HTTP 200)\n\n# Faculty`,
+        replaySubject: `page ${url}`
+      });
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
+    }
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(toolMessagesOf(complete.mock.calls[2]![0])).toStrictEqual([
+      'Faculty — https://northmoor.example/people (HTTP 200)\n\n# Faculty',
+      renderSameContentLine('page https://northmoor.example/people?page=2', 'page https://northmoor.example/people')
     ]);
   });
 

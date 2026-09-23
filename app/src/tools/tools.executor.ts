@@ -259,6 +259,7 @@ export class ToolExecutor {
     return {
       kind: 'continue',
       output: output.text,
+      ...(output.contentIdentity !== undefined && { contentIdentity: output.contentIdentity }),
       ...(output.disclosure && { disclosure: output.disclosure }),
       ...(output.post && { post: output.post }),
       ...(output.replay !== undefined && { replay: output.replay }),

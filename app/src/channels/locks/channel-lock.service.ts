@@ -38,6 +38,11 @@ export class ChannelLockService {
     return handle;
   }
 
+  /** when the agent's lock in the channel was taken; undefined while the lane is free */
+  heldSince(agentUsername: string, channelId: string): Date | undefined {
+    return this.holders.get(channelId)?.get(agentUsername)?.acquiredAt;
+  }
+
   isBusy(agentUsername: string, channelId: string): boolean {
     return this.holders.get(channelId)?.has(agentUsername) ?? false;
   }

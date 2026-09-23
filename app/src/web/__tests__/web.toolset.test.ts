@@ -45,20 +45,47 @@ describe('WEB_TOOLSET', () => {
   it('fetches a page without a session and renders it with its header line', async () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.ok(PAGE));
-    const result = await executeTool(fetch, { startChar: 0, url: 'https://example.org/' }, context);
-    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 0, undefined);
+    const result = await executeTool(fetch, { startChar: 0, url: 'https://example.org/', wholePage: false }, context);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', { kind: 'window', startChar: 0, wholePage: false });
     const text = 'Example — https://example.org/ (HTTP 200)\n\n# Example Domain';
     expect(result.unwrap()).toStrictEqual({
+      contentIdentity: '# Example Domain',
       replaySubject: `page https://example.org/, ${text.length} characters`,
       text
     });
   });
 
+  it("identifies a successful read by its body alone, and an error page's by nothing (§3.8)", async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, markdown: '# Not Found', status: 404 }));
+    const result = await executeTool(
+      fetch,
+      { startChar: 0, url: 'https://example.org/gone', wholePage: false },
+      context
+    );
+    expect(result.unwrap().contentIdentity).toBeUndefined();
+  });
+
+  it('marks a fetch that waited out a rate limit in its trace line (§8.1)', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, retry: { status: 429, waitedMs: 1_000 } }));
+    const result = await executeTool(fetch, { startChar: 0, url: 'https://example.org/', wholePage: false }, context);
+    expect(result.unwrap().traceOutcome).toBe('retried after HTTP 429');
+  });
+
   it('reads on from an offset, and names the part of the page the result holds (§3.8)', async () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 1000, to: 2000, total: 5000 } }));
-    const result = await executeTool(fetch, { startChar: 1000, url: 'https://example.org/' }, context);
-    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 1000, undefined);
+    const result = await executeTool(
+      fetch,
+      { startChar: 1000, url: 'https://example.org/', wholePage: false },
+      context
+    );
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', {
+      kind: 'window',
+      startChar: 1000,
+      wholePage: false
+    });
     expect(result.unwrap().replaySubject).toMatch(
       /^page https:\/\/example\.org\/ \(characters 1000–2000 of 5000\), \d+ characters$/u
     );
@@ -76,7 +103,7 @@ describe('WEB_TOOLSET', () => {
     web.click.mockResolvedValue(Result.ok({ ...SNAPSHOT, title: '' }));
     web.fetch.mockResolvedValue(Result.ok({ ...PAGE, status: 404 }));
     const clicked = await executeTool(click, { ref: 'e1' }, context);
-    const fetched = await executeTool(fetch, { startChar: 0, url: 'https://example.org/' }, context);
+    const fetched = await executeTool(fetch, { startChar: 0, url: 'https://example.org/', wholePage: false }, context);
     expect(clicked.unwrap().traceOutcome).toBe('→ https://example.org/');
     expect(fetched.unwrap().traceOutcome).toBe('HTTP 404');
   });
@@ -95,6 +122,14 @@ describe('WEB_TOOLSET', () => {
     web.fetch.mockResolvedValue(Result.err({ kind: 'no-static-content', status: 200, url: 'https://example.org/' }));
     const result = await executeTool(fetch, { url: 'https://example.org/' }, context);
     expect(result.unwrap().text).toContain('open it with web::navigate instead');
+  });
+
+  it('returns a blocked fetch as text pointing at navigate, marked on its trace line (§3.4, §8.1)', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.err({ kind: 'blocked', status: 403, url: 'https://example.org/' }));
+    const result = await executeTool(fetch, { url: 'https://example.org/' }, context);
+    expect(result.unwrap().text).toContain('web::navigate may get through');
+    expect(result.unwrap().traceOutcome).toBe('⚠️ blocked (HTTP 403)');
   });
 
   it('returns a stale ref as page text the model can recover from', async () => {
@@ -123,20 +158,49 @@ describe('WEB_TOOLSET', () => {
   it('leaves fetch ungated and retryable, since a scriptless GET commits nothing', () => {
     expect('approval' in fetch).toBe(false);
     expect(fetch.retryable).toBe(true);
-    expect(fetch.traceDetail?.({ startChar: 0, url: 'https://example.org/' })).toBe('https://example.org/');
+    expect(fetch.traceDetail?.({ startChar: 0, url: 'https://example.org/', wholePage: false })).toBe(
+      'https://example.org/'
+    );
   });
 
   it('should name the offset in the trace so two windows do not collapse (§8.1)', () => {
-    expect(fetch.traceDetail?.({ maxChars: 2000, startChar: -20_000, url: 'https://example.org/' })).toBe(
-      'https://example.org/ from -20000 for 2000'
-    );
+    expect(
+      fetch.traceDetail?.({ maxChars: 2000, startChar: -20_000, url: 'https://example.org/', wholePage: true })
+    ).toBe('https://example.org/ from -20000 for 2000 (whole page)');
   });
 
   it('reads a bounded window of a page, passing the width through to the fetch (§3.8)', async () => {
     const { context, web } = buildContext();
     web.fetch.mockResolvedValue(Result.ok({ ...PAGE, shown: { from: 0, to: 2000, total: 5000 } }));
-    await executeTool(fetch, { maxChars: 2000, startChar: 0, url: 'https://example.org/' }, context);
-    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', 0, 2000);
+    await executeTool(fetch, { maxChars: 2000, startChar: 0, url: 'https://example.org/', wholePage: false }, context);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', {
+      kind: 'window',
+      maxChars: 2000,
+      startChar: 0,
+      wholePage: false
+    });
+  });
+
+  it('finds phrases in a page instead of reading it, naming them in the trace and the replay (§3.4)', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, markdown: '"Email" — no match', matches: 0 }));
+    const args = { find: ['Email'], startChar: 0, url: 'https://example.org/', wholePage: false };
+    const result = await executeTool(fetch, args, context);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', {
+      kind: 'find',
+      phrases: ['Email'],
+      wholePage: false
+    });
+    expect(result.unwrap().traceOutcome).toBe('⚠️ no matches');
+    expect(result.unwrap().replaySubject).toMatch(
+      /^places of "Email" in page https:\/\/example\.org\/, \d+ characters$/u
+    );
+    expect(fetch.traceDetail?.(args)).toBe('https://example.org/ find "Email"');
+  });
+
+  it('refuses a find that also names a window, since the two read the page differently', () => {
+    const parsed = fetch.parameters.safeParse({ find: ['Email'], startChar: 4000, url: 'https://example.org/' });
+    expect(parsed.success).toBe(false);
   });
 
   it('hovers a ref and returns the snapshot that reveals what the hover exposed', async () => {

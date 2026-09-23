@@ -36,6 +36,16 @@ Post to `/api/v4/posts` with the channel id. Mention the agent as `@name`.
 A mention starts a turn. Nothing else does. After a turn stops, the framework starts no new turn
 by itself, so an agent that writes "next I will…" waits for you. Post again to continue it.
 
+**Read the lane before you nudge.** A quiet channel is not an idle agent: a turn that has called no
+tool yet has no status post, and can run for minutes that way. A mention of an agent whose turn is
+still running starts nothing. It queues behind that turn, the agent reacts 👀 to it, and the next
+turn reads everything that queued, so a second nudge adds nothing to the first. Before you post
+again, run `/collegium queue {agent}` (see [Inspect a turn](#inspect-a-turn)). It says whether a
+turn is running for the agent in this channel, since when, and which post started it, then what
+waits. Nudge only when it reports no turn running. A `⏳ _working…_` status post from the agent means
+a turn is running, and 👀 on your last post means it is queued; either one answers without the
+command.
+
 Make each instruction complete by itself when the agent has no recent history of the task. The
 agent sees a bounded window of recent posts, newest first. It does not see the whole channel.
 
@@ -93,7 +103,8 @@ Two cheap commands answer most questions without a trace:
 
 - `/collegium memory {agent} show {reference}` reads one memory body. An agent's memories hold its
   real state for a long task. The channel does not.
-- `/collegium queue {agent}` shows the posts that wait for the agent.
+- `/collegium queue {agent}` shows whether a turn is running for the agent, and the posts that
+  wait for it.
 
 ## Audit what the agent claims
 

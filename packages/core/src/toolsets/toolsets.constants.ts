@@ -37,7 +37,8 @@ export const TRIGGERS_TOOLSET_DEF = { name: 'triggers', tools: ['resolve'] } as 
 export const WEB_TOOLSET_DEF = {
   name: 'web',
   settings: $WebSettings,
-  tools: ['click', 'fetch', 'fill', 'hover', 'navigate', 'search']
+  skills: ['reading-websites'],
+  tools: ['click', 'fetch', 'fill', 'hover', 'navigate', 'search', 'select']
 } as const satisfies ToolsetDef;
 
 export const WORKSPACE_TOOLSET_DEF = {

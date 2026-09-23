@@ -14,7 +14,8 @@ _ephemeral_ result is visible only to the person who ran it; the rest post to th
 - `/collegium usage` — token usage per agent and model, with cached-prompt and reasoning breakdowns
   and the cost the provider charged where it reports it, over turns that ended in the last 24 hours
   in any channel. Ephemeral.
-- `/collegium queue {agent}` — pending depth and the oldest unprocessed post. Ephemeral.
+- `/collegium queue {agent}` — whether a turn is running for the agent here, since when and started
+  by which post, then pending depth and the oldest unprocessed post. Ephemeral.
 - `/collegium approvals [{agent}]` — the approvals waiting on a person, for one agent or all.
   Ephemeral.
 - `/collegium triggers {agent}` — outstanding triggers. Ephemeral.
@@ -31,9 +32,10 @@ _ephemeral_ result is visible only to the person who ran it; the rest post to th
   work a configuration change made stale. The posts themselves stay; only the pointer goes.
 - `/collegium units {agent} cancel {reference}` — cancel one open work unit; the cancellation posts
   to the channel.
-- `/collegium steer {text}` — hand one instruction to the turns running in this channel. It arrives
-  as a person's post between the agent's results, and it spends one of the agent's action attempts.
-  Ephemeral.
+- `/collegium steer [{agent}] {text}` — hand one instruction to an agent's turn running in this
+  channel. It arrives as a person's post between the agent's results, and it spends one of the
+  agent's action attempts. Name the agent when more than one is running here, or the steer is
+  refused and reaches none. Ephemeral, and the answer names the agent it reached.
 - `/collegium clear [--memories]` — delete every post in this channel and every agent's record of
   them, and with `--memories` the memories too, behind a confirmation dialog. The one destructive
   command.

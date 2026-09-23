@@ -2,8 +2,8 @@ import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
 import { describeFetchError } from '../fetch/fetch.utils.ts';
+import { decodeHtmlEntities } from '../web.utils.ts';
 import { $BraveErrorResponse, $BraveWebSearchResponse } from './brave.schemas.ts';
-import { decodeHtmlEntities } from './brave.utils.ts';
 import { BRAVE_WEB_SEARCH_ENDPOINT, SEARCH_TIMEOUT_MS } from './search.constants.ts';
 
 import type { SearchFailure, SearchRequest, SearchResult } from './search.types.ts';

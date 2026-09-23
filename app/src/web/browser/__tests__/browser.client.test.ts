@@ -2,6 +2,8 @@ import * as http from 'node:http';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { createPdf } from '@/testing/factories/pdf.factory.ts';
+
 import { toMarkdown } from '../../web.utils.ts';
 import { BrowserClient } from '../browser.client.ts';
 import { CamoufoxLauncher } from '../browser.launcher.ts';
@@ -149,9 +151,52 @@ const SEARCHABLE_DIRECTORY = `<!doctype html>
   </body>
 </html>`;
 
+/** the rows are chosen by the select's change handler alone; option values are ids no one would guess */
+const FILTERED_DIRECTORY = `<!doctype html>
+<html lang="en">
+  <head><title>Researchers — Northmoor Institute</title></head>
+  <body>
+    <h1>Researchers</h1>
+    <label for="focus">Research focus</label>
+    <select id="focus">
+      <option value="">All</option>
+      <option value="412">Neuroscience</option>
+      <option value="413">Oncology</option>
+    </select>
+    <table>
+      <thead><tr><th>Name</th><th>Focus</th></tr></thead>
+      <tbody>
+        <tr data-focus="412"><td>Adeyemi, K.</td><td>Neuroscience</td></tr>
+        <tr data-focus="413"><td>Duval, P.</td><td>Oncology</td></tr>
+      </tbody>
+    </table>
+    <script>
+      const rows = [...document.querySelectorAll('tbody tr')];
+      document.getElementById('focus').addEventListener('change', (event) => {
+        const focus = event.target.value;
+        document.querySelector('tbody').replaceChildren(...rows.filter((row) => !focus || row.dataset.focus === focus));
+      });
+    </script>
+  </body>
+</html>`;
+
+/** a bot check that clears itself: refused at first, then moved on by its own script to the page it guarded */
+const SELF_CLEARING_CHECK = `<!doctype html>
+<html lang="en">
+  <head><title>Just a moment...</title></head>
+  <body>
+    <h1>Verifying you are human.</h1>
+    <script>
+      window.addEventListener('load', () => window.setTimeout(() => window.location.replace('/cleared'), 200));
+    </script>
+  </body>
+</html>`;
+
 /** `/` and `/people` both serve the SPA: the roster route deliberately deep-links to the shell */
 const DOCUMENT_BY_ROUTE: { [key: string]: string } = {
   '/': SPA_MARKETING_SITE,
+  '/cleared': MEMBER_DATABASE,
+  '/filtered-directory': FILTERED_DIRECTORY,
   '/gated-login': GATED_LOGIN,
   '/member-database': MEMBER_DATABASE,
   '/people': SPA_MARKETING_SITE,
@@ -206,6 +251,16 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
       if (request.url === '/redirect') {
         response.writeHead(302, { location: `${elsewhereUrl}/` });
         response.end();
+        return;
+      }
+      if (request.url === '/challenge') {
+        response.writeHead(403, { 'content-type': 'text/html; charset=utf-8' });
+        response.end(SELF_CLEARING_CHECK);
+        return;
+      }
+      if (request.url === '/handbook.pdf') {
+        response.writeHead(200, { 'content-type': 'application/pdf' });
+        response.end(createPdf([['Faculty Handbook']]));
         return;
       }
       if (request.url === '/outbound') {
@@ -377,6 +432,50 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     expect(refused.error?.kind).toBe('not-visible');
   });
 
+  const focusSelectRef = (formElements: readonly FormElement[]): string => {
+    const select = formElements.find((element) => element.kind === 'select');
+    if (!select) {
+      throw new Error('the focus select was not described');
+    }
+    return select.ref;
+  };
+
+  it("should list a select's options by label, and the label of the one it shows (§3.4)", async () => {
+    const directory = (await session.navigate(`${baseUrl}/filtered-directory`)).unwrap();
+    expect(directory.formElements).toContainEqual(
+      expect.objectContaining({
+        kind: 'select',
+        label: 'Research focus',
+        options: ['All', 'Neuroscience', 'Oncology'],
+        value: 'All'
+      })
+    );
+  });
+
+  it('should choose an option by its label and read the view its change handler rendered', async () => {
+    const directory = (await session.navigate(`${baseUrl}/filtered-directory`)).unwrap();
+    const filtered = (await session.select(focusSelectRef(directory.formElements), 'Neuroscience')).unwrap();
+    expect(toMarkdown(filtered.html)).toContain('Adeyemi, K.');
+    expect(toMarkdown(filtered.html)).not.toContain('Duval, P.');
+    expect(filtered.formElements).toContainEqual(expect.objectContaining({ kind: 'select', value: 'Neuroscience' }));
+  });
+
+  it('should refuse an option the select does not offer, without waiting out the timeout', async () => {
+    const directory = (await session.navigate(`${baseUrl}/filtered-directory`)).unwrap();
+    const ref = focusSelectRef(directory.formElements);
+    expect((await session.select(ref, 'Cardiology')).error).toStrictEqual({
+      kind: 'no-such-option',
+      option: 'Cardiology',
+      ref
+    });
+  });
+
+  it('should report a fill on a select as the action failing, not the page (§3.4)', async () => {
+    const directory = (await session.navigate(`${baseUrl}/filtered-directory`)).unwrap();
+    const ref = focusSelectRef(directory.formElements);
+    expect((await session.fill(ref, 'Neuroscience')).error).toMatchObject({ kind: 'action-failed', ref });
+  });
+
   it('should stay on the page when a link opens a tab, reporting the address it was closed at', async () => {
     const portal = (await session.navigate(`${baseUrl}/portal`)).unwrap();
     const menuRef = /\[Équipe\]\([^)]*\)⟨(e\d+)⟩/u.exec(toMarkdown(portal.html))![1]!;
@@ -390,9 +489,24 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     expect(toMarkdown(roster.html)).toContain('lachance@northmoor.example');
   });
 
+  it('should report the status of the document the page settled on, not the first one served (§3.4)', async () => {
+    const capture = (await session.navigate(`${baseUrl}/challenge`)).unwrap();
+    expect(capture.status).toBe(200);
+    expect(toMarkdown(capture.html)).toContain('lachance@northmoor.example');
+  });
+
   it('should hand back a 404 as a page with a status, not a failure', async () => {
     const capture = (await session.navigate(`${baseUrl}/missing`)).unwrap();
     expect(capture.status).toBe(404);
     expect(toMarkdown(capture.html)).toContain('Not Found');
+  });
+
+  it('should refuse a PDF as not HTML, leaving it to web::fetch (§3.4)', async () => {
+    const result = await session.navigate(`${baseUrl}/handbook.pdf`);
+    expect(result.error).toStrictEqual({
+      contentType: 'application/pdf',
+      kind: 'not-html',
+      url: `${baseUrl}/handbook.pdf`
+    });
   });
 });

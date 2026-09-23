@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
+import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS, SELECT_OPTIONS_SHOWN } from '../web.constants.ts';
 import {
   capMarkdown,
+  decodeCloudflareEmail,
   describeWebFailureOutcome,
+  pageToMarkdown,
   renderWebFailure,
+  renderWebPage,
   renderWebSnapshot,
   toMarkdown,
   windowMarkdown
@@ -30,6 +33,13 @@ const STATIC_DIRECTORY = `<!doctype html><html><head><title>Faculty</title></hea
     </tbody>
   </table>
 </body></html>`;
+
+/** Cloudflare's cloak as its edge writes it: a key byte, then each byte of the address XORed with that key */
+function cloak(address: string, key = 0x5a): string {
+  return [key, ...new TextEncoder().encode(address).map((byte) => byte ^ key)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 /** a shell whose every word arrives by script: nothing for markdown to carry */
 const CLIENT_RENDERED_PAGES = {
@@ -65,7 +75,7 @@ describe('toMarkdown', () => {
     expect(toMarkdown(html)).toBe('Hello');
   });
 
-  it('should resolve link and image addresses against the page, leaving the rest as authored', () => {
+  it('should resolve link addresses against the page, leaving the rest as authored', () => {
     const html = `<html><body>
       <a href="/people/duval">Duval</a>
       <a href="//cdn.northmoor.example/cv.pdf">CV</a>
@@ -74,10 +84,9 @@ describe('toMarkdown', () => {
       <a href="mailto:duval@northmoor.example">Mail</a>
       <a href="javascript:Fiche(37)">Fiche</a>
       <a href="http://[bad">Broken</a>
-      <img src="../img/duval.jpg" alt="Portrait" />
       <table><tr><td><a href="profile?id=7">Row link</a></td></tr></table>
     </body></html>`;
-    const markdown = toMarkdown(html, 'https://northmoor.example/dept/psychology/');
+    const markdown = pageToMarkdown(html, 'https://northmoor.example/dept/psychology/');
     expect(markdown).toContain('[Duval](https://northmoor.example/people/duval)');
     expect(markdown).toContain('[CV](https://cdn.northmoor.example/cv.pdf)');
     expect(markdown).toContain('[Top](https://northmoor.example/dept/psychology/#top)');
@@ -85,17 +94,32 @@ describe('toMarkdown', () => {
     expect(markdown).toContain('[Mail](mailto:duval@northmoor.example)');
     expect(markdown).toContain('[Fiche](javascript:Fiche%2837%29)');
     expect(markdown).toContain('[Broken](http://[bad)');
-    expect(markdown).toContain('![Portrait](https://northmoor.example/dept/img/duval.jpg)');
     expect(markdown).toContain('[Row link](https://northmoor.example/dept/psychology/profile?id=7)');
   });
 
-  it('should resolve against a declared base, and leave addresses alone with no page URL', () => {
+  it('should resolve against a declared base, and leave addresses alone with no page behind the HTML', () => {
     const html =
       '<html><head><base href="https://cdn.northmoor.example/site/"></head><body><a href="a.html">A</a></body></html>';
-    expect(toMarkdown(html, 'https://northmoor.example/dept/')).toContain(
+    expect(pageToMarkdown(html, 'https://northmoor.example/dept/')).toContain(
       '[A](https://cdn.northmoor.example/site/a.html)'
     );
     expect(toMarkdown('<a href="a.html">A</a>')).toContain('[A](a.html)');
+  });
+
+  it('should read a page image as its alt text, and leave out one described as nothing (§3.4)', () => {
+    const html =
+      '<p><img src="/img/duval.jpg" alt="Portrait of P. Duval" /><img src="/img/rule.png" alt="" /></p>' +
+      '<table><tr><td><img src="/img/lab.jpg" alt="The lab" /></td></tr></table>';
+    const markdown = pageToMarkdown(html, 'https://northmoor.example/people/');
+    expect(markdown).toContain('[image: Portrait of P. Duval]');
+    expect(markdown).toContain('| [image: The lab] |');
+    expect(markdown).not.toContain('/img/');
+  });
+
+  it('should keep a mail body’s images as authored', () => {
+    expect(toMarkdown('<img src="https://northmoor.example/logo.png" alt="Logo" />')).toBe(
+      '![Logo](https://northmoor.example/logo.png)'
+    );
   });
 
   /** the empty string is why the render assertion exists: an unrendered page reads as "no results" */
@@ -105,6 +129,42 @@ describe('toMarkdown', () => {
       expect(toMarkdown(html)).toBe('');
     }
   );
+});
+
+describe('decodeCloudflareEmail', () => {
+  it('should decode a cloaked address as the decoder script would', () => {
+    expect(decodeCloudflareEmail(cloak('duval@northmoor.example'))).toBe('duval@northmoor.example');
+  });
+
+  it.each([
+    ['an odd-length cipher', cloak('duval@northmoor.example').slice(0, -1)],
+    ['a cipher that is not hex', 'zz'.repeat(8)],
+    ['a cipher that decodes to no address', cloak('not an address')]
+  ])('should refuse %s rather than guess', (_name, hex) => {
+    expect(decodeCloudflareEmail(hex)).toBeUndefined();
+  });
+});
+
+describe('pageToMarkdown with Cloudflare-cloaked addresses (§3.4)', () => {
+  const hex = cloak('duval@northmoor.example');
+  const PAGE_URL = 'https://northmoor.example/people/';
+
+  it('should read a protected mailto link as the address it hides', () => {
+    const html = `<p>Write to <a href="/cdn-cgi/l/email-protection#${hex}"><span class="__cf_email__" data-cfemail="${hex}">[email&#160;protected]</span></a>.</p>`;
+    expect(pageToMarkdown(html, PAGE_URL)).toBe('Write to [duval@northmoor.example](mailto:duval@northmoor.example).');
+  });
+
+  it('should read a cloaked address in a table cell, where a directory keeps it', () => {
+    const html = `<table><tr><th>Name</th><th>Email</th></tr><tr><td>Duval, P.</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="${hex}">[email&#160;protected]</a></td></tr></table>`;
+    expect(pageToMarkdown(html, PAGE_URL)).toContain('| Duval, P. | duval@northmoor.example |');
+  });
+
+  it('should leave a link it cannot decode as it was served', () => {
+    const html = '<a href="/cdn-cgi/l/email-protection#zz">[email&#160;protected]</a>';
+    const markdown = pageToMarkdown(html, PAGE_URL);
+    expect(markdown).toContain('(https://northmoor.example/cdn-cgi/l/email-protection#zz)');
+    expect(markdown).not.toContain('mailto:');
+  });
 });
 
 describe('capMarkdown', () => {
@@ -128,16 +188,21 @@ describe('windowMarkdown (§3.8)', () => {
     expect(windowMarkdown('short', 0)).toStrictEqual({ markdown: 'short\n…end of page, 5 characters in all' });
   });
 
-  it('should cut a page past the guard and say where to read on from, and how to reach the end', () => {
-    const total = MARKDOWN_CAP_CHARS + 10;
+  it('should read a page past the default window in parts, saying where to read on and how to reach the end', () => {
+    const total = DEFAULT_WINDOW_CHARS + 10;
     const windowed = windowMarkdown('x'.repeat(total), 0);
     expect(windowed.markdown).toMatch(
       new RegExp(
-        `x\\n…showing characters 0–${MARKDOWN_CAP_CHARS} of ${total}; read on with startChar=${MARKDOWN_CAP_CHARS}, or startChar=-20000 for the end$`,
+        `x\\n…showing characters 0–${DEFAULT_WINDOW_CHARS} of ${total}; read on with startChar=${DEFAULT_WINDOW_CHARS}, or startChar=-20000 for the end$`,
         'u'
       )
     );
-    expect(windowed.shown).toStrictEqual({ from: 0, to: MARKDOWN_CAP_CHARS, total });
+    expect(windowed.shown).toStrictEqual({ from: 0, to: DEFAULT_WINDOW_CHARS, total });
+  });
+
+  it('should never read past the guard, whatever width is asked for', () => {
+    const total = MARKDOWN_CAP_CHARS + 10;
+    expect(windowMarkdown('x'.repeat(total), 0, total).shown).toStrictEqual({ from: 0, to: MARKDOWN_CAP_CHARS, total });
   });
 
   it('should return only the requested window and still say where to read on', () => {
@@ -175,7 +240,7 @@ describe('renderWebFailure', () => {
     );
   });
 
-  it('should not name web::navigate for a page the server said is not there', () => {
+  it('should not name web::navigate for a page the server said is not there, nor take it for an absence (§3.4)', () => {
     const line = renderWebFailure({
       bodyChars: 0,
       kind: 'http-error',
@@ -183,29 +248,89 @@ describe('renderWebFailure', () => {
       url: 'https://northmoor.example/gone'
     });
     expect(line).toBe(
-      'https://northmoor.example/gone answered HTTP 404 with 0 characters of body and nothing readable in it; there is no page there, and a browser will not find one'
+      'https://northmoor.example/gone answered HTTP 404 with 0 characters of body and nothing readable in it; ' +
+        'there is no page at this address, and a browser will not find one. If you built this URL rather than read ' +
+        "it off a page, this says nothing about the page you were after; use the site's index or search to find it."
     );
     expect(line).not.toContain('web::navigate');
   });
 
-  it('should carry the status on a page that rendered nothing', () => {
-    expect(renderWebFailure({ kind: 'empty-render', status: 404, url: 'https://northmoor.example/gone' })).toBe(
-      'the page at https://northmoor.example/gone answered HTTP 404 and rendered no readable content'
+  it('should say only what an empty error page shows when its status is not 404 or 410', () => {
+    expect(
+      renderWebFailure({ bodyChars: 0, kind: 'http-error', status: 500, url: 'https://northmoor.example/people/' })
+    ).toBe('https://northmoor.example/people/ answered HTTP 500 with 0 characters of body and nothing readable in it');
+  });
+
+  it('should name web::navigate for a page the site refused to a read without a browser (§3.4)', () => {
+    expect(renderWebFailure({ kind: 'blocked', status: 403, url: 'https://northmoor.example/people/' })).toContain(
+      'web::navigate may get through'
     );
   });
 
-  it('should name the content type it cannot read', () => {
+  it("should lay a certificate's failure on the site only where the error establishes it (§3.4)", () => {
+    expect(renderWebFailure({ code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', kind: 'tls', reason: 'incomplete-chain' })).toBe(
+      'the page could not be loaded securely: the site sends its certificate without the intermediates that link ' +
+        "it to a trusted authority — a fault in the site's TLS configuration, which retrying will not fix " +
+        '(UNABLE_TO_VERIFY_LEAF_SIGNATURE)'
+    );
+    expect(renderWebFailure({ code: 'SEC_ERROR_UNKNOWN_ISSUER', kind: 'tls', reason: 'untrusted-issuer' })).toContain(
+      "the site's configuration or this deployment's trust store may be at fault"
+    );
+  });
+
+  it('should carry the status on a page that rendered nothing', () => {
+    expect(renderWebFailure({ kind: 'empty-render', status: 500, url: 'https://northmoor.example/gone' })).toBe(
+      'the page at https://northmoor.example/gone answered HTTP 500 and rendered no readable content'
+    );
+  });
+
+  it('should name the content type nothing reads, and what can be read', () => {
     expect(
       renderWebFailure({
-        contentType: 'application/pdf',
+        contentType: 'image/png',
         kind: 'unsupported-content',
-        url: 'https://northmoor.example/a.pdf'
+        url: 'https://northmoor.example/crest.png'
       })
-    ).toBe('https://northmoor.example/a.pdf is application/pdf, which this tool cannot read as text');
+    ).toBe(
+      'https://northmoor.example/crest.png is image/png, which no web tool reads: web::fetch reads web pages, PDFs and text'
+    );
+  });
+
+  it('should name web::fetch as the reader of a PDF the browser will not open (§3.4)', () => {
+    expect(
+      renderWebFailure({ contentType: 'application/pdf', kind: 'not-html', url: 'https://northmoor.example/cv.pdf' })
+    ).toContain('read it with web::fetch');
+  });
+
+  it('should say a PDF without a text layer is most likely scanned, and how much of it was read (§3.4)', () => {
+    expect(
+      renderWebFailure({ kind: 'no-text', pageCount: 40, pagesRead: 12, url: 'https://northmoor.example/roster.pdf' })
+    ).toBe(
+      'the PDF at https://northmoor.example/roster.pdf has no text layer on the first 12 of its 40 pages: it is ' +
+        'most likely scanned, and nothing here reads text from an image'
+    );
   });
 
   it('should name hover as the way out of a ref CSS hides', () => {
     expect(renderWebFailure({ kind: 'not-visible', ref: 'e12' })).toContain('web::hover');
+  });
+
+  it("should report a failed action on a present element as the element's, naming web::select (§3.4)", () => {
+    const line = renderWebFailure({
+      kind: 'action-failed',
+      message: 'Element is not an <input>, <textarea> or [contenteditable] element',
+      ref: 'e359'
+    });
+    expect(line).toMatch(/^⟨e359⟩ is on the page, but the action on it failed: Element is not an <input>/u);
+    expect(line).toContain('web::select');
+    expect(line).not.toContain('could not be loaded');
+  });
+
+  it('should say a busy browser frees only when a holding turn ends, and that fetch still works (§3.4)', () => {
+    expect(renderWebFailure({ kind: 'busy', sessions: 4 })).toBe(
+      'all 4 browser sessions this deployment allows are held by other turns, and one frees only when the turn ' +
+        'holding it ends. web::fetch needs no session and still works'
+    );
   });
 });
 
@@ -226,6 +351,34 @@ describe('describeWebFailureOutcome', () => {
     expect(
       describeWebFailureOutcome({ kind: 'url-refused', reason: 'not-public-host', url: 'https://10.0.0.1/' })
     ).toBe('⚠️ refused');
+  });
+});
+
+describe('renderWebPage', () => {
+  it('should say a page is the answer to a retry after a rate limit (§3.4)', () => {
+    const page = {
+      markdown: '# Faculty',
+      retry: { status: 429, waitedMs: 1_500 },
+      status: 200,
+      title: 'Faculty',
+      url: 'https://northmoor.example/'
+    };
+    expect(renderWebPage(page)).toMatch(
+      /^Faculty — https:\/\/northmoor\.example\/ \(HTTP 200; retried once, 1\.5 s after an HTTP 429\)\n/u
+    );
+  });
+
+  it('should caution that a 404 on an address the model built says nothing about the page (§3.4)', () => {
+    const page = {
+      markdown: '# Not Found',
+      status: 404,
+      title: 'Not Found',
+      url: 'https://northmoor.example/dr-duval'
+    };
+    expect(renderWebPage(page)).toBe(
+      'Not Found — https://northmoor.example/dr-duval (HTTP 404)\nIf you built this URL rather than read it off a ' +
+        "page, this says nothing about the page you were after; use the site's index or search to find it.\n\n# Not Found"
+    );
   });
 });
 
@@ -252,6 +405,23 @@ describe('renderWebSnapshot', () => {
       url: 'https://northmoor.example/'
     };
     expect(renderWebSnapshot(snapshot)).toContain('⟨e1⟩ input[type=text] "Search" = "duval"');
+  });
+
+  it("should list a select's options, counting those past the ones shown (§3.4)", () => {
+    const options = Array.from({ length: SELECT_OPTIONS_SHOWN + 2 }, (_, index) => `Option ${index}`);
+    const snapshot: WebSnapshot = {
+      formElements: [{ isHidden: false, kind: 'select', label: 'Focus', options, ref: 'e1', value: 'Option 0' }],
+      markdown: '# Faculty',
+      openedUrls: [],
+      status: 200,
+      title: 'Faculty',
+      url: 'https://northmoor.example/'
+    };
+    const line = renderWebSnapshot(snapshot)
+      .split('\n')
+      .find((candidate) => candidate.startsWith('- ⟨e1⟩'));
+    expect(line).toMatch(/^- ⟨e1⟩ select "Focus" = "Option 0"; options: "Option 0", "Option 1", /u);
+    expect(line).toMatch(/"Option 99", and 2 more$/u);
   });
 
   it('should name a tab the page opened, and say when it had no address yet', () => {

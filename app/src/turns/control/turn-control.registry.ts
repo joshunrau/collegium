@@ -1,4 +1,6 @@
+import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
+import { uniq } from 'es-toolkit';
 
 import type { Abort, AbortKind, Steering } from '../turns.types.ts';
 
@@ -19,6 +21,12 @@ type RegisterInput = {
   onSurface: () => Promise<boolean>;
   turnId: string;
 };
+
+/** §7.5 — why a steer reached no turn; in every case nothing was delivered */
+export type SteerRefusal =
+  | { readonly agentUsername: string; readonly kind: 'not-running' }
+  | { readonly kind: 'ambiguous'; readonly runningAgentUsernames: readonly string[] }
+  | { readonly kind: 'nothing-running' };
 
 export type TurnControlHandle = {
   aborted(): Abort | undefined;
@@ -83,17 +91,29 @@ export class TurnControlRegistry {
     };
   }
 
-  /** §7.5 — hands one instruction to every running turn in the channel; synchronous, so a releasing turn takes it or is gone */
-  steerChannel(channelId: string, steering: Steering): number {
-    let steered = 0;
-    for (const entry of this.entries.values()) {
-      if (entry.channelId !== channelId) {
-        continue;
-      }
-      entry.steering.push(steering);
-      steered += 1;
+  /**
+   * §7.5 — hands one instruction to the named agent's running turn in the channel, or unnamed to the
+   * one agent running there, and names the agent it reached; synchronous, so a releasing turn takes
+   * it or is gone.
+   */
+  steer(channelId: string, agentUsername: string | undefined, steering: Steering): Result<string, SteerRefusal> {
+    const running = [...this.entries.values()].filter((entry) => entry.channelId === channelId);
+    const runningAgentUsernames = uniq(running.map((entry) => entry.agentUsername));
+    if (agentUsername === undefined && runningAgentUsernames.length > 1) {
+      return Result.err({ kind: 'ambiguous', runningAgentUsernames });
     }
-    return steered;
+    const targetUsername = agentUsername ?? runningAgentUsernames[0];
+    if (targetUsername === undefined) {
+      return Result.err({ kind: 'nothing-running' });
+    }
+    const reached = running.filter((entry) => entry.agentUsername === targetUsername);
+    if (reached.length === 0) {
+      return Result.err({ agentUsername: targetUsername, kind: 'not-running' });
+    }
+    for (const entry of reached) {
+      entry.steering.push(steering);
+    }
+    return Result.ok(targetUsername);
   }
 
   /**

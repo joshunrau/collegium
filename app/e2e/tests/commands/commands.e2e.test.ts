@@ -69,17 +69,18 @@ describe('Ephemeral commands', () => {
     expect((await channels.main.posts()).some((post) => post.text.includes('Trace for turn'))).toBe(false);
   });
 
-  it('/collegium queue reports pending depth and the oldest unprocessed post (§8.4)', async () => {
+  it('/collegium queue reports the running turn, pending depth and the oldest unprocessed post (§8.4)', async () => {
     const { agents, channels, inference } = harness();
     const drained = `drained-${randomUUID()}`;
     const blocked = inference.willBlock({ agent: 'mira', contains: 'hold the line' }, textResponse('holding done'));
 
-    await channels.main.mention('mira', 'hold the line');
+    const running = await channels.main.mention('mira', 'hold the line');
     await blocked.arrived;
     const queued = await channels.main.mention('mira', `queued ${randomUUID()}`);
     await channels.main.awaitReaction(queued, QUEUED_ACKNOWLEDGEMENT_EMOJI);
     await channels.main.runCommand(`/collegium queue ${agents.mira.username}`);
     const report = await channels.main.awaitEphemeral({ contains: 'oldest unprocessed' });
+    expect(report.message).toContain(`started by post \`${running.id}\`; no status post yet`);
     expect(report.message).toContain(queued.id);
 
     inference.willReply({ agent: 'mira' }, textResponse(drained));
@@ -180,8 +181,8 @@ describe('/collegium stop', () => {
 describe('/collegium steer', () => {
   const harness = setupHarness(SCENARIO);
 
-  it('discards a completion made before the steer and calls the model again with the correction (§7.5)', async () => {
-    const { channels, inference } = harness();
+  it('discards a completion made before the steer and calls the named agent again with the correction (§7.5)', async () => {
+    const { agents, channels, inference } = harness();
     const reply = `steered-${randomUUID()}`;
     const blocked = inference.willBlock(
       { agent: 'mira', contains: 'plan something' },
@@ -191,7 +192,7 @@ describe('/collegium steer', () => {
     await channels.main.mention('mira', 'plan something');
     await blocked.arrived;
     inference.willReply({ agent: 'mira' }, textResponse(reply));
-    await channels.main.runCommand('/collegium steer use the staging URL');
+    await channels.main.runCommand(`/collegium steer @${agents.mira.username} use the staging URL`);
     blocked.release();
     await channels.main.awaitReplyFrom('mira', { text: reply });
 

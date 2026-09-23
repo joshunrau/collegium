@@ -13,7 +13,13 @@ import type { Model, TransactionClient, TriggerSource } from '@/prisma/prisma.ty
 
 import { renderTriggerPost } from './triggers.renderer.ts';
 
-import type { Trigger, TriggerFailure, TriggerInput, TriggerResolutionHook } from './triggers.types.ts';
+import type {
+  Trigger,
+  TriggerFailure,
+  TriggerInput,
+  TriggerResolutionHook,
+  TriggerTarget
+} from './triggers.types.ts';
 
 /**
  * §4.2 — external events do not post directly: deterministic code records a row, and the system
@@ -195,23 +201,29 @@ export class TriggersService {
    * (§4.2). A source that must finish something in the world first does it here (§4.6 marks mail
    * read), and a failure there leaves the row outstanding rather than claiming the work is done.
    */
-  async resolve(triggerId: string, agentUsername: string): Promise<Result<void, TriggerFailure>> {
-    const trigger = await this.triggers.findFirst({ where: { id: triggerId, targetAgentUsername: agentUsername } });
+  async resolve(
+    target: TriggerTarget
+  ): Promise<Result<{ triggerId: string }, TriggerFailure.NotResolvable | TriggerFailure.Unmatched>> {
+    const trigger = await this.findTarget(target);
     if (!trigger) {
-      return Result.err({ kind: 'not-found', triggerId });
+      return Result.err({
+        kind: 'unmatched',
+        outstandingIds: await this.listAnnouncedUnresolvedIds(target.agentUsername, target.channelId),
+        triggerId: target.triggerId
+      });
     }
     if (trigger.status === 'resolved') {
-      return Result.ok();
+      return Result.ok({ triggerId: trigger.id });
     }
     const hook = this.resolutionHooks.get(trigger.source);
     if (hook) {
       const handled = await hook(trigger);
       if (!handled.success) {
-        return Result.err({ kind: 'not-resolvable', message: handled.error.message, triggerId });
+        return Result.err({ kind: 'not-resolvable', message: handled.error.message, triggerId: trigger.id });
       }
     }
     await this.triggers.update({ data: { resolvedAt: new Date(), status: 'resolved' }, where: { id: trigger.id } });
-    return Result.ok();
+    return Result.ok({ triggerId: trigger.id });
   }
 
   /**
@@ -230,6 +242,27 @@ export class TriggersService {
   /** whether this system post announced a trigger — its turn was already started by the flush that posted it */
   async wasAnnouncedBy(postId: string): Promise<boolean> {
     return (await this.triggers.count({ where: { postId } })) > 0;
+  }
+
+  private async findTarget({ agentUsername, triggerId, triggeringPostId }: TriggerTarget): Promise<null | Trigger> {
+    if (triggerId !== undefined) {
+      return this.triggers.findFirst({ where: { id: triggerId, targetAgentUsername: agentUsername } });
+    }
+    // querying a null post id would match every trigger not yet announced
+    if (triggeringPostId === null) {
+      return null;
+    }
+    return this.triggers.findFirst({ where: { postId: triggeringPostId, targetAgentUsername: agentUsername } });
+  }
+
+  /** announced ones only: a pending trigger's id is one the agent has never been shown */
+  private async listAnnouncedUnresolvedIds(agentUsername: string, channelId: string): Promise<string[]> {
+    const announced = await this.triggers.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+      where: { status: 'posted', targetAgentUsername: agentUsername, targetChannelId: channelId }
+    });
+    return announced.map(({ id }) => id);
   }
 
   /** an unposted trigger goes back to pending, so the next idle flush announces it */

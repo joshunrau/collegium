@@ -1,6 +1,8 @@
-import { Result } from '@collegium/core/utils';
-import type { BrowserContext, Locator, Page } from 'playwright-core';
+import { Result, toErrorMessage } from '@collegium/core/utils';
+import type { BrowserContext, Locator, Page, Response } from 'playwright-core';
 
+import { classifyContentType } from '../fetch/fetch.utils.ts';
+import { lacksOption } from '../select/select.script.ts';
 import { waitForDomSettled } from '../settle/settle.script.ts';
 import { captureSnapshot } from '../snapshot/snapshot.script.ts';
 import {
@@ -12,9 +14,19 @@ import {
   NETWORK_IDLE_TIMEOUT_MS,
   OPENED_TAB_URL_TIMEOUT_MS
 } from '../web.constants.ts';
-import { describeNavigationError } from './browser.utils.ts';
+import { classifyActionError, classifyNavigationError } from './browser.utils.ts';
 
 import type { RenderedCapture, WebFailure } from '../web.types.ts';
+
+/** what can go wrong loading a page, whatever started the load */
+type LoadFailure = WebFailure.Navigation | WebFailure.Tls | WebFailure.Unreachable;
+
+/** what an action finds wrong with its element before it acts, so nothing was done */
+type ActionRefusal = WebFailure.NoSuchOption;
+
+/** and what can go wrong acting on a ref besides */
+type ActionFailure =
+  ActionRefusal | LoadFailure | WebFailure.ActionFailed | WebFailure.NotVisible | WebFailure.StaleRef;
 
 /**
  * One live page and its ref numbering. The counter is held here — not in the page — so it
@@ -36,16 +48,14 @@ export class BrowserSession {
     context.on('page', (popup) => {
       this.opened.push(popup);
     });
+    page.on('response', (response) => {
+      if (this.isMainFrameDocument(response)) {
+        this.lastStatus = response.status();
+      }
+    });
   }
 
-  async click(
-    ref: string
-  ): Promise<
-    Result<
-      RenderedCapture,
-      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
-    >
-  > {
+  async click(ref: string): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, (locator) => locator.click({ timeout: ACTION_TIMEOUT_MS }));
   }
 
@@ -58,16 +68,7 @@ export class BrowserSession {
     }
   }
 
-  async fill(
-    ref: string,
-    text: string,
-    pressEnter = false
-  ): Promise<
-    Result<
-      RenderedCapture,
-      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
-    >
-  > {
+  async fill(ref: string, text: string, pressEnter = false): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, async (locator) => {
       await locator.fill(text, { timeout: ACTION_TIMEOUT_MS });
       if (pressEnter) {
@@ -76,66 +77,75 @@ export class BrowserSession {
     });
   }
 
-  async hover(
-    ref: string
-  ): Promise<
-    Result<
-      RenderedCapture,
-      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
-    >
-  > {
+  async hover(ref: string): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, (locator) => locator.hover({ timeout: ACTION_TIMEOUT_MS }));
   }
 
-  async navigate(url: string): Promise<Result<RenderedCapture, WebFailure.Navigation | WebFailure.Unreachable>> {
+  /** §3.4 — a PDF or a text file is web::fetch's to read, so the refusal names it; anything else neither tool reads */
+  async navigate(
+    url: string
+  ): Promise<Result<RenderedCapture, LoadFailure | WebFailure.NotHtml | WebFailure.UnsupportedContent>> {
     try {
       const response = await this.page.goto(url, { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'load' });
       const contentType = (await response?.headerValue('content-type')) ?? '';
-      if (contentType && !contentType.includes('text/html')) {
-        return Result.err({ kind: 'navigation', message: `not an HTML page: ${contentType}` });
+      const kind = classifyContentType(contentType);
+      if (kind === 'unsupported') {
+        return Result.err({ contentType, kind: 'unsupported-content', url: response?.url() ?? url });
       }
-      this.lastStatus = response?.status() ?? this.lastStatus;
+      if (kind !== 'html') {
+        return Result.err({ contentType, kind: 'not-html', url: response?.url() ?? url });
+      }
     } catch (error) {
       return Result.err(this.asFailure(error));
     }
     return this.capture();
   }
 
+  /** by the option's label or its value, as Playwright matches either */
+  async select(ref: string, option: string): Promise<Result<RenderedCapture, ActionFailure>> {
+    return this.act(ref, async (locator) => {
+      if (await locator.evaluate(lacksOption, option)) {
+        return { kind: 'no-such-option', option, ref };
+      }
+      await locator.selectOption(option, { timeout: ACTION_TIMEOUT_MS });
+      return undefined;
+    });
+  }
+
   private async act(
     ref: string,
-    action: (locator: Locator) => Promise<void>
-  ): Promise<
-    Result<
-      RenderedCapture,
-      WebFailure.Navigation | WebFailure.NotVisible | WebFailure.StaleRef | WebFailure.Unreachable
-    >
-  > {
+    action: (locator: Locator) => Promise<ActionRefusal | void>
+  ): Promise<Result<RenderedCapture, ActionFailure>> {
     const locator = this.page.locator(`[data-collegium-ref="${ref}"]`);
     try {
       if ((await locator.count()) === 0) {
         return Result.err({ kind: 'stale-ref', ref });
       }
-      await action(locator);
+      const refused = await action(locator);
+      if (refused) {
+        return Result.err(refused);
+      }
     } catch (error) {
+      const message = toErrorMessage(error);
+      if (this.isGone()) {
+        return Result.err({ kind: 'unreachable', message });
+      }
       // an action that timed out on a ref CSS hides is the one failure the model can act on itself,
       // so it must not arrive as an indistinguishable page failure
       if (await locator.isVisible().catch(() => true)) {
-        return Result.err(this.asFailure(error));
+        return Result.err(classifyActionError(message, ref));
       }
       return Result.err({ kind: 'not-visible', ref });
     }
     return this.capture();
   }
 
-  private asFailure(error: unknown): WebFailure.Navigation | WebFailure.Unreachable {
-    const message = error instanceof Error ? error.message : String(error);
-    if (this.page.isClosed() || this.context.browser()?.isConnected() === false) {
-      return { kind: 'unreachable', message };
-    }
-    return { kind: 'navigation', message: describeNavigationError(message) };
+  private asFailure(error: unknown): LoadFailure {
+    const message = toErrorMessage(error);
+    return this.isGone() ? { kind: 'unreachable', message } : classifyNavigationError(message);
   }
 
-  private async capture(): Promise<Result<RenderedCapture, WebFailure.Navigation | WebFailure.Unreachable>> {
+  private async capture(): Promise<Result<RenderedCapture, LoadFailure>> {
     try {
       await this.settle(this.page);
       const openedUrls = await this.closeOpenedTabs();
@@ -170,6 +180,31 @@ export class BrowserSession {
       await tab.close().catch(() => undefined);
     }
     return urls;
+  }
+
+  private isGone(): boolean {
+    return this.page.isClosed() || this.context.browser()?.isConnected() === false;
+  }
+
+  /**
+   * §3.4 — a snapshot reports the status of the document the page shows, which is not always the
+   * one `goto` answered with: a bot check that clears itself, or a script that moves the page on,
+   * loads another after it. A redirect is a hop on the way to a document, not one. This runs in an
+   * event handler, where a throw would take the process down, so a frame Playwright cannot yet name
+   * — one still being created, never the main one — is simply not it.
+   */
+  private isMainFrameDocument(response: Response): boolean {
+    const request = response.request();
+    const status = response.status();
+    const isRedirect = status >= 300 && status < 400 && response.headers().location !== undefined;
+    if (!request.isNavigationRequest() || isRedirect) {
+      return false;
+    }
+    try {
+      return request.frame() === this.page.mainFrame();
+    } catch {
+      return false;
+    }
   }
 
   private async settle(page: Page): Promise<void> {

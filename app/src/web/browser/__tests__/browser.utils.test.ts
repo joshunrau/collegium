@@ -1,21 +1,66 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeNavigationError } from '../browser.utils.ts';
+import { classifyActionError, classifyNavigationError } from '../browser.utils.ts';
 
-describe('describeNavigationError', () => {
+describe('classifyNavigationError', () => {
   it("should say the browser's transport errors in plain words", () => {
-    expect(describeNavigationError('page.goto: NS_ERROR_UNKNOWN_HOST')).toBe('the host name does not resolve');
-    expect(describeNavigationError('page.goto: NS_ERROR_CONNECTION_REFUSED')).toBe('the connection was refused');
-    expect(describeNavigationError('page.goto: NS_ERROR_NET_TIMEOUT')).toBe('the page did not answer within 30s');
+    expect(classifyNavigationError('page.goto: NS_ERROR_UNKNOWN_HOST')).toStrictEqual({
+      kind: 'navigation',
+      message: 'the host name does not resolve'
+    });
+    expect(classifyNavigationError('page.goto: NS_ERROR_CONNECTION_REFUSED')).toMatchObject({
+      message: 'the connection was refused'
+    });
+    expect(classifyNavigationError('page.goto: NS_ERROR_NET_TIMEOUT')).toMatchObject({
+      message: 'the page did not answer within 30s'
+    });
   });
 
   it('should name both causes of an empty response, since a policy refusal looks like a dead host (§3.4)', () => {
-    expect(describeNavigationError('page.goto: NS_ERROR_NET_EMPTY_RESPONSE')).toBe(
-      "the connection was accepted and closed with no response: the host, or this deployment's URL policy, refused it"
-    );
+    expect(classifyNavigationError('page.goto: NS_ERROR_NET_EMPTY_RESPONSE')).toMatchObject({
+      message:
+        "the connection was accepted and closed with no response: the host, or this deployment's URL policy, refused it"
+    });
   });
 
   it('should pass a message it does not know through unchanged', () => {
-    expect(describeNavigationError('not an HTML page: application/pdf')).toBe('not an HTML page: application/pdf');
+    expect(classifyNavigationError('page.goto: Navigation interrupted by another navigation')).toStrictEqual({
+      kind: 'navigation',
+      message: 'page.goto: Navigation interrupted by another navigation'
+    });
+  });
+
+  it.each([
+    ['SEC_ERROR_UNKNOWN_ISSUER', 'untrusted-issuer'],
+    ['SEC_ERROR_EXPIRED_CERTIFICATE', 'expired'],
+    ['SSL_ERROR_BAD_CERT_DOMAIN', 'name-mismatch'],
+    ['MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT', 'self-signed'],
+    ['SSL_ERROR_NO_CYPHER_OVERLAP', 'unclassified']
+  ])('should classify %s as a TLS failure of kind %s (§3.4)', (code, reason) => {
+    expect(
+      classifyNavigationError(`page.goto: ${code}\nCall log:\n  - navigating to "https://northmoor.example/"`)
+    ).toStrictEqual({
+      code,
+      kind: 'tls',
+      reason
+    });
+  });
+});
+
+describe('classifyActionError', () => {
+  it("should report an element's refusal as the element's, without Playwright's framing (§3.4)", () => {
+    const message =
+      'locator.fill: Error: Element is not an <input>, <textarea> or [contenteditable] element\nCall log:\n  - waiting for locator';
+    expect(classifyActionError(message, 'e359')).toStrictEqual({
+      kind: 'action-failed',
+      message: 'Element is not an <input>, <textarea> or [contenteditable] element',
+      ref: 'e359'
+    });
+  });
+
+  it('should report a load the action started as the page failing to load', () => {
+    expect(classifyActionError('locator.click: NS_ERROR_NET_EMPTY_RESPONSE', 'e4')).toMatchObject({
+      kind: 'navigation'
+    });
   });
 });

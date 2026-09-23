@@ -1,15 +1,30 @@
 import { Result } from '@collegium/core/utils';
 import { Inject, Injectable } from '@nestjs/common';
 
+import { ConfigService } from '@/config/config.service.ts';
+import { LoggingService } from '@/logging/logging.service.ts';
+
 import { BrowserClient } from './browser/browser.client.ts';
 import { FetchClient } from './fetch/fetch.client.ts';
-import { extractTitle, needsClientRendering } from './fetch/fetch.utils.ts';
-import { MAX_LIVE_SESSIONS } from './web.constants.ts';
+import { extractTitle } from './fetch/fetch.utils.ts';
+import { stripPageChrome } from './fetch/page-chrome.utils.ts';
+import { refuseUnreadablePage } from './fetch/readability.utils.ts';
+import { PdfTextExtractor } from './pdf/pdf-text.extractor.ts';
+import { createPdfReadBudget, isWithoutTextLayer, readPdfText } from './pdf/pdf.utils.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
-import { capMarkdown, toMarkdown, windowMarkdown } from './web.utils.ts';
+import { capMarkdown, pageToMarkdown, readPage } from './web.utils.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
-import type { AddressPolicy, RenderedCapture, WebFailure, WebPage, WebSnapshot } from './web.types.ts';
+import type { FetchedPdf } from './fetch/fetch.types.ts';
+import type {
+  AddressPolicy,
+  FetchedPage,
+  PageRead,
+  PageView,
+  RenderedCapture,
+  WebFailure,
+  WebSnapshot
+} from './web.types.ts';
 
 /**
  * The web seam: turn-scoped browsing sessions, one page each, driven by refs the model read in
@@ -18,10 +33,13 @@ import type { AddressPolicy, RenderedCapture, WebFailure, WebPage, WebSnapshot }
  *
  * An HTTP error is not a failure — a 404 is a page with content and a status, and the model
  * reasons about it, exactly as `shell` hands back a non-zero exit as `ok`. `Result.err` is
- * reserved for having nothing to say about the page at all.
+ * reserved for having nothing to say about the page at all, which a site's refusal to serve it
+ * is too: its body describes the refusal, never the page.
  */
 @Injectable()
 export class WebService {
+  private readonly maxSessions: number;
+
   /**
    * The slot is the promise, not the session: it is claimed before the browser launches, so a turn
    * ending mid-launch still finds something to dispose (§5.1's lock is not held across a tool call).
@@ -31,8 +49,13 @@ export class WebService {
   constructor(
     @Inject(ADDRESS_POLICY_TOKEN) private readonly addressPolicy: AddressPolicy,
     private readonly browserClient: BrowserClient,
-    private readonly fetchClient: FetchClient
-  ) {}
+    configService: ConfigService,
+    private readonly fetchClient: FetchClient,
+    private readonly loggingService: LoggingService,
+    private readonly pdfTextExtractor: PdfTextExtractor
+  ) {
+    this.maxSessions = configService.get('web.maxBrowserSessions');
+  }
 
   async click(
     turnId: string,
@@ -60,17 +83,24 @@ export class WebService {
     }
   }
 
-  /** no session and no slot: one GET, converted by the same rules a rendered page is, read as the window `startChar` and `maxChars` name (§3.8) */
+  /**
+   * No session and no slot: one GET, converted by the same rules a rendered page is, and read as
+   * the call asked. A page that cannot be read this way is refused, never rendered in its place —
+   * whether a browser is worth its slot is the model's call (§3.4).
+   */
   async fetch(
     url: string,
-    startChar = 0,
-    maxChars?: number
+    read: PageRead
   ): Promise<
     Result<
-      WebPage,
+      FetchedPage,
+      | WebFailure.Blocked
       | WebFailure.HttpError
       | WebFailure.Navigation
       | WebFailure.NoStaticContent
+      | WebFailure.NoText
+      | WebFailure.Tls
+      | WebFailure.UnreadablePdf
       | WebFailure.UnsupportedContent
       | WebFailure.UrlRefused
     >
@@ -79,28 +109,26 @@ export class WebService {
     if (!fetched.success) {
       return fetched;
     }
-    const { body, kind, status, url: finalUrl } = fetched.value;
+    if (fetched.value.kind === 'pdf') {
+      return this.readPdf(fetched.value, read);
+    }
+    const { body, kind, retry, status, url: finalUrl } = fetched.value;
+    const answered = { status, url: finalUrl, ...(retry && { retry }) };
     if (kind === 'text') {
       return Result.ok({
-        ...windowMarkdown(body, startChar, maxChars),
-        status,
-        title: new URL(finalUrl).pathname,
-        url: finalUrl
+        ...readPage({ leftOutChars: 0, markdown: body }, read),
+        ...answered,
+        title: new URL(finalUrl).pathname
       });
     }
-    const markdown = toMarkdown(body, finalUrl);
-    if (needsClientRendering(markdown)) {
-      // an error status with nothing readable is a page that is not there; a browser will not find one either
-      return status >= 400
-        ? Result.err({ bodyChars: body.length, kind: 'http-error', status, url: finalUrl })
-        : Result.err({ kind: 'no-static-content', status, url: finalUrl });
+    const markdown = pageToMarkdown(body, finalUrl);
+    const title = extractTitle(body);
+    const unreadable = refuseUnreadablePage({ ...answered, body, markdown, title });
+    if (unreadable) {
+      return Result.err(unreadable);
     }
-    return Result.ok({
-      ...windowMarkdown(markdown, startChar, maxChars),
-      status,
-      title: extractTitle(body),
-      url: finalUrl
-    });
+    const view = read.wholePage ? { leftOutChars: 0, markdown } : this.viewMainContent(body, finalUrl, markdown);
+    return Result.ok({ ...readPage(view, read), ...answered, title });
   }
 
   async fill(
@@ -150,18 +178,33 @@ export class WebService {
     return this.toSnapshot(await opened.value.navigate(url));
   }
 
+  async select(
+    turnId: string,
+    args: { option: string; ref: string }
+  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy | WebFailure.UrlRefused>>> {
+    const opened = await this.sessions.get(turnId);
+    if (!opened?.success) {
+      return Result.err({ kind: 'no-session' });
+    }
+    return this.toSnapshot(await opened.value.select(args.ref, args.option));
+  }
+
   /**
    * Claiming the slot is synchronous — the map is written before the launch is awaited — which makes
    * the cap a compare-and-swap rather than a check-then-act: concurrent first-navigates in different
-   * turns can no longer all pass a size read that is already stale.
+   * turns can no longer all pass a size read that is already stale. A turn past the cap is refused,
+   * never queued (§3.4).
    */
   private async openSession(turnId: string): Promise<Result<BrowserSession, WebFailure.Busy | WebFailure.Unreachable>> {
     const existing = this.sessions.get(turnId);
     if (existing) {
       return existing;
     }
-    if (this.sessions.size >= MAX_LIVE_SESSIONS) {
-      return Result.err({ kind: 'busy' });
+    if (this.sessions.size >= this.maxSessions) {
+      this.loggingService.warn(
+        `turn ${turnId} was refused a browser session: all ${this.maxSessions} are held, by turns ${[...this.sessions.keys()].join(', ')}`
+      );
+      return Result.err({ kind: 'busy', sessions: this.maxSessions });
     }
     const opening = this.browserClient.createSession();
     this.sessions.set(turnId, opening);
@@ -174,13 +217,38 @@ export class WebService {
     return opened;
   }
 
+  /** §3.4 — the text layer alone, under the same windowing as a page; a cut PDF does not parse, so it is not read */
+  private async readPdf(
+    { bytes, isTruncated, retry, status, url }: FetchedPdf,
+    read: PageRead
+  ): Promise<Result<FetchedPage, WebFailure.NoText | WebFailure.UnreadablePdf>> {
+    if (isTruncated) {
+      return Result.err({ kind: 'unreadable-pdf', reason: 'too-large', url });
+    }
+    const extracted = await this.pdfTextExtractor.extract(bytes, createPdfReadBudget());
+    if (!extracted.success) {
+      return Result.err({ kind: 'unreadable-pdf', reason: extracted.error, url });
+    }
+    const text = extracted.value;
+    if (isWithoutTextLayer(text)) {
+      return Result.err({ kind: 'no-text', pageCount: text.pageCount, pagesRead: text.pages.length, url });
+    }
+    return Result.ok({
+      ...readPdfText(text, read),
+      status,
+      title: new URL(url).pathname,
+      url,
+      ...(retry && { retry })
+    });
+  }
+
   private toSnapshot<TFailure extends WebFailure>(
     rendered: Result<RenderedCapture, TFailure>
   ): Result<WebSnapshot, TFailure | WebFailure.EmptyRender> {
     if (!rendered.success) {
       return rendered;
     }
-    const capped = capMarkdown(toMarkdown(rendered.value.html, rendered.value.url));
+    const capped = capMarkdown(pageToMarkdown(rendered.value.html, rendered.value.url));
     // a page that rendered nothing is indistinguishable from a page with nothing on it, and the
     // model cannot tell them apart — so it is never returned as content
     if (!capped.markdown) {
@@ -194,5 +262,18 @@ export class WebService {
       title: rendered.value.title,
       url: rendered.value.url
     });
+  }
+
+  /**
+   * §3.4 — the page less its chrome, converted by the same rules. A page whose main content is
+   * empty without script, or whose chrome is all there is, is read whole: leaving the chrome out
+   * would leave nothing.
+   */
+  private viewMainContent(html: string, pageUrl: string, whole: string): PageView {
+    const stripped = stripPageChrome(html);
+    const main = stripped === undefined ? '' : pageToMarkdown(stripped, pageUrl);
+    return main === ''
+      ? { leftOutChars: 0, markdown: whole }
+      : { leftOutChars: whole.length - main.length, markdown: main };
   }
 }

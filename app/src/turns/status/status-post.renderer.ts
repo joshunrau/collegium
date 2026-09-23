@@ -5,28 +5,11 @@ import { describeTransportReason } from '@/inference/inference.utils.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 import type { TraceMark } from '@/tools/tools.types.ts';
 
+import { OUTCOME_PHRASES, WORKING_LINE } from './status-post.constants.ts';
+
 import type { ContextExhaustionCause } from '../turns.types.ts';
 
 const TRACE_DETAIL_LIMIT_CHARS = 150;
-
-const WORKING_LINE = '⏳ _working…_';
-
-/** §3.2 — deterministic code speaking as the agent: fixed strings and templated facts only */
-const OUTCOME_PHRASES: { readonly [K in Exclude<TurnStatus, 'running'>]: string } = {
-  abandoned: '⚪ _abandoned — the process restarted mid-turn_',
-  budget_exhausted: '⏸️ _stopped — action budget exhausted_',
-  completed: '✅ _done_',
-  context_exhausted: '⚠️ _stopped — ran out of context_',
-  delivery_failure: '⚠️ _stopped — the chat server refused a post_',
-  denied: '🛑 _stopped — a human denied an action_',
-  halted: '🛑 _stopped — global halt_',
-  killed: '⏹️ _killed_',
-  provider_outage: '⚠️ _stopped — the model provider failed_',
-  provider_rejected: '⚠️ _stopped — the model provider rejected the request_',
-  semantic_error: '⚠️ _stopped — internal error_',
-  side_effect_ambiguous: '⚠️ _stopped — a call timed out with its effect unconfirmed_',
-  stopped: '⏹️ _stopped_'
-};
 
 function formatDuration(elapsedMs: number): string {
   const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));

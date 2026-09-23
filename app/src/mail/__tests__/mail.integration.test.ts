@@ -118,6 +118,15 @@ describe('mail inbound, end to end through triggers', () => {
     await inbound.pollOnce(mailbox);
   });
 
+  const resolveById = (triggerId: string) => {
+    return triggersService.resolve({
+      agentUsername: 'tess',
+      channelId: 'channel-mail',
+      triggerId,
+      triggeringPostId: null
+    });
+  };
+
   it('should announce an arrival with sender, subject, and body, then mark it read on resolution', async () => {
     pollNew.mockResolvedValue(Result.ok({ cursor: 'cursor-2', messages: [arrival()] }));
     await inbound.pollOnce(mailbox);
@@ -130,13 +139,14 @@ describe('mail inbound, end to end through triggers', () => {
     const [channelId, message, files] = chatGateway.postAsSystemIn.mock.calls[0]!;
     expect(channelId).toBe('channel-mail');
     expect(message).toContain('🔔 New Mail → @tess');
-    expect(message).toContain('⟨msg-1⟩ arrived. Read it and say here what it needs');
+    expect(message).toContain(`⟨${trigger.id}⟩ arrived. Read it and say here what it needs`);
+    expect(message).toContain('mail ref msg-1');
     expect(message).toContain(
       '> **From:** billing@acme.com\n> **Date:** July 31, 2026\n> **Subject:** Invoice overdue\n>\n> Please pay invoice 42.'
     );
     expect(files).toStrictEqual([]);
 
-    expect((await triggersService.resolve(trigger.id, 'tess')).success).toBe(true);
+    expect((await resolveById(trigger.id)).success).toBe(true);
     expect(markRead).toHaveBeenCalledWith('msg-1');
     expect(triggerRows[0]?.status).toBe('resolved');
   });
@@ -167,7 +177,7 @@ describe('mail inbound, end to end through triggers', () => {
     await inbound.pollOnce(mailbox);
     markRead.mockResolvedValue(Result.err({ kind: 'provider-unavailable', message: 'the mailbox is down' }));
 
-    const resolved = await triggersService.resolve(triggerRows[0]!.id, 'tess');
+    const resolved = await resolveById(triggerRows[0]!.id);
 
     expect(resolved.error).toMatchObject({ kind: 'not-resolvable' });
     expect(triggerRows[0]?.status).not.toBe('resolved');

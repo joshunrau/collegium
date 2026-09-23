@@ -80,6 +80,12 @@ export type ToolPost = {
  * size once it is longer than `REPLAY_VERBATIM_MAX_CHARS`.
  */
 export type ToolOutput = {
+  /**
+   * §3.8 — the part of `text` that says what the result holds, where the rest names where it was
+   * read: a page's body without its address. A later result whose content matches is the same
+   * content read again, whatever the rest says. Absent, the whole text is the content.
+   */
+  readonly contentIdentity?: string;
   readonly disclosure?: ToolDisclosure;
   /** §3.15 — framework tools only; a plugin's output type carries no post */
   readonly post?: ToolPost;

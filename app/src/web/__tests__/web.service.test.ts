@@ -2,20 +2,24 @@ import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ConfigService } from '@/config/config.service.ts';
+import { LoggingService } from '@/logging/logging.service.ts';
+import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 
 import { BrowserClient } from '../browser/browser.client.ts';
 import { BrowserSession } from '../browser/browser.session.ts';
 import { FetchClient } from '../fetch/fetch.client.ts';
-import { MARKDOWN_CAP_CHARS, MAX_LIVE_SESSIONS } from '../web.constants.ts';
+import { PdfTextExtractor } from '../pdf/pdf-text.extractor.ts';
+import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
 import { refuseUnbrowsableUrl } from '../web.policy.ts';
 import { WebService } from '../web.service.ts';
 import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
-import { toMarkdown } from '../web.utils.ts';
+import { pageToMarkdown } from '../web.utils.ts';
 
-import type { FetchedResource } from '../fetch/fetch.types.ts';
-import type { AddressPolicy, RenderedCapture, WebFailure } from '../web.types.ts';
+import type { FetchedDocument, FetchedPdf } from '../fetch/fetch.types.ts';
+import type { AddressPolicy, PageRead, RenderedCapture, WebFailure } from '../web.types.ts';
 
 /** the strict scheme rule, with the resolved half scripted per test */
 const policy = {
@@ -33,6 +37,13 @@ const FACULTY_DIRECTORY = `<!doctype html><html><head>
       <tr><td>Duval, P.</td><td>217 BSB</td><td>—</td><td><a href="mailto:duval@northmoor.example">duval@northmoor.example</a></td></tr>
     </tbody>
   </table>
+</body></html>`;
+
+/** the directory inside the site's chrome, as a CMS template serves it */
+const TEMPLATED_DIRECTORY = `<!doctype html><html><head><title>Faculty</title></head><body>
+  <header><a href="/">Northmoor University</a><nav><a href="/admissions">Admissions</a><a href="/research">Research</a></nav></header>
+  <main><h1>Faculty</h1><p>Duval, P. — duval@northmoor.example</p></main>
+  <footer><p>Northmoor University, 1 College Road — accessibility — privacy</p></footer>
 </body></html>`;
 
 /** nothing here survives conversion: the shell is the whole document until a script fills it */
@@ -53,6 +64,11 @@ const CLIENT_RENDERED_DIRECTORY = `<!doctype html><html><head>
   <script src="/directory.js"></script>
 </body></html>`;
 
+/** a cap below the shipped one, so filling it takes two turns rather than four */
+const MAX_BROWSER_SESSIONS = 2;
+
+const FROM_THE_TOP: PageRead = { kind: 'window', startChar: 0, wholePage: false };
+
 const rendered = (over: Partial<RenderedCapture>): RenderedCapture => ({
   formElements: [],
   html: '<h1>Faculty</h1>',
@@ -63,7 +79,7 @@ const rendered = (over: Partial<RenderedCapture>): RenderedCapture => ({
   ...over
 });
 
-const fetched = (over: Partial<FetchedResource>): FetchedResource => ({
+const fetched = (over: Partial<FetchedDocument>): FetchedDocument => ({
   body: '<title>Faculty</title><h1>Faculty</h1>',
   kind: 'html',
   status: 200,
@@ -71,9 +87,20 @@ const fetched = (over: Partial<FetchedResource>): FetchedResource => ({
   ...over
 });
 
+const fetchedPdf = (over: Partial<FetchedPdf> = {}): FetchedPdf => ({
+  bytes: new Uint8Array(Buffer.from('%PDF-1.4')),
+  isTruncated: false,
+  kind: 'pdf',
+  status: 200,
+  url: 'https://northmoor.example/documents/handbook.pdf',
+  ...over
+});
+
 describe('WebService', () => {
   let browserClient: MockedInstance<BrowserClient>;
   let fetchClient: MockedInstance<FetchClient>;
+  let loggingService: MockedInstance<LoggingService>;
+  let pdfTextExtractor: MockedInstance<PdfTextExtractor>;
   let session: MockedInstance<BrowserSession>;
   let webService: WebService;
 
@@ -82,6 +109,8 @@ describe('WebService', () => {
     policy.resolve.mockResolvedValue(Result.ok({ address: '203.0.113.7', family: 4 }));
     browserClient = MockFactory.createMock(BrowserClient);
     fetchClient = MockFactory.createMock(FetchClient);
+    loggingService = MockFactory.createMock(LoggingService);
+    pdfTextExtractor = MockFactory.createMock(PdfTextExtractor);
     session = MockFactory.createMock(BrowserSession);
     browserClient.createSession.mockResolvedValue(Result.ok(session as unknown as BrowserSession));
     const moduleRef = await Test.createTestingModule({
@@ -89,7 +118,13 @@ describe('WebService', () => {
         WebService,
         { provide: ADDRESS_POLICY_TOKEN, useValue: policy },
         { provide: BrowserClient, useValue: browserClient },
-        { provide: FetchClient, useValue: fetchClient }
+        {
+          provide: ConfigService,
+          useValue: createConfigServiceMock({ web: { maxBrowserSessions: MAX_BROWSER_SESSIONS } })
+        },
+        { provide: FetchClient, useValue: fetchClient },
+        { provide: LoggingService, useValue: loggingService },
+        { provide: PdfTextExtractor, useValue: pdfTextExtractor }
       ]
     }).compile();
     webService = moduleRef.get(WebService);
@@ -157,20 +192,21 @@ describe('WebService', () => {
       expect(result.error).toStrictEqual({ kind: 'navigation', message: 'net::ERR_NAME_NOT_RESOLVED' });
     });
 
-    it('should report busy once every live-session slot belongs to another turn', async () => {
+    it('should report busy once every live-session slot the deployment declares belongs to another turn', async () => {
       session.navigate.mockResolvedValue(Result.ok(rendered({})));
-      for (let index = 0; index < MAX_LIVE_SESSIONS; index++) {
+      for (let index = 0; index < MAX_BROWSER_SESSIONS; index++) {
         await webService.navigate(`turn-${index}`, 'https://northmoor.example/');
       }
       const result = await webService.navigate('turn-overflow', 'https://northmoor.example/');
-      expect(result.error).toStrictEqual({ kind: 'busy' });
+      expect(result.error).toStrictEqual({ kind: 'busy', sessions: MAX_BROWSER_SESSIONS });
+      expect(loggingService.warn).toHaveBeenCalledWith(expect.stringContaining('by turns turn-0, turn-1'));
     });
   });
 
   describe('fetch', () => {
     it('should convert a fetched directory by the same rules as a rendered one, without a session', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
-      const result = await webService.fetch('https://northmoor.example/people/');
+      const result = await webService.fetch('https://northmoor.example/people/', FROM_THE_TOP);
       expect(result.value?.markdown).toContain(
         '| Duval, P. | 217 BSB | — | [duval@northmoor.example](mailto:duval@northmoor.example) |'
       );
@@ -180,15 +216,51 @@ describe('WebService', () => {
 
     it('should read on from an offset so a page past the cap can be finished (§3.8)', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
-      const page = toMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
-      const result = await webService.fetch('https://northmoor.example/people/', 10);
+      const page = pageToMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
+      const result = await webService.fetch('https://northmoor.example/people/', {
+        kind: 'window',
+        startChar: 10,
+        wholePage: false
+      });
       expect(result.value?.markdown).toBe(`${page.slice(10)}\n…showing characters 10–${page.length} of ${page.length}`);
       expect(result.value?.shown).toStrictEqual({ from: 10, to: page.length, total: page.length });
     });
 
+    it('should answer a find with where each phrase occurs in the page, and how often (§3.4)', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
+      const page = pageToMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
+      const result = await webService.fetch('https://northmoor.example/people/', {
+        kind: 'find',
+        phrases: ['Duval', 'fax'],
+        wholePage: false
+      });
+      expect(result.value?.matches).toBe(3);
+      expect(result.value?.markdown).toContain(`"Duval" — 3 matches\nat ${page.indexOf('Duval')}: `);
+      expect(result.value?.markdown).toContain('"fax" — no match');
+      expect(result.value?.shown).toBeUndefined();
+    });
+
+    it('should read a page without its chrome, saying how much that left out and how to include it (§3.4)', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: TEMPLATED_DIRECTORY })));
+      const whole = pageToMarkdown(TEMPLATED_DIRECTORY, 'https://northmoor.example/people/');
+      const main = '# Faculty\n\nDuval, P. — duval@northmoor.example';
+      const result = await webService.fetch('https://northmoor.example/people/', FROM_THE_TOP);
+      expect(result.value?.markdown).toBe(
+        `…${whole.length - main.length} characters outside the page's main content (navigation, header, footer) ` +
+          'are left out, and offsets count without them; pass wholePage=true to include them\n\n' +
+          `${main}\n…end of page, ${main.length} characters in all`
+      );
+    });
+
+    it('should read the whole page when asked', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: TEMPLATED_DIRECTORY })));
+      const result = await webService.fetch('https://northmoor.example/people/', { ...FROM_THE_TOP, wholePage: true });
+      expect(result.value?.markdown).toMatch(/^\[Northmoor University\].*Admissions/su);
+    });
+
     it('should refuse a page that needs client rendering, naming the tool that can', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: CLIENT_RENDERED_DIRECTORY })));
-      const result = await webService.fetch('https://northmoor.example/people/');
+      const result = await webService.fetch('https://northmoor.example/people/', FROM_THE_TOP);
       expect(result.error).toStrictEqual({
         kind: 'no-static-content',
         status: 200,
@@ -198,7 +270,7 @@ describe('WebService', () => {
 
     it('should report a 404 whose body reads as nothing as the status it is, not as a page needing JavaScript', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: '<html></html>', status: 404 })));
-      const result = await webService.fetch('https://northmoor.example/gone');
+      const result = await webService.fetch('https://northmoor.example/gone', FROM_THE_TOP);
       expect(result.error).toStrictEqual({
         bodyChars: 13,
         kind: 'http-error',
@@ -207,9 +279,18 @@ describe('WebService', () => {
       });
     });
 
+    it('should refuse a page the site refused to a read without a browser, and never render it instead (§3.4)', async () => {
+      fetchClient.get.mockResolvedValue(
+        Result.ok(fetched({ body: '<h1>403 Forbidden</h1><p>Request forbidden by administrative rules.</p>', status: 403 }))
+      );
+      const result = await webService.fetch('https://northmoor.example/people/', FROM_THE_TOP);
+      expect(result.error).toStrictEqual({ kind: 'blocked', status: 403, url: 'https://northmoor.example/people/' });
+      expect(browserClient.createSession).not.toHaveBeenCalled();
+    });
+
     it('should hand back an HTTP error as a page', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: '<h1>Not Found</h1>', status: 404 })));
-      const result = await webService.fetch('https://northmoor.example/gone');
+      const result = await webService.fetch('https://northmoor.example/gone', FROM_THE_TOP);
       expect(result.value).toMatchObject({
         markdown: '# Not Found\n…end of page, 11 characters in all',
         status: 404,
@@ -221,16 +302,43 @@ describe('WebService', () => {
       fetchClient.get.mockResolvedValue(
         Result.ok(fetched({ body: '{"a":1}', kind: 'text', url: 'https://northmoor.example/api/people.json' }))
       );
-      const result = await webService.fetch('https://northmoor.example/api/people.json');
+      const result = await webService.fetch('https://northmoor.example/api/people.json', FROM_THE_TOP);
       expect(result.value).toMatchObject({
         markdown: '{"a":1}\n…end of page, 7 characters in all',
         title: '/api/people.json'
       });
     });
 
+    it("should read a PDF's text layer, each page under its marker, titled by its path (§3.4)", async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetchedPdf()));
+      pdfTextExtractor.extract.mockResolvedValue(Result.ok({ pageCount: 2, pages: ['Faculty Handbook', 'Duval, P.'] }));
+      const result = await webService.fetch('https://northmoor.example/documents/handbook.pdf', FROM_THE_TOP);
+      expect(result.value?.markdown).toContain('[page 1 of 2]\nFaculty Handbook\n\n[page 2 of 2]\nDuval, P.');
+      expect(result.value?.title).toBe('/documents/handbook.pdf');
+    });
+
+    it('should refuse a PDF with no text layer as the scan it most likely is (§3.4)', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetchedPdf()));
+      pdfTextExtractor.extract.mockResolvedValue(Result.ok({ pageCount: 3, pages: ['', ' ', '\n'] }));
+      const result = await webService.fetch('https://northmoor.example/documents/handbook.pdf', FROM_THE_TOP);
+      expect(result.error).toStrictEqual({
+        kind: 'no-text',
+        pageCount: 3,
+        pagesRead: 3,
+        url: 'https://northmoor.example/documents/handbook.pdf'
+      });
+    });
+
+    it('should refuse a PDF cut at the byte cap without parsing it', async () => {
+      fetchClient.get.mockResolvedValue(Result.ok(fetchedPdf({ isTruncated: true })));
+      const result = await webService.fetch('https://northmoor.example/documents/handbook.pdf', FROM_THE_TOP);
+      expect(result.error).toMatchObject({ kind: 'unreadable-pdf', reason: 'too-large' });
+      expect(pdfTextExtractor.extract).not.toHaveBeenCalled();
+    });
+
     it('should surface a transport failure untouched', async () => {
       fetchClient.get.mockResolvedValue(Result.err({ kind: 'url-refused', reason: 'not-web-scheme', url: 'ftp://x' }));
-      const result = await webService.fetch('ftp://x');
+      const result = await webService.fetch('ftp://x', FROM_THE_TOP);
       expect(result.error).toStrictEqual({ kind: 'url-refused', reason: 'not-web-scheme', url: 'ftp://x' });
     });
   });
@@ -263,7 +371,7 @@ describe('WebService', () => {
     });
 
     // a tool timeout or /kill ends the turn while the launch is still in flight; the session that
-    // arrives afterwards would otherwise hold one of MAX_LIVE_SESSIONS until restart
+    // arrives afterwards would otherwise hold one of the live-session slots until restart
     it('should dispose a session whose launch outlived the turn that asked for it', async () => {
       let settle!: (created: Result<BrowserSession, WebFailure.Unreachable>) => void;
       browserClient.createSession.mockReturnValue(new Promise((resolve) => (settle = resolve)));

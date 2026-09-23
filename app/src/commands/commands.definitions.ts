@@ -44,10 +44,13 @@ export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefin
     hint: '{agent} [show {reference} | prune {reference}]',
     purpose: "List, read or prune an agent's memories"
   },
-  queue: { hint: '{agent} [clear]', purpose: 'Show pending depth, or discard the standing queue entry' },
+  queue: {
+    hint: '{agent} [clear]',
+    purpose: 'Show whether a turn is running and what waits, or discard the standing queue entry'
+  },
   reset: { hint: '{agent}', purpose: 'Mark an episode boundary' },
   resume: { hint: '', purpose: 'Clear a global halt' },
-  steer: { hint: '{text}', purpose: 'Hand one instruction to the turns running in this channel' },
+  steer: { hint: '[agent] {text}', purpose: "Hand one instruction to an agent's turn running in this channel" },
   stop: { hint: '', purpose: 'Abort current turns in this channel at the next boundary' },
   trace: { hint: '{post-id}', purpose: 'Show the full tool trace for a turn' },
   triggers: { hint: '{agent}', purpose: 'List outstanding triggers' },

@@ -4,7 +4,7 @@ import { renderTriggerPost } from '../triggers.renderer.ts';
 
 import type { Trigger } from '../triggers.types.ts';
 
-const MAX_POST_SIZE = 200;
+const MAX_POST_SIZE = 300;
 
 const trigger = (reference: PrismaJson.TriggerReference, source: Trigger['source'] = 'webhook'): Trigger => ({
   createdAt: new Date(0),
@@ -20,28 +20,30 @@ const trigger = (reference: PrismaJson.TriggerReference, source: Trigger['source
   targetChannelId: 'channel-1'
 });
 
+const HEADER_OF = {
+  cron: '🔔 Scheduled → @mira\n\n⟨trigger-1⟩ fired. Its text is the operator’s instruction: carry it out, then mark it done with `triggers__resolve("trigger-1")`.',
+  mail: '🔔 New Mail → @mira\n\n⟨trigger-1⟩ arrived. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.',
+  webhook:
+    '🔔 Webhook → @mira\n\n⟨trigger-1⟩ arrived. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.'
+} as const;
+
 describe('renderTriggerPost', () => {
-  it('should mention the agent, report the item’s arrival without instructing, and summarize a reference with no body (§4.2)', () => {
+  it('should mention the agent, report a webhook’s arrival without instructing, and label the sender’s reference (§4.2)', () => {
     const rendered = renderTriggerPost(
       trigger({ id: 'msg-7', sender: 'billing@acme.com', subject: 'invoice overdue' }),
       MAX_POST_SIZE
     );
-    expect(rendered.message).toBe(
-      '🔔 Webhook → @mira\n\n⟨msg-7⟩ arrived. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.\n\ninvoice overdue · from billing@acme.com'
-    );
+    expect(rendered.message).toBe(`${HEADER_OF.webhook}\n\ninvoice overdue · from billing@acme.com · sender ref msg-7`);
     expect(rendered.files).toStrictEqual([]);
   });
 
-  it('should omit the reference fields the event did not carry', () => {
-    const { message } = renderTriggerPost(trigger({ subject: 'invoice overdue' }), MAX_POST_SIZE);
-    expect(message).toContain('An item arrived.');
-    expect(message.endsWith('\n\ninvoice overdue')).toBe(true);
+  it('should bracket the framework’s id and nothing else (§4.2)', () => {
+    const { message } = renderTriggerPost(trigger({ id: 'trig_01kq', subject: 'invoice overdue' }), MAX_POST_SIZE);
+    expect(message.match(/⟨[^⟩]*⟩/gu)).toStrictEqual(['⟨trigger-1⟩']);
   });
 
-  it('should stop at the instruction when the reference carries nothing', () => {
-    expect(renderTriggerPost(trigger({}), MAX_POST_SIZE).message).toBe(
-      '🔔 Webhook → @mira\n\nAn item arrived. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.'
-    );
+  it('should stop at the header when the reference carries nothing', () => {
+    expect(renderTriggerPost(trigger({}), MAX_POST_SIZE).message).toBe(HEADER_OF.webhook);
   });
 
   it('should keep the summary above a webhook body, since nothing puts sender or subject inside it', () => {
@@ -49,30 +51,27 @@ describe('renderTriggerPost', () => {
       trigger({ body: 'Order 88 shipped.', sender: 'shop@acme.com', subject: 'Shipment' }),
       MAX_POST_SIZE
     );
-    expect(rendered.message).toBe(
-      '🔔 Webhook → @mira\n\nAn item arrived. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.\n\nShipment · from shop@acme.com\n\nOrder 88 shipped.'
-    );
+    expect(rendered.message).toBe(`${HEADER_OF.webhook}\n\nShipment · from shop@acme.com\n\nOrder 88 shipped.`);
   });
 
-  it('should carry a mail body inline while it fits the post limit, without repeating its summary', () => {
+  it('should report a mail’s arrival without instructing, naming its ref but not repeating the summary its body carries (§4.2)', () => {
     const rendered = renderTriggerPost(
-      trigger({ body: 'Please pay invoice 42.', sender: 'billing@acme.com', subject: 'Invoice overdue' }, 'mail'),
+      trigger(
+        { body: 'Please pay invoice 42.', id: '1:12', sender: 'billing@acme.com', subject: 'Invoice overdue' },
+        'mail'
+      ),
       MAX_POST_SIZE
     );
-    expect(rendered.message).toBe(
-      '🔔 New Mail → @mira\n\nAn item arrived. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.\n\nPlease pay invoice 42.'
-    );
+    expect(rendered.message).toBe(`${HEADER_OF.mail}\n\nmail ref 1:12\n\nPlease pay invoice 42.`);
     expect(rendered.files).toStrictEqual([]);
   });
 
-  it('should carry a schedule’s prompt verbatim under its own heading, with no summary line (§4.2)', () => {
+  it('should give a schedule’s prompt as the operator’s instruction to carry out, naming the schedule (§4.2)', () => {
     const rendered = renderTriggerPost(
       trigger({ body: 'Sweep the shared mailbox.', id: 'morning-sweep', subject: 'morning-sweep' }, 'cron'),
       MAX_POST_SIZE
     );
-    expect(rendered.message).toBe(
-      '🔔 Scheduled → @mira\n\n⟨morning-sweep⟩ fired. Read it and say here what it needs, then mark it done with `triggers__resolve("trigger-1")`.\n\nSweep the shared mailbox.'
-    );
+    expect(rendered.message).toBe(`${HEADER_OF.cron}\n\nschedule morning-sweep\n\nSweep the shared mailbox.`);
   });
 
   it('should attach a body too large to post, saying so in place of the text', () => {

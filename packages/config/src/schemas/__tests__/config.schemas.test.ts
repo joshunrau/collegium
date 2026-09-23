@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { $Config } from '../config.resolution.ts';
-import { $AgentDeclaration } from '../config.schemas.ts';
+import { $AgentDeclaration, $WebConfig } from '../config.schemas.ts';
 
 import type { ConfigInput } from '../config.resolution.ts';
 
@@ -119,7 +119,7 @@ describe('$Config', () => {
       plugins: [],
       providers: { deepseek: { baseUrl: 'https://api.deepseek.com' } },
       turns: { actionBudget: 25, chainLengthLimit: 200, delegationDepthLimit: 10, hourlyCeiling: 500 },
-      web: { allowPrivateAddresses: false }
+      web: { allowPrivateAddresses: false, deniedHosts: [], maxBrowserSessions: 4 }
     });
   });
 
@@ -281,5 +281,12 @@ describe('the committed smoke deployment', () => {
     const path = new URL('../../../../../.github/smoke.config.json', import.meta.url);
     const result = $Config.safeParse(JSON.parse(readFileSync(path, 'utf-8')));
     expect(result.error?.issues ?? []).toStrictEqual([]);
+  });
+});
+
+describe('$WebConfig', () => {
+  it('should read a denied host in lower case, and refuse one written as a URL (§3.4)', () => {
+    expect($WebConfig.parse({ deniedHosts: ['R.Jina.AI'] }).deniedHosts).toStrictEqual(['r.jina.ai']);
+    expect($WebConfig.safeParse({ deniedHosts: ['https://r.jina.ai/'] }).success).toBe(false);
   });
 });

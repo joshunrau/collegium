@@ -8,6 +8,19 @@
  */
 export const MARKDOWN_CAP_CHARS = 1_000_000;
 
+/**
+ * How much of a page one fetch returns when it names no width. Most pages fit whole; a longer one
+ * is read on in windows or searched with `find`, since what a result holds past what the model
+ * needed is paid for again at each later step of the turn (§3.4).
+ */
+export const DEFAULT_WINDOW_CHARS = 30_000;
+
+/** how much of the page a `find` hit shows on each side of the match: a label and the field beside it */
+export const FIND_CONTEXT_CHARS = 250;
+
+/** how many places a `find` shows for one phrase; the rest are counted, since a narrower phrase finds them */
+export const FIND_HITS_PER_PHRASE = 5;
+
 /** the ceiling on one navigation — generous, because slow public sites are the normal case, not the exception */
 export const NAVIGATION_TIMEOUT_MS = 30_000;
 
@@ -48,15 +61,25 @@ export const DOM_SETTLE_MIN_MS = 750;
  */
 export const DOM_SETTLE_TIMEOUT_MS = 3_000;
 
-/**
- * The ceiling on concurrently live sessions — a memory guard, since each is a Firefox context
- * holding a rendered page. Turns beyond it get the `busy` failure rather than a queue, because a
- * blocked queue inside a turn is a stall the model cannot see.
- */
-export const MAX_LIVE_SESSIONS = 4;
+/** how many of a select's options a snapshot lists; a country list runs to a few hundred, and the rest are counted */
+export const SELECT_OPTIONS_SHOWN = 100;
 
 /** the ceiling on one plain fetch — tighter than a navigation, since nothing renders after the bytes arrive */
 export const FETCH_TIMEOUT_MS = 20_000;
+
+/**
+ * The pause before retrying a 429 that names none (§3.4). Most limits are counted per second, so
+ * one second has let the window pass; a 503 that names none is not retried at all, since it is as
+ * likely an outage or a CDN's refusal as a request to slow down.
+ */
+export const RATE_LIMIT_DEFAULT_WAIT_MS = 1_000;
+
+/**
+ * How much of its request's timeout a retried request must still have to answer in once the wait
+ * is over (§3.4). A longer wait is not taken: a retry the timeout cuts off reads as a page that
+ * failed to load, where the status it replaced was one the model could plan around.
+ */
+export const RATE_LIMIT_RETRY_MIN_ANSWER_MS = 10_000;
 
 /**
  * Wikimedia and other robot-policy hosts refuse an unnamed client with a 403; a named one is what
@@ -69,6 +92,13 @@ export const FETCH_USER_AGENT = 'Collegium (+https://github.com/joshunrau/colleg
  * where a tarpit would otherwise be buffered whole. Past it the body is cut and the page says so.
  */
 export const FETCH_BODY_CAP_BYTES = 10_000_000;
+
+/**
+ * The ceiling on reading one PDF's text layer, past which the read stops at the next page boundary.
+ * A few pages read in well under a second; what this catches is a document of tens of thousands of
+ * pages, whose parse would otherwise outlast the tool call and keep the process busy after it.
+ */
+export const PDF_READ_TIMEOUT_MS = 10_000;
 
 /** each hop is re-judged against the URL policy, so a chain is bounded rather than followed blindly */
 export const MAX_REDIRECTS = 5;

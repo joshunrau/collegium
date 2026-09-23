@@ -107,7 +107,7 @@ app/src/
   triggers/       the trigger table, webhook intake, idle-gated posting
   turns/          the engine: context assembly, model loop, budget, status post, failure taxonomy, turn control, fragment folding
   utils/
-  web/            the browser: turn-scoped Camoufox sessions, ref-stamped snapshots, page-to-markdown; and the plain HTTP fetch and provider-backed search beside it
+  web/            the browser: turn-scoped Camoufox sessions, ref-stamped snapshots, page-to-markdown; and the plain HTTP fetch (a PDF read by its text layer) and provider-backed search beside it
   workspace/      the workspace directory and its confinement check, and the workspace toolset
 ```
 

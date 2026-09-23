@@ -311,6 +311,14 @@ const ROWS: readonly GateRow[] = [
     note: 'ranked summaries are a read; the provider is fixed in settings (§3.4)'
   },
   {
+    args: { option: 'Neuroscience', ref: 'e1' },
+    call: 'web__select',
+    expected: 'ungated',
+    grants: ['web'],
+    id: 'web-select-ungated',
+    note: 'browsing is the widest ungated surface, named as such (§3.4)'
+  },
+  {
     args: { namePattern: '*.md' },
     call: 'workspace__find',
     expected: 'ungated',

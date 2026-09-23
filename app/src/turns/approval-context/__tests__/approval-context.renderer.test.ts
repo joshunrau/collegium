@@ -65,9 +65,19 @@ describe('renderApprovalContext', () => {
       renderApprovalContext({
         actionBudget: 25,
         actionNumber: 1,
-        requestedBy: { kind: 'system', trigger: { reference: undefined, source: 'cron' } }
+        requestedBy: { kind: 'system', trigger: { reference: undefined, source: 'webhook' } }
       })
-    ).toBe('Action 1 of 25 · raised by a scheduled trigger, not by a person');
+    ).toBe('Action 1 of 25 · raised by a webhook trigger, not by a person');
+  });
+
+  it('should name a schedule as the operator’s, whose text is an instruction (§3.7, §4.2)', () => {
+    expect(
+      renderApprovalContext({
+        actionBudget: 25,
+        actionNumber: 1,
+        requestedBy: { kind: 'system', trigger: { reference: 'morning-sweep', source: 'cron' } }
+      })
+    ).toBe('Action 1 of 25 · on the operator’s schedule (⟨morning-sweep⟩)');
   });
 
   it('should name the reasoned denial a re-requested call follows (§3.7)', () => {

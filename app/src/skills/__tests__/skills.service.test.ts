@@ -4,6 +4,7 @@ import * as path from 'node:path';
 
 import { BUILTIN_SKILL_NAMES } from '@collegium/core/skills';
 import type { ToolId } from '@collegium/core/tools';
+import { SKILL_GRANT_VALUES } from '@collegium/core/toolsets';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -41,7 +42,7 @@ async function buildService(profiles: AgentProfile[]): Promise<SkillsService> {
   const agentRegistry = MockFactory.createMock(AgentRegistry);
   agentRegistry.list.mockReturnValue(profiles);
   agentRegistry.get.mockImplementation((username: string) => {
-    return username === GRANTED.username ? GRANTED : buildAgentProfile({ username });
+    return [...profiles, GRANTED].find((profile) => profile.username === username) ?? buildAgentProfile({ username });
   });
   const pluginsRegistry = {
     skillSources: [{ directory: skillsDirectory, names: ['saving-bookmarks'], namespace: 'bookmark' }],
@@ -62,6 +63,16 @@ describe('SkillsService', () => {
     const skillsService = await buildService([]);
     for (const name of BUILTIN_SKILL_NAMES) {
       expect(skillsService.getDocument('mira', name).success).toBe(true);
+    }
+  });
+
+  it('should serve every framework toolset skill config can grant, under its qualified name (§3.5)', async () => {
+    const skillsService = await buildService([
+      buildAgentProfile({ skills: [...SKILL_GRANT_VALUES], username: 'theo' })
+    ]);
+    expect(SKILL_GRANT_VALUES).toContain('web::reading-websites');
+    for (const name of SKILL_GRANT_VALUES) {
+      expect(skillsService.getDocument('theo', name).success).toBe(true);
     }
   });
 

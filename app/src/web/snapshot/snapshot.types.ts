@@ -41,7 +41,8 @@ export declare namespace FormElement {
 
   type Input = Base<'input'> & { readonly type: HtmlInputElementType };
 
-  type Select = Base<'select'>;
+  /** `value` is the label of the option it shows, which is what `web::select` takes back */
+  type Select = Base<'select'> & { readonly options: readonly string[] };
 
   type TextArea = Base<'textarea'>;
 

@@ -1,4 +1,10 @@
-import { describeReplaySubject, renderDuplicateLine, renderSupersededLine } from '@collegium/core/tools';
+import {
+  describeReplaySubject,
+  renderDuplicateLine,
+  renderSameContentLine,
+  renderSameContentNote,
+  renderSupersededLine
+} from '@collegium/core/tools';
 import type { ToolPost, ToolTurnScope } from '@collegium/core/tools';
 import { CHARS_PER_TOKEN, Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
@@ -84,6 +90,13 @@ import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle, TraceLineHandle } from './status/status-post.service.ts';
 import type { HeldActivation, Steering, Turn, TurnEventInput, TurnOpenFailure, TurnOutcome } from './turns.types.ts';
+
+/** §3.8 — a supersedable result's latest verbatim copy: where it sits, what it was, and the hash of its whole text */
+type SeenSupersedable = {
+  readonly messageIndex: number;
+  readonly outputHash: string;
+  readonly subject: string;
+};
 
 /** §3.8 — what a re-read of a result already collapsed opens with, so the model learns the page did not change without paying to compare */
 const REPEATED_READ_NOTE = '[identical to a result you read earlier this turn; nothing changed]';
@@ -217,8 +230,8 @@ type TurnState = {
   recordedResults: number;
   /** §3.7 — resolved at turn setup and again at every fold (§4.4), and quoted on every approval prompt the turn raises */
   requestedBy: TurnRequest | undefined;
-  /** §3.8 — the text of every supersedable result this turn produced, by hash, and where it was last pushed verbatim */
-  readonly seenSupersedable: Map<string, number>;
+  /** §3.8 — the content of every supersedable result this turn produced, by hash, and the copy last pushed verbatim */
+  readonly seenSupersedable: Map<string, SeenSupersedable>;
   readonly status: StatusPostHandle;
   /** the supersedable results still verbatim in `messages`, oldest first (§3.8) */
   readonly supersedable: { messageIndex: number; subject: string }[];
@@ -1237,10 +1250,11 @@ export class TurnRunner {
   /**
    * §3.8 — a supersedable result joins the retained set, and the oldest read ones past the share
    * collapse to their lines; the event keeps the text, so the trace and the window's own replay are
-   * untouched. A repeat of a result still shown is answered with one line and joins nothing, and a
-   * repeat of one already collapsed is kept without collapsing another: a re-read never evicts a
-   * sibling, which is the cycle a fixed count produced. Only the backstop in
-   * `relieveContextPressure` bounds a re-read, and a later fresh read collapses it like any other.
+   * untouched. A repeat of a result still shown — the same text, or the same content read at another
+   * address — is answered with one line and joins nothing, and a repeat of one already collapsed is
+   * kept without collapsing another: a re-read never evicts a sibling, which is the cycle a fixed
+   * count produced. Only the backstop in `relieveContextPressure` bounds a re-read, and a later fresh
+   * read collapses it like any other.
    */
   private recordSupersedableResult(
     input: RunInput,
@@ -1249,17 +1263,26 @@ export class TurnRunner {
     result: ToolAttempt.Continue
   ): void {
     const subject = result.replaySubject ?? describeReplaySubject(`${identified.displayName} result`, result.output);
-    const hash = hashResult(result.output);
-    const earlier = state.seenSupersedable.get(hash);
+    const contentHash = hashResult(result.contentIdentity ?? result.output);
+    const outputHash = hashResult(result.output);
+    const earlier = state.seenSupersedable.get(contentHash);
+    const isVerbatimRepeat = earlier?.outputHash === outputHash;
     const toolCallId = identified.call.id;
-    if (earlier !== undefined && state.supersedable.some((entry) => entry.messageIndex === earlier)) {
-      this.pushMessage(state, { content: renderDuplicateLine(subject), role: 'tool', toolCallId });
+    if (earlier !== undefined && state.supersedable.some((entry) => entry.messageIndex === earlier.messageIndex)) {
+      const line = isVerbatimRepeat ? renderDuplicateLine(subject) : renderSameContentLine(subject, earlier.subject);
+      this.pushMessage(state, { content: line, role: 'tool', toolCallId });
       return;
     }
-    const content = earlier === undefined ? result.output : `${REPEATED_READ_NOTE}\n\n${result.output}`;
+    const note =
+      earlier === undefined
+        ? undefined
+        : isVerbatimRepeat
+          ? REPEATED_READ_NOTE
+          : renderSameContentNote(earlier.subject);
+    const content = note === undefined ? result.output : `${note}\n\n${result.output}`;
     this.pushMessage(state, { content, role: 'tool', toolCallId });
     const messageIndex = state.messages.length - 1;
-    state.seenSupersedable.set(hash, messageIndex);
+    state.seenSupersedable.set(contentHash, { messageIndex, outputHash, subject });
     state.supersedable.push({ messageIndex, subject });
     if (earlier === undefined) {
       this.retireSupersedablePastShare(input, state);

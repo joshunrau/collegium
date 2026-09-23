@@ -108,6 +108,17 @@ async function resolveHost(url: URL): Promise<Result<VettedAddress, WebFailure.N
     : Result.ok(chosen);
 }
 
+/**
+ * §3.4 — a host the operator has closed to every agent, and every subdomain beneath it. Judged by
+ * name alone: the name is what the operator wrote, and a name that resolves somewhere else is still
+ * the host they meant.
+ */
+function refuseDeniedHost(url: string, deniedHosts: readonly string[]): undefined | WebFailure.UrlRefused {
+  const host = stripBrackets(new URL(url).hostname).replace(/\.$/u, '');
+  const isDenied = deniedHosts.some((denied) => host === denied || host.endsWith(`.${denied}`));
+  return isDenied ? { kind: 'url-refused', reason: 'denied-host', url } : undefined;
+}
+
 /** judged as a bare address: a literal written in a URL, or one answer from a lookup */
 export function isBlockedAddress(address: string): boolean {
   const host = stripBrackets(address);
@@ -160,10 +171,16 @@ export async function resolveAndVetHost(
 /**
  * Both halves of §3.4's policy, as the deployment declared them: strict by default, or with the
  * private-address refusal lifted where the deployment has said its own network is browsable. The
- * scheme rule is never lifted.
+ * scheme rule and the operator's denied hosts are never lifted.
  */
-export function createAddressPolicy(options: { allowPrivateAddresses: boolean }): AddressPolicy {
-  const refuse = options.allowPrivateAddresses ? refuseNonWebUrl : refuseUnbrowsableUrl;
+export function createAddressPolicy(options: {
+  allowPrivateAddresses: boolean;
+  deniedHosts: readonly string[];
+}): AddressPolicy {
+  const refuseAddress = options.allowPrivateAddresses ? refuseNonWebUrl : refuseUnbrowsableUrl;
+  const refuse = (url: string): undefined | WebFailure.UrlRefused => {
+    return refuseAddress(url) ?? refuseDeniedHost(url, options.deniedHosts);
+  };
   const resolve = options.allowPrivateAddresses ? resolveHost : resolveAndVetHost;
   return {
     refuse,
