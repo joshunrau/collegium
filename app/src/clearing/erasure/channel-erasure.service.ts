@@ -55,6 +55,7 @@ export class ChannelErasure {
         const tally = input.selectMemories ? await this.selectMemories(channelId, transaction) : [];
         await this.conversationsService.eraseBefore(channelId, boundary, transaction);
         await this.episodesService.eraseBefore(channelId, boundary, transaction);
+        await this.episodesService.recordClear(channelId, boundary, transaction);
         await this.turnsService.eraseContentBefore(channelId, boundary, transaction);
         await this.approvalsService.eraseBefore(channelId, boundary, transaction);
         await this.asksService.eraseBefore(channelId, boundary, transaction);

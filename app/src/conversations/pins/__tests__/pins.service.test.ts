@@ -11,6 +11,7 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { createObservedPost } from '@/testing/factories/observed-post.factory.ts';
 
 import { ConversationsService } from '../../conversations.service.ts';
+import { EpisodesService } from '../../episodes/episodes.service.ts';
 import { PinsService } from '../pins.service.ts';
 
 import type { RecordablePost } from '../../conversations.types.ts';
@@ -21,13 +22,22 @@ const post = (id: string, at: number, message = id): RecordablePost => {
 
 describe('PinsService', () => {
   let database: MigratedDatabase;
+  let episodesService: EpisodesService;
   let pinsService: PinsService;
 
   beforeEach(async () => {
     database = createMigratedDatabase();
     const moduleRef = await Test.createTestingModule({
-      providers: [ConversationsService, PinsService, { provide: getModelToken('Post'), useValue: database.client.post }]
+      providers: [
+        ConversationsService,
+        EpisodesService,
+        PinsService,
+        { provide: getModelToken('ChannelClear'), useValue: database.client.channelClear },
+        { provide: getModelToken('Episode'), useValue: database.client.episode },
+        { provide: getModelToken('Post'), useValue: database.client.post }
+      ]
     }).compile();
+    episodesService = moduleRef.get(EpisodesService);
     pinsService = moduleRef.get(PinsService);
   });
 
@@ -55,6 +65,18 @@ describe('PinsService', () => {
     await pinsService.pin(post('post-1', 1000, 'use the registry, then the directory'));
     const [pinned] = await pinsService.listPinned('channel-1');
     expect(pinned?.message).toBe('use the registry, then the directory');
+  });
+
+  it('should never bring back a post the channel’s last clear erased, however it is pinned (§8.5)', async () => {
+    await episodesService.recordClear(
+      'channel-1',
+      { eventsAfter: new Date(2000), postsAfter: new Date(2000) },
+      database.client
+    );
+    await pinsService.pin(post('post-1', 1000));
+    await pinsService.reconcile(transportPinning(Result.ok([post('post-0', 500), post('post-2', 2000)])), 'channel-1');
+    expect(await listPinnedIds()).toStrictEqual(['post-2']);
+    expect(await database.client.post.count({ where: { id: { in: ['post-0', 'post-1'] } } })).toBe(0);
   });
 
   it('should unpin a post and keep its row as history', async () => {

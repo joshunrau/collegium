@@ -374,6 +374,13 @@ model Episode {
   @@index([agentUsername, channelId, createdAt])
 }
 
+/// §8.5 — the instant, on Mattermost's clock, a channel's last clear erased every post before. A post
+/// that old is never recorded again: one the chat server still shows is one its deletion missed.
+model ChannelClear {
+  channelId    String   @id
+  erasedBefore DateTime
+}
+
 /// A Mattermost access token the provisioner minted, keyed by the account it belongs to. Mattermost
 /// reveals a token once and never again, so losing this row means minting a replacement and
 /// orphaning the last one.

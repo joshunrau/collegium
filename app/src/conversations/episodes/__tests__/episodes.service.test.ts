@@ -23,6 +23,7 @@ describe('EpisodesService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         EpisodesService,
+        { provide: getModelToken('ChannelClear'), useValue: {} },
         {
           provide: getModelToken('Episode'),
           useValue: {
