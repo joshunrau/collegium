@@ -1,6 +1,8 @@
+import { MEMORY_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
@@ -32,6 +34,7 @@ const PROFILE = {
 } as AgentProfile;
 
 describe('PromptRenderer', () => {
+  let agentRegistry: MockedInstance<AgentRegistry>;
   let earlierActionsSection: MockedInstance<EarlierActionsSection>;
   let mailRegistry: MockedInstance<MailRegistry>;
   let memoriesSection: MockedInstance<MemoriesSection>;
@@ -45,6 +48,8 @@ describe('PromptRenderer', () => {
   let windowService: MockedInstance<WindowService>;
 
   beforeEach(async () => {
+    agentRegistry = MockFactory.createMock(AgentRegistry);
+    agentRegistry.settingsFor.mockReturnValue(undefined);
     earlierActionsSection = MockFactory.createMock(EarlierActionsSection);
     earlierActionsSection.render.mockResolvedValue(undefined);
     mailRegistry = MockFactory.createMock(MailRegistry);
@@ -71,6 +76,7 @@ describe('PromptRenderer', () => {
       providers: [
         PromptRenderer,
         TextFormatter,
+        { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: EarlierActionsSection, useValue: earlierActionsSection },
         { provide: MailRegistry, useValue: mailRegistry },
@@ -120,8 +126,11 @@ describe('PromptRenderer', () => {
   it('should state what the registries and the configuration report of this agent in the preamble (§3.8)', async () => {
     toolRegistry.listFor.mockReturnValue([{ gates: true, id: ['shell', 'run'] }]);
     toolRegistry.listSupersedableFor.mockReturnValue(['web__fetch', 'workspace__read']);
+    agentRegistry.settingsFor.mockReturnValue({ maxBodyChars: 16_000, maxDescriptionChars: 200, maxEntries: 50 });
     const prompt = await render();
     expect(prompt).toContain('Calls to builtins__now and skills__load spend none.');
+    expect(prompt).toContain("A memory's description holds at most 200 characters and its body at most 16,000.");
+    expect(agentRegistry.settingsFor).toHaveBeenCalledWith(MEMORY_TOOLSET_DEF, 'mira');
     expect(prompt).toContain('results of web__fetch and workspace__read are kept word for word');
     expect(prompt).toContain('these commands are present: node and git.');
     expect(prompt).toContain('you begin the turn again, at most 3 times in one turn');

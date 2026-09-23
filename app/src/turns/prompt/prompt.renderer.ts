@@ -1,5 +1,7 @@
+import { MEMORY_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Injectable } from '@nestjs/common';
 
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
@@ -32,6 +34,7 @@ export class PromptRenderer {
   private readonly foldLimit: number;
 
   constructor(
+    private readonly agentRegistry: AgentRegistry,
     configService: ConfigService,
     private readonly earlierActionsSection: EarlierActionsSection,
     private readonly mailRegistry: MailRegistry,
@@ -89,6 +92,7 @@ export class PromptRenderer {
         address: mailbox.provider.address,
         announcementChannelName: this.rosterService.nameOf(mailbox.announcementChannelId, profile.username)
       },
+      memoryCaps: this.agentRegistry.settingsFor(MEMORY_TOOLSET_DEF, profile.username),
       presentCommands: this.shellService.listPresentCommands(),
       profile,
       skillsManifest: this.skillsService.renderManifest(profile),
