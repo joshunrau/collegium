@@ -347,23 +347,27 @@ describe('ApprovalsService', () => {
       const { outcome: second } = await request();
       await approvalsService.resolve(rows[1]!.id, { byUsername: 'casey', kind: 'approved' });
       await second;
-      expect(await approvalsService.listPending()).toStrictEqual([
+      expect(await approvalsService.listPending({})).toStrictEqual([
         {
           actionName: 'workspace::write',
           agentUsername: 'mira',
           channelId: 'channel-1',
+          kind: 'approval',
           promptPostId: 'prompt-1',
-          requestedAt: rows[0]!.createdAt
+          requestedAt: rows[0]!.createdAt,
+          turnId: rows[0]!.turnId
         }
       ]);
       await approvalsService.cancelPendingIn('channel-1', 'stop');
       await first;
     });
 
-    it('should narrow the listing to one agent when asked', async () => {
+    it('should narrow the listing to one agent, channel or turn when asked', async () => {
       const { outcome: pending } = await request();
-      expect(await approvalsService.listPending('omar')).toStrictEqual([]);
-      expect(await approvalsService.listPending('mira')).toHaveLength(1);
+      expect(await approvalsService.listPending({ agentUsername: 'omar' })).toStrictEqual([]);
+      expect(await approvalsService.listPending({ channelId: 'channel-2' })).toStrictEqual([]);
+      expect(await approvalsService.listPending({ turnId: 'turn-9' })).toStrictEqual([]);
+      expect(await approvalsService.listPending({ agentUsername: 'mira', channelId: 'channel-1' })).toHaveLength(1);
       await approvalsService.cancelPendingIn('channel-1', 'stop');
       await pending;
     });

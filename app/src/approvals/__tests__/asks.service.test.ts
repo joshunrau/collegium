@@ -21,6 +21,7 @@ import { AskPendingRegistry } from '../decisions/ask-pending.registry.ts';
 type AskRow = {
   answeredByUsername?: string;
   answerText?: string;
+  createdAt: Date;
   id: string;
   options: null | string[];
   promptPostId: null | string;
@@ -43,7 +44,7 @@ describe('AsksService', () => {
     events = [];
     updates = [];
     const table = createModelTable<AskRow>({
-      defaults: (sequence) => ({ id: `ask-${sequence}`, options: null, promptPostId: null }),
+      defaults: (sequence) => ({ createdAt: new Date(sequence), id: `ask-${sequence}`, options: null, promptPostId: null }),
       relations: { turn: () => TURN }
     });
     rows = table.rows;
@@ -191,5 +192,24 @@ describe('AsksService', () => {
     expect(rows[0]?.status).toBe('pending');
     await asksService.cancelPendingIn('channel-1', 'stop');
     await pending;
+  });
+
+  it('should list a question still waiting, with its words, and none once answered (§8.4)', async () => {
+    const { outcome: pending } = await request();
+    expect(await asksService.listPending({ channelId: 'channel-1' })).toStrictEqual([
+      {
+        actionName: 'ask::human',
+        agentUsername: 'mira',
+        channelId: 'channel-1',
+        kind: 'ask',
+        promptPostId: 'prompt-1',
+        question: 'Which airport?',
+        requestedAt: rows[0]!.createdAt,
+        turnId: 'turn-1'
+      }
+    ]);
+    await asksService.answer({ answerText: 'Gatwick', askId: rows[0]!.id, byUserId: 'casey-id' });
+    await pending;
+    expect(await asksService.listPending({})).toStrictEqual([]);
   });
 });

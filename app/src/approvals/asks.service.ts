@@ -18,11 +18,12 @@ import { AskPendingRegistry } from './decisions/ask-pending.registry.ts';
 import { resolveActingHuman } from './decisions/human-presence.utils.ts';
 
 import type { AskPromptInput } from './asks.renderer.ts';
-import type { AnswerInput, AskDecision, AskFailureRequest, AskRequest } from './asks.types.ts';
+import type { AnswerInput, AskDecision, AskFailureRequest, AskRequest, PendingAsk } from './asks.types.ts';
 import type {
   DecisionFailure,
   PendingCancellationReason,
-  PendingDecisionFailure
+  PendingDecisionFailure,
+  PendingDecisionScope
 } from './decisions/decisions.types.ts';
 
 type AskRow = ModelRow<'Ask'> & { turn: { agentUsername: string; channelId: string } };
@@ -79,7 +80,7 @@ export class AsksService {
 
   /** §7.5 — the sweep both channel-scoped commands run, so a parked turn is reachable at all */
   async cancelPendingIn(channelId: string, reason: 'kill' | 'stop'): Promise<number> {
-    return this.cancelWhere({ turn: { channelId } }, reason);
+    return this.cancelWhere({ channelId }, reason);
   }
 
   /** §8.5 — the questions of turns a clear cuts; none is pending, since every turn there has ended */
@@ -94,6 +95,21 @@ export class AsksService {
   /** §7.3 and §7.4 — a stale question must not be clickable into confusion */
   async invalidateAll(reason: 'halt' | 'restart'): Promise<number> {
     return this.cancelWhere({}, reason);
+  }
+
+  /** §8.4 — every question in the scope still waiting on an answer, oldest first */
+  async listPending(scope: PendingDecisionScope): Promise<PendingAsk[]> {
+    const rows = await this.findPending(scope);
+    return rows.map((row) => ({
+      actionName: renderToolDisplayName([row.toolNamespace, row.toolName]),
+      agentUsername: row.turn.agentUsername,
+      channelId: row.turn.channelId,
+      kind: 'ask',
+      promptPostId: row.promptPostId,
+      question: row.question,
+      requestedAt: row.createdAt,
+      turnId: row.turnId
+    }));
   }
 
   /** the free-text path: the answerer is resolved before the dialog opens, so the state names a checked human */
@@ -207,11 +223,8 @@ export class AsksService {
     return true;
   }
 
-  private async cancelWhere(
-    where: { turn?: { channelId: string } },
-    reason: PendingCancellationReason
-  ): Promise<number> {
-    const pending = await this.asks.findMany({ include: { turn: true }, where: { ...where, status: 'pending' } });
+  private async cancelWhere(scope: PendingDecisionScope, reason: PendingCancellationReason): Promise<number> {
+    const pending = await this.findPending(scope);
     let cancelled = 0;
     for (const row of pending) {
       if (await this.applyResolution(row, { kind: 'cancelled', reason })) {
@@ -232,6 +245,18 @@ export class AsksService {
       where: { id: askId, status: 'pending' }
     });
     return claimed.count > 0;
+  }
+
+  private async findPending(scope: PendingDecisionScope): Promise<AskRow[]> {
+    return this.asks.findMany({
+      include: { turn: true },
+      orderBy: { createdAt: 'asc' },
+      where: {
+        status: 'pending',
+        turn: { agentUsername: scope.agentUsername, channelId: scope.channelId },
+        turnId: scope.turnId
+      }
+    });
   }
 
   private async loadForAnswer(

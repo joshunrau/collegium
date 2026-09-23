@@ -32,7 +32,7 @@ export const COMMAND_TRIGGERS = [
 export type CommandTrigger = (typeof COMMAND_TRIGGERS)[number];
 
 export const COMMAND_DEFINITIONS: { readonly [T in CommandTrigger]: CommandDefinition } = {
-  approvals: { hint: '[agent]', purpose: 'List approvals waiting on a human' },
+  approvals: { hint: '[agent]', purpose: 'List approvals and questions waiting on a human' },
   clear: {
     hint: '[--memories]',
     purpose: "Delete every post here and every agent's record of them, after confirmation"

@@ -1,6 +1,10 @@
 import type { TurnEventInput } from '@/turns/turns.types.ts';
 
-import type { PendingCancellationReason, PendingDecisionFailure } from './decisions/decisions.types.ts';
+import type {
+  PendingCancellationReason,
+  PendingDecision,
+  PendingDecisionFailure
+} from './decisions/decisions.types.ts';
 
 /**
  * §3.7a — an ask ends in a human's words or not at all: there is no action to refuse, so there is
@@ -9,6 +13,8 @@ import type { PendingCancellationReason, PendingDecisionFailure } from './decisi
 export type AskDecision =
   | { answerText: string; byUsername: string; kind: 'answered' }
   | { kind: 'cancelled'; reason: PendingCancellationReason };
+
+export type PendingAsk = Extract<PendingDecision, { kind: 'ask' }>;
 
 /** raised while putting the question, before any answer endpoint exists */
 export type AskFailureRequest = PendingDecisionFailure.PromptUndeliverable;

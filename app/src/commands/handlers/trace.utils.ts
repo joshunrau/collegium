@@ -4,6 +4,10 @@ import { match } from 'ts-pattern';
 import type { ModelRow } from '@/prisma/prisma.types.ts';
 import type { Turn } from '@/turns/turns.types.ts';
 
+import { renderParkedOn } from './approvals.utils.ts';
+
+import type { ParkedDecision } from './approvals.utils.ts';
+
 /** the trace is human-facing, so a structural name renders in display form (§1) */
 function toDisplayName(name: PrismaJson.RecordedToolName): string {
   return typeof name === 'string' ? name : renderToolDisplayName(name);
@@ -50,14 +54,24 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload): string {
     .exhaustive();
 }
 
-/** the turn's own row leads: a failed or tool-less turn has no events, and its status is the whole story */
-export function renderTrace(turn: Turn, events: ModelRow<'TurnEvent'>[]): string {
+/**
+ * The turn's own row leads: a failed or tool-less turn has no events, and its status is the whole
+ * story. A running turn parked on a person says so beneath it (§8.1), since its last event alone
+ * cannot tell a wait from a call still in flight.
+ */
+export function renderTrace(
+  turn: Turn,
+  events: ModelRow<'TurnEvent'>[],
+  parked: readonly ParkedDecision[],
+  now: Date
+): string {
   const heading = `turn ${turn.id} (${turn.agentUsername} on ${turn.modelName}, ${turn.status}, depth ${turn.depth}, chain ${turn.chainLength})`;
   if (events.length === 0) {
     return `${heading[0]!.toUpperCase()}${heading.slice(1)} recorded no events: no tool call, approval, or record.`;
   }
   return [
     `Trace for ${heading}:`,
+    ...parked.map((parkedOn) => `Waiting on a person: ${renderParkedOn(parkedOn, now)}`),
     ...events.map((event, index) => `${index + 1}. ${renderEventLine(event.payload)}`)
   ].join('\n');
 }

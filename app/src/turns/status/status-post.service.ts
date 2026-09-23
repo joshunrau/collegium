@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
+import { TimeOfDayFormatter } from '@/formatting/dates/time-of-day.formatter.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
 import type { TraceMark } from '@/tools/tools.types.ts';
@@ -11,7 +12,7 @@ import { TurnsService } from '../turns.service.ts';
 import { renderAbandonedStatusPost, renderStatusPost } from './status-post.renderer.ts';
 
 import type { AbandonedStatusPost } from '../turns.types.ts';
-import type { StatusPostState, TraceEntry } from './status-post.renderer.ts';
+import type { ParkedOn, StatusPostState, TraceEntry } from './status-post.renderer.ts';
 
 type OpenInput = {
   agentUsername: string;
@@ -43,10 +44,14 @@ export type StatusPostHandle = {
   close(outcome: Exclude<TurnStatus, 'running'>, abortedBy?: string): Promise<void>;
   /** §8.1 — a call's disposition, set once its result is known: the line was written before the call ran */
   markTrace(handle: TraceLineHandle, mark: TraceMark): void;
+  /** §8.1 — the head says the turn waits on a person from now until `unpark` names the same decision */
+  park(decisionId: string, on: ParkedOn): void;
   /** text alongside a tool call is transient status, replaced on the next edit (§3.3) */
   setTransient(text: string): void;
   /** §7.6 — opens the post now where nothing has traced yet, and says whether it did; a closing post is left alone */
   surface(): Promise<boolean>;
+  /** §8.1 — the decision landed; the head goes back to work unless another the turn raised still waits */
+  unpark(decisionId: string): void;
 };
 
 /**
@@ -63,14 +68,15 @@ export class StatusPostService {
   constructor(
     private readonly conversationsService: ConversationsService,
     private readonly loggingService: LoggingService,
+    private readonly timeOfDayFormatter: TimeOfDayFormatter,
     private readonly transportRegistry: TransportRegistry,
     private readonly turnsService: TurnsService
   ) {}
 
   /**
    * §7.3 — a turn whose process died closes its own post from the next boot: the trace it
-   * accumulated stays and only the working line becomes an outcome. The first line is the working
-   * or outcome line by construction, so the rest of the stored text is the trace verbatim.
+   * accumulated stays and only the head becomes an outcome. The first line is the head (working,
+   * waiting or an outcome) by construction, so the rest of the stored text is the trace verbatim.
    */
   async closeAbandoned(post: AbandonedStatusPost): Promise<void> {
     try {
@@ -95,6 +101,8 @@ export class StatusPostService {
   open(input: OpenInput): StatusPostHandle {
     const transport = this.transportRegistry.get(input.agentUsername);
     const state: StatusPostState = { traceLines: [] };
+    // a batch of calls can park on several decisions at once; insertion order keeps the earliest first
+    const waits = new Map<string, { on: ParkedOn; since: Date }>();
     const openedAt = Date.now();
     let postId: string | undefined;
     let openFailed = false;
@@ -165,6 +173,12 @@ export class StatusPostService {
       inFlight ??= drain();
       return inFlight;
     };
+    const renderWaits = (): void => {
+      const earliest = waits.values().next().value;
+      state.parked =
+        earliest === undefined ? undefined : { on: earliest.on, since: this.timeOfDayFormatter.format(earliest.since) };
+      void schedule();
+    };
     return {
       appendTrace: (entry) => {
         state.traceLines.push(entry);
@@ -190,6 +204,10 @@ export class StatusPostService {
           void schedule();
         }
       },
+      park: (decisionId, on) => {
+        waits.set(decisionId, { on, since: new Date() });
+        renderWaits();
+      },
       setTransient: (text) => {
         state.transientText = text;
         void schedule();
@@ -200,6 +218,11 @@ export class StatusPostService {
         }
         await schedule();
         return true;
+      },
+      unpark: (decisionId) => {
+        if (waits.delete(decisionId)) {
+          renderWaits();
+        }
       }
     };
   }

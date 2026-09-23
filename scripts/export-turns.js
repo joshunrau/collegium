@@ -20,7 +20,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { OUTCOME_PHRASES, WORKING_LINE } from '../app/src/turns/status/status-post.constants.ts';
+import { OUTCOME_PHRASES, PARKED_LINE_STEMS, WORKING_LINE } from '../app/src/turns/status/status-post.constants.ts';
 
 /**
  * @typedef {object} Session
@@ -64,7 +64,12 @@ import { OUTCOME_PHRASES, WORKING_LINE } from '../app/src/turns/status/status-po
  * @property {string} [text] the ephemeral answer a slash command returns
  */
 
-/** @typedef {keyof typeof OUTCOME_PHRASES | 'running'} TurnStatus */
+/**
+ * `parked` is a running turn whose status post says it waits on a person (§8.1); only a status post
+ * says so, never the trace's heading.
+ *
+ * @typedef {keyof typeof OUTCOME_PHRASES | 'parked' | 'running'} TurnStatus
+ */
 
 /**
  * @typedef {object} TraceHeader what the first line of a `/collegium trace` answer says of the turn
@@ -155,13 +160,14 @@ const TOOL_VERSION = '2.0.0';
 
 /**
  * The head line of a status post up to its closing underscore, which a closing line's additions
- * (who ended the turn, how long it ran) go inside. Longest first, so a head is never read as a
- * shorter phrase it happens to begin with.
+ * (who ended the turn, how long it ran) go inside, or up to the time a wait began. Longest first,
+ * so a head is never read as a shorter phrase it happens to begin with.
  *
  * @type {readonly {stem: string, status: TurnStatus}[]}
  */
 const STATUS_HEADS = [
   { status: /** @type {TurnStatus} */ ('running'), stem: WORKING_LINE.slice(0, -1) },
+  ...Object.values(PARKED_LINE_STEMS).map((stem) => ({ status: /** @type {TurnStatus} */ ('parked'), stem })),
   .../** @type {(keyof typeof OUTCOME_PHRASES)[]} */ (Object.keys(OUTCOME_PHRASES)).map((status) => ({
     status,
     stem: OUTCOME_PHRASES[status].slice(0, -1)

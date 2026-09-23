@@ -71,7 +71,7 @@ Three things happen, in order.
 
 **A status post.** Clara's status post appears and updates in place as she works. Each line names a tool call and what it does, including every page she visits.
 
-**The approval prompt.** When Clara tries to write the file, the turn blocks. The prompt shows the path and the entire file body.
+**The approval prompt.** When Clara tries to write the file, the turn blocks. The prompt shows the path and the entire file body, and her status post reads "waiting on a decision" until you answer. `/collegium approvals` lists every prompt still waiting in the channels you are in.
 
 **The result.** Click Approve. The tool runs, the file lands in Clara's workspace under `./state/app/workspaces/`, and Clara posts that she is done.
 
