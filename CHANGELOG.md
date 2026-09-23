@@ -1,3 +1,53 @@
+## [0.0.1-beta.27](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.26...v0.0.1-beta.27) (2026-09-23)
+
+### Features
+
+- **agents:** name agents by a display name in prose, and only @ the one addressed ([fc303fd](https://github.com/joshunrau/collegium/commit/fc303fd4cda730c353c8861c31a3f3a25a46555c))
+- **memory:** state an agent's memory caps and privacy in its prompt, and count its memories ([916b8f5](https://github.com/joshunrau/collegium/commit/916b8f5b1557ec540bfe831199c3ca9b8896c986))
+- **notifications:** name agents in system-bot notices by their display name ([5a9dc36](https://github.com/joshunrau/collegium/commit/5a9dc36449a55b7cc3ef1856e98da66df0376eac))
+- **sdk:** let plugin tools read the work units their agent is party to ([3ca69b0](https://github.com/joshunrau/collegium/commit/3ca69b0e0c925635ebcf6eaab191faf3d600ec69))
+- **tasks:** continue a reported unit with tasks::assign follows, and name the way on ([04f1eba](https://github.com/joshunrau/collegium/commit/04f1eba48a81a55c3adeba1daad2f0d41be1b0d4))
+- **tasks:** let an agent's settings name the colleagues it may assign to ([7943411](https://github.com/joshunrau/collegium/commit/7943411b4848d81eba11d9c11cc414014d09c42a))
+- **tasks:** refuse closing a unit its assignee is still working or whose report was not read ([16b47a2](https://github.com/joshunrau/collegium/commit/16b47a2705f007b50f539f265c02e586640e2fcb))
+- **tasks:** show a unit's report in tasks::read, and where the other party to it stands ([5fa85e2](https://github.com/joshunrau/collegium/commit/5fa85e2c66ec927b3b038c47977e701cf76fc9aa))
+- **triggers:** carry out a schedule's text as the operator's order, and resolve without an id ([c6853d6](https://github.com/joshunrau/collegium/commit/c6853d6da3931504595accac2c57b871db305ae8))
+- **triggers:** tell agents a schedule's text is an instruction, and how to resolve an item ([c9a2932](https://github.com/joshunrau/collegium/commit/c9a29325a1442b483a73b5e217c0f24a5dc460f5))
+- **turns:** head each trace with why the turn started, what it read and what it cost ([79a984b](https://github.com/joshunrau/collegium/commit/79a984bcc558dc404177d6aa7bdc297b942afcbc))
+- **turns:** name the work unit and colleague behind a delegated approval or question ([177912d](https://github.com/joshunrau/collegium/commit/177912da52ddf8bc7e9920a5fe1caf3e103e5825))
+- **turns:** name who denied an action, and the work unit a stopped turn leaves assigned ([69f86fe](https://github.com/joshunrau/collegium/commit/69f86feec1e3588b1d2e5410d9180a702a7590df))
+- **turns:** say on the status post when a turn waits on a person, and list pending questions ([2b7e7e2](https://github.com/joshunrau/collegium/commit/2b7e7e23516fa59c9cd7194c6b663b9a1ad709f5))
+- **turns:** say when to load a skill and that a load lasts one turn ([73a5fd5](https://github.com/joshunrau/collegium/commit/73a5fd5ed6275a6cfcd8fda7c11bda0021da010b))
+- **turns:** show the posts pinned in a channel to every agent there as standing instructions ([93d3660](https://github.com/joshunrau/collegium/commit/93d3660a3782bd46436975df696158ef6c6605e2))
+- **turns:** tag people by [@username](https://github.com/username), and list the people who posted in a channel ([f7cca8e](https://github.com/joshunrau/collegium/commit/f7cca8ead887651cff5309a7caf3f6990af25e21))
+- **turns:** tell each turn today's date, in the operator's timezone ([8f2170c](https://github.com/joshunrau/collegium/commit/8f2170c6f42925c03a84051b68570d4598dcc6a2))
+
+### Bug Fixes
+
+- **activation:** answer a person's post queued behind a colleague's as their own request ([c7b0e8f](https://github.com/joshunrau/collegium/commit/c7b0e8fc11977b1ca17cacb66c1e48d191caad3e))
+- **activation:** recompute a restart's hand-offs as the running turn holds them, and count them ([f3d4128](https://github.com/joshunrau/collegium/commit/f3d41280f856e3423e7473f3758400607ce03ee3))
+- **conversations:** keep a pin from restoring a post a channel clear removed ([fecd675](https://github.com/joshunrau/collegium/commit/fecd6751ceadb566695f7d3365954f690cb5a9c7))
+- **mail:** describe a mail ref so the model never passes a trigger id for one ([a4e4fe4](https://github.com/joshunrau/collegium/commit/a4e4fe4f5d24de5448d5e88beb83eb75573e1871))
+- **tasks:** report only the unit an exhausted turn was working, and name colleagues in refusals ([99cac4c](https://github.com/joshunrau/collegium/commit/99cac4c06bf44efb8b219acdb8abdccec26ec60b))
+- **turns:** say where a cut page reads on from, and refuse only replies that really hold no prose ([fc99028](https://github.com/joshunrau/collegium/commit/fc99028216c2773597ef90fcb8ebf3dd55ff6d43))
+- **turns:** send back once a worker's reply that leaves its unit assigned and reaches nobody ([04aa9d7](https://github.com/joshunrau/collegium/commit/04aa9d751a64bb34745f2da9f79e886554ca8246))
+- **web:** keep an email address in a link as its owner wrote it ([d4306d2](https://github.com/joshunrau/collegium/commit/d4306d2e55d639481801afc16555bb6bf0b2f00a))
+- **web:** parse what the browser hands back to the session's own scripts ([b80dd61](https://github.com/joshunrau/collegium/commit/b80dd6189c7083414a0bcc108c45eef55285bb8b))
+- **web:** read each PDF in a child process killed past a memory cap ([10a13cc](https://github.com/joshunrau/collegium/commit/10a13ccf6039264078bd60a525a08700fd1a612b))
+- **web:** report the browser's URL-policy refusals as refusals, not dead hosts ([4a5d107](https://github.com/joshunrau/collegium/commit/4a5d1076b4d5ce5e202bd49bd94b934900d6ac4e))
+- **web:** say where to read on when a fetched page is cut to fit a turn ([d4d58ae](https://github.com/joshunrau/collegium/commit/d4d58ae479904c0dbcd2857303a61b9463cb1f83))
+- **web:** send only an agent that holds web::navigate to the browser ([df0a93b](https://github.com/joshunrau/collegium/commit/df0a93b06e04d04d87ca6b9d56588b559367755c))
+- **web:** stop calling a PDF scanned when its read stopped short ([95064d4](https://github.com/joshunrau/collegium/commit/95064d4f3df899eef427d6b1c8a5ac81944fcd1d))
+
+### Performance
+
+- **conversations:** stop writing to the store for every edit of an unpinned post ([da7da40](https://github.com/joshunrau/collegium/commit/da7da4006b4b3795bbd1420cb234d023c024dcf5))
+
+### Refactoring
+
+- **commands:** read the queue, units and trace reports one layer behind their handlers ([fc1b123](https://github.com/joshunrau/collegium/commit/fc1b1233ac1ea9ea05385234ddfd7f8964ee8cf3))
+- **turns:** split the turn prompt into one file per section and topic ([73a5b0a](https://github.com/joshunrau/collegium/commit/73a5b0a110363828169f5fca2e0246f42a666a1a))
+- **web:** split page conversion, reading and result rendering apart ([299dcd1](https://github.com/joshunrau/collegium/commit/299dcd10dc60e188b79f67b090b70acc24bf1a99))
+
 ## [0.0.1-beta.26](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.25...v0.0.1-beta.26) (2026-09-23)
 
 ### Features
