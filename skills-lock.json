@@ -19,12 +19,6 @@
       "skillPath": "skills/engineering/codebase-design/SKILL.md",
       "computedHash": "e6394592ecf4b5aa5bc93f95a20d0a56314788bde2e1221f87296d3becb734a2"
     },
-    "deep-interview": {
-      "source": "joshunrau/skills",
-      "sourceType": "github",
-      "skillPath": "skills/deep-interview/SKILL.md",
-      "computedHash": "dcd9fc6b6a43ec123c5fa79474bad443a6653d3234544e4a676072ec49929f1c"
-    },
     "diagnosing-bugs": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -42,6 +36,12 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "bce096b49db40761adb1d5348f064c303fc152e4e50fc3fd81b79df8b6cf137f"
+    },
+    "interview": {
+      "source": "joshunrau/skills",
+      "sourceType": "github",
+      "skillPath": "skills/interview/SKILL.md",
+      "computedHash": "feb01006cafe30dcf40f78ecc24ff32460004d4952cd6ea45deb2c2d269f087f"
     },
     "research": {
       "source": "mattpocock/skills",
