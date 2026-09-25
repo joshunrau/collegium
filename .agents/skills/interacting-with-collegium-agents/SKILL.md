@@ -40,14 +40,84 @@ by itself, so an agent that writes "next I will…" waits for you. Post again to
 tool yet has no status post, and can run for minutes that way. A mention of an agent whose turn is
 still running starts nothing. It queues behind that turn, the agent reacts 👀 to it, and the next
 turn reads everything that queued, so a second nudge adds nothing to the first. Before you post
-again, run `/collegium queue {agent}` (see [Inspect a turn](#inspect-a-turn)). It says whether a
-turn is running for the agent in this channel, since when, and which post started it, then what
-waits. Nudge only when it reports no turn running. A `⏳ _working…_` status post from the agent means
-a turn is running, a `🔐` or `❓` _waiting…_ one means it is parked on a person, and 👀 on your last
-post means it is queued; each answers without the command.
+again, run `/collegium queue {agent}` for every agent in the channel (see
+[Inspect a turn](#inspect-a-turn)). It says whether a turn is running for the agent in this channel,
+since when, and which post started it, then what waits.
+
+- The lane is idle only when no agent in the channel has a turn running. A colleague's running turn
+  holds any hand-off it has addressed to this agent until it ends or parks (SPEC.md §5.2), so a
+  nudge then queues a second turn over the same work.
+- A turn parked on a person is decided, never nudged. `/collegium units {agent}` lists it under
+  "Waiting on a person in this channel".
+- When the lane is idle, run `/collegium units {agent}` for each agent and nudge the one whose move
+  it is, naming the unit.
+
+A `⏳ _working…_` status post from the agent means a turn is running, a `🔐` or `❓` _waiting…_ one
+means it is parked on a person, and 👀 on your last post means it is queued; each answers without the
+command.
 
 Make each instruction complete by itself when the agent has no recent history of the task. The
-agent sees a bounded window of recent posts, newest first. It does not see the whole channel.
+agent sees a bounded window of recent posts, newest first. It does not see the whole channel. A
+kickoff or resume post names the work's own record to read first (for example, a sweep plugin's
+`get_sweep`) and the skill to load, never a memory.
+
+## Countermand and pause with a steer
+
+To change what a running turn does, steer it by name: `/collegium steer {agent} {text}`. The turn
+reads the steer before its next model call, and a completion in flight is discarded. A delivered
+steer replays in that agent's later windows as your words, so do not repeat it as a mention.
+
+Post the instruction instead only when the steer's answer says no turn is running, when the turn
+ended without the `↩ _steered by @you_` line on its status post, or when new work must start.
+
+A turn parked on a person is redirected by denying with a reason, or by answering. `/collegium stop`
+is for when no agent may make another call. Follow it with a post that says what happens next.
+
+**A pause is a post and a steer.** No command holds a channel.
+
+1. Post the pause in the channel first. Name no agent where the channel's triggering mode lets a
+   post address nobody, so it starts no turn and every turn that starts there afterwards reads it.
+   Never pin it.
+2. Steer every turn running in the channel with the pause and its reason, for example "finish or stop
+   what you are doing, and hand nothing over".
+3. Read `/collegium queue` for each agent in the channel, and repeat until no turn runs there:
+   - A hand-off that a steered turn posted before the steer reached it waits until that turn ends or
+     parks. It then starts its addressee's turn at once, before any read of the queue can catch it.
+     That turn shows as running at the next read: steer it with the same pause. Do the same for any
+     turn its report starts.
+   - A hand-off queued before the pause still starts its addressee's turn once that agent is free,
+     since each agent's queue is its own. Stop one that must not run: cancel its unit
+     (`/collegium units {creator} cancel {reference}`) and discard that agent's queue
+     (`/collegium queue {agent} clear`). Cancel a unit the same way when its hand-off started a turn
+     you then steered, and its work must not resume.
+   - Pending approvals and questions stay live. Deny with a reason, or run `/collegium stop`, if they
+     must not proceed.
+4. To resume, post the next order, addressed to the agent that should act on it.
+
+## Keep standing instructions in one pinned post
+
+Every post pinned in a channel is rendered to every agent there on every turn, after the window, so
+a pin outlasts the window. Keep one pinned scope post per channel.
+
+- Post it naming no agent. It states the channel's remit in its tools' terms (for example, a sweep's
+  id and its institutions and departments, never unit ids, since a follow-up unit gets a new id) and
+  its standing rulings. It carries no progress and no counts.
+- Keep it well under the pinned-post cap (`PINNED_POSTS_TOKEN_CAP` in
+  `app/src/turns/prompt/prompt.constants.ts`). Past the cap the newest pins that fit are shown and the
+  older ones are only named. Revise it in place, since an edit starts no turn. Pin it again after
+  `/collegium clear`, which deletes pins with the posts. Never add a second pin for a pause or a
+  ruling.
+
+**Moving work between channels.** Before a move, run `/collegium units {agent}` in the giving and
+the receiving channel, and move only work no channel has in flight. Edit every affected pin in one
+pass. In the same pass, give the losing channel its next order or tell it to stand down.
+
+## Memory holds lessons, not state or one channel's rulings
+
+An agent's memories hold lessons that apply wherever it works. A ruling about one channel's work
+lives in that channel's pinned scope post, never also in memory, so you edit it in one place. A
+task's state is in the records its tools keep, and in the channel. Never order state into memory,
+including in a pause. Name a memory reference in a post only when asking its owner to change it.
 
 ## Read the result
 
@@ -81,6 +151,20 @@ One call covers every track — pass an agent name only to narrow it. `/collegiu
 Decide a park the same minute you see it. Until someone does, the turn holds the channel lock, the
 agent's queue grows behind it, and the sweep is stopped rather than slow.
 
+## Poll for posts that mention you
+
+An account on the API gets no mention notifications, and an agent often asks you something in a
+plain post. Each poll fetches every channel's posts since the last read and lists the agent posts
+that @-mention you anywhere in the text. Answer or explicitly defer each one at that poll.
+
+- Cover every channel your account belongs to (`/api/v4/users/me/teams/{teamId}/channels`),
+  direct messages included.
+- Read each with `/api/v4/channels/{channelId}/posts?since={ms}`. It returns posts changed since
+  then, so keep the ones whose `create_at` is past your mark and whose `delete_at` is 0.
+- Keep a mark per channel on the server's `create_at`, and advance it only after the posts it passes
+  are handled, so a restarted poller neither repeats nor skips one.
+- Match your @handle as a whole word, and keep only posts from bots (`POST /api/v4/users/ids`).
+
 ## Inspect a turn
 
 Run a slash command with `POST /api/v4/commands/execute`, with `channel_id` and `command`. The
@@ -100,12 +184,36 @@ with the reason.
 file with a script. A trace read into your context directly costs more than the whole rest of the
 task.
 
-Two cheap commands answer most questions without a trace:
+Three cheap commands answer most questions without a trace:
 
-- `/collegium memory {agent} show {reference}` reads one memory body. An agent's memories hold its
-  real state for a long task. The channel does not.
+- `/collegium memory {agent} show {reference}` reads one memory body.
 - `/collegium queue {agent}` shows whether a turn is running for the agent, and the posts that
   wait for it.
+- `/collegium units {agent}` lists the agent's open work units in this channel, whose move each
+  waits on, and what waits on a person.
+
+## Diagnose before you change anything
+
+Save the trace of one failed turn and list its steps by size:
+
+```sh
+awk '/^[0-9]+\. \[\+/ { if (h) print n "\t" h; h = $0; n = 0; next } { n += length($0) + 1 }
+  END { if (h) print n "\t" h }' trace.txt | sort -rn | head
+```
+
+A result marked `(the model read its first N characters)` was cut to fit the turn, and a cut or one
+dominant result is the cause. Otherwise total the results by tool, by piping the listing, without
+`head`, through:
+
+```sh
+awk -F'\t' '{ split($2, tool, "`"); total[tool[2]] += $1 } END { for (t in total) print total[t] "\t" t }' | sort -rn
+```
+
+- Post a cause only once a trace shows it, and a fix only after the failed work has run cleanly
+  under it. Count the stop posts in every lane before you say a fix held.
+- Name every agent a config change reaches: an `agentDefaults` key reaches every agent without its
+  own value.
+- Name only arguments the tool's schema declares.
 
 ## Audit what the agent claims
 
@@ -124,6 +232,20 @@ carries one button per option plus a free-text one, declared in `asks.renderer.t
 Decide each approval on its declared action. An approval for a budget extension and an approval
 for an outbound message are not the same decision.
 
+## After an upgrade
+
+An upgrade invalidates stored procedure: a memory that restates how a tool behaved goes stale when
+the tool changes. After the upgrade, and before the resume posts, ask each agent once to revise with
+`memory::replace` the entries that restate a procedure that changed. Do it in one channel or a direct
+message, while the agent's other lanes are idle; `/collegium memory {agent}` lists the entries. The
+resume posts then name each procedure that changed, not only the tool mechanics, and ask for no
+memory work.
+
+## Remove an agent
+
+Cancel its open units first, with `/collegium units {creator} cancel {reference}` in each unit's
+channel. A unit whose agent is gone has nobody left to move it.
+
 ## Pitfalls
 
 **A poll that waits for a terminal marker.** A `🔐` or `❓` _waiting…_ head is not one, and the
@@ -137,8 +259,8 @@ provider refused the first request. The post that started the turn can be consum
 instruction is gone, and the agent never read it.
 
 **A `⚠️ _stopped — a call timed out with its effect unconfirmed_` turn.** The events already
-written survive. The messages the turn held in memory do not. The agent must read its memories
-again to continue.
+written survive. The messages the turn held in memory do not. The agent must re-read the records its
+tools keep to continue.
 
 **A count in a report.** An agent reports a number of records. The trace holds the calls. Count the
 calls before you repeat the number.
