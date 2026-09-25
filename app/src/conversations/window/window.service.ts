@@ -48,9 +48,12 @@ const WINDOW_POST_KINDS: PostKind[] = ['message', 'notice', 'prompt', 'reply'];
 const PAGE_SIZE = 200;
 
 /**
- * The share of the budget a window is trimmed to once it overflows, so its oldest entry then holds
- * still across the turns it takes to fill back up. An oldest entry that moved every turn would
- * change the prompt's prefix every turn, and a provider's cache matches prefixes.
+ * The share of the budget a window is walked to whenever it is built afresh — once it overflows, and
+ * with no anchor at all (a new process, a first build, a cleared channel) — so its oldest entry then
+ * holds still across the turns it takes to fill back up. An oldest entry that moved every turn would
+ * change the prompt's prefix every turn, and a provider's cache matches prefixes; a first window
+ * walked to the whole budget would overflow on the next turn and move again, so a restart would cost
+ * two prefix changes rather than one.
  */
 const LOW_WATER_SHARE = 0.75;
 
@@ -76,8 +79,7 @@ export class WindowService {
         return { entries: anchored.toReversed(), oldestAt: anchor };
       }
     }
-    const share = anchor === undefined ? 1 : LOW_WATER_SHARE;
-    const entries = await this.walkNewestFirst(input, boundary, Math.floor(input.budgetTokens * share));
+    const entries = await this.walkNewestFirst(input, boundary, Math.floor(input.budgetTokens * LOW_WATER_SHARE));
     const oldest = entries.at(-1);
     const oldestAt = oldest === undefined ? undefined : instantOf(oldest);
     if (oldestAt === undefined) {

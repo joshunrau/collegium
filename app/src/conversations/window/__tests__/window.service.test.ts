@@ -118,7 +118,7 @@ describe('WindowService', () => {
 
   it('should walk the channel backwards until the token budget is exhausted, returning oldest first', async () => {
     const posts = [post('post-1', 1000), post('post-2', 2000), post('post-3', 3000)];
-    const entries = await build(posts, [], 8);
+    const entries = await build(posts, [], 11);
     expect(identify(entries)).toStrictEqual(['post-2', 'post-3']);
   });
 
@@ -194,7 +194,7 @@ describe('WindowService', () => {
       event('result-2', 2600, mira, result('c2'))
     ];
     expect(identify(await build(posts, events, 12))).toStrictEqual(['post-2']);
-    expect(identify(await build(posts, events, 16))).toStrictEqual(['call', 'result-1', 'result-2', 'post-2']);
+    expect(identify(await build(posts, events, 22))).toStrictEqual(['call', 'result-1', 'result-2', 'post-2']);
   });
 
   it('should hold the oldest entry fixed while everything since it still fits the budget', async () => {
@@ -213,6 +213,14 @@ describe('WindowService', () => {
     expect(identify(await rebuild(16))).toStrictEqual(['post-3', 'post-4', 'post-5', 'post-6']);
   });
 
+  it('should walk a window built afresh to the low-water mark, so the next build holds its oldest entry (§3.8)', async () => {
+    const posts = [post('post-1', 1000), post('post-2', 2000), post('post-3', 3000), post('post-4', 4000)];
+    const { build: rebuild, tables } = await createService(posts, []);
+    expect((await rebuild(16)).oldestAt).toStrictEqual(new Date(2000));
+    tables.posts.rows.push(post('post-5', 5000));
+    expect((await rebuild(16)).oldestAt).toStrictEqual(new Date(2000));
+  });
+
   it('should read the channel a page at a time and still walk past the first page', async () => {
     const posts = Array.from({ length: 450 }, (_, index) => post(`post-${index + 1}`, 1000 * (index + 1)));
     const result = await build(posts, [], 100_000);
@@ -221,7 +229,7 @@ describe('WindowService', () => {
   });
 
   it('should report the instant its oldest entry was created', async () => {
-    const result = await build([post('post-1', 1000), post('post-2', 2000)], [], 4);
+    const result = await build([post('post-1', 1000), post('post-2', 2000)], [], 6);
     expect(result.oldestAt).toStrictEqual(new Date(2000));
   });
 
