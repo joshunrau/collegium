@@ -34,6 +34,7 @@ describe('OpenWorkSection', () => {
     tasksService.listOpenFor.mockResolvedValue([]);
     toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listFor.mockReturnValue([]);
+    toolRegistry.isGranted.mockReturnValue(true);
     const moduleRef = await Test.createTestingModule({
       providers: [
         DayFormatter,
@@ -97,6 +98,24 @@ describe('OpenWorkSection', () => {
       '## Open work\n\nWork handed over in this channel and still open, oldest first. A line that reads `to` a colleague is one you assigned and are waiting on; `from` a colleague, one you owe. In brackets is where that colleague stood as this turn began. Read one in full with tasks__read:\n\n- [abcd1234] to Tess (working here since 18:55 UTC) · assigned · 2h 0m — a schedule for the offsite\n\n…and 1 more.\n\nA unit starts no turn by itself: its assignment or report does, by mentioning whoever must act next. Nothing starts another turn of yours here until a person posts, a colleague mentions you, or a trigger fires.'
     );
     expect(tasksService.listOpenFor).toHaveBeenCalledWith({ agentUsername: 'mira', channelId: 'channel-1' });
+  });
+
+  it('should name tasks__read only to an agent granted it (§3.4)', async () => {
+    toolRegistry.listFor.mockReturnValue([{ gates: false, id: ['tasks', 'assign'] }]);
+    toolRegistry.isGranted.mockImplementation((_profile, ref) => ref === 'tasks::assign');
+    tasksService.listOpenFor.mockResolvedValue([
+      {
+        assigneeUsername: 'tess',
+        counterpart: { awaited: 'report', kind: 'no-turn' },
+        createdAt: new Date(),
+        creatorUsername: 'mira',
+        follows: undefined,
+        outcome: 'a venue shortlist',
+        reference: 'abcd1234',
+        state: 'assigned'
+      }
+    ]);
+    expect(await render()).not.toContain('tasks__read');
   });
 
   it('should word the counterpart’s state for the agent reading it, naming a person it waits on (§3.15)', async () => {

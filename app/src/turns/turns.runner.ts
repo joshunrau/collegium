@@ -140,6 +140,13 @@ const RAW_ARGUMENTS_PREVIEW_CHARS = 200;
 /** §7.2 — what the model reads instead of a diagnosis: no parameter, no type, no accepted set */
 const UNPARSED_ARGUMENTS_RESULT = 'the arguments to this call were not valid JSON, so the call did not run';
 
+/** §8.1 — the lines of calls the runner answered itself, which must not read as calls that ran */
+const NOT_RUN_MARKS = {
+  budgetSpent: { ran: false, text: '⚠️ not run: the action budget is spent' },
+  unknownTool: { ran: false, text: '⚠️ not a tool it holds' },
+  unparsedArguments: { ran: false, text: '⚠️ arguments not valid JSON' }
+} as const satisfies { readonly [key: string]: TraceMark };
+
 /** the bounds config states for every turn: §7.4 depth and chain length, §4.4 folds; the §5.3 budget is the agent's own */
 type TurnLimits = {
   readonly chainLengthLimit: number;
@@ -513,11 +520,13 @@ export class TurnRunner {
     identified: IdentifiedCall,
     output: string
   ): Promise<TurnOutcome | undefined> {
+    this.markTraceLine(state, identified, NOT_RUN_MARKS.unknownTool);
     await this.turnsService.appendEvent(state.turn.id, {
       callId: identified.call.id,
       kind: 'tool_result',
       output,
-      toolName: identified.recordedName
+      toolName: identified.recordedName,
+      traceMark: NOT_RUN_MARKS.unknownTool
     });
     if (state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT) {
       return this.closeWithFailureNotice(input, state, 'semantic_error', renderOutputRefusedNotice());
@@ -533,11 +542,13 @@ export class TurnRunner {
    */
   private async answerUnrun(state: TurnState, unrun: readonly IdentifiedCall[], text: string): Promise<void> {
     for (const identified of unrun) {
+      this.markTraceLine(state, identified, NOT_RUN_MARKS.budgetSpent);
       await this.turnsService.appendEvent(state.turn.id, {
         callId: identified.call.id,
         kind: 'tool_result',
         output: text,
-        toolName: identified.recordedName
+        toolName: identified.recordedName,
+        traceMark: NOT_RUN_MARKS.budgetSpent
       });
       this.pushMessage(state, { content: text, role: 'tool', toolCallId: identified.call.id });
     }
@@ -858,6 +869,7 @@ export class TurnRunner {
     return {
       agentUsername: input.profile.username,
       channelId: input.channelId,
+      isGranted: (ref) => this.toolRegistry.isGranted(input.profile, ref),
       triggeringPostId: input.triggeringPostId ?? null,
       turnId: state.turn.id,
       workUnit: state.workUnit
@@ -1076,12 +1088,14 @@ export class TurnRunner {
       await this.answerUnrun(state, calls.slice(position), admission.text);
       return { kind: 'dispatched', outcome: undefined };
     }
+    this.markTraceLine(state, identified, NOT_RUN_MARKS.unparsedArguments);
     await this.turnsService.appendEvent(state.turn.id, {
       callId: identified.call.id,
       kind: 'tool_result',
       output: UNPARSED_ARGUMENTS_RESULT,
       rawArgumentsPreview: identified.call.rawArguments.slice(0, RAW_ARGUMENTS_PREVIEW_CHARS),
-      toolName: identified.recordedName
+      toolName: identified.recordedName,
+      traceMark: NOT_RUN_MARKS.unparsedArguments
     });
     this.pushMessage(state, { content: UNPARSED_ARGUMENTS_RESULT, role: 'tool', toolCallId: identified.call.id });
     state.consecutiveRejections = 0;
@@ -1512,6 +1526,7 @@ export class TurnRunner {
     }
     state.unreportedUnitRejected = true;
     return renderUnreportedUnitRejection({
+      canReport: this.toolRegistry.isGranted(input.profile, 'tasks::report'),
       creatorDisplayName: this.agentRegistry.displayNameOf(unit.creatorUsername),
       creatorUsername: unit.creatorUsername,
       reference: renderReference(unit.id)

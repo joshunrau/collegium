@@ -15,7 +15,13 @@ import type { ToolCall } from '@/inference/inference.types.ts';
 import type { TurnEventInput } from '@/turns/turns.types.ts';
 
 import { ToolRegistry } from './tools.registry.ts';
-import { renderAskAnswerResult, renderDenialTraceMark, renderToolDenialResult } from './tools.renderer.ts';
+import {
+  renderAskAnswerResult,
+  renderDenialTraceMark,
+  renderIgnoredArgumentsLine,
+  renderSizeIssue,
+  renderToolDenialResult
+} from './tools.renderer.ts';
 
 import type { RegisteredToolset, ResolvedTool } from './tools.registry.ts';
 import type { ToolAttempt } from './tools.types.ts';
@@ -40,6 +46,21 @@ export class ToolExecutor {
     private readonly asksService: AsksService,
     private readonly toolRegistry: ToolRegistry
   ) {}
+
+  /**
+   * §7.2 — an argument a plain object schema does not declare is stripped by the parse, so the call
+   * runs without it; the result says so rather than letting the model believe it applied. A strict
+   * schema refuses the key at the parse instead, which a patch-shaped write should.
+   */
+  private static ignoredKeysOf(tool: ResolvedTool, callArguments: ToolCall['arguments']): string[] {
+    const { parameters } = tool.definition;
+    const isPlainObject = parameters instanceof z.ZodObject && parameters._zod.def.catchall === undefined;
+    if (!isPlainObject || typeof callArguments !== 'object' || callArguments === null) {
+      return [];
+    }
+    const declared = new Set(Object.keys(parameters.shape));
+    return Object.keys(callArguments).filter((key) => !declared.has(key));
+  }
 
   /** an undelivered question can never be answered, which ends the turn */
   private static toAskFailureAttempt(failure: AskFailureRequest): ToolAttempt {
@@ -68,7 +89,7 @@ export class ToolExecutor {
       return { kind: 'unknown-tool', output: resolved.error.message };
     }
     const tool = resolved.value;
-    const args = tool.definition.parameters.safeParse(input.call.arguments);
+    const args = tool.definition.parameters.safeParse(input.call.arguments, { error: renderSizeIssue });
     if (!args.success) {
       // fed back to the model, so the name is spelled as the model spelled it (§1)
       return {
@@ -165,28 +186,7 @@ export class ToolExecutor {
       .exhaustive();
   }
 
-  private requestApproval(
-    input: ExecuteInput,
-    tool: ResolvedTool,
-    args: unknown,
-    payload: ToolApprovalPayload
-  ): Promise<Result<ApprovalDecision, ApprovalFailureRequest>> {
-    return this.approvalsService.request({
-      agentUsername: input.turn.agentUsername,
-      appendEvent: input.appendEvent,
-      args,
-      callId: input.call.id,
-      channelId: input.turn.channelId,
-      contextText: input.contextText,
-      payloadPresentation: payload.presentation,
-      payloadText: payload.body,
-      toolName: tool.id[1],
-      toolNamespace: tool.id[0],
-      turnId: input.turn.turnId
-    });
-  }
-
-  private async runBody(tool: ResolvedTool, args: unknown, input: ExecuteInput): Promise<ToolAttempt> {
+  private async executeBody(tool: ResolvedTool, args: unknown, input: ExecuteInput): Promise<ToolAttempt> {
     const timeoutMs = tool.definition.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
     let result: ToolResult;
     try {
@@ -228,6 +228,36 @@ export class ToolExecutor {
         status: 'semantic_error'
       }))
       .exhaustive();
+  }
+
+  private requestApproval(
+    input: ExecuteInput,
+    tool: ResolvedTool,
+    args: unknown,
+    payload: ToolApprovalPayload
+  ): Promise<Result<ApprovalDecision, ApprovalFailureRequest>> {
+    return this.approvalsService.request({
+      agentUsername: input.turn.agentUsername,
+      appendEvent: input.appendEvent,
+      args,
+      callId: input.call.id,
+      channelId: input.turn.channelId,
+      contextText: input.contextText,
+      payloadPresentation: payload.presentation,
+      payloadText: payload.body,
+      toolName: tool.id[1],
+      toolNamespace: tool.id[0],
+      turnId: input.turn.turnId
+    });
+  }
+
+  private async runBody(tool: ResolvedTool, args: unknown, input: ExecuteInput): Promise<ToolAttempt> {
+    const attempt = await this.executeBody(tool, args, input);
+    const ignored = ToolExecutor.ignoredKeysOf(tool, input.call.arguments);
+    if (attempt.kind !== 'continue' || ignored.length === 0) {
+      return attempt;
+    }
+    return { ...attempt, output: `${renderIgnoredArgumentsLine(ignored)}\n${attempt.output}` };
   }
 
   /**

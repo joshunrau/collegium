@@ -60,6 +60,8 @@ export type PartyNamer = (username: string) => string;
 /** how a unit's line, record and refusals are worded for whoever reads them: the agent itself, or a person in a listing */
 export type UnitWording = {
   readonly formatMoment: (moment: Date) => string;
+  /** §3.4 — whether the reader may be offered a tool as the way on, by its full ref; a person is offered none */
+  readonly isGranted: (ref: string) => boolean;
   readonly nameOf: PartyNamer;
   /** false where the listing names a party's wait on a person itself (§8.4) */
   readonly namesPersonWait: boolean;

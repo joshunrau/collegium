@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { containsToolCallTranscript, lacksProse } from '../reply-guard.utils.ts';
+import { containsToolCallTranscript, lacksProse, renderUnreportedUnitRejection } from '../reply-guard.utils.ts';
 
 describe('containsToolCallTranscript', () => {
   it('should recognise the replayed call form, including a fabricated tool name', () => {
@@ -37,5 +37,16 @@ describe('lacksProse (§4.5)', () => {
       '| — | — |'
     ];
     expect(lacksProse([...table, '| — | — |', '| — | — |', '| — | — |', '| — | — |'].join('\n'))).toBe(false);
+  });
+});
+
+describe('renderUnreportedUnitRejection', () => {
+  const unit = { creatorDisplayName: 'Mira', creatorUsername: 'mira', reference: 'abcd1234' };
+
+  it('should offer tasks__report only to an agent granted it, and a mention either way (§3.4)', () => {
+    expect(renderUnreportedUnitRejection({ ...unit, canReport: true })).toContain('report it with tasks__report');
+    const unreporting = renderUnreportedUnitRejection({ ...unit, canReport: false });
+    expect(unreporting).not.toContain('tasks__report');
+    expect(unreporting).toContain('mention @mira in the post');
   });
 });

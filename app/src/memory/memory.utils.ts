@@ -13,6 +13,17 @@ function formatCharacters(count: number): string {
   return CHARACTER_COUNT_FORMAT.format(count);
 }
 
+/** §3.6, §3.4 — the ways to make room in an entry, each only where the reader is granted its tool */
+function renderMakingRoom(isGranted: (ref: string) => boolean): string {
+  const ways = [
+    ...(isGranted('memory::replace') ? ['shorten a passage with memory__replace'] : []),
+    ...(isGranted('memory::rewrite')
+      ? ['rewrite the memory without what is no longer needed with memory__rewrite']
+      : [])
+  ];
+  return ways.length === 0 ? 'shorten the change' : ways.join(', or ');
+}
+
 /** §3.6 — a body's size against its cap, reported on every write and revision so a memory nearing it is seen before a refusal */
 function renderBodySize(bodyLength: number, caps: $MemorySettings): string {
   return `${formatCharacters(bodyLength)} of ${formatCharacters(caps.maxBodyChars)} characters`;
@@ -90,7 +101,7 @@ export function renderRevisionResult(
 }
 
 /** what the model reads when the store refuses a call; never the body, since a revision costs what the change costs (§3.6) */
-export function renderMemoryFailure(failure: MemoryFailure): string {
+export function renderMemoryFailure(failure: MemoryFailure, isGranted: (ref: string) => boolean): string {
   return (
     match(failure)
       .with({ kind: 'ambiguous' }, { kind: 'not-found' }, renderUnresolvedReference)
@@ -108,7 +119,7 @@ export function renderMemoryFailure(failure: MemoryFailure): string {
       .with(
         { field: 'body', kind: 'revision-too-long' },
         ({ length, limit, reference, storedLength }) =>
-          `memory ${reference} holds ${formatCharacters(storedLength)} of ${formatCharacters(limit)} characters, and this change would make it ${formatCharacters(length)}; shorten a passage with memory__replace, or rewrite the memory without what is no longer needed with memory__rewrite, then try again`
+          `memory ${reference} holds ${formatCharacters(storedLength)} of ${formatCharacters(limit)} characters, and this change would make it ${formatCharacters(length)}; ${renderMakingRoom(isGranted)}, then try again`
       )
       .with({ kind: 'empty-body' }, () => 'the revision would leave the memory empty; delete it instead')
       .with(

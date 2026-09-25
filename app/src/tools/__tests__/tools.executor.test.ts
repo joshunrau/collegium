@@ -44,6 +44,11 @@ const FIXTURE_TOOLSET = defineToolset({
       },
       parameters: z.object({ value: z.string() })
     },
+    capped: {
+      description: 'Takes a bounded note.',
+      execute: (args) => Result.ok({ text: `noted ${args.note}` }),
+      parameters: z.object({ note: z.string().trim().max(5) })
+    },
     disclose: {
       description: 'Returns a disclosure beside its text.',
       execute: () => {
@@ -94,6 +99,11 @@ const FIXTURE_TOOLSET = defineToolset({
       parameters: z.object({}),
       retryable: true,
       timeoutMs: 10
+    },
+    strict: {
+      description: 'Takes a patch, so refuses any key it does not declare.',
+      execute: (args) => Result.ok({ text: `patched ${args.value}` }),
+      parameters: z.strictObject({ value: z.string() })
     },
     thrower: {
       description: 'Throws.',
@@ -194,6 +204,28 @@ describe('ToolExecutor', () => {
     const attempt = await execute('fixture__echo', { value: 5 });
     expect(attempt.kind).toBe('continue');
     expect((attempt as { output: string }).output).toContain('invalid arguments for fixture__echo');
+  });
+
+  it('should state the size a refused argument arrived at, as the schema measured it (§7.2)', async () => {
+    const attempt = await execute('fixture__capped', { note: '  abcdefg  ' });
+    const { output } = attempt as { output: string };
+    expect(output).toContain('Too long: 7 characters, 2 over the 5 allowed');
+    expect(output).toContain('at note');
+  });
+
+  it('should run a call with an undeclared argument and name the argument as ignored (§7.2)', async () => {
+    const attempt = await execute('fixture__echo', { count: 3, value: 'casey' });
+    expect(attempt).toStrictEqual({
+      kind: 'continue',
+      output: 'ignored: count, not a parameter of this tool\nhello casey!'
+    });
+  });
+
+  it('should still refuse an undeclared argument to a strict tool, naming it (§7.2)', async () => {
+    const attempt = await execute('fixture__strict', { extra: 1, value: 'x' });
+    const { output } = attempt as { output: string };
+    expect(output).toContain('invalid arguments for fixture__strict');
+    expect(output).toContain('extra');
   });
 
   it('answers a name outside the set with the tools the agent can call (§7.2)', async () => {

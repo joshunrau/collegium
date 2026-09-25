@@ -15,6 +15,8 @@ export type ToolId = readonly [namespace: string, name: string];
 export type ToolTurnScope = {
   readonly agentUsername: string;
   readonly channelId: string;
+  /** §3.4 — whether the acting agent is granted the tool named by its full `ns::tool` ref: a text offers a tool as the way on only where this holds */
+  isGranted(ref: string): boolean;
   /** provenance for anything a tool records; null on a turn no post triggered */
   readonly triggeringPostId: null | string;
   readonly turnId: string;

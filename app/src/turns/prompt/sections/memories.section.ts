@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { TextFormatter } from '@/formatting/text/text.formatter.ts';
 import { MemoryService } from '@/memory/memory.service.ts';
+import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 import { formatCount } from '../prompt.utils.ts';
 
@@ -14,7 +15,8 @@ export class MemoriesSection {
   constructor(
     private readonly agentRegistry: AgentRegistry,
     private readonly memoryService: MemoryService,
-    private readonly textFormatter: TextFormatter
+    private readonly textFormatter: TextFormatter,
+    private readonly toolRegistry: ToolRegistry
   ) {}
 
   async render({ profile }: TurnPromptInput): Promise<string | undefined> {
@@ -26,10 +28,13 @@ export class MemoriesSection {
     if (memories.length === 0) {
       return undefined;
     }
+    const reading = this.toolRegistry.isGranted(profile, 'memory::read')
+      ? '. memory__read returns one body and spends no attempt; read one whose description matches the work in front of you'
+      : '';
     return this.textFormatter.formatParagraphs(
       [
         '## Memories',
-        'Your memories ({memoryCount} of at most {maxEntries}), by description, written by you in earlier turns. memory__read returns one body and spends no attempt; read one whose description matches the work in front of you:',
+        `Your memories ({memoryCount} of at most {maxEntries}), by description, written by you in earlier turns${reading}:`,
         '{listing}'
       ],
       {

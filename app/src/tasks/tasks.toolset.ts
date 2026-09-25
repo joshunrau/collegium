@@ -1,3 +1,4 @@
+import type { ToolTurnScope } from '@collegium/core/tools';
 import { implementToolset, TASKS_TOOLSET_DEF } from '@collegium/core/toolsets';
 import { Result } from '@collegium/core/utils';
 import { z } from 'zod';
@@ -37,9 +38,14 @@ const refused = (failure: TaskFailure, wording: UnitWording) => {
 const wordingFor = (context: {
   readonly agents: Pick<AgentRegistry, 'displayNameOf' | 'has'>;
   readonly moments: Pick<MomentFormatter, 'format'>;
+  readonly turn: Pick<ToolTurnScope, 'isGranted'>;
 }) => {
   const now = new Date();
-  return wordingForAgent((moment) => context.moments.format(moment, now), createPartyNamer(context.agents));
+  return wordingForAgent(
+    (moment) => context.moments.format(moment, now),
+    createPartyNamer(context.agents),
+    (ref) => context.turn.isGranted(ref)
+  );
 };
 
 /** §3.15 — every verb renders a post the framework publishes first, and writes only once told the post has landed */

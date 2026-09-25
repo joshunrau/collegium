@@ -39,14 +39,15 @@ export class OpenWorkSection {
     const now = new Date();
     const wording = wordingForAgent(
       (moment) => this.momentFormatter.format(moment, now),
-      createPartyNamer(this.agentRegistry)
+      createPartyNamer(this.agentRegistry),
+      (ref) => this.toolRegistry.isGranted(profile, ref)
     );
     const lines = units.slice(0, shown).map((unit) => renderOpenUnitLine(unit, profile.username, now, wording));
     const remainder = units.length - lines.length;
     return this.textFormatter.formatParagraphs(
       [
         '## Open work',
-        'Work handed over in this channel and still open, oldest first. A line that reads `to` a colleague is one you assigned and are waiting on; `from` a colleague, one you owe. In brackets is where that colleague stood as this turn began. Read one in full with tasks__read:',
+        `Work handed over in this channel and still open, oldest first. A line that reads \`to\` a colleague is one you assigned and are waiting on; \`from\` a colleague, one you owe. In brackets is where that colleague stood as this turn began.${wording.isGranted('tasks::read') ? ' Read one in full with tasks__read:' : ''}`,
         '{listing}',
         ...(remainder > 0 ? [`…and ${remainder} more.`] : []),
         `A unit starts no turn by itself: its assignment or report does, by mentioning whoever must act next. ${NEXT_TURN}`

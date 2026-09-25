@@ -9,7 +9,7 @@ const formatMoment = (moment: Date) => `${moment.toISOString().slice(11, 16)} UT
 
 const nameOf = (username: string) => username.replace(/^./u, (first) => first.toUpperCase());
 
-const AGENT = wordingForAgent(formatMoment, nameOf);
+const AGENT = wordingForAgent(formatMoment, nameOf, () => true);
 
 const PARKED: CounterpartState = {
   awaited: 'verdict',

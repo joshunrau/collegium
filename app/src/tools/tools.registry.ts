@@ -163,6 +163,15 @@ export class ToolRegistry {
     return this.callableToolsFor(profile).get(name)?.definition.concurrent === true;
   }
 
+  /**
+   * §3.4 — the one answer to whether a text may offer a tool as the way on: the agent is granted the
+   * tool named by its full `ns::tool` ref, core tools included. Only the full ref resolves, never the
+   * bare segment or the wire name a call may arrive under.
+   */
+  isGranted(profile: AgentProfile, ref: string): boolean {
+    return this.callableToolsFor(profile).get(ref)?.displayName === ref;
+  }
+
   /** §3.8 — whether a later result of a supersedable tool retires this call's text within the turn; an unknown name never is */
   isSupersedable(profile: AgentProfile, name: string): boolean {
     return this.callableToolsFor(profile).get(name)?.definition.supersedable === true;

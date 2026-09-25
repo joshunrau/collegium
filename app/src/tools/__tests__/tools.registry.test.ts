@@ -188,6 +188,16 @@ describe('ToolRegistry', () => {
     expect(registry.resolveFor(notesOnly, 'measure').error).toMatchObject({ kind: 'unknown-tool' });
   });
 
+  it('should answer whether a tool is granted by its full ref alone, core tools included (§3.4)', () => {
+    const profile = buildAgentProfile({ tools: ['notes::list'] });
+    const registry = new ToolRegistry(LIBRARY, [profile]);
+    expect(registry.isGranted(profile, 'notes::list')).toBe(true);
+    expect(registry.isGranted(profile, 'notes::add')).toBe(false);
+    expect(registry.isGranted(profile, 'skills::load')).toBe(true);
+    expect(registry.isGranted(profile, 'list')).toBe(false);
+    expect(registry.isGranted(profile, 'notes__list')).toBe(false);
+  });
+
   it('offers the model one spelling of each tool, however many it accepts (§1)', () => {
     const profile = buildAgentProfile({ tools: ['notes'] });
     const registry = new ToolRegistry(LIBRARY, [profile]);

@@ -80,11 +80,15 @@ function toRevision(
 /** §3.6 — the trace records the revision with its count and whatever it replaced; the model reads the size it left */
 function toRevisionResult(
   revised: Result<MemoryRevisionReceipt<ModelRow<'Memory'>>, MemoryFailure>,
-  caps: $MemorySettings,
+  context: { readonly settings: $MemorySettings; readonly turn: Pick<ToolTurnScope, 'isGranted'> },
   replacedPassagesOf: (previous: ModelRow<'Memory'>) => readonly string[] | undefined = () => undefined
 ): ToolResult {
+  const caps = context.settings;
   if (!revised.success) {
-    return Result.err({ kind: 'invalid-arguments', message: renderMemoryFailure(revised.error) });
+    return Result.err({
+      kind: 'invalid-arguments',
+      message: renderMemoryFailure(revised.error, (ref) => context.turn.isGranted(ref))
+    });
   }
   const { entry, previous, reference } = revised.value;
   const replacedPassages = replacedPassagesOf(previous);
@@ -123,7 +127,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
         if (revised.success) {
           context.sightings.recordRevised(context.turn.turnId, revised.value.entry);
         }
-        return toRevisionResult(revised, context.settings);
+        return toRevisionResult(revised, context);
       },
       parameters: z.object({
         description: $NewDescription,
@@ -141,7 +145,10 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
           return context.sightings.confirmSeen(context.turn.turnId, entry);
         });
         if (!deleted.success) {
-          return Result.err({ kind: 'invalid-arguments', message: renderMemoryFailure(deleted.error) });
+          return Result.err({
+            kind: 'invalid-arguments',
+            message: renderMemoryFailure(deleted.error, (ref) => context.turn.isGranted(ref))
+          });
         }
         return Result.ok({ text: `memory ${args.reference} deleted: ${deleted.value.description}` });
       },
@@ -183,7 +190,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
         if (revised.success) {
           context.sightings.recordRevised(context.turn.turnId, revised.value.entry);
         }
-        return toRevisionResult(revised, context.settings, () => edits.map(({ passage }) => passage));
+        return toRevisionResult(revised, context, () => edits.map(({ passage }) => passage));
       },
       parameters: $Replace,
       traceDetail: (args) => args.reference
@@ -201,7 +208,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
         if (revised.success) {
           context.sightings.recordSeen(context.turn.turnId, revised.value.entry);
         }
-        return toRevisionResult(revised, context.settings, (previous) => [previous.body]);
+        return toRevisionResult(revised, context, (previous) => [previous.body]);
       },
       parameters: z.object({
         body: z.string().min(1).describe('The whole new body, which replaces the current one'),
@@ -225,7 +232,10 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
           context.settings
         );
         if (!written.success) {
-          return Result.err({ kind: 'invalid-arguments', message: renderMemoryFailure(written.error) });
+          return Result.err({
+            kind: 'invalid-arguments',
+            message: renderMemoryFailure(written.error, (ref) => context.turn.isGranted(ref))
+          });
         }
         context.sightings.recordSeen(context.turn.turnId, written.value.entry);
         const { evictedDescriptions, reference } = written.value;

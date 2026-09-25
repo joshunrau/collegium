@@ -5,6 +5,7 @@ export function buildToolTurnScope(overrides: Partial<ToolTurnScope> = {}): Tool
   return {
     agentUsername: 'mira',
     channelId: 'channel-1',
+    isGranted: () => true,
     triggeringPostId: 'post-1',
     turnId: 'turn-1',
     workUnit: null,

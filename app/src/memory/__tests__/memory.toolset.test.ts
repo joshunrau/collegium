@@ -244,6 +244,27 @@ describe('MEMORY_TOOLSET', () => {
     });
   });
 
+  it('names only the revision tools the agent is granted as the way to make room (§3.4)', async () => {
+    const { context, memory } = buildContext();
+    memory.revise.mockResolvedValue(
+      Result.err({
+        field: 'body',
+        kind: 'revision-too-long',
+        length: 16_590,
+        limit: 16_000,
+        reference: 'mem00001',
+        storedLength: 15_940
+      })
+    );
+    const appending = { ...context, turn: buildToolTurnScope({ isGranted: (ref) => ref === 'memory::append' }) };
+    const result = await executeTool(append, { reference: 'mem00001', text: 'more' }, appending);
+    expect(result.error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message:
+        'memory mem00001 holds 15,940 of 16,000 characters, and this change would make it 16,590; shorten the change, then try again'
+    });
+  });
+
   it('rewrites a memory the turn read, disclosing the body it replaced (§3.6)', async () => {
     const { context, memory } = buildContext();
     memory.revise.mockImplementation(revisingAgainst(STORED));

@@ -142,8 +142,12 @@ export function renderHumanCancellationPost(
 }
 
 /** §3.15 — the agent reading its own units: what is awaited of it is "your", and a colleague's wait on a person is named */
-export function wordingForAgent(formatMoment: (moment: Date) => string, nameOf: PartyNamer): UnitWording {
-  return { formatMoment, nameOf, namesPersonWait: true, readerPossessive: 'your' };
+export function wordingForAgent(
+  formatMoment: (moment: Date) => string,
+  nameOf: PartyNamer,
+  isGranted: (ref: string) => boolean
+): UnitWording {
+  return { formatMoment, isGranted, nameOf, namesPersonWait: true, readerPossessive: 'your' };
 }
 
 /** §8.4 — a person reading an agent's units: what is awaited of the agent is under its name, and a wait on a person is left to the listing's own list */
@@ -152,7 +156,13 @@ export function wordingForPerson(
   formatMoment: (moment: Date) => string,
   nameOf: PartyNamer
 ): UnitWording {
-  return { formatMoment, nameOf, namesPersonWait: false, readerPossessive: `${nameOf(agentUsername)}'s` };
+  return {
+    formatMoment,
+    isGranted: () => false,
+    nameOf,
+    namesPersonWait: false,
+    readerPossessive: `${nameOf(agentUsername)}'s`
+  };
 }
 
 /**
@@ -207,7 +217,7 @@ export function renderOpenUnitLine(
 
 /** every refusal names its rule, the way on where there is one, and nothing the agent was not already told (§7.2) */
 export function renderTaskRefusal(failure: TaskFailure, wording: UnitWording, now = new Date()): string {
-  const { nameOf } = wording;
+  const { isGranted, nameOf } = wording;
   return match(failure)
     .with({ kind: 'ambiguous' }, { kind: 'not-found' }, (unresolved) => renderUnresolvedUnit(unresolved, wording))
     .with({ kind: 'assignee-absent' }, ({ assigneeUsername }) => `${nameOf(assigneeUsername)} is not in this channel`)
@@ -252,7 +262,9 @@ export function renderTaskRefusal(failure: TaskFailure, wording: UnitWording, no
         `unit ${reference} was handed to ${nameOf(assigneeUsername)} (@${assigneeUsername}), and a unit that follows it goes to them; to hand its work to someone else, close it and assign afresh without follows`
     )
     .with({ from: 'blocked', kind: 'illegal-transition', to: 'done' }, () => {
-      return 'a blocked unit closes only as cancelled; to go on with its work, assign the next part with tasks__assign naming it in follows, which closes it as done';
+      return isGranted('tasks::assign')
+        ? 'a blocked unit closes only as cancelled; to go on with its work, assign the next part with tasks__assign naming it in follows, which closes it as done'
+        : 'a blocked unit closes only as cancelled';
     })
     .with({ kind: 'illegal-transition' }, ({ from, to }) => `a unit in ${from} cannot move to ${to}`)
     .with(
@@ -281,7 +293,7 @@ export function renderTaskRefusal(failure: TaskFailure, wording: UnitWording, no
     .with(
       { kind: 'report-unread' },
       ({ reference }) =>
-        `the latest report on unit ${reference} is not in what this turn has read; read it with tasks__read first`
+        `the latest report on unit ${reference} is not in what this turn has read${isGranted('tasks::read') ? '; read it with tasks__read first' : ''}`
     )
     .with({ kind: 'self-assignment' }, () => 'a unit is handed to a colleague, not to yourself')
     .exhaustive();

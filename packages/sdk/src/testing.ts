@@ -13,6 +13,7 @@ type LooseRecord = CollectionRecord<{ [field: string]: unknown }>;
 const DEFAULT_TURN: ToolTurnScope = {
   agentUsername: 'tester',
   channelId: 'test-channel',
+  isGranted: () => true,
   triggeringPostId: null,
   turnId: 'test-turn',
   workUnit: null

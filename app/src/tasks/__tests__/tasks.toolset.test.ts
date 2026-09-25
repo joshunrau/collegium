@@ -177,6 +177,32 @@ describe('TASKS_TOOLSET', () => {
     });
   });
 
+  it('should name tasks__read and tasks__assign as the way on only to an agent granted them (§3.4)', async () => {
+    const closing = { ...context, turn: buildToolTurnScope({ isGranted: (ref) => ref === 'tasks::close' }) };
+    const close = () => {
+      return executeTool(TASKS_TOOLSET.tools.close, { reference: 'unit-1', state: 'done', verdict: 'good' }, closing);
+    };
+    tasksService.prepareClose.mockResolvedValueOnce(Result.err({ kind: 'report-unread', reference: 'unit-1' }));
+    tasksService.prepareClose.mockResolvedValueOnce(
+      Result.err({ from: 'blocked', kind: 'illegal-transition', to: 'done' })
+    );
+    expect((await close()).error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message: 'the latest report on unit unit-1 is not in what this turn has read'
+    });
+    expect((await close()).error).toStrictEqual({
+      kind: 'invalid-arguments',
+      message: 'a blocked unit closes only as cancelled'
+    });
+    tasksService.prepareClose.mockResolvedValueOnce(Result.err({ kind: 'report-unread', reference: 'unit-1' }));
+    const granted = await executeTool(
+      TASKS_TOOLSET.tools.close,
+      { reference: 'unit-1', state: 'done', verdict: 'good' },
+      context
+    );
+    expect(granted.error).toMatchObject({ message: expect.stringContaining('read it with tasks__read first') });
+  });
+
   it('should name the next step in a refused report, and the open units for a reference that matches none (§7.2)', async () => {
     tasksService.prepareReport.mockResolvedValueOnce(
       Result.err({ creatorUsername: 'mira', kind: 'awaiting-verdict', reference: 'unit-1', state: 'review' })

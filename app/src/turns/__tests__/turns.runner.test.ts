@@ -176,6 +176,7 @@ describe('TurnRunner', () => {
     toolExecutor.execute.mockResolvedValue({ kind: 'continue', output: 'ok' } satisfies ToolAttempt);
     toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.describeCall.mockReturnValue(undefined);
+    toolRegistry.isGranted.mockReturnValue(true);
     transportSend = vi.fn((message: { channelId: string; text: string }) => {
       sends.push(message);
       return Promise.resolve(Result.ok({ createdAt: new Date(5000), postId: `post-${sends.length}` }));
@@ -1042,6 +1043,16 @@ describe('TurnRunner', () => {
         'I could not produce a reply the framework would accept and stopped. The reason is in the trace.'
       ]);
     });
+
+    it('should mark the ending call’s line as not run before the status post closes (§8.1)', async () => {
+      toolExecutor.execute.mockResolvedValue(UNKNOWN);
+      complete.mockResolvedValue(Result.ok(toolUse(['ghost'])));
+      await run();
+      expect(statusHandle.markTrace).toHaveBeenLastCalledWith(0, { ran: false, text: '⚠️ not a tool it holds' });
+      expect(statusHandle.markTrace.mock.invocationCallOrder.at(-1)).toBeLessThan(
+        statusHandle.close.mock.invocationCallOrder[0]
+      );
+    });
   });
 
   describe('a tool call whose arguments never parsed (§7.2)', () => {
@@ -1077,6 +1088,7 @@ describe('TurnRunner', () => {
       const followUp = complete.mock.calls[1]![0].messages;
       expect(followUp.at(-1)).toStrictEqual({ content: UNPARSED_RESULT, role: 'tool', toolCallId: 'call-0' });
       expect(JSON.stringify(followUp)).not.toContain('unterminated');
+      expect(statusHandle.markTrace).toHaveBeenCalledWith(0, { ran: false, text: '⚠️ arguments not valid JSON' });
     });
 
     it('should keep at most two hundred characters of the raw text, on the trace event alone', async () => {
