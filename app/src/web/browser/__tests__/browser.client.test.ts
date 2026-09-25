@@ -181,6 +181,28 @@ const FILTERED_DIRECTORY = `<!doctype html>
   </body>
 </html>`;
 
+/** the filter's rows come from the server, which answers a second and a half after the change asks */
+const SERVER_FILTERED_DIRECTORY = `<!doctype html>
+<html lang="en">
+  <head><title>Researchers — Northmoor Institute</title></head>
+  <body>
+    <h1>Researchers</h1>
+    <label for="focus">Research focus</label>
+    <select id="focus">
+      <option value="">All</option>
+      <option value="412">Neuroscience</option>
+    </select>
+    <table><tbody><tr><td>Duval, P.</td></tr></tbody></table>
+    <script>
+      document.getElementById('focus').addEventListener('change', async (event) => {
+        const response = await fetch('/api/researchers?focus=' + event.target.value);
+        const names = await response.json();
+        document.querySelector('tbody').innerHTML = names.map((name) => '<tr><td>' + name + '</td></tr>').join('');
+      });
+    </script>
+  </body>
+</html>`;
+
 /** a bot check that clears itself: refused at first, then moved on by its own script to the page it guarded */
 const SELF_CLEARING_CHECK = `<!doctype html>
 <html lang="en">
@@ -202,7 +224,8 @@ const DOCUMENT_BY_ROUTE: { [key: string]: string } = {
   '/member-database': MEMBER_DATABASE,
   '/people': SPA_MARKETING_SITE,
   '/portal': PORTAL_MENU,
-  '/searchable-directory': SEARCHABLE_DIRECTORY
+  '/searchable-directory': SEARCHABLE_DIRECTORY,
+  '/server-filtered-directory': SERVER_FILTERED_DIRECTORY
 };
 
 const PEOPLE_LINK_REF = /\[View our people →\]\([^)]+\)⟨(e\d+)⟩/u;
@@ -265,6 +288,13 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
       if (request.url === '/handbook.pdf') {
         response.writeHead(200, { 'content-type': 'application/pdf' });
         response.end(createPdf([['Faculty Handbook']]));
+        return;
+      }
+      if (request.url?.startsWith('/api/researchers') === true) {
+        setTimeout(() => {
+          response.writeHead(200, { 'content-type': 'application/json' });
+          response.end(JSON.stringify(['Adeyemi, K.']));
+        }, 1_500);
         return;
       }
       if (request.url === '/outbound') {
@@ -387,13 +417,13 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     expect(refused).not.toContain('892');
   });
 
-  it('should report a stale ref once the page has moved on', async () => {
+  it('should answer a ref the page has moved past with the page as it is, doing nothing (§3.4)', async () => {
     const home = (await session.navigate(`${baseUrl}/`)).unwrap();
     const ref = peopleLinkRef(home.html);
     (await session.click(ref)).unwrap();
-    const again = await session.click(ref);
-    expect(again.success).toBe(false);
-    expect(again.error?.kind).toBe('stale-ref');
+    const again = (await session.click(ref)).unwrap();
+    expect(again.staleRef).toBe(ref);
+    expect(toMarkdown(again.html)).toContain('Duval, P.');
   });
 
   it('should report a navigation failure when the host does not answer', async () => {
@@ -460,14 +490,23 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     expect(filtered.formElements).toContainEqual(expect.objectContaining({ kind: 'select', value: 'Neuroscience' }));
   });
 
+  it('should capture the rows a change handler fetched, however long the server took (§3.4)', async () => {
+    const directory = (await session.navigate(`${baseUrl}/server-filtered-directory`)).unwrap();
+    const filtered = (await session.select(focusSelectRef(directory.formElements), 'Neuroscience')).unwrap();
+    expect(toMarkdown(filtered.html)).toContain('Adeyemi, K.');
+    expect(toMarkdown(filtered.html)).not.toContain('Duval, P.');
+  });
+
   it('should refuse an option the select does not offer, without waiting out the timeout', async () => {
     const directory = (await session.navigate(`${baseUrl}/filtered-directory`)).unwrap();
     const ref = focusSelectRef(directory.formElements);
     expect((await session.select(ref, 'Cardiology')).error).toStrictEqual({
       kind: 'no-such-option',
       option: 'Cardiology',
-      ref
+      ref,
+      similar: []
     });
+    expect((await session.select(ref, 'neuro')).error).toMatchObject({ similar: ['Neuroscience'] });
   });
 
   it('should report a fill on a select as the action failing, not the page (§3.4)', async () => {

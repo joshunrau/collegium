@@ -34,7 +34,7 @@ const ARTICLE_ON_BOT_CHECKS = `<html><head><title>Why sites ask whether you are 
 
 const convert = (body: string, status = 200) => ({
   body,
-  markdown: pageToMarkdown(body, PAGE_URL),
+  markdown: pageToMarkdown(body, PAGE_URL, 'labelled'),
   status,
   title: extractTitle(body),
   url: PAGE_URL

@@ -13,6 +13,8 @@ import { pageToMarkdown } from './markdown/markdown.utils.ts';
 import { PdfTextExtractor } from './pdf/pdf-text.extractor.ts';
 import { createPdfReadBudget, isWithoutTextLayer, readPdfText } from './pdf/pdf.utils.ts';
 import { capMarkdown, readPage } from './reading/reading.utils.ts';
+import { measureUnchangedPrefix } from './snapshot/snapshot.utils.ts';
+import { SNAPSHOT_VIEW_CHARS } from './web.constants.ts';
 import { ADDRESS_POLICY_TOKEN } from './web.tokens.ts';
 
 import type { BrowserSession } from './browser/browser.session.ts';
@@ -41,6 +43,9 @@ import type {
 export class WebService {
   private readonly maxSessions: number;
 
+  /** §3.4 — each turn's last snapshot of its page, so the next can say where a growing page changed */
+  private readonly previousCaptures = new Map<string, string>();
+
   /**
    * The slot is the promise, not the session: it is claimed before the browser launches, so a turn
    * ending mid-launch still finds something to dispose (§5.1's lock is not held across a tool call).
@@ -63,7 +68,7 @@ export class WebService {
     if (!opened?.success) {
       return Result.err({ kind: 'no-session' });
     }
-    return this.toSnapshot(await opened.value.click(ref));
+    return this.toSnapshot(turnId, await opened.value.click(ref));
   }
 
   /**
@@ -75,6 +80,7 @@ export class WebService {
   async endTurn(turnId: string): Promise<void> {
     const opening = this.sessions.get(turnId);
     this.sessions.delete(turnId);
+    this.previousCaptures.delete(turnId);
     const opened = await opening;
     if (opened?.success) {
       await opened.value.dispose();
@@ -120,7 +126,7 @@ export class WebService {
         title: new URL(finalUrl).pathname
       });
     }
-    const markdown = pageToMarkdown(body, finalUrl);
+    const markdown = pageToMarkdown(body, finalUrl, 'labelled');
     const title = extractTitle(body);
     const unreadable = refuseUnreadablePage({ ...answered, body, markdown, title });
     if (unreadable) {
@@ -138,7 +144,7 @@ export class WebService {
     if (!opened?.success) {
       return Result.err({ kind: 'no-session' });
     }
-    return this.toSnapshot(await opened.value.fill(args.ref, args.text, args.pressEnter ?? false));
+    return this.toSnapshot(turnId, await opened.value.fill(args.ref, args.text, args.pressEnter ?? false));
   }
 
   async hover(turnId: string, ref: string): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.Busy>>> {
@@ -146,14 +152,11 @@ export class WebService {
     if (!opened?.success) {
       return Result.err({ kind: 'no-session' });
     }
-    return this.toSnapshot(await opened.value.hover(ref));
+    return this.toSnapshot(turnId, await opened.value.hover(ref));
   }
 
   /** the only action that opens a session — click and fill before any navigate are `no-session` */
-  async navigate(
-    turnId: string,
-    url: string
-  ): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.NoSession | WebFailure.StaleRef>>> {
+  async navigate(turnId: string, url: string): Promise<Result<WebSnapshot, Exclude<WebFailure, WebFailure.NoSession>>> {
     // before the session, not inside it: a refused address must cost neither a browser launch nor
     // one of the live-session slots §3.4's cap hands out
     const refused = this.addressPolicy.refuse(url);
@@ -171,7 +174,7 @@ export class WebService {
     if (!vetted.success) {
       return vetted;
     }
-    return this.toSnapshot(await opened.value.navigate(url));
+    return this.toSnapshot(turnId, await opened.value.navigate(url));
   }
 
   async select(
@@ -182,7 +185,7 @@ export class WebService {
     if (!opened?.success) {
       return Result.err({ kind: 'no-session' });
     }
-    return this.toSnapshot(await opened.value.select(args.ref, args.option));
+    return this.toSnapshot(turnId, await opened.value.select(args.ref, args.option));
   }
 
   /**
@@ -239,24 +242,31 @@ export class WebService {
   }
 
   private toSnapshot<TFailure extends WebFailure>(
+    turnId: string,
     rendered: Result<RenderedCapture, TFailure>
   ): Result<WebSnapshot, TFailure | WebFailure.EmptyRender> {
     if (!rendered.success) {
       return rendered;
     }
-    const capped = capMarkdown(pageToMarkdown(rendered.value.html, rendered.value.url));
+    const { formElements, html, openedUrls, staleRef, status, title, url } = rendered.value;
+    const capped = capMarkdown(pageToMarkdown(html, url, 'counted'));
     // a page that rendered nothing is indistinguishable from a page with nothing on it, and the
     // model cannot tell them apart — so it is never returned as content
     if (!capped.markdown) {
-      return Result.err({ kind: 'empty-render', status: rendered.value.status, url: rendered.value.url });
+      return Result.err({ kind: 'empty-render', status, url });
     }
+    const previous = this.previousCaptures.get(turnId);
+    this.previousCaptures.set(turnId, capped.markdown);
+    const unchanged = previous === undefined ? 0 : measureUnchangedPrefix(previous, capped.markdown);
     return Result.ok({
       ...capped,
-      formElements: rendered.value.formElements,
-      openedUrls: rendered.value.openedUrls,
-      status: rendered.value.status,
-      title: rendered.value.title,
-      url: rendered.value.url
+      formElements,
+      openedUrls,
+      ...(staleRef !== undefined && { staleRef }),
+      status,
+      title,
+      ...(unchanged > SNAPSHOT_VIEW_CHARS && { unchangedPrefixChars: unchanged }),
+      url
     });
   }
 
@@ -267,7 +277,7 @@ export class WebService {
    */
   private viewMainContent(html: string, pageUrl: string, whole: string): PageView {
     const stripped = stripPageChrome(html);
-    const main = stripped === undefined ? '' : pageToMarkdown(stripped, pageUrl);
+    const main = stripped === undefined ? '' : pageToMarkdown(stripped, pageUrl, 'labelled');
     return main === ''
       ? { leftOutChars: 0, markdown: whole }
       : { leftOutChars: whole.length - main.length, markdown: main };

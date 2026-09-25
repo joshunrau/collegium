@@ -5,7 +5,7 @@ import { stripPageChrome } from '../page-chrome.utils.ts';
 
 const PAGE_URL = 'https://northmoor.example/people/duval';
 
-const readWithoutChrome = (html: string) => pageToMarkdown(stripPageChrome(html) ?? '', PAGE_URL);
+const readWithoutChrome = (html: string) => pageToMarkdown(stripPageChrome(html) ?? '', PAGE_URL, 'labelled');
 
 describe('stripPageChrome (§3.4)', () => {
   it('should keep the one main landmark alone, with the base its links resolve against', () => {

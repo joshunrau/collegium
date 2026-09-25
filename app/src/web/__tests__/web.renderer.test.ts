@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SELECT_OPTIONS_SHOWN } from '../web.constants.ts';
+import { FORM_CONTROLS_MAX_CHARS, SELECT_OPTIONS_SHOWN, SNAPSHOT_VIEW_CHARS } from '../web.constants.ts';
 import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from '../web.renderer.ts';
 
 import type { WebFailure, WebSnapshot } from '../web.types.ts';
@@ -123,7 +123,7 @@ describe('describeWebFailureOutcome', () => {
   });
 
   it('should mark a recoverable failure that has no status of its own (§8.1)', () => {
-    expect(describeWebFailureOutcome({ kind: 'stale-ref', ref: 'e7' })).toBe('⚠️ stale ref');
+    expect(describeWebFailureOutcome({ kind: 'no-session' })).toBe('⚠️ no page open');
     expect(
       describeWebFailureOutcome({ kind: 'url-refused', reason: 'not-public-host', url: 'https://10.0.0.1/' })
     ).toBe('⚠️ refused');
@@ -159,6 +159,56 @@ describe('renderWebPage', () => {
 });
 
 describe('renderWebSnapshot', () => {
+  const SNAPSHOT: WebSnapshot = {
+    formElements: [{ isHidden: false, kind: 'input', label: 'Search', ref: 'e1', type: 'text', value: '' }],
+    markdown: '# Faculty',
+    openedUrls: [],
+    status: 200,
+    title: 'Faculty',
+    url: 'https://northmoor.example/'
+  };
+
+  it('should put the form controls before the page, and view the page to a fixed width past them (§3.4, §3.8)', () => {
+    const markdown = `# Faculty\n\n${'Row. '.repeat((3 * SNAPSHOT_VIEW_CHARS) / 5)}`;
+    const { text, viewChars } = renderWebSnapshot({ ...SNAPSHOT, markdown });
+    expect(text.indexOf('⟨e1⟩')).toBeLessThan(text.indexOf('# Faculty'));
+    expect(viewChars).toBe(text.indexOf('# Faculty') + SNAPSHOT_VIEW_CHARS);
+  });
+
+  it('should leave a snapshot shorter than its view whole', () => {
+    const markdown = 'x'.repeat(43_000);
+    const { text, viewChars } = renderWebSnapshot({ ...SNAPSHOT, markdown });
+    expect(viewChars).toBeGreaterThan(text.length);
+  });
+
+  it('should bound the form controls, listing the rest after the page (§3.4)', () => {
+    const formElements = Array.from({ length: 2_000 }, (_, index) => ({
+      isHidden: false,
+      kind: 'button' as const,
+      label: `Apply filter ${index}`,
+      ref: `e${index}`,
+      value: ''
+    }));
+    const { text, viewChars } = renderWebSnapshot({ ...SNAPSHOT, formElements });
+    const block = text.slice(0, text.indexOf('# Faculty'));
+    expect(block.length).toBeLessThan(FORM_CONTROLS_MAX_CHARS + 500);
+    expect(block).toMatch(/\d+ more controls, listed after the page; the rest by reference: results__read find\n\n$/u);
+    expect(text.slice(text.indexOf('# Faculty'))).toContain('Form controls, continued:\n- ⟨e');
+    expect(viewChars).toBeLessThanOrEqual(FORM_CONTROLS_MAX_CHARS + 500 + SNAPSHOT_VIEW_CHARS);
+  });
+
+  it('should name the offset in the result where a grown page first differs (§3.4)', () => {
+    const markdown = `${'same '.repeat(14_000)}NEW ROWS`;
+    const { text } = renderWebSnapshot({ ...SNAPSHOT, markdown, unchangedPrefixChars: 70_000 });
+    const offset = Number(/up to character (\d+) of this result/u.exec(text)?.[1]);
+    expect(text.slice(offset)).toBe('NEW ROWS');
+  });
+
+  it('should lead with a stale ref, saying nothing was done (§3.4)', () => {
+    const { text } = renderWebSnapshot({ ...SNAPSHOT, staleRef: 'e7' });
+    expect(text).toMatch(/^⟨e7⟩ is no longer on the page, so nothing was done; the page as it is now follows\n\n/u);
+  });
+
   it('should mark a hidden form control so its ref is not read as actionable', () => {
     const snapshot: WebSnapshot = {
       formElements: [{ isHidden: true, kind: 'input', label: 'Search', ref: 'e1', type: 'text', value: '' }],
@@ -168,7 +218,9 @@ describe('renderWebSnapshot', () => {
       title: 'Faculty',
       url: 'https://northmoor.example/'
     };
-    expect(renderWebSnapshot(snapshot)).toContain('⟨e1⟩ input[type=text] "Search" (hidden — reveal it before acting)');
+    expect(renderWebSnapshot(snapshot).text).toContain(
+      '⟨e1⟩ input[type=text] "Search" (hidden — reveal it before acting)'
+    );
   });
 
   it('should show what a filled input holds', () => {
@@ -180,7 +232,7 @@ describe('renderWebSnapshot', () => {
       title: 'Faculty',
       url: 'https://northmoor.example/'
     };
-    expect(renderWebSnapshot(snapshot)).toContain('⟨e1⟩ input[type=text] "Search" = "duval"');
+    expect(renderWebSnapshot(snapshot).text).toContain('⟨e1⟩ input[type=text] "Search" = "duval"');
   });
 
   it("should list a select's options, counting those past the ones shown (§3.4)", () => {
@@ -194,7 +246,7 @@ describe('renderWebSnapshot', () => {
       url: 'https://northmoor.example/'
     };
     const line = renderWebSnapshot(snapshot)
-      .split('\n')
+      .text.split('\n')
       .find((candidate) => candidate.startsWith('- ⟨e1⟩'));
     expect(line).toMatch(/^- ⟨e1⟩ select "Focus" = "Option 0"; options: "Option 0", "Option 1", /u);
     expect(line).toMatch(/"Option 99", and 2 more$/u);
@@ -209,7 +261,7 @@ describe('renderWebSnapshot', () => {
       title: 'Faculty',
       url: 'https://northmoor.example/'
     };
-    const rendered = renderWebSnapshot(snapshot);
+    const rendered = renderWebSnapshot(snapshot).text;
     expect(rendered).toContain('The page opened a new tab to https://northmoor.example/members; it was closed');
     expect(rendered).toContain('The page opened a new tab to an address it had not yet loaded; it was closed');
   });

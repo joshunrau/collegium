@@ -13,7 +13,7 @@ import { BrowserSession } from '../browser/browser.session.ts';
 import { FetchClient } from '../fetch/fetch.client.ts';
 import { pageToMarkdown } from '../markdown/markdown.utils.ts';
 import { PdfTextExtractor } from '../pdf/pdf-text.extractor.ts';
-import { MARKDOWN_CAP_CHARS } from '../web.constants.ts';
+import { MARKDOWN_CAP_CHARS, SNAPSHOT_VIEW_CHARS } from '../web.constants.ts';
 import { refuseUnbrowsableUrl } from '../web.policy.ts';
 import { WebService } from '../web.service.ts';
 import { ADDRESS_POLICY_TOKEN } from '../web.tokens.ts';
@@ -155,6 +155,26 @@ describe('WebService', () => {
       expect(browserClient.createSession).toHaveBeenCalledTimes(1);
     });
 
+    it('should say where a page that grew past the view first differs from the snapshot before (§3.4)', async () => {
+      const rows = (count: number) => {
+        return Array.from({ length: count }, (_, index) => `<p>Row ${index} ${'·'.repeat(60)}</p>`);
+      };
+      session.navigate.mockResolvedValue(Result.ok(rendered({ html: rows(1_200).join('') })));
+      session.click.mockResolvedValue(Result.ok(rendered({ html: rows(1_400).join('') })));
+      await webService.navigate('turn-1', 'https://northmoor.example/');
+      const grown = (await webService.click('turn-1', 'e1')).unwrap();
+      expect(grown.unchangedPrefixChars).toBeGreaterThan(SNAPSHOT_VIEW_CHARS);
+      expect(grown.markdown.slice(grown.unchangedPrefixChars)).toMatch(/^\S*\s*Row 1200/u);
+    });
+
+    it('should name no change on a snapshot of an unrelated page', async () => {
+      session.navigate.mockResolvedValue(Result.ok(rendered({ html: `<p>${'a'.repeat(70_000)}</p>` })));
+      await webService.navigate('turn-1', 'https://northmoor.example/');
+      session.navigate.mockResolvedValue(Result.ok(rendered({ html: `<p>${'b'.repeat(70_000)}</p>` })));
+      const other = (await webService.navigate('turn-1', 'https://northmoor.example/people/')).unwrap();
+      expect(other.unchangedPrefixChars).toBeUndefined();
+    });
+
     it('should refuse a page that rendered nothing, which reads as "no results" otherwise', async () => {
       session.navigate.mockResolvedValue(Result.ok(rendered({ html: SPA_MARKETING_SITE })));
       const result = await webService.navigate('turn-1', 'https://northmoor.example/');
@@ -221,7 +241,7 @@ describe('WebService', () => {
 
     it('should read on from an offset so a page past the cap can be finished (§3.8)', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
-      const page = pageToMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
+      const page = pageToMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/', 'labelled');
       const result = await webService.fetch('https://northmoor.example/people/', {
         kind: 'window',
         startChar: 10,
@@ -237,7 +257,7 @@ describe('WebService', () => {
         `</table><p>${'Office hours by appointment. '.repeat(200)}</p>`
       );
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body })));
-      const page = pageToMarkdown(body, 'https://northmoor.example/people/');
+      const page = pageToMarkdown(body, 'https://northmoor.example/people/', 'labelled');
       const result = await webService.fetch('https://northmoor.example/people/', {
         kind: 'find',
         phrases: ['Duval', 'fax'],
@@ -250,7 +270,7 @@ describe('WebService', () => {
 
     it('should read a page without its chrome, saying how much that left out and how to include it (§3.4)', async () => {
       fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: TEMPLATED_DIRECTORY })));
-      const whole = pageToMarkdown(TEMPLATED_DIRECTORY, 'https://northmoor.example/people/');
+      const whole = pageToMarkdown(TEMPLATED_DIRECTORY, 'https://northmoor.example/people/', 'labelled');
       const main = '# Faculty\n\nDuval, P. — duval@northmoor.example';
       const result = await webService.fetch('https://northmoor.example/people/', FROM_THE_TOP);
       expect(result.value?.markdown).toBe(

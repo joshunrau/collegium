@@ -9,7 +9,12 @@ import { viewCapCharsFor } from '@/turns/retention/retention.utils.ts';
 import { readPdfText } from '../pdf/pdf.utils.ts';
 import { readPage } from '../reading/reading.utils.ts';
 import { SearchService } from '../search/search.service.ts';
-import { DEFAULT_WINDOW_CHARS, FETCH_FRAME_CHARS, FETCH_MAX_WINDOW_CHARS } from '../web.constants.ts';
+import {
+  DEFAULT_WINDOW_CHARS,
+  FETCH_FRAME_CHARS,
+  FETCH_MAX_WINDOW_CHARS,
+  SNAPSHOT_VIEW_CHARS
+} from '../web.constants.ts';
 import { WebService } from '../web.service.ts';
 import { WEB_TOOLSET } from '../web.toolset.ts';
 
@@ -170,11 +175,19 @@ describe('WEB_TOOLSET', () => {
     expect(result.unwrap().traceOutcome).toBe('⚠️ blocked (HTTP 403)');
   });
 
-  it('returns a stale ref as page text the model can recover from', async () => {
+  it('should answer a stale ref with the page as it is, marked as doing nothing (§3.4, §8.1)', async () => {
     const { context, web } = buildContext();
-    web.click.mockResolvedValue(Result.err({ kind: 'stale-ref', ref: 'e7' }));
+    web.click.mockResolvedValue(Result.ok({ ...SNAPSHOT, staleRef: 'e7' }));
     const result = await executeTool(click, { ref: 'e7' }, context);
-    expect(result.unwrap().text).toContain('⟨e7⟩ is not on the current page');
+    expect(result.unwrap().text).toMatch(/^⟨e7⟩ is no longer on the page, so nothing was done/u);
+    expect(result.unwrap().traceOutcome).toBe('⚠️ stale ref, nothing done');
+  });
+
+  it('should hand a snapshot its view width, so the rest is read on by reference (§3.8)', async () => {
+    const { context, web } = buildContext();
+    web.click.mockResolvedValue(Result.ok({ ...SNAPSHOT, markdown: 'x'.repeat(200_000) }));
+    const { text, viewChars } = (await executeTool(click, { ref: 'e1' }, context)).unwrap();
+    expect(viewChars).toBe(text.indexOf('xxx') + SNAPSHOT_VIEW_CHARS);
   });
 
   it('treats an unreachable browser as infrastructure, not model error', async () => {

@@ -21,6 +21,12 @@ together. Start there. If you hold `web__navigate`, switch to it when a fetch sa
 static content or the site turned it away, or when the task needs a click, a form or a sign-in.
 Without it, such a page is out of your reach: say so rather than fetching it again.
 
+A browser action returns the page's form controls first, then the page, shown up to a fixed width.
+Read past it with `results__read` from the offset its last line names, or `find` a name in it. On a
+page that grows with each click, such as a Load More button or an expanding table, the result's head
+says where the page first differs from your previous snapshot; read from there. Where the site also
+serves the listing as data, a page or a file `web__fetch` reads, prefer that to paging in a browser.
+
 ## Find the field, then read around it
 
 For one field, such as an email address, a phone number, a title or a date, pass `find` with a few

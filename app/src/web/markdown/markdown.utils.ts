@@ -117,6 +117,30 @@ const imageAsDescribed: TranslatorConfigFactory = ({ node }) => {
 };
 
 /**
+ * §3.4 — a drop-down's options once, bounded. A snapshot lists them beside the select's ref, so its
+ * page text only counts them; a fetched page has no such listing, so it names the first labels. A
+ * datalist only suggests what an input may hold, and is left out.
+ */
+function dropDownTranslators(rendering: DropDownRendering): TranslatorConfigObject {
+  return {
+    datalist: { ignore: true },
+    select: ({ node }) => {
+      const labels = [...node.querySelectorAll('option')].map((option) => {
+        return (option.getAttribute('label') ?? option.textContent).replaceAll(/\s+/g, ' ').trim();
+      });
+      const count = `${labels.length} option${labels.length === 1 ? '' : 's'}`;
+      if (rendering === 'counted') {
+        return { content: `[drop-down: ${count}]`, recurse: false };
+      }
+      const listed = labels.slice(0, DROP_DOWN_LABELS_LISTED).join(' · ');
+      const more =
+        labels.length > DROP_DOWN_LABELS_LISTED ? ` · and ${labels.length - DROP_DOWN_LABELS_LISTED} more` : '';
+      return { content: `[drop-down: ${count}: ${listed}${more}]`, recurse: false };
+    }
+  };
+}
+
+/**
  * Cleaned HTML to markdown by the given translators. Tables survive as tables (§3.4). The library
  * builds its table-cell translators from a private list that custom ones do not reach, so each
  * translator is set on that collection by hand — or a directory's email links would stay relative.
@@ -134,10 +158,20 @@ export function toMarkdown(html: string): string {
   return convertToMarkdown(html, linkTranslators(undefined));
 }
 
+/** how many of a drop-down's labels a fetched page names inline */
+export const DROP_DOWN_LABELS_LISTED = 100;
+
+/** §3.4 — a snapshot counts a drop-down's options, since its form controls list them; a fetched page names them */
+export type DropDownRendering = 'counted' | 'labelled';
+
 /**
  * A web page, fetched or rendered, to the markdown a model reads (§3.4): every link address
- * absolute against the page, and every image its alt text alone.
+ * absolute against the page, every image its alt text alone, and every drop-down's options once.
  */
-export function pageToMarkdown(html: string, pageUrl: string): string {
-  return convertToMarkdown(html, { ...linkTranslators(resolveBase(html, pageUrl)), img: imageAsDescribed });
+export function pageToMarkdown(html: string, pageUrl: string, dropDowns: DropDownRendering): string {
+  return convertToMarkdown(html, {
+    ...linkTranslators(resolveBase(html, pageUrl)),
+    ...dropDownTranslators(dropDowns),
+    img: imageAsDescribed
+  });
 }

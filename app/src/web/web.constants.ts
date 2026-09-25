@@ -15,6 +15,19 @@ export const MARKDOWN_CAP_CHARS = 1_000_000;
  */
 export const DEFAULT_WINDOW_CHARS = 30_000;
 
+/**
+ * How much of a page a browser snapshot shows before it is read on by reference (§3.8): twice the
+ * fetch window, since a snapshot keeps its navigation, header and footer for their refs.
+ */
+export const SNAPSHOT_VIEW_CHARS = 60_000;
+
+/**
+ * The bound on a snapshot's form-controls block, which comes before the page so a control past the
+ * view keeps a ref the model can see; an application page can carry hundreds. Past it, the rest are
+ * listed after the page.
+ */
+export const FORM_CONTROLS_MAX_CHARS = 20_000;
+
 /** what a fetch result carries beside its window: the page heading above it and the read-on footer below */
 export const FETCH_FRAME_CHARS = 2_000;
 

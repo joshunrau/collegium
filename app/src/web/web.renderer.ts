@@ -1,11 +1,14 @@
+import type { ToolOutput } from '@collegium/core/tools';
 import { match } from 'ts-pattern';
 
 import {
   FETCH_BODY_CAP_BYTES,
+  FORM_CONTROLS_MAX_CHARS,
   PDF_READ_MEMORY_CAP_BYTES,
   PDF_READ_TIMEOUT_MS,
   PDF_READS_AT_ONCE,
-  SELECT_OPTIONS_SHOWN
+  SELECT_OPTIONS_SHOWN,
+  SNAPSHOT_VIEW_CHARS
 } from './web.constants.ts';
 
 import type { FormElement } from './snapshot/snapshot.types.ts';
@@ -13,6 +16,9 @@ import type { FetchedPage, RateLimitRetry, TlsReason, WebFailure, WebPage, WebSn
 
 /** §3.4 — the statuses that say nothing is at an address, which says nothing about a page at another */
 const GONE_STATUSES: ReadonlySet<number> = new Set([404, 410]);
+
+/** how many near matches an option refusal names; a common fragment can match most of a long list */
+const SIMILAR_OPTIONS_NAMED = 20;
 
 const BUILT_URL_CAVEAT =
   "If you built this URL rather than read it off a page, this says nothing about the page you were after; use the site's index or search to find it.";
@@ -75,6 +81,53 @@ function renderFormElement(element: FormElement): string {
   return `- ⟨${element.ref}⟩ ${kind}${label}${state}${hidden}${options}`;
 }
 
+/**
+ * §3.4 — the controls in page order up to their bound, then a count of the rest, which follow the
+ * page in the record rather than pushing it past the view.
+ */
+function renderFormControls(elements: readonly FormElement[]): { readonly rest: string; readonly shown: string } {
+  if (elements.length === 0) {
+    return { rest: '', shown: '' };
+  }
+  const lines = elements.map(renderFormElement);
+  let shownCount = 0;
+  let shownChars = 0;
+  for (const line of lines) {
+    if (shownCount > 0 && shownChars + line.length + 1 > FORM_CONTROLS_MAX_CHARS) {
+      break;
+    }
+    shownChars += line.length + 1;
+    shownCount++;
+  }
+  const rest = lines.slice(shownCount);
+  const more =
+    rest.length === 0
+      ? ''
+      : `\n${rest.length} more control${rest.length === 1 ? '' : 's'}, listed after the page; the rest by reference: results__read find`;
+  return {
+    rest: rest.length === 0 ? '' : `\n\nForm controls, continued:\n${rest.join('\n')}`,
+    shown: `Form controls:\n${lines.slice(0, shownCount).join('\n')}${more}\n\n`
+  };
+}
+
+/**
+ * §3.4 — where a page that grows with each action first differs from the snapshot before, as an
+ * offset into this result. The line holding the offset comes before it, so the offset counts the
+ * line's own length: `leadLength` measures the lead holding a candidate line until the two agree.
+ */
+function renderUnchangedLine(prefixChars: number | undefined, leadLength: (line: string) => number): string {
+  if (prefixChars === undefined) {
+    return '';
+  }
+  const lineAt = (offset: number) =>
+    `unchanged from your previous snapshot up to character ${offset} of this result; results__read at that offset reads what changed\n\n`;
+  let offset = leadLength('') + prefixChars;
+  while (leadLength(lineAt(offset)) + prefixChars !== offset) {
+    offset = leadLength(lineAt(offset)) + prefixChars;
+  }
+  return lineAt(offset);
+}
+
 /** a tab the page opened is closed unvisited; naming its address hands the choice, and the URL policy, back to the model */
 function renderOpenedTab(url: string): string {
   const address = url === 'about:blank' ? 'an address it had not yet loaded' : url;
@@ -126,8 +179,17 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     })
     .with({ kind: 'navigation' }, ({ message }) => `the page could not be loaded: ${message}`)
     .with({ kind: 'no-session' }, () => 'no page is open in this turn — navigate to a URL first')
-    .with({ kind: 'no-such-option' }, ({ option, ref }) => {
-      return `⟨${ref}⟩ offers no option "${option}", so nothing was chosen — pass an option as the latest snapshot lists it`;
+    .with({ kind: 'no-such-option' }, ({ option, ref, similar }) => {
+      const refused = `⟨${ref}⟩ offers no option "${option}", so nothing was chosen`;
+      if (similar.length === 0) {
+        return `${refused}, and no option's label contains it — pass an option as the latest snapshot lists it`;
+      }
+      const named = similar
+        .slice(0, SIMILAR_OPTIONS_NAMED)
+        .map((label) => `"${label}"`)
+        .join(', ');
+      const more = similar.length > SIMILAR_OPTIONS_NAMED ? `, and ${similar.length - SIMILAR_OPTIONS_NAMED} more` : '';
+      return `${refused}; the options whose labels contain it are ${named}${more} — pass one of them as it is written`;
     })
     .with({ kind: 'no-text' }, ({ pageCount, url }) => {
       return `the PDF at ${url} has no text layer on any of its ${pageCount} pages: it is most likely scanned, and nothing here reads text from an image`;
@@ -140,9 +202,6 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     })
     .with({ kind: 'no-static-content' }, ({ status, url }) => {
       return `the page at ${url} answered HTTP ${status} and has no readable content without JavaScript — open it with web::navigate instead`;
-    })
-    .with({ kind: 'stale-ref' }, ({ ref }) => {
-      return `⟨${ref}⟩ is not on the current page; the page has changed since that snapshot — use refs from the latest one`;
     })
     .with({ kind: 'tls' }, ({ code, reason }) => {
       return `the page could not be loaded securely: ${TLS_FAILURES[reason]} (${code})`;
@@ -175,7 +234,6 @@ export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailur
     .with({ kind: 'not-html' }, () => '⚠️ not HTML')
     .with({ kind: 'not-visible' }, () => '⚠️ hidden ref')
     .with({ kind: 'no-static-content' }, () => '⚠️ no static content')
-    .with({ kind: 'stale-ref' }, () => '⚠️ stale ref')
     .with({ kind: 'tls' }, () => '⚠️ TLS failed')
     .with({ kind: 'unreadable-pdf', reason: 'busy' }, () => '⚠️ PDF reader busy')
     .with({ kind: 'unreadable-pdf' }, () => '⚠️ unreadable PDF')
@@ -188,9 +246,19 @@ export function renderWebPage(page: Pick<FetchedPage, 'retry'> & WebPage): strin
   return `${renderWebPageHead(page)}${page.markdown}`;
 }
 
-export function renderWebSnapshot(snapshot: WebSnapshot): string {
-  const controls = snapshot.formElements.map((element) => renderFormElement(element));
-  const formBlock = controls.length > 0 ? `\n\nForm controls:\n${controls.join('\n')}` : '';
-  const tabsBlock = snapshot.openedUrls.length > 0 ? `\n\n${snapshot.openedUrls.map(renderOpenedTab).join('\n')}` : '';
-  return `${renderWebPage(snapshot)}${formBlock}${tabsBlock}`;
+/**
+ * §3.4 — a snapshot as the model reads it: what it did, the page head, its form controls and the
+ * tabs it opened, then the page, whose view ends a fixed width in; the rest is read on by reference
+ * (§3.8). Controls past their bound follow the page, where a find reaches them.
+ */
+export function renderWebSnapshot(snapshot: WebSnapshot): Pick<ToolOutput, 'text' | 'viewChars'> {
+  const stale =
+    snapshot.staleRef === undefined
+      ? ''
+      : `⟨${snapshot.staleRef}⟩ is no longer on the page, so nothing was done; the page as it is now follows\n\n`;
+  const controls = renderFormControls(snapshot.formElements);
+  const tabs = snapshot.openedUrls.length > 0 ? `${snapshot.openedUrls.map(renderOpenedTab).join('\n')}\n\n` : '';
+  const leadWith = (unchanged: string) => `${stale}${renderWebPageHead(snapshot)}${unchanged}${controls.shown}${tabs}`;
+  const lead = leadWith(renderUnchangedLine(snapshot.unchangedPrefixChars, (line) => leadWith(line).length));
+  return { text: `${lead}${snapshot.markdown}${controls.rest}`, viewChars: lead.length + SNAPSHOT_VIEW_CHARS };
 }

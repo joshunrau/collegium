@@ -68,7 +68,7 @@ describe('toMarkdown', () => {
       <a href="http://[bad">Broken</a>
       <table><tr><td><a href="profile?id=7">Row link</a></td></tr></table>
     </body></html>`;
-    const markdown = pageToMarkdown(html, 'https://northmoor.example/dept/psychology/');
+    const markdown = pageToMarkdown(html, 'https://northmoor.example/dept/psychology/', 'labelled');
     expect(markdown).toContain('[Duval](https://northmoor.example/people/duval)');
     expect(markdown).toContain('[CV](https://cdn.northmoor.example/cv.pdf)');
     expect(markdown).toContain('[Top](https://northmoor.example/dept/psychology/#top)');
@@ -82,7 +82,7 @@ describe('toMarkdown', () => {
   it('should resolve against a declared base, and leave addresses alone with no page behind the HTML', () => {
     const html =
       '<html><head><base href="https://cdn.northmoor.example/site/"></head><body><a href="a.html">A</a></body></html>';
-    expect(pageToMarkdown(html, 'https://northmoor.example/dept/')).toContain(
+    expect(pageToMarkdown(html, 'https://northmoor.example/dept/', 'labelled')).toContain(
       '[A](https://cdn.northmoor.example/site/a.html)'
     );
     expect(toMarkdown('<a href="a.html">A</a>')).toContain('[A](a.html)');
@@ -92,7 +92,7 @@ describe('toMarkdown', () => {
     const html =
       '<p><img src="/img/duval.jpg" alt="Portrait of P. Duval" /><img src="/img/rule.png" alt="" /></p>' +
       '<table><tr><td><img src="/img/lab.jpg" alt="The lab" /></td></tr></table>';
-    const markdown = pageToMarkdown(html, 'https://northmoor.example/people/');
+    const markdown = pageToMarkdown(html, 'https://northmoor.example/people/', 'labelled');
     expect(markdown).toContain('[image: Portrait of P. Duval]');
     expect(markdown).toContain('| [image: The lab] |');
     expect(markdown).not.toContain('/img/');
@@ -119,12 +119,14 @@ describe('pageToMarkdown with Cloudflare-cloaked addresses (§3.4)', () => {
 
   it('should read a protected mailto link as the address it hides', () => {
     const html = `<p>Write to <a href="/cdn-cgi/l/email-protection#${hex}"><span class="__cf_email__" data-cfemail="${hex}">[email&#160;protected]</span></a>.</p>`;
-    expect(pageToMarkdown(html, PAGE_URL)).toBe('Write to [duval@northmoor.example](mailto:duval@northmoor.example).');
+    expect(pageToMarkdown(html, PAGE_URL, 'labelled')).toBe(
+      'Write to [duval@northmoor.example](mailto:duval@northmoor.example).'
+    );
   });
 
   it('should read a cloaked address in a table cell, where a directory keeps it', () => {
     const html = `<table><tr><th>Name</th><th>Email</th></tr><tr><td>Duval, P.</td><td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="${hex}">[email&#160;protected]</a></td></tr></table>`;
-    expect(pageToMarkdown(html, PAGE_URL)).toContain('| Duval, P. | duval@northmoor.example |');
+    expect(pageToMarkdown(html, PAGE_URL, 'labelled')).toContain('| Duval, P. | duval@northmoor.example |');
   });
 
   it('should leave an address as written in its link, where a model copies it from', () => {
@@ -132,7 +134,7 @@ describe('pageToMarkdown with Cloudflare-cloaked addresses (§3.4)', () => {
     const html =
       `<a href="/cdn-cgi/l/email-protection#${cloaked}">Email</a> ` +
       '<a href="mailto:p_duval@northmoor.example">Write</a> <a href="/people/p_duval">Profile</a>';
-    expect(pageToMarkdown(html, PAGE_URL)).toBe(
+    expect(pageToMarkdown(html, PAGE_URL, 'labelled')).toBe(
       '[Email](mailto:p_duval@northmoor.example) [Write](mailto:p_duval@northmoor.example) ' +
         '[Profile](https://northmoor.example/people/p%5Fduval)'
     );
@@ -140,8 +142,29 @@ describe('pageToMarkdown with Cloudflare-cloaked addresses (§3.4)', () => {
 
   it('should leave a link it cannot decode as it was served', () => {
     const html = '<a href="/cdn-cgi/l/email-protection#zz">[email&#160;protected]</a>';
-    const markdown = pageToMarkdown(html, PAGE_URL);
+    const markdown = pageToMarkdown(html, PAGE_URL, 'labelled');
     expect(markdown).toContain('(https://northmoor.example/cdn-cgi/l/email-protection#zz)');
     expect(markdown).not.toContain('mailto:');
+  });
+});
+
+describe('pageToMarkdown with drop-downs (§3.4)', () => {
+  const selectOf = (count: number) =>
+    `<select>${Array.from({ length: count }, (_, index) => `<option>Department ${index}</option>`).join('')}</select>`;
+  const PAGE_URL = 'https://northmoor.example/people/';
+
+  it('should count a snapshot’s options, leaving the list to its form controls, in a table cell too', () => {
+    const page = `<table><tr><th>Filter</th></tr><tr><td>${selectOf(5_000)}</td></tr></table><p>Duval, P.</p>`;
+    const markdown = pageToMarkdown(page, PAGE_URL, 'counted');
+    expect(markdown).toContain('[drop-down: 5000 options]');
+    expect(markdown).not.toContain('Department 1');
+    expect(markdown).toContain('Duval, P.');
+  });
+
+  it('should name a fetched page’s first labels and count the rest', () => {
+    const markdown = pageToMarkdown(selectOf(5_000), PAGE_URL, 'labelled');
+    expect(markdown).toMatch(/^\[drop-down: 5000 options: Department 0 · Department 1 · /u);
+    expect(markdown).toMatch(/Department 99 · and 4900 more\]$/u);
+    expect(pageToMarkdown(selectOf(12), PAGE_URL, 'labelled')).toMatch(/Department 11\]$/u);
   });
 });

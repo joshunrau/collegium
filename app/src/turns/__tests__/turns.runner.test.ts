@@ -2307,6 +2307,16 @@ describe('TurnRunner', () => {
     });
   });
 
+  it('should show a result to the narrower view its tool asks for, such as a snapshot, naming its reference (§3.8)', async () => {
+    toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', output: 'y'.repeat(20_000), viewChars: 1_000 });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    const shown = complete.mock.calls[1]![0].messages.at(-1)!.content;
+    expect(shown.startsWith(`${'y'.repeat(1_000)}\n[result r1, recorded at `)).toBe(true);
+    expect(shown).toContain('read the rest with results__read ref=r1 offset=1000');
+  });
+
   it('should name the record a read was taken from where its own view is shorter than it (§3.8)', async () => {
     toolExecutor.execute.mockResolvedValueOnce({
       kind: 'continue',

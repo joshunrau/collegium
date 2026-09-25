@@ -10,8 +10,10 @@ import { SEARCH_TIMEOUT_MS } from './search/search.constants.ts';
 import { renderSearchResults } from './search/search.utils.ts';
 import {
   DEFAULT_WINDOW_CHARS,
+  DOM_SETTLE_TIMEOUT_MS,
   FETCH_MAX_WINDOW_CHARS,
   FETCH_TIMEOUT_MS,
+  NETWORK_IDLE_TIMEOUT_MS,
   PDF_READ_TIMEOUT_MS
 } from './web.constants.ts';
 import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from './web.renderer.ts';
@@ -22,8 +24,11 @@ import type { FetchedPage, PageRead, WebFailure, WebPage, WebSnapshot } from './
 
 const REF_SHAPE = /^e\d+$/;
 
-/** navigation is bounded at 30s and settle at 3s inside the session; this backstops a wedged browser */
-const WEB_TIMEOUT_MS = 45_000;
+/**
+ * Navigation is bounded at 30s and settle at 3s inside the session, and a settle that finds a script
+ * request out waits for it and settles again; this backstops a wedged browser.
+ */
+const WEB_TIMEOUT_MS = 45_000 + NETWORK_IDLE_TIMEOUT_MS + DOM_SETTLE_TIMEOUT_MS;
 
 const $Ref = z.string().regex(REF_SHAPE);
 
@@ -89,8 +94,8 @@ function describePageSubject({ shown, url }: WebPage): string {
     : `page ${url} (characters ${shown.from}–${shown.to} of ${shown.total})`;
 }
 
-/** what a page result shows the model (§3.8) */
-type RenderedPageResult = Pick<ToolOutput, 'text'>;
+/** what a page result shows the model, and how much of it a snapshot's view holds (§3.8) */
+type RenderedPageResult = Pick<ToolOutput, 'text' | 'viewChars'>;
 
 /** §3.8 — a fetched page; one too long for the turn's view is read on by reference, past its own read-on footer */
 function renderFetchedPage(page: FetchedPage): RenderedPageResult {
@@ -99,7 +104,8 @@ function renderFetchedPage(page: FetchedPage): RenderedPageResult {
 
 const DESCRIPTION_PREAMBLE =
   'Browse the web in a real rendered browser (JavaScript runs). One page per turn, shared by the web tools; every ' +
-  'action returns a fresh snapshot of the page as markdown with ⟨eN⟩ element refs. ';
+  'action returns a fresh snapshot of the page as markdown with ⟨eN⟩ element refs: its form controls first, then ' +
+  'the page, shown up to a fixed width and read on with results__read. ';
 
 /**
  * The browser being down is infrastructure, not something the model can reason its way past. A
@@ -119,14 +125,15 @@ function toPageResult<TPage extends WebPage>(
     }
     return Result.ok({ text: renderWebFailure(result.error), traceOutcome: describeWebFailureOutcome(result.error) });
   }
-  const { text } = render(result.value);
+  const { text, viewChars } = render(result.value);
   const traceOutcome = describeOutcome(result.value);
   const contentIdentity = identifyContent(result.value);
   return Result.ok({
     replaySubject: describeReplaySubject(describeSubject(result.value), text),
     text,
     ...(contentIdentity !== undefined && { contentIdentity }),
-    ...(traceOutcome !== undefined && { traceOutcome })
+    ...(traceOutcome !== undefined && { traceOutcome }),
+    ...(viewChars !== undefined && { viewChars })
   });
 }
 
@@ -161,11 +168,14 @@ const fetchOutcome = (page: FetchedPage): string | undefined => {
 /** §8.1 — the page the action landed on, named rather than addressed: a client-rendered pager's URL never changes */
 const landingOutcome = (page: WebPage): string => `→ ${page.title === '' ? page.url : page.title}`;
 
+/** §3.4, §8.1 — a snapshot taken in place of an action on a ref the page no longer has did nothing, and its line says so */
 const toSnapshotResult = (
   result: Result<WebSnapshot, WebFailure>,
   describeOutcome: (page: WebSnapshot) => string | undefined = landingOutcome
 ): ToolResult => {
-  return toPageResult(result, (snapshot) => ({ text: renderWebSnapshot(snapshot) }), describeOutcome);
+  return toPageResult(result, renderWebSnapshot, (snapshot) => {
+    return snapshot.staleRef === undefined ? describeOutcome(snapshot) : '⚠️ stale ref, nothing done';
+  });
 };
 
 /** throttling is weather the model can plan around; bad credentials or a dead provider end the turn loudly */

@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from 'node:timers/promises';
+
 import { Result, toErrorMessage } from '@collegium/core/utils';
 import type { BrowserContext, Locator, Page, Request, Response } from 'playwright-core';
 import { z } from 'zod';
@@ -29,8 +31,13 @@ type ActionRefusal = WebFailure.ActionFailed | WebFailure.NoSuchOption;
 const MALFORMED_ANSWER = 'the browser answered a read of the page with something malformed';
 
 /** and what can go wrong acting on a ref besides */
-type ActionFailure =
-  ActionRefusal | LoadFailure | WebFailure.ActionFailed | WebFailure.NotVisible | WebFailure.StaleRef;
+type ActionFailure = ActionRefusal | LoadFailure | WebFailure.ActionFailed | WebFailure.NotVisible;
+
+/** the requests a page's own script makes, whose answers it redraws from; a document or an image redraws nothing */
+const SCRIPT_REQUEST_TYPES: ReadonlySet<string> = new Set(['fetch', 'xhr']);
+
+/** how often the settle looks again for the script requests an action started */
+const SCRIPT_REQUEST_POLL_MS = 50;
 
 /**
  * One live page and its ref numbering. The counter is held here — not in the page — so it
@@ -40,6 +47,8 @@ type ActionFailure =
 export class BrowserSession {
   /** the document the main frame last failed to load in the current action, which the policy proxy may have refused */
   private failedDocumentUrl: string | undefined;
+  /** §3.4 — the script requests the current action started that have not yet answered */
+  private readonly inFlight = new Set<Request>();
   private lastStatus = 0;
   private nextRefIndex = 0;
   /** tabs this context opened on its own — a `target=_blank` link, a `window.open` — reported and closed by the next capture */
@@ -60,7 +69,16 @@ export class BrowserSession {
         this.lastStatus = response.status();
       }
     });
+    page.on('request', (request) => {
+      if (SCRIPT_REQUEST_TYPES.has(request.resourceType())) {
+        this.inFlight.add(request);
+      }
+    });
+    page.on('requestfinished', (request) => {
+      this.inFlight.delete(request);
+    });
     page.on('requestfailed', (request) => {
+      this.inFlight.delete(request);
       if (this.isMainFrameNavigation(request)) {
         this.failedDocumentUrl = request.url();
       }
@@ -98,6 +116,7 @@ export class BrowserSession {
     url: string
   ): Promise<Result<RenderedCapture, LoadFailure | WebFailure.NotHtml | WebFailure.UnsupportedContent>> {
     this.failedDocumentUrl = undefined;
+    this.inFlight.clear();
     try {
       const response = await this.page.goto(url, { timeout: NAVIGATION_TIMEOUT_MS, waitUntil: 'load' });
       const contentType = (await response?.headerValue('content-type')) ?? '';
@@ -117,12 +136,15 @@ export class BrowserSession {
   /** by the option's label or its value, as Playwright matches either */
   async select(ref: string, option: string): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, async (locator) => {
-      const lacks = z.boolean().safeParse(await locator.evaluate(lacksOption, option));
-      if (!lacks.success) {
+      const similar = z
+        .array(z.string())
+        .nullable()
+        .safeParse(await locator.evaluate(lacksOption, option));
+      if (!similar.success) {
         return { kind: 'action-failed', message: MALFORMED_ANSWER, ref };
       }
-      if (lacks.data) {
-        return { kind: 'no-such-option', option, ref };
+      if (similar.data !== null) {
+        return { kind: 'no-such-option', option, ref, similar: similar.data };
       }
       await locator.selectOption(option, { timeout: ACTION_TIMEOUT_MS });
       return undefined;
@@ -135,9 +157,11 @@ export class BrowserSession {
   ): Promise<Result<RenderedCapture, ActionFailure>> {
     const locator = this.page.locator(`[data-collegium-ref="${ref}"]`);
     this.failedDocumentUrl = undefined;
+    this.inFlight.clear();
     try {
+      // §3.4 — the page has moved on since the snapshot the ref came from: the page as it is now is the answer
       if ((await locator.count()) === 0) {
-        return Result.err({ kind: 'stale-ref', ref });
+        return await this.capture(ref);
       }
       const refused = await action(locator);
       if (refused) {
@@ -163,7 +187,7 @@ export class BrowserSession {
     return this.isGone() ? { kind: 'unreachable', message } : this.explainLoadFailure(classifyNavigationError(message));
   }
 
-  private async capture(): Promise<Result<RenderedCapture, LoadFailure>> {
+  private async capture(staleRef?: string): Promise<Result<RenderedCapture, LoadFailure>> {
     try {
       await this.settle(this.page);
       const refused = await this.judgeFailedDocument();
@@ -181,6 +205,7 @@ export class BrowserSession {
         formElements: snapshot.formElements,
         html: snapshot.html,
         openedUrls,
+        ...(staleRef !== undefined && { staleRef }),
         status: this.lastStatus,
         title: await this.page.title(),
         url: this.page.url()
@@ -276,5 +301,20 @@ export class BrowserSession {
         timeoutMs: DOM_SETTLE_TIMEOUT_MS
       })
       .catch(() => undefined);
+    // §3.4 — a quiet DOM with a script request still out is a page waiting on its answer to redraw
+    if (this.inFlight.size === 0) {
+      return;
+    }
+    await this.waitForScriptRequests(NETWORK_IDLE_TIMEOUT_MS);
+    await page
+      .evaluate(waitForDomSettled, { minMs: 0, quietMs: DOM_QUIET_MS, timeoutMs: DOM_SETTLE_TIMEOUT_MS })
+      .catch(() => undefined);
+  }
+
+  private async waitForScriptRequests(timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (this.inFlight.size > 0 && Date.now() < deadline) {
+      await sleep(SCRIPT_REQUEST_POLL_MS);
+    }
   }
 }

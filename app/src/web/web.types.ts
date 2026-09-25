@@ -9,6 +9,8 @@ export type RenderedCapture = {
   readonly html: string;
   /** addresses of tabs the page opened during the action, closed unvisited and left for the model to open itself */
   readonly openedUrls: readonly string[];
+  /** §3.4 — the ref the action named, no longer on the page, so nothing was done and this is the page as it is */
+  readonly staleRef?: string;
   readonly status: number;
   readonly title: string;
   /** after redirects — not necessarily what was asked for */
@@ -86,6 +88,10 @@ export type FetchedPage = WebPage & {
 export type WebSnapshot = WebPage & {
   readonly formElements: readonly FormElement[];
   readonly openedUrls: readonly string[];
+  /** §3.4 — the ref the action named, no longer on the page, so nothing was done */
+  readonly staleRef?: string;
+  /** §3.4 — how much of the page's markdown the turn's previous snapshot shared, where that runs past the view */
+  readonly unchangedPrefixChars?: number;
 };
 
 /**
@@ -155,6 +161,8 @@ export declare namespace WebFailure {
     kind: 'no-such-option';
     option: string;
     ref: string;
+    /** the labels that contain what was asked, without regard to case */
+    similar: readonly string[];
   };
   /** every page of the PDF was read and none carries a text layer — a scan, most likely, and nothing here reads an image (§3.4) */
   type NoText = {
@@ -172,11 +180,6 @@ export declare namespace WebFailure {
     kind: 'no-static-content';
     status: number;
     url: string;
-  };
-  /** the ref points at nothing in the current page state — the page moved on since that snapshot */
-  type StaleRef = {
-    kind: 'stale-ref';
-    ref: string;
   };
   /** the connection was refused at its TLS handshake, so nothing was read; `code` is the runtime's own name for it */
   type Tls = {
@@ -221,7 +224,6 @@ export declare namespace WebFailure {
     | NoText
     | NotHtml
     | NotVisible
-    | StaleRef
     | Tls
     | Unreachable
     | UnreadablePdf
