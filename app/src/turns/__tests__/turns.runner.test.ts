@@ -1925,6 +1925,34 @@ describe('TurnRunner', () => {
     );
   });
 
+  it('should record each completion’s own usage and upstream on its event, and the running total after each (§8.2)', async () => {
+    const reported = (promptTokens: number): CompletionUsage => ({
+      cachedPromptTokens: undefined,
+      completionTokens: 1,
+      costUsd: undefined,
+      promptTokens,
+      reasoningTokens: undefined
+    });
+    complete.mockResolvedValueOnce(Result.ok({ ...toolUse(['lookup_fixture'], '', reported(10)), servedBy: 'A' }));
+    complete.mockResolvedValueOnce(
+      Result.ok({ content: 'a very long', kind: 'truncated', servedBy: 'B', usage: reported(20) })
+    );
+    complete.mockResolvedValueOnce(Result.ok({ ...text('done', reported(30)), servedBy: 'A' }));
+    await run();
+    const completions = turnsService.appendEvent.mock.calls
+      .map(([, payload]) => payload)
+      .filter((payload) => payload.kind === 'assistant_message' || payload.kind === 'output_rejected');
+    expect(completions).toMatchObject([
+      { kind: 'assistant_message', servedBy: 'A', usage: { promptTokens: 10 } },
+      { kind: 'output_rejected', servedBy: 'B', usage: { promptTokens: 20 } },
+      { kind: 'assistant_message', servedBy: 'A', usage: { promptTokens: 30 } }
+    ]);
+    expect(turnsService.recordUsage.mock.calls.map(([, usage]) => usage.promptTokens)).toStrictEqual([10, 30, 60]);
+    expect(turnsService.recordUsage.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      turnsService.close.mock.invocationCallOrder[0]!
+    );
+  });
+
   it('should feed output cut at the length limit back as a rejection and post the shorter retry (§7.1)', async () => {
     complete.mockResolvedValueOnce(Result.ok({ content: 'a very long', kind: 'truncated', usage: undefined }));
     complete.mockResolvedValueOnce(Result.ok(text('short')));

@@ -58,5 +58,7 @@ export type $CompletionChunk = z.infer<typeof $CompletionChunk>;
 export const $CompletionChunk = z.object({
   choices: z.array(z.object({ delta: $CompletionDelta.nullish(), finish_reason: z.string().nullish() })).nullish(),
   error: z.object({ code: z.union([z.number().int(), z.string()]).nullish(), message: z.string() }).nullish(),
+  /** §8.2 — OpenRouter's name for the upstream that served the completion; other providers send none */
+  provider: z.string().min(1).nullish(),
   usage: $$CamelCased($Usage).nullish()
 });

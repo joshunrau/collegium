@@ -1,7 +1,7 @@
 import type { ToolId } from '@collegium/core/tools';
 
 import type { ReasoningDetail } from '@/core/core.types.ts';
-import type { EstimatedCompletionUsage } from '@/inference/inference.types.ts';
+import type { CompletionUsage, EstimatedCompletionUsage } from '@/inference/inference.types.ts';
 
 import type { Prisma, PrismaClient } from './generated/client.ts';
 import type { ApprovalStatus, TurnEventKind } from './generated/enums.ts';
@@ -12,6 +12,18 @@ type RecordedToolCall = {
   args: unknown;
   callId: string;
   toolName: PrismaJson.RecordedToolName;
+};
+
+/**
+ * §8.2 — what one completion's own event records of it: what the provider reported, which upstream
+ * served it, and whether a relief pass had edited the prompt since the previous completion, so the
+ * cached share of the one after a relief can be read against the rest (§3.8). The turn's row stays
+ * the authoritative total; these are never summed into it.
+ */
+type CompletionRecord = {
+  afterRelief?: true;
+  servedBy?: string;
+  usage?: CompletionUsage;
 };
 
 type TurnEventPayloadByKind = {
@@ -44,19 +56,19 @@ type TurnEventPayloadByKind = {
     question: string;
     toolName: PrismaJson.RecordedToolName;
   };
-  assistant_message: {
+  assistant_message: CompletionRecord & {
     content: string;
     reasoningContent?: string;
     reasoningDetails?: readonly ReasoningDetail[];
     toolCalls: RecordedToolCall[];
   };
   /** §4.5 — a final output refused as a post: never replayed, since the model was told why and answered again (§8.3) */
-  output_rejected: {
+  output_rejected: Omit<CompletionRecord, 'usage'> & {
     content: string;
     /** the rejection exactly as the model read it */
     reason: string;
-    /** §7.1 — a completion cut at its time limit reports no usage; this estimates what it had streamed */
-    usage?: EstimatedCompletionUsage;
+    /** §8.2 — what the provider reported; a completion cut at its time limit reports none, so this estimates what it had streamed (§7.1) */
+    usage?: CompletionUsage | EstimatedCompletionUsage;
   };
   record_written: {
     body: string;

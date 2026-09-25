@@ -13,6 +13,13 @@ function renderBacklog(backlog: QueueBacklog | undefined): string {
   return `Queue: ${depth} post(s) pending; oldest unprocessed is \`${earliestUnprocessedPostId}\`${snippet}`;
 }
 
+/** §8.4 — what a parked turn waits on, in the words the listing uses */
+const PARKED_ON_PHRASES = {
+  approval: 'an approval',
+  attempts: 'more attempts',
+  question: 'a question'
+} as const satisfies { readonly [K in LaneParkedOn['on']]: string };
+
 function renderLane(agentUsername: string, hold: LaneHold | undefined): string {
   if (hold === undefined) {
     return `${agentUsername} in this channel: no turn running.`;
@@ -25,14 +32,27 @@ function renderLane(agentUsername: string, hold: LaneHold | undefined): string {
   const { statusPostId, triggeringPostId } = hold.turn;
   const startedBy = triggeringPostId === null ? '' : `, started by post \`${triggeringPostId}\``;
   const statusPost = statusPostId === null ? 'no status post yet' : `status post \`${statusPostId}\``;
-  return `${agentUsername} in this channel: turn running ${held}${startedBy}; ${statusPost}. ${queuesBehind}`;
+  const state =
+    hold.parkedOn === undefined
+      ? `turn running ${held}`
+      : `turn parked on ${PARKED_ON_PHRASES[hold.parkedOn.on]} since ${hold.parkedOn.since}, holding the lane ${held}`;
+  return `${agentUsername} in this channel: ${state}${startedBy}; ${statusPost}. ${queuesBehind}`;
 }
+
+/** §8.4 — the earliest decision a parked turn waits on: an approval, a question, or the extension of its budget (§5.3) */
+export type LaneParkedOn = {
+  readonly on: 'approval' | 'attempts' | 'question';
+  /** in the operator timezone */
+  readonly since: string;
+};
 
 /** an agent's lock in a channel (§5.1), and the turn holding it where one is open */
 export type LaneHold = {
   readonly heldForMs: number;
   /** in the operator timezone */
   readonly heldSince: string;
+  /** undefined while the turn is working rather than waiting on a person */
+  readonly parkedOn: LaneParkedOn | undefined;
   /** undefined while the lock is held between turns: one is opening, or has just closed */
   readonly turn: Pick<Turn, 'statusPostId' | 'triggeringPostId'> | undefined;
 };

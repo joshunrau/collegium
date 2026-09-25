@@ -284,6 +284,42 @@ describe('renderTrace', () => {
     );
   });
 
+  it('should say on its own line what each completion cost, who served it and whether relief preceded it (§8.3)', () => {
+    const text = render([
+      event({
+        afterRelief: true,
+        content: 'done',
+        kind: 'assistant_message',
+        servedBy: 'Novita',
+        toolCalls: [],
+        usage: {
+          cachedPromptTokens: 800,
+          completionTokens: 40,
+          costUsd: 0.0012,
+          promptTokens: 1_200,
+          reasoningTokens: 10
+        }
+      })
+    ]);
+    expect(text).toContain(
+      '1. [+0s] assistant: done ⟦completion: 1,200 prompt (800 cached), 40 out (10 reasoning), $0.0012, via Novita, after relief⟧'
+    );
+  });
+
+  it('should mark what a steer cut short as estimated (§7.5, §8.3)', () => {
+    const text = render([
+      event({
+        byUsername: 'casey',
+        kind: 'steering_received',
+        text: 'use staging',
+        usage: { completionTokens: 300, estimated: true, reasoningTokens: 200 }
+      })
+    ]);
+    expect(text).toContain(
+      '1. [+0s] steered by casey: use staging ⟦completion: about 500 out (200 reasoning), estimated⟧'
+    );
+  });
+
   it('should render a raw name for a call that resolved to no tool', () => {
     const text = render([
       event({

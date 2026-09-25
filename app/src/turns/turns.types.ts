@@ -121,3 +121,9 @@ export type TurnOutcome = {
 
 /** the payload union is the source of truth; `appendEvent` derives the `kind` column from it */
 export type TurnEventInput = PrismaJson.TurnEventPayload;
+
+/** §8.2 — completions the provider reported nothing of, since the framework cut them short, and what their events estimate */
+export type EstimatedSpend = {
+  readonly completions: number;
+  readonly tokens: number;
+};

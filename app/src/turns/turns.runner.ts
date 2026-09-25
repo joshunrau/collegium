@@ -6,6 +6,7 @@ import { match } from 'ts-pattern';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
+import { EXTEND_BUDGET_ACTION } from '@/approvals/approvals.constants.ts';
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
 import type { ApprovalDecision } from '@/approvals/approvals.types.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
@@ -22,6 +23,7 @@ import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import type {
   CompletionMessage,
   CompletionReasoning,
+  CompletionReport,
   CompletionRequest,
   CompletionResult,
   CompletionUsage,
@@ -314,6 +316,8 @@ type TurnState = {
   readonly reasonedDenials: Map<string, { byUsername: string; reason: string }>;
   /** §7.1 — results this turn recorded; a turn that recorded none accumulated nothing a fresh one would not rebuild */
   recordedResults: number;
+  /** §3.8 — whether a relief pass has edited the prompt since the last completion, which the next completion's event records (§8.2) */
+  reliefSinceCompletion: boolean;
   /** §3.8 — the results replaced by their line or shown only by reference, whose repeat is shown again rather than answered by a line */
   readonly replacedResults: Set<number>;
   /** §3.7 — resolved at turn setup and again at every fold (§4.4), and quoted on every approval prompt the turn raises */
@@ -457,6 +461,7 @@ export class TurnRunner {
       provider: profile.model.provider,
       reasonedDenials: new Map(),
       recordedResults: 0,
+      reliefSinceCompletion: false,
       replacedResults: new Set(),
       requestedBy: await this.resolveRequester(input.triggeringPostId, workUnit),
       resultEventIds: new Map(),
@@ -886,13 +891,15 @@ export class TurnRunner {
     input: RunInput,
     state: TurnState,
     content: string,
-    reasoning: CompletionReasoning
+    reasoning: CompletionReasoning,
+    report: CompletionReport
   ): Promise<TurnOutcome> {
     await this.turnsService.appendEvent(state.turn.id, {
       content,
       kind: 'assistant_message',
       toolCalls: [],
-      ...reasoning
+      ...reasoning,
+      ...this.recordOf(state, report)
     });
     const sent = await this.publish(input, state, content, 'reply');
     if (!sent.success) {
@@ -907,6 +914,7 @@ export class TurnRunner {
     const at = state.shownResults.findIndex((shown) => shown.messageIndex === messageIndex);
     const [shown] = state.shownResults.splice(at, 1);
     state.replacedResults.add(messageIndex);
+    state.reliefSinceCompletion = true;
     this.replaceMessage(state, messageIndex, renderCollapsedLine(shown!));
     await this.recordPresentation(state, messageIndex, { collapsed: true });
   }
@@ -980,13 +988,23 @@ export class TurnRunner {
         : this.rejectionOfUnpostable(input, completion);
     const reasoning = completion.kind === 'overran' ? {} : reasoningOf(completion);
     if (rejection === undefined) {
-      return this.closeWithFinalOutput(input, state, content, reasoning);
+      return this.closeWithFinalOutput(
+        input,
+        state,
+        content,
+        reasoning,
+        completion.kind === 'overran' ? { usage: undefined } : completion
+      );
     }
+    const record =
+      completion.kind === 'overran'
+        ? { ...this.recordOf(state, { usage: undefined }), usage: completion.usage }
+        : this.recordOf(state, completion);
     await this.turnsService.appendEvent(state.turn.id, {
       content,
       kind: 'output_rejected',
       reason: rejection,
-      ...(completion.kind === 'overran' && { usage: completion.usage })
+      ...record
     });
     const limitMs = input.profile.completionTimeLimitMs;
     if (completion.kind === 'overran') {
@@ -1072,7 +1090,8 @@ export class TurnRunner {
         callId: call.id,
         toolName: recordedName
       })),
-      ...reasoning
+      ...reasoning,
+      ...this.recordOf(state, completion)
     });
     this.pushMessage(state, {
       content: completion.content,
@@ -1224,6 +1243,7 @@ export class TurnRunner {
       if (plan.standIns.includes(shown.messageIndex)) {
         state.shownResults.splice(state.shownResults.indexOf(shown), 1);
         state.replacedResults.add(shown.messageIndex);
+        state.reliefSinceCompletion = true;
         this.replaceMessage(state, shown.messageIndex, renderUnreadStandIn(shown));
         await this.recordPresentation(state, shown.messageIndex, { shownChars: 0 });
         continue;
@@ -1232,6 +1252,7 @@ export class TurnRunner {
       if (shownChars === undefined) {
         continue;
       }
+      state.reliefSinceCompletion = true;
       shown.shownChars = shownChars;
       this.replaceMessage(state, shown.messageIndex, `${output.slice(0, shownChars)}${renderViewLine(shown)}`);
       await this.recordPresentation(state, shown.messageIndex, { shownChars });
@@ -1339,7 +1360,7 @@ export class TurnRunner {
         lastWords: state.lastInterimText,
         topCalls: TurnRunner.topCallsOf(state)
       }),
-      toolName: 'extend_budget',
+      toolName: EXTEND_BUDGET_ACTION,
       toolNamespace: null,
       turnId: state.turn.id
     });
@@ -1665,6 +1686,20 @@ export class TurnRunner {
     return undefined;
   }
 
+  /** §8.2 — what a completion's event records of it; the relief flag is spent on the first event after the pass */
+  private recordOf(
+    state: TurnState,
+    report: CompletionReport
+  ): { afterRelief?: true; servedBy?: string; usage?: CompletionUsage } {
+    const afterRelief = state.reliefSinceCompletion;
+    state.reliefSinceCompletion = false;
+    return {
+      ...(afterRelief && { afterRelief: true as const }),
+      ...(report.servedBy !== undefined && { servedBy: report.servedBy }),
+      ...(report.usage !== undefined && { usage: report.usage })
+    };
+  }
+
   /** §8.3 — how the model came to read a result, on the result's own event; a message carrying no recorded result has none */
   private async recordPresentation(
     state: TurnState,
@@ -1901,6 +1936,8 @@ export class TurnRunner {
       // §8.2 — the completion was paid for whatever the turn does with it, so its usage is recorded first
       if (!('cutBy' in completion) && completion.success && completion.value.usage) {
         state.usage = addCompletionUsage(state.usage, completion.value.usage);
+        // §8.2 — written as it grows, so a turn a restart abandons keeps what it paid for
+        await this.turnsService.recordUsage(state.turn.id, state.usage);
       }
       // §7.5 — checked after every await, before any dispatch: the honest guarantee of /stop is
       // "no further tool calls and no further posts", not "nothing happened"

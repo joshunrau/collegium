@@ -78,6 +78,13 @@ export default defineConfig({
       {
         extends: true,
         test: {
+          include: ['scripts/**/*.test.js'],
+          name: 'scripts'
+        }
+      },
+      {
+        extends: true,
+        test: {
           globalSetup: ['app/e2e/setup/cluster.setup.ts', 'app/e2e/setup/database.setup.ts'],
           hookTimeout: 600_000,
           include: ['app/e2e/**/*.e2e.test.ts'],

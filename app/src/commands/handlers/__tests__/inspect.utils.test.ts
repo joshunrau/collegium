@@ -34,6 +34,14 @@ describe('renderInspectResponse', () => {
     expect(renderInspectResponse(REPORT)).toContain('| **Context Budget** | 8,000 tokens |');
   });
 
+  it('should state the turn ceiling with the view it implies, and the completion time limit (§8.4)', () => {
+    const report = renderInspectResponse(REPORT);
+    expect(report).toContain(
+      "| **Turn Ceiling** | 27,200 tokens; a result over 16,320 characters, or over its tool's narrower view, is shown in part |"
+    );
+    expect(report).toContain('| **Completion Time Limit** | 20 minutes |');
+  });
+
   it('should table tools by namespace, marking a gated tool beside its ungated neighbours (§3.4)', () => {
     expect(renderInspectResponse(REPORT)).toContain(
       [

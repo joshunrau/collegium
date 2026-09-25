@@ -74,6 +74,8 @@ describe('InspectHandler', () => {
         '| **Expertise** | end-to-end testing |',
         '| **Model** | `deepseek-v4-flash` (deepseek) |',
         '| **Context Budget** | 8,000 tokens |',
+        "| **Turn Ceiling** | 27,200 tokens; a result over 16,320 characters, or over its tool's narrower view, is shown in part |",
+        '| **Completion Time Limit** | 20 minutes |',
         '| **Action Budget** | 25 attempts per turn |',
         '',
         '#### Tools',

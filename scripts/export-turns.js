@@ -9,7 +9,8 @@
  * channel history and writes one manifest row per turn, you curate that file, and `export` pays for
  * traces only on the rows you kept. Inventory reads most turns off their status posts; it runs
  * `/collegium trace` only on an agent post no status post accounts for, since a turn that called no
- * tool leaves no status post (§8.1).
+ * tool leaves no status post (§8.1). A turn abandoned before its first completion wrote no post and
+ * left no status post, so no row stands for it.
  *
  * Nothing here knows anything about a particular deployment: the server, team, channels and agents
  * are all arguments, and credentials are read from the environment so they never reach shell
@@ -21,6 +22,9 @@ import * as path from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { OUTCOME_PHRASES, PARKED_LINE_STEMS, WORKING_LINE } from '../app/src/turns/status/status-post.constants.ts';
+import { readReportedDuration, readTraceHeader, TRACE_TOOL_CALL_PATTERN } from './trace-header.js';
+
+/** @typedef {import('./trace-header.js').TraceHeader} TraceHeader */
 
 /**
  * @typedef {object} Session
@@ -69,30 +73,6 @@ import { OUTCOME_PHRASES, PARKED_LINE_STEMS, WORKING_LINE } from '../app/src/tur
  * says so, never the trace's heading.
  *
  * @typedef {keyof typeof OUTCOME_PHRASES | 'parked' | 'running'} TurnStatus
- */
-
-/**
- * What the head of a `/collegium trace` answer says of the turn: its first line, then the record
- * beneath it (§8.3). A record field is undefined where the trace does not state it — a turn recorded
- * before the framework kept it, a running turn's actions, usage a provider never reported.
- *
- * @typedef {object} TraceHeader
- * @property {number | undefined} actionCount
- * @property {string | undefined} activation what started the turn, as the framework names it
- * @property {string} agent
- * @property {number | undefined} cachedPromptTokens the prompt tokens the provider's cache served
- * @property {number} chain
- * @property {number | undefined} completionTokens
- * @property {number | undefined} costUsd
- * @property {number} depth
- * @property {string | undefined} drainedFromPostId the earliest queued post a drain began from
- * @property {string} model
- * @property {string} outcome
- * @property {number | undefined} promptTokens
- * @property {number | undefined} reasoningTokens
- * @property {number | undefined} turnDurationMs how long the turn ran, or has run so far
- * @property {string} turnId
- * @property {number | undefined} windowEstimatedTokens what the window the turn last read cost
  */
 
 /**
@@ -167,7 +147,7 @@ import { OUTCOME_PHRASES, PARKED_LINE_STEMS, WORKING_LINE } from '../app/src/tur
  * @property {string} [url]
  */
 
-const TOOL_VERSION = '2.1.0';
+const TOOL_VERSION = '2.2.0';
 
 /**
  * The head line of a status post up to its closing underscore, which a closing line's additions
@@ -190,40 +170,6 @@ const STATUS_HEADS = [
  * run of identical calls is one line with a ` ×N` count after it.
  */
 const TOOL_CALL_PATTERN = /^→\s+`(?<name>[a-z][\w-]*::[\w-]+)[^`]*`(?: ×(?<calls>\d+))?/gm;
-
-/**
- * The parenthesised duration of a terminal status marker, as in `✅ _done (6m 12s)_`. The post's
- * own timestamps do not measure the turn — it is created after the turn starts and its last edit is
- * not the turn's end — so this is the only honest source for how long a turn ran.
- */
-const REPORTED_DURATION_PATTERN = /\((?:(?<hours>\d+)h\s*)?(?:(?<minutes>\d+)m\s*)?(?:(?<seconds>\d+)s)?\)/;
-
-/**
- * `Trace for turn {id} ({agent} on {model}, {outcome}, depth {n}, chain {n}):`, or, for a turn that
- * recorded no events, `Turn {id} (…) recorded no events: …`
- */
-const TRACE_HEADER_PATTERN =
-  /^(?:Trace for turn|Turn) (?<turnId>\S+) \((?<agent>\S+) on (?<model>[^,]+), (?<outcome>[^,]+), depth (?<depth>\d+), chain (?<chain>\d+)\)/;
-
-/**
- * `Started: {date}, by {activation} ({what that is})…, drained from post \`{id}\`.` — the activation is
- * absent on a turn recorded before the framework kept it
- */
-const TRACE_STARTED_PATTERN =
-  /^Started: .*?(?:, by (?<activation>[a-z]+) \([^)]*\))?(?:, answering post `[^`]+`)?(?:, drained from post `(?<drained>[^`]+)`)?\.$/m;
-
-/** `Ran: {duration}, {n} actions.`, `Ran: {duration}, until the process restarted.`, or `Running: {duration} so far.` */
-const TRACE_RAN_PATTERN = /^(?:Ran|Running): (?<duration>(?:\d+m )?\d+s)(?:, (?<actions>[\d,]+) actions?\.)?/m;
-
-/** `Context: assembled at +{offset}, a window of about {n} tokens reaching back to {date}.`, or an empty window */
-const TRACE_WINDOW_PATTERN = /^Context: .*? a window of about (?<tokens>[\d,]+) tokens/m;
-
-/** `Usage: {n} prompt tokens ({n} cached), {n} completion ({n} reasoning); cost ${usd}.`, each parenthesis and the cost optional */
-const TRACE_USAGE_PATTERN =
-  /^Usage: (?<prompt>[\d,]+) prompt tokens(?: \((?<cached>[\d,]+) cached\))?, (?<completion>[\d,]+) completion(?: \((?<reasoning>[\d,]+) reasoning\))?(?:; cost \$(?<cost>[\d.,]+))?\./m;
-
-/** a trace's event line, `{n}. [+{offset}] …`, for a model completion that called tools */
-const TRACE_TOOL_CALL_PATTERN = /^\d+\. \[\+[^\]]+\] called `/m;
 
 const MAX_POSTS_PER_PAGE = 200;
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -417,50 +363,6 @@ async function runSlashCommand(session, channelId, command) {
 }
 
 /**
- * @param {string | undefined} text a count as the trace writes it, grouped with commas
- * @returns {number | undefined}
- */
-function readCount(text) {
-  return text === undefined ? undefined : Number(text.replaceAll(',', ''));
-}
-
-/**
- * @param {string} trace
- * @returns {TraceHeader | undefined} undefined where the answer names no turn, as it does for a post
- *   no turn in the channel wrote
- */
-function readTraceHeader(trace) {
-  const groups =
-    /** @type {Record<'agent' | 'chain' | 'depth' | 'model' | 'outcome' | 'turnId', string> | undefined} */ (
-      TRACE_HEADER_PATTERN.exec(trace)?.groups
-    );
-  if (groups === undefined) {
-    return undefined;
-  }
-  const started = TRACE_STARTED_PATTERN.exec(trace)?.groups;
-  const ran = TRACE_RAN_PATTERN.exec(trace)?.groups;
-  const usage = TRACE_USAGE_PATTERN.exec(trace)?.groups;
-  return {
-    actionCount: readCount(ran?.actions),
-    activation: started?.activation,
-    agent: groups.agent,
-    cachedPromptTokens: readCount(usage?.cached),
-    chain: Number(groups.chain),
-    completionTokens: readCount(usage?.completion),
-    costUsd: readCount(usage?.cost),
-    depth: Number(groups.depth),
-    drainedFromPostId: started?.drained,
-    model: groups.model,
-    outcome: groups.outcome,
-    promptTokens: readCount(usage?.prompt),
-    reasoningTokens: readCount(usage?.reasoning),
-    turnDurationMs: ran === undefined ? undefined : readReportedDuration(`(${ran.duration})`),
-    turnId: groups.turnId,
-    windowEstimatedTokens: readCount(TRACE_WINDOW_PATTERN.exec(trace)?.groups?.tokens)
-  };
-}
-
-/**
  * @param {number} ms
  * @returns {Promise<void>}
  */
@@ -501,22 +403,6 @@ function isTurnStatus(value) {
 function readStatus(message) {
   const [head = ''] = message.trimStart().split('\n', 1);
   return STATUS_HEADS.find(({ stem }) => head.startsWith(stem))?.status;
-}
-
-/**
- * @param {string} message
- * @returns {number | undefined} milliseconds, or undefined where no duration is reported
- */
-function readReportedDuration(message) {
-  const groups = REPORTED_DURATION_PATTERN.exec(message.split('\n')[0])?.groups;
-  if (groups === undefined) {
-    return undefined;
-  }
-  const { hours, minutes, seconds } = groups;
-  if (hours === undefined && minutes === undefined && seconds === undefined) {
-    return undefined;
-  }
-  return ((Number(hours ?? 0) * 60 + Number(minutes ?? 0)) * 60 + Number(seconds ?? 0)) * 1000;
 }
 
 /**
@@ -797,6 +683,7 @@ async function runExport(options) {
 
   /** @type {ExportedRow[]} */
   const written = [];
+  let undated = 0;
   for (const [position, row] of selected.entries()) {
     const channelId = channelIds.get(row.channel);
     if (channelId === undefined) {
@@ -808,6 +695,9 @@ async function runExport(options) {
     }
     const trace = await runSlashCommand(session, channelId, `/collegium trace ${postId}`);
     const header = readTraceHeader(trace);
+    if (header !== undefined && header.startedAt === undefined) {
+      undated++;
+    }
     const traceDir = path.join(outDir, 'traces', row.channel);
     fs.mkdirSync(traceDir, { recursive: true });
     const name = header?.turnId ?? postId;
@@ -819,6 +709,7 @@ async function runExport(options) {
       activation: header?.activation,
       cachedPromptTokens: header?.cachedPromptTokens,
       chain: header?.chain,
+      completions: header?.completions,
       completionTokens: header?.completionTokens,
       costUsd: header?.costUsd,
       depth: header?.depth,
@@ -827,6 +718,7 @@ async function runExport(options) {
       outcome: header?.outcome,
       promptTokens: header?.promptTokens,
       reasoningTokens: header?.reasoningTokens,
+      startedAt: header?.startedAt,
       traceChars: trace.length,
       tracePath: path.relative(outDir, tracePath),
       turnDurationMs: header?.turnDurationMs,
@@ -840,6 +732,11 @@ async function runExport(options) {
     await pause(delay);
   }
 
+  if (undated > 0) {
+    process.stderr.write(
+      `export-turns: ${undated} traces gave a Started date no parser reads; their rows carry no startedAt\n`
+    );
+  }
   writeJsonLines(path.join(outDir, 'exported.jsonl'), written);
   /** @type {RunIndex} */
   const updated = {

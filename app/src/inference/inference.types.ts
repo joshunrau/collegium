@@ -58,7 +58,6 @@ export type CompletionRequest = {
   readonly tools: readonly ToolSchema[];
 };
 
-/** the turn's kill, so a request whose turn is gone stops streaming rather than running to its end (§7.5) */
 /**
  * §7.1 — what a completion the framework cut off had produced, estimated from its streamed characters,
  * since an aborted stream reports no usage. Kept on its event and out of every total (§8.2).
@@ -78,42 +77,49 @@ export type StreamedChars = {
 export type CompletionOptions = {
   /** told what the stream has produced after each chunk, so a caller that cuts it off can say roughly what was spent */
   readonly onStreamed?: (streamed: StreamedChars) => void;
+  /** the turn's kill, so a request whose turn is gone stops streaming rather than running to its end (§7.5) */
   readonly signal?: AbortSignal;
+};
+
+/** §8.2 — what the provider said of one completion: what it cost, and which upstream served it where it names one */
+export type CompletionReport = {
+  servedBy?: string;
+  usage: CompletionUsage | undefined;
 };
 
 export declare namespace CompletionResult {
   /** no tool call — this is the turn's final output and terminates the turn (§3.3) */
-  type Text = CompletionReasoning & {
-    content: string;
-    kind: 'text';
-    usage: CompletionUsage | undefined;
-  };
+  type Text = CompletionReasoning &
+    CompletionReport & {
+      content: string;
+      kind: 'text';
+    };
   /** text alongside tool calls is transient status, not output (§3.3) */
-  type ToolUse = CompletionReasoning & {
-    content: string;
-    kind: 'tool-use';
-    toolCalls: readonly (ToolCall | UnparsedToolCall)[];
-    usage: CompletionUsage | undefined;
-  };
+  type ToolUse = CompletionReasoning &
+    CompletionReport & {
+      content: string;
+      kind: 'tool-use';
+      toolCalls: readonly (ToolCall | UnparsedToolCall)[];
+    };
   /**
    * Cut at the provider's output limit: not output, since the model never finished, and not a
    * failure, since a shorter attempt is cheap — the turn feeds it back as a rejected post (§4.5)
    */
-  type Truncated = CompletionReasoning & {
-    content: string;
-    kind: 'truncated';
-    usage: CompletionUsage | undefined;
-  };
+  type Truncated = CompletionReasoning &
+    CompletionReport & {
+      content: string;
+      kind: 'truncated';
+    };
   /**
    * Text holding a tool call the provider failed to structure — its own call markup, or a bare
    * call object. Not output, since posted it runs nothing, and not a malformed delivery to retry,
    * since the model can make the call properly: the turn feeds it back as a rejected post (§4.5)
    */
-  type LeakedCall = CompletionReasoning & {
-    content: string;
-    kind: 'leaked-call';
-    usage: CompletionUsage | undefined;
-  };
+  type LeakedCall = CompletionReasoning &
+    CompletionReport & {
+      content: string;
+      kind: 'leaked-call';
+    };
   type Any = LeakedCall | Text | ToolUse | Truncated;
 }
 

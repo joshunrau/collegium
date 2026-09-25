@@ -35,6 +35,7 @@ export type AssembledCompletion = {
   readonly finishReason: string | undefined;
   readonly reasoningContent: string | undefined;
   readonly reasoningDetails: readonly ReasoningDetail[] | undefined;
+  readonly servedBy: string | undefined;
   readonly toolCalls: readonly AssembledToolCall[];
   readonly usage: CompletionUsage | undefined;
 };
@@ -49,6 +50,7 @@ export class StreamAssembler {
   private finishReason: string | undefined;
   private reasoningContent: string | undefined;
   private reasoningDetails: ReasoningDetail[] | undefined;
+  private servedBy: string | undefined;
   private readonly toolCalls = new Map<number, AssembledToolCall>();
   private usage: CompletionUsage | undefined;
 
@@ -76,6 +78,9 @@ export class StreamAssembler {
     if (chunk.usage) {
       this.usage = chunk.usage;
     }
+    if (chunk.provider) {
+      this.servedBy = chunk.provider;
+    }
     for (const choice of chunk.choices ?? []) {
       if (choice.finish_reason) {
         this.finishReason = choice.finish_reason;
@@ -93,6 +98,7 @@ export class StreamAssembler {
       finishReason: this.finishReason,
       reasoningContent: this.reasoningContent,
       reasoningDetails: this.reasoningDetails,
+      servedBy: this.servedBy,
       toolCalls: Array.from(this.toolCalls.entries())
         .toSorted(([left], [right]) => left - right)
         .map(([, call]) => call),

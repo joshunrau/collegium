@@ -8,3 +8,6 @@ export const DECISION_GLYPHS = {
   approval: '🔐',
   ask: '❓'
 } as const satisfies { readonly [Kind in PendingDecision['kind']]: string };
+
+/** §5.3 — the framework action a budget extension asks a person to approve, named where it is requested and where a parked turn is reported (§8.4) */
+export const EXTEND_BUDGET_ACTION = 'extend_budget';

@@ -2,6 +2,7 @@ import { renderToolDisplayName } from '@collegium/core/tools';
 import { match } from 'ts-pattern';
 
 import { renderDuration } from '@/formatting/durations/duration.utils.ts';
+import type { CompletionUsage, EstimatedCompletionUsage } from '@/inference/inference.types.ts';
 import type { ActivationKind, ModelRow, ResultPresentation } from '@/prisma/prisma.types.ts';
 import type { Turn } from '@/turns/turns.types.ts';
 
@@ -82,6 +83,45 @@ function renderResultLine(
   return `\`${toDisplayName(event.toolName)}\`${mark}${presented} → ${event.output}${sent}`;
 }
 
+/**
+ * §8.2, §8.3 — what one completion cost, on its own event line: what the provider reported and which
+ * upstream served it, or an estimate where the framework cut it short, and whether a relief pass had
+ * just edited the prompt. Written as one bracketed suffix, never a line of its own, so no reader
+ * mistakes it for the turn's total.
+ */
+function renderCompletionSuffix(record: {
+  afterRelief?: true;
+  servedBy?: string;
+  usage?: CompletionUsage | EstimatedCompletionUsage;
+}): string {
+  const { afterRelief, servedBy, usage } = record;
+  const parts: string[] = [];
+  if (usage !== undefined && 'estimated' in usage) {
+    parts.push(
+      `about ${COUNT_FORMAT.format(usage.completionTokens + usage.reasoningTokens)} out (${COUNT_FORMAT.format(usage.reasoningTokens)} reasoning), estimated`
+    );
+  } else if (usage !== undefined) {
+    const cached =
+      usage.cachedPromptTokens === undefined ? '' : ` (${COUNT_FORMAT.format(usage.cachedPromptTokens)} cached)`;
+    const reasoning =
+      usage.reasoningTokens === undefined ? '' : ` (${COUNT_FORMAT.format(usage.reasoningTokens)} reasoning)`;
+    parts.push(
+      `${COUNT_FORMAT.format(usage.promptTokens)} prompt${cached}`,
+      `${COUNT_FORMAT.format(usage.completionTokens)} out${reasoning}`
+    );
+    if (usage.costUsd !== undefined) {
+      parts.push(COST_FORMAT.format(usage.costUsd));
+    }
+  }
+  if (servedBy !== undefined) {
+    parts.push(`via ${servedBy}`);
+  }
+  if (afterRelief === true) {
+    parts.push('after relief');
+  }
+  return parts.length === 0 ? '' : ` ⟦completion: ${parts.join(', ')}⟧`;
+}
+
 function renderEventLine(payload: PrismaJson.TurnEventPayload, sequence: number): string {
   return match(payload)
     .with(
@@ -104,18 +144,26 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload, sequence: number)
         `question asked by \`${toDisplayName(event.toolName)}\`${event.options === undefined ? '' : ` (offering ${event.options.join(', ')})`}: ${event.question}`
     )
     .with({ kind: 'assistant_message' }, (event) => {
-      return event.toolCalls.length === 0
-        ? `assistant: ${event.content}`
-        : event.toolCalls
-            .map((call) => `called \`${toDisplayName(call.toolName)}\` with ${JSON.stringify(call.args)}`)
-            .join('; ');
+      const said =
+        event.toolCalls.length === 0
+          ? `assistant: ${event.content}`
+          : event.toolCalls
+              .map((call) => `called \`${toDisplayName(call.toolName)}\` with ${JSON.stringify(call.args)}`)
+              .join('; ');
+      return `${said}${renderCompletionSuffix(event)}`;
     })
     .with(
       { kind: 'record_written' },
       (event) => `record ${renderRecordChange(event)}: ${event.description} — ${event.body}`
     )
-    .with({ kind: 'output_rejected' }, (event) => `rejected output (${event.reason}): ${event.content}`)
-    .with({ kind: 'steering_received' }, (event) => `steered by ${event.byUsername}: ${event.text}`)
+    .with(
+      { kind: 'output_rejected' },
+      (event) => `rejected output (${event.reason}): ${event.content}${renderCompletionSuffix(event)}`
+    )
+    .with(
+      { kind: 'steering_received' },
+      (event) => `steered by ${event.byUsername}: ${event.text}${renderCompletionSuffix(event)}`
+    )
     .with({ kind: 'tool_result' }, (event) => renderResultLine(event, sequence))
     .exhaustive();
 }

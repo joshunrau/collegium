@@ -14,6 +14,13 @@ describe('StreamAssembler', () => {
     expect(assembler.finish()).toMatchObject({ content: 'Hello', finishReason: 'stop', reasoningContent: 'because' });
   });
 
+  it('should carry the upstream a router named as the one that served the completion (§8.2)', () => {
+    const assembler = new StreamAssembler();
+    assembler.absorb({ ...delta({ content: 'hi' }), provider: 'Novita' });
+    assembler.absorb(delta({}, 'stop'));
+    expect(assembler.finish().servedBy).toBe('Novita');
+  });
+
   it('should accumulate each tool call under its index, the arguments arriving in pieces', () => {
     const assembler = new StreamAssembler();
     assembler.absorb(

@@ -66,6 +66,38 @@ describe('TurnsService abandonment against the store (§7.3)', () => {
     expect(await statusOf(done.id)).toBe('completed');
   });
 
+  it('should keep the latest running totals of a turn a restart abandons, and count it in usage (§8.2)', async () => {
+    const opened = await turnsService.open({
+      activationKind: 'addressed',
+      agentUsername: 'owen',
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 0,
+      modelName: 'deepseek-v4-flash',
+      rootPostId: 'post-root',
+      triggeringPostId: undefined
+    });
+    const turn = opened.unwrap();
+    const usage = (promptTokens: number) => ({
+      cachedPromptTokens: undefined,
+      completionTokens: 2,
+      costUsd: 0.01,
+      promptTokens,
+      reasoningTokens: undefined
+    });
+    const since = new Date(Date.now() - 1_000);
+    await turnsService.recordUsage(turn.id, usage(100));
+    await turnsService.recordUsage(turn.id, usage(250));
+
+    await turnsService.abandonRunning();
+    const report = await turnsService.summarizeUsageEndedAfter(since);
+    expect(report.rows.find((row) => row.agentUsername === 'owen')).toMatchObject({
+      costUsd: { coverage: 'full', total: 0.01 },
+      promptTokens: 250,
+      turnCount: 1
+    });
+  });
+
   it('should name a turn that recorded no completion as unacted, with the post that started it', async () => {
     const steered = await open('post-1');
     await turnsService.appendEvent(steered.id, { byUsername: 'ada', kind: 'steering_received', text: 'and this' });

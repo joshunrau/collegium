@@ -16,11 +16,12 @@ import type {
 } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
-import { sumUsageTotals, toReportedTotal } from './turns.utils.ts';
+import { sumUsageTotals, toReportedTotal, toUsageColumns } from './turns.utils.ts';
 
 import type {
   AbandonedTurns,
   AssembledWindowRecord,
+  EstimatedSpend,
   Turn,
   TurnEventInput,
   TurnOpenFailure,
@@ -137,13 +138,7 @@ export class TurnsService {
         endedAt: new Date(),
         status,
         ...(summary.actionCount !== undefined && { actionCount: summary.actionCount }),
-        ...(summary.usage && {
-          cachedPromptTokens: summary.usage.cachedPromptTokens ?? null,
-          completionTokens: summary.usage.completionTokens,
-          costUsd: summary.usage.costUsd ?? null,
-          promptTokens: summary.usage.promptTokens,
-          reasoningTokens: summary.usage.reasoningTokens ?? null
-        })
+        ...(summary.usage && toUsageColumns(summary.usage))
       },
       where: { id: turnId }
     });
@@ -193,9 +188,9 @@ export class TurnsService {
   async findRunningIn(
     agentUsername: string,
     channelId: string
-  ): Promise<Pick<Turn, 'statusPostId' | 'triggeringPostId'> | undefined> {
+  ): Promise<Pick<Turn, 'id' | 'statusPostId' | 'triggeringPostId'> | undefined> {
     const running = await this.turns.findFirst({
-      select: { statusPostId: true, triggeringPostId: true },
+      select: { id: true, statusPostId: true, triggeringPostId: true },
       where: { agentUsername, channelId, status: 'running' }
     });
     return running ?? undefined;
@@ -285,6 +280,28 @@ export class TurnsService {
 
   async recordStatusPost(turnId: string, statusPostId: string): Promise<void> {
     await this.turns.update({ data: { statusPostId }, where: { id: turnId } });
+  }
+
+  /** §8.2 — the turn's running totals, written after each completion as absolutes, so a turn a restart abandons keeps what it paid for */
+  async recordUsage(turnId: string, usage: CompletionUsage): Promise<void> {
+    await this.turns.update({ data: toUsageColumns(usage), where: { id: turnId } });
+  }
+
+  /**
+   * §8.2 — the completions cut at their time limit or by a steer strictly after a moment, which the
+   * provider reported nothing of: how many, and the tokens their events estimate. Never in a total.
+   */
+  async summarizeEstimatesAfter(moment: Date): Promise<EstimatedSpend> {
+    const events = await this.events.findMany({
+      select: { payload: true },
+      where: { createdAt: { gt: moment }, kind: { in: ['output_rejected', 'steering_received'] } }
+    });
+    const estimates = events.flatMap(({ payload }) => {
+      const usage =
+        payload.kind === 'output_rejected' || payload.kind === 'steering_received' ? payload.usage : undefined;
+      return usage !== undefined && 'estimated' in usage ? [usage.completionTokens + usage.reasoningTokens] : [];
+    });
+    return { completions: estimates.length, tokens: estimates.reduce((sum, tokens) => sum + tokens, 0) };
   }
 
   /** framework-wide spend per agent and model, over turns that ended strictly after a moment with usage recorded */

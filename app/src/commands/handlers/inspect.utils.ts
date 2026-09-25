@@ -1,8 +1,10 @@
 import { parseQualifiedSkillName } from '@collegium/core/skills';
 
 import type { AgentProfile } from '@/agents/agents.types.ts';
+import { renderTimeSpan } from '@/formatting/durations/duration.utils.ts';
 import type { SkillListing } from '@/skills/skills.service.ts';
 import type { GrantedTool } from '@/tools/tools.registry.ts';
+import { viewCapCharsFor } from '@/turns/retention/retention.utils.ts';
 import { preventWrappingAtHyphens, quoteBlock, renderCodeSpan, renderTable } from '@/utils/markdown.utils.ts';
 
 /** Mattermost rejects a post over 16383 characters; the summary, the quoted prompt and the notice ride inside this */
@@ -50,6 +52,11 @@ function renderProfile(profile: AgentProfile): string {
       ['**Expertise**', profile.expertise],
       ['**Model**', renderModel(profile.model)],
       ['**Context Budget**', `${COUNT_FORMAT.format(profile.contextBudgetTokens)} tokens`],
+      [
+        '**Turn Ceiling**',
+        `${COUNT_FORMAT.format(profile.turnContextCeilingTokens)} tokens; a result over ${COUNT_FORMAT.format(viewCapCharsFor(profile))} characters, or over its tool's narrower view, is shown in part`
+      ],
+      ['**Completion Time Limit**', renderTimeSpan(profile.completionTimeLimitMs)],
       ['**Action Budget**', `${COUNT_FORMAT.format(profile.actionBudget)} attempts per turn`]
     ]
   );

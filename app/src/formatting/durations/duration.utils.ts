@@ -30,3 +30,13 @@ export function renderDuration(elapsedMs: number): string {
 export function renderTimeLimit(limitMs: number): string {
   return limitMs % MS_PER_MINUTE === 0 ? `${limitMs / MS_PER_MINUTE}-minute` : `${Math.round(limitMs / 1000)}-second`;
 }
+
+/** a time limit as a setting states it, "20 minutes", in whole minutes where it is one and seconds otherwise */
+export function renderTimeSpan(limitMs: number): string {
+  if (limitMs % MS_PER_MINUTE === 0) {
+    const minutes = limitMs / MS_PER_MINUTE;
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  const seconds = Math.round(limitMs / 1000);
+  return `${seconds} second${seconds === 1 ? '' : 's'}`;
+}

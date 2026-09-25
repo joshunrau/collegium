@@ -196,7 +196,13 @@ export class OpenAICompatibleClient extends InferenceClient {
     const reasoning = reasoningOf(assembled);
     return match<string | undefined, Result<CompletionResult, InferenceFailure>>(assembled.finishReason)
       .with('length', () => {
-        return Result.ok({ content: assembled.content, kind: 'truncated', usage: assembled.usage, ...reasoning });
+        return Result.ok({
+          content: assembled.content,
+          kind: 'truncated',
+          usage: assembled.usage,
+          ...(assembled.servedBy !== undefined && { servedBy: assembled.servedBy }),
+          ...reasoning
+        });
       })
       .with('content_filter', () => {
         return Result.err({ kind: 'provider', message: `${this.providerLabel} filtered the completion` });
@@ -230,6 +236,7 @@ export class OpenAICompatibleClient extends InferenceClient {
         kind: 'tool-use',
         toolCalls,
         usage: assembled.usage,
+        ...(assembled.servedBy !== undefined && { servedBy: assembled.servedBy }),
         ...reasoning
       } satisfies CompletionResult.ToolUse);
     }
@@ -241,6 +248,7 @@ export class OpenAICompatibleClient extends InferenceClient {
         content: assembled.content,
         kind: 'leaked-call',
         usage: assembled.usage,
+        ...(assembled.servedBy !== undefined && { servedBy: assembled.servedBy }),
         ...reasoning
       } satisfies CompletionResult.LeakedCall);
     }
@@ -248,6 +256,7 @@ export class OpenAICompatibleClient extends InferenceClient {
       content: assembled.content,
       kind: 'text',
       usage: assembled.usage,
+      ...(assembled.servedBy !== undefined && { servedBy: assembled.servedBy }),
       ...reasoning
     } satisfies CompletionResult.Text);
   }

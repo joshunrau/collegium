@@ -20,7 +20,10 @@ export class UsageHandler extends CommandHandler {
 
   async handle(): Promise<CommandResponse> {
     const since = new Date(Date.now() - USAGE_WINDOW_MS);
-    const summaries = await this.turnsService.summarizeUsageEndedAfter(since);
-    return { audience: 'invoker', text: renderUsageResponse(summaries) };
+    const [summaries, estimates] = await Promise.all([
+      this.turnsService.summarizeUsageEndedAfter(since),
+      this.turnsService.summarizeEstimatesAfter(since)
+    ]);
+    return { audience: 'invoker', text: renderUsageResponse(summaries, estimates) };
   }
 }

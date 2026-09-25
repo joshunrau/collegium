@@ -17,6 +17,11 @@ describe('$CompletionChunk', () => {
     ).toBe(0);
   });
 
+  it('should read the upstream a router names, and none where it names none (§8.2)', () => {
+    expect($CompletionChunk.parse({ choices: [], provider: 'Novita' }).provider).toBe('Novita');
+    expect($CompletionChunk.parse({ choices: [] }).provider).toBeUndefined();
+  });
+
   it('should keep every field of a reasoning block under its wire name', () => {
     const chunk = $CompletionChunk.parse({
       choices: [

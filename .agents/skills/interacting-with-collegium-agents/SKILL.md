@@ -42,7 +42,8 @@ still running starts nothing. It queues behind that turn, the agent reacts 👀 
 turn reads everything that queued, so a second nudge adds nothing to the first. Before you post
 again, run `/collegium queue {agent}` for every agent in the channel (see
 [Inspect a turn](#inspect-a-turn)). It says whether a turn is running for the agent in this channel,
-since when, and which post started it, then what waits.
+since when, and which post started it, then what waits. A turn waiting on a person reads as parked,
+on an approval, a question or more attempts, and since when.
 
 - The lane is idle only when no agent in the channel has a turn running. A colleague's running turn
   holds any hand-off it has addressed to this agent until it ends or parks (SPEC.md §5.2), so a
@@ -192,8 +193,8 @@ task.
 Three cheap commands answer most questions without a trace:
 
 - `/collegium memory {agent} show {reference}` reads one memory body.
-- `/collegium queue {agent}` shows whether a turn is running for the agent, and the posts that
-  wait for it.
+- `/collegium queue {agent}` shows whether a turn is running for the agent or parked on a person,
+  and the posts that wait for it.
 - `/collegium units {agent}` lists the agent's open work units in this channel, whose move each
   waits on, and what waits on a person.
 

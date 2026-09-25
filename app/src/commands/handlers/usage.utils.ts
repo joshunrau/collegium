@@ -1,4 +1,4 @@
-import type { ReportedTotal, UsageReport, UsageTotals } from '@/turns/turns.types.ts';
+import type { EstimatedSpend, ReportedTotal, UsageReport, UsageTotals } from '@/turns/turns.types.ts';
 
 const PARTIAL_MARKER = '*';
 
@@ -33,12 +33,21 @@ function renderReportedTotal(reported: ReportedTotal, format: Intl.NumberFormat)
   return reported.coverage === 'partial' ? `${total}${PARTIAL_MARKER}` : total;
 }
 
+/** §8.2 — the spend the provider reported nothing of, said apart from the table so no total counts it */
+function renderEstimates({ completions, tokens }: EstimatedSpend): string[] {
+  if (completions === 0) {
+    return [];
+  }
+  const cut = `${COUNT_FORMAT.format(completions)} completion${completions === 1 ? '' : 's'} cut at the time limit or by a steer`;
+  return ['', `${cut}, about ${COUNT_FORMAT.format(tokens)} tokens not reported by the provider.`];
+}
+
 export const USAGE_WINDOW_HOURS = 24;
 
-export function renderUsageResponse(report: UsageReport): string {
+export function renderUsageResponse(report: UsageReport, estimates: EstimatedSpend): string {
   const heading = `Usage — turns ended in the last ${USAGE_WINDOW_HOURS} hours`;
   if (report.rows.length === 0) {
-    return `${heading}: none recorded.`;
+    return [`${heading}: none recorded.`, ...renderEstimates(estimates)].join('\n');
   }
   const isAnyPartial = [...report.rows, report.total].some((totals) => {
     return [totals.cachedPromptTokens, totals.costUsd, totals.reasoningTokens].some(
@@ -52,7 +61,8 @@ export function renderUsageResponse(report: UsageReport): string {
     '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |',
     ...report.rows.map((row) => renderRow(row.agentUsername, row.modelName, row)),
     renderRow('**Total**', '', report.total),
-    ...(isAnyPartial ? ['', `${PARTIAL_MARKER} Not reported by every turn in the row.`] : [])
+    ...(isAnyPartial ? ['', `${PARTIAL_MARKER} Not reported by every turn in the row.`] : []),
+    ...renderEstimates(estimates)
   ].join('\n');
 }
 

@@ -25,6 +25,7 @@ describe('UsageHandler', () => {
         turnCount: 0
       }
     });
+    turnsService.summarizeEstimatesAfter.mockResolvedValue({ completions: 0, tokens: 0 });
     const moduleRef = await Test.createTestingModule({
       providers: [UsageHandler, { provide: TurnsService, useValue: turnsService }]
     }).compile();
@@ -38,6 +39,7 @@ describe('UsageHandler', () => {
   it('should summarize the trailing 24 hours for the caller alone', async () => {
     const response = await usageHandler.handle();
     expect(turnsService.summarizeUsageEndedAfter).toHaveBeenCalledWith(new Date('2026-09-12T12:00:00Z'));
+    expect(turnsService.summarizeEstimatesAfter).toHaveBeenCalledWith(new Date('2026-09-12T12:00:00Z'));
     expect(response).toStrictEqual({
       audience: 'invoker',
       text: 'Usage — turns ended in the last 24 hours: none recorded.'
