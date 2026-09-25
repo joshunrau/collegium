@@ -1,3 +1,39 @@
+## [0.0.1-beta.28](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.27...v0.0.1-beta.28) (2026-09-25)
+
+### ⚠ BREAKING CHANGES
+
+- **release:** a long tool result is no longer cut at the turn's ceiling. It is shown as a view
+  of its first part, and the rest is read with results::read. Saved advice that quotes the old cut
+  marker, or that says to narrow a call because its result was cut, is stale.
+- **release:** a tool post, such as a unit's assignment, now keeps its author's own @ handle. A
+  saved entry that copied an order's bare author name, without the @, is stale.
+- **release:** web::fetch no longer refuses a find given startChar or maxChars; a find always
+  searches the whole page. maxChars now takes any width up to 118,000 characters. Saved advice about
+  the old refusal, or about the old 1,000-character minimum window, is stale.
+
+### docs
+
+- **release:** name what beta.28 makes stale in an agent's saved procedure ([4b9319c](https://github.com/joshunrau/collegium/commit/4b9319c358469ee1fa123afc3df5fb97b370cfd9))
+
+### Features
+
+- **memory:** say which read a refused revision needs, and let replace change a description alone ([8965440](https://github.com/joshunrau/collegium/commit/8965440d3b3b99ed209bd28dd0f1d86c29c7511f))
+- **tools:** state refused sizes, name ignored arguments, mark unrun calls, offer only granted tools ([3267ef7](https://github.com/joshunrau/collegium/commit/3267ef7b219521e70c277945561e895d88366bc5))
+- **turns:** give every completion a time limit, and let a steer abort the completion in flight ([da03d60](https://github.com/joshunrau/collegium/commit/da03d60147e954ab04368870f88a3eb8cd9666be))
+- **turns:** keep every tool result as a record, show long ones as views, read on with results::read ([56922ed](https://github.com/joshunrau/collegium/commit/56922ede14db88fc10edbb785cf20d42cf130d7b))
+- **turns:** record each completion's cost and upstream, and keep what an abandoned turn spent ([4e55a5e](https://github.com/joshunrau/collegium/commit/4e55a5ebf05fb3c1089eae1083238fea364242d3))
+- **web:** search the whole page on a find, show shared text once, and word timeouts and empty pages ([18eb06f](https://github.com/joshunrau/collegium/commit/18eb06f9bea3479223f6a02a3ce851e1feb794ae))
+- **web:** show browser snapshots as views read on by reference, list drop-downs once, await redraws ([cb729f0](https://github.com/joshunrau/collegium/commit/cb729f03d76f0339ecd891687d8b76bb52b3bcbd))
+
+### Bug Fixes
+
+- **channels:** keep a tool post's own author @ when stripping other agents' mentions ([e50d707](https://github.com/joshunrau/collegium/commit/e50d707e2dfbb119eab1973886fe78a69b7ee3cb))
+- **mail:** fail the call, not the process, when an imap connection errors mid-session ([f1be408](https://github.com/joshunrau/collegium/commit/f1be408b678b113974cbb5fb06ab33e77eaca9bc))
+
+### Performance
+
+- **conversations:** walk a fresh window to the low-water mark, so a restart moves its prefix once ([2896469](https://github.com/joshunrau/collegium/commit/2896469dbad652ac73bb11d1e6bc183abee1fa9a))
+
 ## [0.0.1-beta.27](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.26...v0.0.1-beta.27) (2026-09-23)
 
 ### Features
