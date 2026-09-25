@@ -1,5 +1,6 @@
 import type { $ImapMailProvider } from '@collegium/core/toolsets';
 import { Result, toErrorMessage } from '@collegium/core/utils';
+import type { LoggerService } from '@nestjs/common';
 import { ImapFlow } from 'imapflow';
 import type { FetchMessageObject, MailboxObject, SearchObject } from 'imapflow';
 import { simpleParser } from 'mailparser';
@@ -48,12 +49,14 @@ type ReplyThreading = {
 export class ImapMailProvider extends MailProvider {
   readonly address: string;
   private readonly config: $ImapMailProvider;
+  private readonly logger: Pick<LoggerService, 'warn'>;
   private transporter: Transporter | undefined;
 
-  constructor(config: $ImapMailProvider) {
+  constructor(config: $ImapMailProvider, logger: Pick<LoggerService, 'warn'>) {
     super();
     this.address = config.address;
     this.config = config;
+    this.logger = logger;
   }
 
   async getConversation(ref: MailMessageRef): Promise<Result<MailSummary[], MailFailure.Read>> {
@@ -270,6 +273,11 @@ export class ImapMailProvider extends MailProvider {
       logger: false,
       port: this.config.imap.port,
       secure: this.config.imap.secure
+    });
+    // §3.13 — imapflow reports a socket failure after connect as an 'error' event, and an unheard one stops the process
+    client.on('error', (error) => {
+      this.logger.warn(`the IMAP connection for ${this.address} failed: ${toErrorMessage(error)}`);
+      client.close();
     });
     try {
       await client.connect();

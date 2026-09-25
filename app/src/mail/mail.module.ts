@@ -5,6 +5,7 @@ import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { ChannelsModule } from '@/channels/channels.module.ts';
 import { ChatGateway } from '@/chat/chat.gateway.ts';
 import { ChatModule } from '@/chat/chat.module.ts';
+import { LoggerFactory } from '@/logging/logging.factory.ts';
 import { ResourcesModule } from '@/resources/resources.module.ts';
 import { ResourcesService } from '@/resources/resources.service.ts';
 import { TriggersModule } from '@/triggers/triggers.module.ts';
@@ -24,14 +25,19 @@ import { MailOutageService } from './outage/outage.service.ts';
     MailInboundService,
     MailOutageService,
     {
-      inject: [AgentRegistry, ChatGateway, ResourcesService],
+      inject: [AgentRegistry, ChatGateway, LoggerFactory, ResourcesService],
       provide: MailRegistry,
-      useFactory: (agentRegistry: AgentRegistry, chatGateway: ChatGateway, resourcesService: ResourcesService) => {
+      useFactory: (
+        agentRegistry: AgentRegistry,
+        chatGateway: ChatGateway,
+        loggerFactory: LoggerFactory,
+        resourcesService: ResourcesService
+      ) => {
         const mailboxes = agentRegistry.list().flatMap((profile) => {
           const settings = agentRegistry.settingsFor(MAIL_TOOLSET, profile.username);
           return settings === undefined ? [] : [{ agentUsername: profile.username, settings }];
         });
-        return MailRegistry.resolve(chatGateway, resourcesService, mailboxes);
+        return MailRegistry.resolve(chatGateway, resourcesService, loggerFactory, mailboxes);
       }
     },
     { provide: MAIL_REGISTRY_TOKEN, useExisting: MailRegistry }

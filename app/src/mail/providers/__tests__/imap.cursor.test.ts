@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImapMailProvider } from '../imap.provider.ts';
 
 const client = vi.hoisted(() => ({
+  close: vi.fn(),
   connect: vi.fn(),
   fetchOne: vi.fn(),
   getMailboxLock: vi.fn(),
   logout: vi.fn(),
   mailbox: { exists: 3, uidNext: 43, uidValidity: 7n },
   messageFlagsAdd: vi.fn(),
+  on: vi.fn(),
   search: vi.fn()
 }));
 
@@ -33,12 +35,15 @@ describe('ImapMailProvider cursor', () => {
     client.getMailboxLock.mockResolvedValue({ release: vi.fn() });
     client.logout.mockResolvedValue(undefined);
     client.mailbox = { exists: 3, uidNext: 43, uidValidity: 7n };
-    provider = new ImapMailProvider({
-      address: 'tess@example.org',
-      imap: { host: 'imap.example.org', password: 'password_1', port: 993, secure: true, username: 'tess' },
-      kind: 'imap',
-      smtp: { host: 'smtp.example.org', password: 'password_2', port: 587, secure: false, username: 'tess' }
-    });
+    provider = new ImapMailProvider(
+      {
+        address: 'tess@example.org',
+        imap: { host: 'imap.example.org', password: 'password_1', port: 993, secure: true, username: 'tess' },
+        kind: 'imap',
+        smtp: { host: 'smtp.example.org', password: 'password_2', port: 587, secure: false, username: 'tess' }
+      },
+      { warn: vi.fn() }
+    );
   });
 
   it('should initialize at UIDNEXT, announcing nothing', async () => {

@@ -1,6 +1,7 @@
 import type { $MailSettings } from '@collegium/core/toolsets';
 
 import { ChatGateway } from '@/chat/chat.gateway.ts';
+import { LoggerFactory } from '@/logging/logging.factory.ts';
 import { ResourcesService } from '@/resources/resources.service.ts';
 
 import { $MailTemplate } from './compose/compose.schemas.ts';
@@ -37,6 +38,7 @@ export class MailRegistry {
   static async resolve(
     chatGateway: Pick<ChatGateway, 'resolveChannelId'>,
     resourcesService: Pick<ResourcesService, 'readText'>,
+    loggerFactory: Pick<LoggerFactory, 'createLogger'>,
     mailboxes: readonly ResolvedMailbox[]
   ): Promise<MailRegistry> {
     MailRegistry.assertMailboxBoundaries(mailboxes);
@@ -51,7 +53,7 @@ export class MailRegistry {
             provider:
               settings.provider.kind === 'exchange'
                 ? new ExchangeMailProvider(settings.provider.address, new ExchangeAuth(settings.provider))
-                : new ImapMailProvider(settings.provider),
+                : new ImapMailProvider(settings.provider, loggerFactory.createLogger(ImapMailProvider.name)),
             template: MailRegistry.readTemplate(resourcesService, agentUsername, settings)
           }
         ] as const;

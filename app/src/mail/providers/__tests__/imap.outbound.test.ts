@@ -11,12 +11,14 @@ vi.mock('nodemailer', () => ({ default: { createTransport } }));
 
 const client = vi.hoisted(() => ({
   append: vi.fn(),
+  close: vi.fn(),
   connect: vi.fn(),
   fetchOne: vi.fn(),
   getMailboxLock: vi.fn(),
   list: vi.fn(),
   logout: vi.fn(),
   mailbox: { exists: 3, uidNext: 43, uidValidity: 7n },
+  on: vi.fn(),
   search: vi.fn()
 }));
 
@@ -65,12 +67,15 @@ describe('ImapMailProvider outbound', () => {
     client.list.mockResolvedValue([{ path: 'Sent Items', specialUse: '\\Sent' }]);
     client.logout.mockResolvedValue(undefined);
     sendMail.mockResolvedValue({});
-    provider = new ImapMailProvider({
-      address: 'tess@example.org',
-      imap: { host: 'imap.example.org', password: 'password_1', port: 993, secure: true, username: 'tess' },
-      kind: 'imap',
-      smtp: { host: 'smtp.example.org', password: 'password_2', port: 587, secure: false, username: 'tess-send' }
-    });
+    provider = new ImapMailProvider(
+      {
+        address: 'tess@example.org',
+        imap: { host: 'imap.example.org', password: 'password_1', port: 993, secure: true, username: 'tess' },
+        kind: 'imap',
+        smtp: { host: 'smtp.example.org', password: 'password_2', port: 587, secure: false, username: 'tess-send' }
+      },
+      { warn: vi.fn() }
+    );
   });
 
   it('should authenticate each endpoint with its own credentials', async () => {

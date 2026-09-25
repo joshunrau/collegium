@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ChatGateway } from '@/chat/chat.gateway.ts';
+import { LoggerFactory } from '@/logging/logging.factory.ts';
 import { ResourcesService } from '@/resources/resources.service.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 
@@ -57,7 +58,12 @@ describe('MailRegistry', () => {
   let mailRegistry: MailRegistry;
 
   beforeEach(async () => {
-    mailRegistry = await MailRegistry.resolve(buildChatGateway(), buildResourcesService(), MAILBOXES);
+    mailRegistry = await MailRegistry.resolve(
+      buildChatGateway(),
+      buildResourcesService(),
+      MockFactory.createMock(LoggerFactory),
+      MAILBOXES
+    );
   });
 
   it('should build one provider per configured mailbox, by kind', () => {
@@ -82,9 +88,9 @@ describe('MailRegistry', () => {
       exchangeMailbox('tess', 'tess@example.org', 'client_1'),
       exchangeMailbox('amir', 'tess@example.org', 'client_2')
     ];
-    await expect(MailRegistry.resolve(buildChatGateway(), buildResourcesService(), shared)).rejects.toThrow(
-      'mailbox addresses must be unique across agents'
-    );
+    await expect(
+      MailRegistry.resolve(buildChatGateway(), buildResourcesService(), MockFactory.createMock(LoggerFactory), shared)
+    ).rejects.toThrow('mailbox addresses must be unique across agents');
   });
 
   it('should refuse two agents sharing an Exchange app registration (§8)', async () => {
@@ -92,20 +98,30 @@ describe('MailRegistry', () => {
       exchangeMailbox('tess', 'tess@example.org', 'client_1'),
       exchangeMailbox('amir', 'amir@example.org', 'client_1')
     ];
-    await expect(MailRegistry.resolve(buildChatGateway(), buildResourcesService(), shared)).rejects.toThrow(
-      'Exchange client ids must be unique across agents'
-    );
+    await expect(
+      MailRegistry.resolve(buildChatGateway(), buildResourcesService(), MockFactory.createMock(LoggerFactory), shared)
+    ).rejects.toThrow('Exchange client ids must be unique across agents');
   });
 
   it('should read a mailbox template beneath the resources root', async () => {
     const resourcesService = buildResourcesService();
-    const registry = await MailRegistry.resolve(buildChatGateway(), resourcesService, templated());
+    const registry = await MailRegistry.resolve(
+      buildChatGateway(),
+      resourcesService,
+      MockFactory.createMock(LoggerFactory),
+      templated()
+    );
     expect(resourcesService.readText).toHaveBeenCalledWith('mail/signature.html');
     expect(registry.mailboxFor('tess')?.template).toBe('<body>{BODY}</body>');
   });
 
   it('should refuse a template without exactly one body placeholder', async () => {
-    const resolving = MailRegistry.resolve(buildChatGateway(), buildResourcesService('<body></body>'), templated());
+    const resolving = MailRegistry.resolve(
+      buildChatGateway(),
+      buildResourcesService('<body></body>'),
+      MockFactory.createMock(LoggerFactory),
+      templated()
+    );
     await expect(resolving).rejects.toThrow(
       'agent "tess" mail template "mail/signature.html": must hold {BODY} exactly once'
     );

@@ -341,7 +341,7 @@ An agent may act as **at most one email address**, fixed in its mail settings (�
 
 **A send is never retried.** A refusal the server answered — nothing left — is an ordinary result the agent may act on. An outcome that cannot be established is reported as unresolved and ends the turn (§7.1), because feeding "unresolved" back to a model invites exactly the duplicate the rule exists to prevent.
 
-**Boot proves every mailbox, and distinguishes what waiting cannot fix.** An announcement channel that is a direct message or that the agent does not belong to, and credentials the provider refuses, are boot refusals naming what is wrong. A mailbox that is merely unreachable is not: the system bot says so in the announcement channel and the framework runs, polling until it recovers and saying so again when it does.
+**Boot proves every mailbox, and distinguishes what waiting cannot fix.** An announcement channel that is a direct message or that the agent does not belong to, and credentials the provider refuses, are boot refusals naming what is wrong. A mailbox that is merely unreachable is not: the system bot says so in the announcement channel and the framework runs, polling until it recovers and saying so again when it does. A provider's failure mid-session fails the call that met it and never stops the process; a mailbox that stays unreachable is announced as above.
 
 Mail is optional: a deployment with no mailbox configured runs exactly as it did before mail existed, and a partially configured one is refused before the system runs, naming what is missing.
 
