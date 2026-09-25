@@ -33,6 +33,18 @@ export type MemoryRevision = {
   readonly reference: string;
 };
 
+/** §3.6 — which revision of an entry a turn has seen, or a refusal says the entry stands at */
+export type MemorySighting = {
+  readonly id: string;
+  readonly revision: number;
+};
+
+/** §3.6, §3.4 — what a refusal's remedy depends on: the reads this turn has made, and the tools it may call */
+export type MemoryFailureReader = {
+  readonly hasSeen: (entry: MemorySighting) => boolean;
+  readonly isGranted: (ref: string) => boolean;
+};
+
 /** one passage a replace substitutes (§3.6) */
 export type MemoryEdit = {
   readonly passage: string;
@@ -76,6 +88,8 @@ export declare namespace MemoryFailure {
         length: number;
         limit: number;
         reference: string;
+        /** the entry as it stands, so the refusal can say whether the turn must read it before a rewrite */
+        stored: MemorySighting;
         storedLength: number;
       }
     | {
@@ -92,6 +106,8 @@ export declare namespace MemoryFailure {
     edit?: number;
     kind: 'passage-unmatched';
     occurrences: 'none' | 'several';
+    /** the turn had not seen the revision it quoted from, which is why the passage may have missed */
+    unseen?: Omit<UnseenRevision, 'kind'>;
   };
   /** a revision that would leave nothing, which a write could never have stored; that is a delete */
   type EmptyBody = {

@@ -5,7 +5,13 @@ import { match } from 'ts-pattern';
 import { renderElapsed } from '@/formatting/durations/duration.utils.ts';
 import { renderReference } from '@/utils/reference.utils.ts';
 
-import type { MemoryEdit, MemoryFailure, MemoryListingWithRevisions } from './memory.types.ts';
+import type {
+  MemoryEdit,
+  MemoryFailure,
+  MemoryFailureReader,
+  MemoryListingWithRevisions,
+  MemorySighting
+} from './memory.types.ts';
 
 const CHARACTER_COUNT_FORMAT = new Intl.NumberFormat('en-US');
 
@@ -13,13 +19,19 @@ function formatCharacters(count: number): string {
   return CHARACTER_COUNT_FORMAT.format(count);
 }
 
-/** §3.6, §3.4 — the ways to make room in an entry, each only where the reader is granted its tool */
-function renderMakingRoom(isGranted: (ref: string) => boolean): string {
+/**
+ * §3.6, §3.4 — the ways to make room in an entry, each only where the reader is granted its tool. A
+ * rewrite is only of the revision the turn has seen, so where it has not, the read comes first.
+ */
+function renderMakingRoom(stored: MemorySighting, reader: MemoryFailureReader): string {
+  const canRewrite =
+    reader.isGranted('memory::rewrite') && (reader.hasSeen(stored) || reader.isGranted('memory::read'));
+  const rewrite = reader.hasSeen(stored)
+    ? 'rewrite the memory without what is no longer needed with memory__rewrite'
+    : 'read it with memory__read and then rewrite it without what is no longer needed with memory__rewrite';
   const ways = [
-    ...(isGranted('memory::replace') ? ['shorten a passage with memory__replace'] : []),
-    ...(isGranted('memory::rewrite')
-      ? ['rewrite the memory without what is no longer needed with memory__rewrite']
-      : [])
+    ...(reader.isGranted('memory::replace') ? ['shorten a passage with memory__replace'] : []),
+    ...(canRewrite ? [rewrite] : [])
   ];
   return ways.length === 0 ? 'shorten the change' : ways.join(', or ');
 }
@@ -29,12 +41,25 @@ function renderBodySize(bodyLength: number, caps: $MemorySettings): string {
   return `${formatCharacters(bodyLength)} of ${formatCharacters(caps.maxBodyChars)} characters`;
 }
 
-function renderPassageUnmatched({ edit, occurrences }: MemoryFailure.PassageUnmatched): string {
+/** §3.6 — why a quoted passage may have missed: the turn quoted from a revision it has not read */
+function renderUnseenQuote({ lastSeen, reference }: NonNullable<MemoryFailure.PassageUnmatched['unseen']>): string {
+  return lastSeen === 'earlier'
+    ? `memory ${reference} has been revised since you last read it; read it again and copy the passage from what it holds now`
+    : `you have not read memory ${reference} in this turn; read it and copy the passage from it`;
+}
+
+function renderPassageUnmatched(
+  { edit, occurrences, unseen }: MemoryFailure.PassageUnmatched,
+  reader: MemoryFailureReader
+): string {
   const refusal =
     occurrences === 'none'
       ? 'the passage does not occur in that memory'
       : 'the passage occurs more than once in that memory; include enough of the surrounding text to match it exactly once';
-  return edit === undefined ? refusal : `none of the edits was applied: in edit ${edit}, ${refusal}`;
+  const refused = edit === undefined ? refusal : `none of the edits was applied: in edit ${edit}, ${refusal}`;
+  return unseen === undefined || !reader.isGranted('memory::read')
+    ? refused
+    : `${renderUnseenQuote(unseen)} — ${refused}`;
 }
 
 /** what the model, the trace, and /memory show for an entry: a prefix of its id, which the store resolves back (§3.6) */
@@ -92,16 +117,19 @@ export function renderWriteResult(
   return `${saved}; at the cap of ${caps.maxEntries} memories, it removed ${readLongestAgo} read longest ago: ${descriptions}`;
 }
 
-/** §3.6 — what the model reads for a revision: the body's size against its cap */
+/** §3.6 — what the model reads for a revision: the body's size against its cap, and that a re-description left the body as it was */
 export function renderRevisionResult(
-  revised: { readonly bodyLength: number; readonly reference: string },
+  revised: { readonly bodyLength: number; readonly isRedescribed: boolean; readonly reference: string },
   caps: $MemorySettings
 ): string {
-  return `memory ${revised.reference} revised (${renderBodySize(revised.bodyLength, caps)})`;
+  const size = renderBodySize(revised.bodyLength, caps);
+  return revised.isRedescribed
+    ? `memory ${revised.reference} re-described; body unchanged (${size})`
+    : `memory ${revised.reference} revised (${size})`;
 }
 
 /** what the model reads when the store refuses a call; never the body, since a revision costs what the change costs (§3.6) */
-export function renderMemoryFailure(failure: MemoryFailure, isGranted: (ref: string) => boolean): string {
+export function renderMemoryFailure(failure: MemoryFailure, reader: MemoryFailureReader): string {
   return (
     match(failure)
       .with({ kind: 'ambiguous' }, { kind: 'not-found' }, renderUnresolvedReference)
@@ -118,8 +146,8 @@ export function renderMemoryFailure(failure: MemoryFailure, isGranted: (ref: str
       // §3.6 — the remedy is room made in this entry, never a second entry beside it
       .with(
         { field: 'body', kind: 'revision-too-long' },
-        ({ length, limit, reference, storedLength }) =>
-          `memory ${reference} holds ${formatCharacters(storedLength)} of ${formatCharacters(limit)} characters, and this change would make it ${formatCharacters(length)}; ${renderMakingRoom(isGranted)}, then try again`
+        ({ length, limit, reference, stored, storedLength }) =>
+          `memory ${reference} holds ${formatCharacters(storedLength)} of ${formatCharacters(limit)} characters, and this change would make it ${formatCharacters(length)}; ${renderMakingRoom(stored, reader)}, then try again`
       )
       .with({ kind: 'empty-body' }, () => 'the revision would leave the memory empty; delete it instead')
       .with(
@@ -130,7 +158,7 @@ export function renderMemoryFailure(failure: MemoryFailure, isGranted: (ref: str
         { kind: 'unseen-revision', lastSeen: 'never' },
         ({ reference }) => `you have not read memory ${reference} in this turn; read it first`
       )
-      .with({ kind: 'passage-unmatched' }, renderPassageUnmatched)
+      .with({ kind: 'passage-unmatched' }, (unmatched) => renderPassageUnmatched(unmatched, reader))
       .exhaustive()
   );
 }

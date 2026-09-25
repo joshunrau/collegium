@@ -167,6 +167,7 @@ export class MemoryService {
           length: body.value.length,
           limit: caps.maxBodyChars,
           reference: renderMemoryReference(current.value.id),
+          stored: { id: current.value.id, revision: current.value.revision },
           storedLength: current.value.body.length
         });
       }

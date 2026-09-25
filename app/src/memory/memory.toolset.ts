@@ -17,7 +17,14 @@ import {
   replacePassages
 } from './memory.utils.ts';
 
-import type { MemoryEdit, MemoryFailure, MemoryRevision, MemoryRevisionReceipt } from './memory.types.ts';
+import type {
+  MemoryEdit,
+  MemoryFailure,
+  MemoryFailureReader,
+  MemoryRevision,
+  MemoryRevisionReceipt
+} from './memory.types.ts';
+import type { MemorySightingsRegistry } from './sightings/memory-sightings.registry.ts';
 
 const $Reference = z.string().min(1).describe('The reference of the memory entry, as listed beside its description');
 
@@ -46,8 +53,14 @@ const $ReplaceArgs = z.object({
   replacement: $Edit.shape.replacement.optional()
 });
 
-/** what one replace substitutes: one passage, or several edits — never both, never neither */
+/** what one replace changes: one passage, several edits, or the description alone — never passage and edits together */
 type ReplaceTarget =
+  | (z.infer<typeof $ReplaceArgs> & {
+      readonly description: string;
+      readonly edits?: undefined;
+      readonly passage?: undefined;
+      readonly replacement?: undefined;
+    })
   | (z.infer<typeof $ReplaceArgs> & {
       readonly edits: readonly MemoryEdit[];
       readonly passage?: undefined;
@@ -60,9 +73,23 @@ type ReplaceTarget =
     });
 
 const $Replace = $ReplaceArgs.refine((args): args is ReplaceTarget => {
-  const single = args.passage !== undefined && args.replacement !== undefined;
-  return args.edits === undefined ? single : args.passage === undefined && args.replacement === undefined;
-}, 'give passage and replacement, or edits, never both');
+  const hasPassage = args.passage !== undefined || args.replacement !== undefined;
+  if (args.edits !== undefined) {
+    return !hasPassage;
+  }
+  return hasPassage ? args.passage !== undefined && args.replacement !== undefined : args.description !== undefined;
+}, 'give passage and replacement, edits, or only a new description; never passage and edits together');
+
+/** §3.6, §3.4 — what a refusal's remedy may name: the reads this turn has made, and the tools it is granted */
+function readerOf(context: {
+  readonly sightings: Pick<MemorySightingsRegistry, 'confirmSeen'>;
+  readonly turn: Pick<ToolTurnScope, 'isGranted' | 'turnId'>;
+}): MemoryFailureReader {
+  return {
+    hasSeen: (entry) => context.sightings.confirmSeen(context.turn.turnId, entry).success,
+    isGranted: (ref) => context.turn.isGranted(ref)
+  };
+}
 
 /** §3.6 — the entry a revision names, with the revising turn's provenance and the description it names, if any */
 function toRevision(
@@ -80,15 +107,12 @@ function toRevision(
 /** §3.6 — the trace records the revision with its count and whatever it replaced; the model reads the size it left */
 function toRevisionResult(
   revised: Result<MemoryRevisionReceipt<ModelRow<'Memory'>>, MemoryFailure>,
-  context: { readonly settings: $MemorySettings; readonly turn: Pick<ToolTurnScope, 'isGranted'> },
+  context: Parameters<typeof readerOf>[0] & { readonly settings: $MemorySettings },
   replacedPassagesOf: (previous: ModelRow<'Memory'>) => readonly string[] | undefined = () => undefined
 ): ToolResult {
   const caps = context.settings;
   if (!revised.success) {
-    return Result.err({
-      kind: 'invalid-arguments',
-      message: renderMemoryFailure(revised.error, (ref) => context.turn.isGranted(ref))
-    });
+    return Result.err({ kind: 'invalid-arguments', message: renderMemoryFailure(revised.error, readerOf(context)) });
   }
   const { entry, previous, reference } = revised.value;
   const replacedPassages = replacedPassagesOf(previous);
@@ -103,7 +127,14 @@ function toRevisionResult(
         ...(replacedPassages !== undefined && { replacedPassages })
       }
     },
-    text: renderRevisionResult({ bodyLength: entry.body.length, reference }, caps)
+    text: renderRevisionResult(
+      {
+        bodyLength: entry.body.length,
+        isRedescribed: entry.body === previous.body && entry.description !== previous.description,
+        reference
+      },
+      caps
+    )
   });
 }
 
@@ -147,7 +178,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
         if (!deleted.success) {
           return Result.err({
             kind: 'invalid-arguments',
-            message: renderMemoryFailure(deleted.error, (ref) => context.turn.isGranted(ref))
+            message: renderMemoryFailure(deleted.error, readerOf(context))
           });
         }
         return Result.ok({ text: `memory ${args.reference} deleted: ${deleted.value.description}` });
@@ -179,18 +210,33 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
     // §3.6 — ungated like a write, and one step rather than a delete and a write
     replace: {
       description:
-        'Replace one passage of one of your memories with new text, or several passages at once with edits. Each passage must occur exactly once in the memory. It is applied to the memory as stored, in one step. The memory keeps its reference, and its description unless you give a new one.',
+        'Replace one passage of one of your memories with new text, or several passages at once with edits, or give only a new description to change the description and leave the body as it is. Each passage must occur exactly once in the memory. It is applied to the memory as stored, in one step. The memory keeps its reference, and its description unless you give a new one.',
       execute: async (args, context) => {
-        const edits = args.edits ?? [{ passage: args.passage, replacement: args.replacement }];
+        const edits =
+          args.edits ?? (args.passage === undefined ? [] : [{ passage: args.passage, replacement: args.replacement }]);
         const revised = await context.memory.revise(
           toRevision(args, context.turn),
-          (stored) => replacePassages(stored.body, edits),
+          (stored) => {
+            const replaced = replacePassages(stored.body, edits);
+            if (replaced.success) {
+              return replaced;
+            }
+            const seen = context.sightings.confirmSeen(context.turn.turnId, stored);
+            return seen.success
+              ? replaced
+              : Result.err({
+                  ...replaced.error,
+                  unseen: { lastSeen: seen.error.lastSeen, reference: seen.error.reference }
+                });
+          },
           context.settings
         );
         if (revised.success) {
           context.sightings.recordRevised(context.turn.turnId, revised.value.entry);
         }
-        return toRevisionResult(revised, context, () => edits.map(({ passage }) => passage));
+        return toRevisionResult(revised, context, () => {
+          return edits.length === 0 ? undefined : edits.map(({ passage }) => passage);
+        });
       },
       parameters: $Replace,
       traceDetail: (args) => args.reference
@@ -234,7 +280,7 @@ export const MEMORY_TOOLSET = implementToolset(MEMORY_TOOLSET_DEF, {
         if (!written.success) {
           return Result.err({
             kind: 'invalid-arguments',
-            message: renderMemoryFailure(written.error, (ref) => context.turn.isGranted(ref))
+            message: renderMemoryFailure(written.error, readerOf(context))
           });
         }
         context.sightings.recordSeen(context.turn.turnId, written.value.entry);

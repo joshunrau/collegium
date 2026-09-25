@@ -34,6 +34,16 @@ function buildContext() {
   return { context, memory };
 }
 
+const OVER_CAP = Result.err({
+  field: 'body',
+  kind: 'revision-too-long',
+  length: 16_590,
+  limit: 16_000,
+  reference: 'mem00001',
+  stored: { id: STORED.id, revision: STORED.revision },
+  storedLength: 15_940
+} as const);
+
 /** the service's delete, judged against one stored entry as the real one judges under its lock */
 function deletingAgainst(stored: ModelRow<'Memory'>) {
   return (_agentUsername: string, _reference: string, admit: (entry: ModelRow<'Memory'>) => Result<void, unknown>) => {
@@ -211,6 +221,7 @@ describe('MEMORY_TOOLSET', () => {
       { passage: 'bullet', replacement: 'numbered' },
       { passage: 'never', replacement: 'rarely' }
     ];
+    await executeTool(read, { reference: 'mem00001' }, context);
     const result = await executeTool(replace, { edits, reference: 'mem00001' }, context);
     expect(result.error).toStrictEqual({
       kind: 'invalid-arguments',
@@ -218,24 +229,53 @@ describe('MEMORY_TOOLSET', () => {
     });
   });
 
-  it('takes one passage or several edits, never both', () => {
+  it('takes one passage, several edits or only a description, never passage and edits together', () => {
     const both = { edits: [{ passage: 'a', replacement: 'b' }], passage: 'a', reference: 'mem00001', replacement: 'b' };
     expect(replace.parameters.safeParse(both).success).toBe(false);
     expect(replace.parameters.safeParse({ passage: 'a', reference: 'mem00001' }).success).toBe(false);
+    expect(replace.parameters.safeParse({ reference: 'mem00001' }).success).toBe(false);
+    expect(replace.parameters.safeParse({ description: 'd', reference: 'mem00001' }).success).toBe(true);
+  });
+
+  it('changes the description alone, leaving the body as it is (§3.6)', async () => {
+    const { context, memory } = buildContext();
+    memory.revise.mockImplementation(revisingAgainst(STORED));
+    const result = await executeTool(replace, { description: 'formatting', reference: 'mem00001' }, context);
+    expect(result.unwrap()).toStrictEqual({
+      disclosure: {
+        body: 'bullet points, always',
+        description: 'formatting',
+        reference: 'mem00001',
+        revision: { count: 1, replacedDescription: 'a stale fact' }
+      },
+      text: 'memory mem00001 re-described; body unchanged (21 of 16,000 characters)'
+    });
+  });
+
+  it('says a missed passage was quoted from a memory the turn has not read, or read before a revision (§3.6)', async () => {
+    const { context, memory } = buildContext();
+    const quote = { passage: 'never', reference: 'mem00001', replacement: 'rarely' };
+    memory.revise.mockImplementation(revisingAgainst(STORED));
+    expect((await executeTool(replace, quote, context)).error).toMatchObject({
+      message:
+        'you have not read memory mem00001 in this turn; read it and copy the passage from it — the passage does not occur in that memory'
+    });
+    await executeTool(read, { reference: 'mem00001' }, context);
+    expect((await executeTool(replace, quote, context)).error).toMatchObject({
+      message: 'the passage does not occur in that memory'
+    });
+    memory.revise.mockImplementation(revisingAgainst({ ...STORED, revision: 1 }));
+    expect((await executeTool(replace, quote, context)).error).toMatchObject({
+      message: expect.stringMatching(
+        /^memory mem00001 has been revised since you last read it; read it again and copy the passage from what it holds now — /u
+      )
+    });
   });
 
   it('refuses a revision over the body cap with what the memory holds and what the change would make it (§3.6)', async () => {
     const { context, memory } = buildContext();
-    memory.revise.mockResolvedValue(
-      Result.err({
-        field: 'body',
-        kind: 'revision-too-long',
-        length: 16_590,
-        limit: 16_000,
-        reference: 'mem00001',
-        storedLength: 15_940
-      })
-    );
+    memory.revise.mockResolvedValue(OVER_CAP);
+    await executeTool(read, { reference: 'mem00001' }, context);
     const result = await executeTool(append, { reference: 'mem00001', text: 'more' }, context);
     expect(result.error).toStrictEqual({
       kind: 'invalid-arguments',
@@ -244,18 +284,23 @@ describe('MEMORY_TOOLSET', () => {
     });
   });
 
+  it('names the read a rewrite needs where the turn has not seen the memory, and only if granted (§3.6)', async () => {
+    const { context, memory } = buildContext();
+    memory.revise.mockResolvedValue(OVER_CAP);
+    const unread = await executeTool(append, { reference: 'mem00001', text: 'more' }, context);
+    expect(unread.error).toMatchObject({
+      message: expect.stringContaining(
+        'or read it with memory__read and then rewrite it without what is no longer needed with memory__rewrite'
+      )
+    });
+    const unreadable = { ...context, turn: buildToolTurnScope({ isGranted: (ref) => ref !== 'memory::read' }) };
+    const refused = await executeTool(append, { reference: 'mem00001', text: 'more' }, unreadable);
+    expect(refused.error).toMatchObject({ message: expect.not.stringContaining('memory__read') });
+  });
+
   it('names only the revision tools the agent is granted as the way to make room (§3.4)', async () => {
     const { context, memory } = buildContext();
-    memory.revise.mockResolvedValue(
-      Result.err({
-        field: 'body',
-        kind: 'revision-too-long',
-        length: 16_590,
-        limit: 16_000,
-        reference: 'mem00001',
-        storedLength: 15_940
-      })
-    );
+    memory.revise.mockResolvedValue(OVER_CAP);
     const appending = { ...context, turn: buildToolTurnScope({ isGranted: (ref) => ref === 'memory::append' }) };
     const result = await executeTool(append, { reference: 'mem00001', text: 'more' }, appending);
     expect(result.error).toStrictEqual({

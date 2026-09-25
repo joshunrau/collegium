@@ -234,6 +234,7 @@ describe('MemoryService', () => {
         length: 25,
         limit: 20,
         reference: 'memory-0',
+        stored: { id: expect.any(String), revision: 0 },
         storedLength: 15
       });
       expect(table.rows.map((row) => row.body)).toStrictEqual(['x'.repeat(15)]);
