@@ -192,6 +192,7 @@ Build the payload from the arguments, the settings, and your own records only. D
 `execute` also receives `turn`, the facts of the turn making the call:
 
 - `agentUsername` names the acting agent, and `channelId` the channel it acts in.
+- `isGranted(ref)` says whether the acting agent is granted a tool, named by its full `namespace::tool` ref. A result or refusal that tells the agent which tool to call next names only one that passes this check, since a deployment may grant your tools one by one.
 - `triggeringPostId` names the post that started the turn, or is `null` when no post did.
 - `turnId` identifies the turn.
 - `workUnit` names the work unit the turn serves, or is `null`.
