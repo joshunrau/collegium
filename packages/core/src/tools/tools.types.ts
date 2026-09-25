@@ -63,7 +63,7 @@ export type ToolDisclosure = {
  * post (§4.5), publishes it, and only then calls `onPublished`.
  */
 export type ToolPost = {
-  /** the one peer this post addresses; any other agent the text names loses its @ before posting (§4.5) */
+  /** the one peer this post addresses; any other agent the text names, but its author, loses its @ before posting (§4.5) */
   readonly addressee?: string;
   /**
    * Called once the post has landed and been recorded, with its id — the one moment the tool writes

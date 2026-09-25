@@ -1552,7 +1552,10 @@ export class TurnRunner {
    * output (§7.1); landed and recorded, the tool is told, and only then writes.
    */
   private async publishToolPost(input: RunInput, state: TurnState, post: ToolPost): Promise<ToolPostOutcome> {
-    const text = this.multiMentionPolicy.stripAgentMentionsExcept(post.text, post.addressee);
+    const text = this.multiMentionPolicy.stripAgentMentionsExcept(
+      { authorUsername: input.profile.username, text: post.text },
+      post.addressee
+    );
     const refusal = await this.refusalOfFrameworkPost(input, state, text);
     if (refusal !== undefined) {
       return { kind: 'refused', output: refusal };
@@ -1844,7 +1847,10 @@ export class TurnRunner {
       if (!report) {
         return;
       }
-      const text = this.multiMentionPolicy.stripAgentMentionsExcept(report.text, report.addressee);
+      const text = this.multiMentionPolicy.stripAgentMentionsExcept(
+        { authorUsername: input.profile.username, text: report.text },
+        report.addressee
+      );
       const refusal = await this.refusalOfFrameworkPost(input, state, text);
       if (refusal !== undefined) {
         this.loggingService.warn(`did not report the unit of "${input.profile.username}" blocked: ${refusal}`);

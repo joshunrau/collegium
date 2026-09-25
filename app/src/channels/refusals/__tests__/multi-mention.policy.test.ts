@@ -129,9 +129,15 @@ describe('MultiMentionPolicy', () => {
 
   describe('stripAgentMentionsExcept', () => {
     it('should keep the addressee’s mention and strip every other agent’s (§4.5)', () => {
-      expect(multiMentionPolicy.stripAgentMentionsExcept('@owen, ask @tess and @casey', 'owen')).toBe(
-        '@owen, ask tess and @casey'
-      );
+      const post = { authorUsername: 'mira', text: '@owen, ask @tess and @casey' };
+      expect(multiMentionPolicy.stripAgentMentionsExcept(post, 'owen')).toBe('@owen, ask tess and @casey');
+    });
+
+    it("should keep the author's own mention, which addresses nobody (§4.5)", () => {
+      const post = { authorUsername: 'mira', text: '@owen, report back to @mira, not @tess' };
+      expect(multiMentionPolicy.stripAgentMentionsExcept(post, 'owen')).toBe('@owen, report back to @mira, not tess');
+      expect(multiMentionPolicy.stripAgentMentionsExcept(post, undefined)).toBe('owen, report back to @mira, not tess');
+      expect(multiMentionPolicy.stripAgentMentions(post.text)).toBe('owen, report back to mira, not tess');
     });
   });
 

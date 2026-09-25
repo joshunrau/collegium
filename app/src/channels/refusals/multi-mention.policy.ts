@@ -60,17 +60,22 @@ export class MultiMentionPolicy {
 
   /** status text never addresses anyone (§4.5) — an agent mention loses its @ before posting */
   stripAgentMentions(text: string): string {
-    return this.stripAgentMentionsExcept(text, undefined);
+    return stripMentionsOf(text, this.listAgentUsernames());
   }
 
-  /** §4.5 — a post addresses at most the one peer it is for: every other agent it names loses its @ */
-  stripAgentMentionsExcept(text: string, addressee: string | undefined): string {
+  /**
+   * §4.5 — a post addresses at most the one peer it is for: every other agent it names loses its @,
+   * except its author, whose own handle addresses nobody (`addresseesOf`) and is what a hand-back
+   * clause names the colleague to report to by
+   */
+  stripAgentMentionsExcept(post: { authorUsername: string; text: string }, addressee: string | undefined): string {
     return stripMentionsOf(
-      text,
-      this.agentRegistry
-        .list()
-        .map((profile) => profile.username)
-        .filter((username) => username !== addressee)
+      post.text,
+      this.listAgentUsernames().filter((username) => username !== addressee && username !== post.authorUsername)
     );
+  }
+
+  private listAgentUsernames(): string[] {
+    return this.agentRegistry.list().map((profile) => profile.username);
   }
 }

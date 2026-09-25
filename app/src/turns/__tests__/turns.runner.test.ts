@@ -166,7 +166,7 @@ describe('TurnRunner', () => {
     multiMentionPolicy.addresseesOf.mockReturnValue([]);
     multiMentionPolicy.refuses.mockReturnValue(false);
     multiMentionPolicy.refusesSecondAddressee.mockReturnValue(false);
-    multiMentionPolicy.stripAgentMentionsExcept.mockImplementation((text: string) => text);
+    multiMentionPolicy.stripAgentMentionsExcept.mockImplementation(({ text }: { text: string }) => text);
     multiMentionPolicy.stripAgentMentions.mockImplementation((content) => content);
     releaseHeldActivation = vi.fn<(held: HeldActivation) => void>();
     const statusPostService = MockFactory.createMock(StatusPostService);
@@ -1663,19 +1663,30 @@ describe('TurnRunner', () => {
     });
 
     it('should let a tool post mention its addressee alone (§4.5)', async () => {
-      multiMentionPolicy.stripAgentMentionsExcept.mockImplementation((text: string, addressee: string | undefined) => {
-        return text.replaceAll(/@(\w+)/gu, (mention, name: string) => (name === addressee ? mention : name));
-      });
+      multiMentionPolicy.stripAgentMentionsExcept.mockImplementation(
+        ({ authorUsername, text }: { authorUsername: string; text: string }, addressee: string | undefined) => {
+          return text.replaceAll(/@(\w+)/gu, (mention, name: string) => {
+            return name === addressee || name === authorUsername ? mention : name;
+          });
+        }
+      );
       complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
       toolExecutor.execute.mockResolvedValueOnce({
         kind: 'continue',
         output: 'assigned',
-        post: { addressee: 'owen', onPublished: () => Promise.resolve(), text: '@owen take this from @tess' }
+        post: {
+          addressee: 'owen',
+          onPublished: () => Promise.resolve(),
+          text: '@owen take this from @tess, then report back to @mira'
+        }
       });
       complete.mockResolvedValueOnce(Result.ok(text('done')));
       await run();
-      expect(sends[0]?.text).toBe('@owen take this from tess');
-      expect(multiMentionPolicy.stripAgentMentionsExcept).toHaveBeenCalledWith('@owen take this from @tess', 'owen');
+      expect(sends[0]?.text).toBe('@owen take this from tess, then report back to @mira');
+      expect(multiMentionPolicy.stripAgentMentionsExcept).toHaveBeenCalledWith(
+        { authorUsername: 'mira', text: '@owen take this from @tess, then report back to @mira' },
+        'owen'
+      );
     });
 
     it('should refuse a post addressing a second peer as the call’s result, writing nothing', async () => {
