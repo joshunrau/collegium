@@ -25,3 +25,8 @@ export function renderDuration(elapsedMs: number): string {
   }
   return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
 }
+
+/** a time limit as the adjective a sentence needs, "20-minute", in whole minutes where it is one and seconds otherwise */
+export function renderTimeLimit(limitMs: number): string {
+  return limitMs % MS_PER_MINUTE === 0 ? `${limitMs / MS_PER_MINUTE}-minute` : `${Math.round(limitMs / 1000)}-second`;
+}

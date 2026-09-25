@@ -9,6 +9,7 @@ export const CONFIG_DEFAULTS = {
     foldLimit: 3
   },
   agentDefaults: {
+    completionTimeLimitMs: 1_200_000,
     turnContextCeilingTokens: 200_000
   },
   display: {

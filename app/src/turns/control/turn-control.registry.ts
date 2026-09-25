@@ -11,6 +11,8 @@ type ControlEntry = {
   /** §7.6 — opens the turn's status post where it has none yet, and says whether it did */
   onSurface: () => Promise<boolean>;
   requested?: Abort;
+  /** §7.5 — aborts the completion in flight when a steer arrives; replaced for each completion */
+  steerAbort?: AbortController;
   /** §7.5 — steering handed to this turn and not yet read; in memory, like every other flag here */
   steering: Steering[];
 };
@@ -30,6 +32,11 @@ export type SteerRefusal =
 
 export type TurnControlHandle = {
   aborted(): Abort | undefined;
+  /**
+   * §7.5 — a signal for the completion about to start, aborted when a steer reaches this turn, since
+   * the runner would discard that completion anyway; aborted already where a steer is waiting
+   */
+  abortOnSteer(): AbortSignal;
   /** resolves only on /kill — raced against in-flight awaits so a wedged turn returns now (§7.5) */
   killed: Promise<'killed'>;
   /** aborts on /kill — handed to the request in flight, so it stops streaming for a turn that is gone */
@@ -84,6 +91,14 @@ export class TurnControlRegistry {
     entry.onKill.push(() => controller.abort());
     return {
       aborted: () => entry.requested,
+      abortOnSteer: () => {
+        const steerAbort = new AbortController();
+        if (entry.steering.length > 0) {
+          steerAbort.abort();
+        }
+        entry.steerAbort = steerAbort;
+        return steerAbort.signal;
+      },
       killed,
       killSignal: controller.signal,
       release: () => this.entries.delete(input.turnId),
@@ -112,6 +127,7 @@ export class TurnControlRegistry {
     }
     for (const entry of reached) {
       entry.steering.push(steering);
+      entry.steerAbort?.abort();
     }
     return Result.ok(targetUsername);
   }

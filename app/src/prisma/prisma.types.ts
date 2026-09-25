@@ -1,6 +1,7 @@
 import type { ToolId } from '@collegium/core/tools';
 
 import type { ReasoningDetail } from '@/core/core.types.ts';
+import type { EstimatedCompletionUsage } from '@/inference/inference.types.ts';
 
 import type { Prisma, PrismaClient } from './generated/client.ts';
 import type { ApprovalStatus, TurnEventKind } from './generated/enums.ts';
@@ -54,6 +55,8 @@ type TurnEventPayloadByKind = {
     content: string;
     /** the rejection exactly as the model read it */
     reason: string;
+    /** §7.1 — a completion cut at its time limit reports no usage; this estimates what it had streamed */
+    usage?: EstimatedCompletionUsage;
   };
   record_written: {
     body: string;
@@ -67,6 +70,8 @@ type TurnEventPayloadByKind = {
   steering_received: {
     byUsername: string;
     text: string;
+    /** §7.5 — where the steer aborted a completion in flight, which reports no usage, an estimate of what it had streamed */
+    usage?: EstimatedCompletionUsage;
   };
   tool_result: {
     callId: string;

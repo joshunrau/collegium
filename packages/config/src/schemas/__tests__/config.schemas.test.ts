@@ -115,7 +115,7 @@ describe('$Config', () => {
   it('should apply the shipped defaults to every section', () => {
     expect($Config.parse(config)).toMatchObject({
       activation: { debounce: { ceilingMs: 15_000, windowMs: 750 }, foldLimit: 3 },
-      agentDefaults: { toolSettings: {}, turnContextCeilingTokens: 200_000 },
+      agentDefaults: { completionTimeLimitMs: 1_200_000, toolSettings: {}, turnContextCeilingTokens: 200_000 },
       display: { timezone: 'UTC' },
       inference: { retry: { backoffMs: 1_000, maxAttempts: 5, maxDelayMs: 30_000 }, timeoutMs: 120_000 },
       logging: { level: 'info' },
@@ -189,6 +189,16 @@ describe('$Config', () => {
     });
     expect(parsed.agents.mira?.turnContextCeilingTokens).toBe(120_000);
     expect(parsed.agents.tess?.turnContextCeilingTokens).toBe(850_000);
+  });
+
+  it('should resolve an agent’s completion time limit from agentDefaults, let the agent override it, and refuse zero (§7.1)', () => {
+    const parsed = $Config.parse({
+      ...config,
+      agents: { mira: declaration([]), tess: { ...declaration([]), completionTimeLimitMs: 600_000 } }
+    });
+    expect(parsed.agents.mira?.completionTimeLimitMs).toBe(1_200_000);
+    expect(parsed.agents.tess?.completionTimeLimitMs).toBe(600_000);
+    expect($Config.safeParse({ ...config, agentDefaults: { completionTimeLimitMs: 0 } }).success).toBe(false);
   });
 
   it('should refuse a context budget that is not below the turn ceiling, where it was stated (§3.8)', () => {

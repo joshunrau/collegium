@@ -33,6 +33,7 @@ const SERVER_SETTINGS = {
 const ADMIN = { email: 'ops@example.org', kind: 'password', password: 'secret', username: 'ops' } as const;
 
 const agent = (username: string, overrides: Partial<AgentDefinition> = {}): AgentDefinition => ({
+  completionTimeLimitMs: 1_200_000,
   contextBudgetTokens: 8000,
   displayName: username,
   expertise: 'testing',

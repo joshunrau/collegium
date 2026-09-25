@@ -89,7 +89,7 @@ export class ChatEmitter extends NotificationsEmitter {
           const name = nameOf(agentUsername);
           const held = `⏳ ${name} has been in one turn here for ${renderElapsed(heldMs)} without waiting on anyone`;
           const shown = tracedNothing
-            ? ', and has called no tool yet: its status post was opened just now and will show what it does next. /collegium kill ends the turn; a turn still thinking needs nothing.'
+            ? ', and has called no tool yet: its status post was opened just now and will show what it does next. If it still shows nothing, /collegium kill ends the turn.'
             : '. If its status post shows no progress, /collegium kill ends the turn; a turn still working needs nothing.';
           const waiting = postsWaiting ? ` A post addressing ${name} is waiting behind this turn.` : '';
           return `${held}${shown}${waiting}`;

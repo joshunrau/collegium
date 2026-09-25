@@ -119,6 +119,7 @@ export class AgentRegistry {
     const { actionBudget, systemPrompt, toolSettings, workspaceRoot } = resolved;
     return {
       actionBudget,
+      completionTimeLimitMs: definition.completionTimeLimitMs,
       contextBudgetTokens: definition.contextBudgetTokens,
       displayName: definition.displayName,
       expertise: definition.expertise,

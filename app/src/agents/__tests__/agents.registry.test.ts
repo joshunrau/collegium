@@ -18,6 +18,7 @@ import type { AgentProfile } from '../agents.types.ts';
 
 const MIRA: AgentDefinition = {
   actionBudget: 120,
+  completionTimeLimitMs: 1_200_000,
   contextBudgetTokens: 8000,
   displayName: 'Mira Turner',
   expertise: 'code review',
@@ -32,6 +33,7 @@ const MIRA: AgentDefinition = {
 };
 
 const TESS: AgentDefinition = {
+  completionTimeLimitMs: 1_200_000,
   contextBudgetTokens: 8000,
   displayName: 'Tess',
   expertise: 'scheduling',

@@ -135,6 +135,11 @@ So a poll that waits for a new post from the agent stops on the status post, not
 Wait for a post from the agent that starts with no marker. The harness has `awaitPostUpdate` for
 the edit case. The status post lists the tool names only. It is a summary. It is not the record.
 
+A `⏱️ _a response ran past its N-minute limit_` line means one model completion was cut at the
+agent's completion time limit and discarded, and the turn went on. A second in the same turn ends
+it, with a notice naming the limit. A lane whose status post shows nothing new for longer than that
+limit is stuck somewhere other than the model, and `/collegium kill` ends it.
+
 ## Poll for the three states
 
 A turn is working, parked on a human, or finished, and its status post's marker says which:

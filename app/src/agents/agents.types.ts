@@ -14,6 +14,8 @@ export type AgentIdentity = {
 export type AgentProfile = {
   /** the §5.3 budget this agent's turns start with: its own where config states one, else the deployment's */
   readonly actionBudget: number;
+  /** §7.1 — how long one model completion may run before it is aborted and the model told so */
+  readonly completionTimeLimitMs: number;
   readonly contextBudgetTokens: number;
   /** what prose calls this agent — its posts' author line, its line under Peers, its bot account — never an @ (§3.1) */
   readonly displayName: string;

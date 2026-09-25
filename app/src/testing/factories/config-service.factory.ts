@@ -15,6 +15,7 @@ const baseConfig = (): $Config => ({
     foldLimit: CONFIG_DEFAULTS.activation.foldLimit
   },
   agentDefaults: {
+    completionTimeLimitMs: CONFIG_DEFAULTS.agentDefaults.completionTimeLimitMs,
     toolSettings: {},
     turnContextCeilingTokens: CONFIG_DEFAULTS.agentDefaults.turnContextCeilingTokens
   },

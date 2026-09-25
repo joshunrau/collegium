@@ -1,6 +1,6 @@
 import { match } from 'ts-pattern';
 
-import { renderDuration } from '@/formatting/durations/duration.utils.ts';
+import { renderDuration, renderTimeLimit } from '@/formatting/durations/duration.utils.ts';
 import type { InferenceFailure } from '@/inference/inference.types.ts';
 import { describeTransportReason } from '@/inference/inference.utils.ts';
 import type { TurnStatus } from '@/prisma/prisma.types.ts';
@@ -158,6 +158,11 @@ export function renderSteeringLine(byUsername: string): string {
   return `↩ _steered by @${byUsername}_`;
 }
 
+/** §7.1 — a completion cut at the agent's time limit, kept nowhere; the turn went on */
+export function renderOverranLine(limitMs: number): string {
+  return `⏱️ _a response ran past its ${renderTimeLimit(limitMs)} limit and was discarded_`;
+}
+
 /** §4.4 — a discarded completion was paid for; the status post says the turn started over, and the run of lines says how often (§8.1) */
 export function renderFoldLine(): string {
   return '↺ _started over to read a further post_';
@@ -214,6 +219,20 @@ export function renderDelegationLimitNotice(): string {
 /** §4.5 — the turn could not produce output the framework would accept; the reason is in the trace */
 export function renderOutputRefusedNotice(): string {
   return 'I could not produce a reply the framework would accept and stopped. The reason is in the trace.';
+}
+
+/**
+ * §7.1 — a turn that a time cut ended, worded from how many of its completions ran past the limit, so
+ * no notice after a cut says a reply was refused: the second overrun ends it, and a streak of refused
+ * posts that ends on a first overrun ends it too.
+ */
+export function renderOverranNotice(limitMs: number, overruns: number): string {
+  const limit = renderTimeLimit(limitMs);
+  const cut =
+    overruns >= 2
+      ? `Two responses in this turn ran past my ${limit} limit`
+      : `A response ran past my ${limit} limit after others the framework refused`;
+  return `${cut}, so I stopped: the provider may be slow, or I was deliberating too long. The trace has ${overruns >= 2 ? 'both' : 'the rest'}.`;
 }
 
 /** §7.1 — the turn ran out of room, not the provider; each cause names where the human should look */

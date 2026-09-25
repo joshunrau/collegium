@@ -28,6 +28,7 @@ const ACCEPTED: Result<CompletionResult, InferenceFailure> = Result.ok({
 
 function agent(username: string, model: $ModelRef): AgentDefinition {
   return {
+    completionTimeLimitMs: 1_200_000,
     contextBudgetTokens: 8000,
     displayName: username,
     expertise: 'testing',

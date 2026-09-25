@@ -1,7 +1,7 @@
 import type { ReasoningDetail } from '@/core/core.types.ts';
 
 import type { $CompletionChunk, $CompletionDelta, $ToolCallDelta } from '../inference.schemas.ts';
-import type { CompletionUsage } from '../inference.types.ts';
+import type { CompletionUsage, StreamedChars } from '../inference.types.ts';
 
 function joinText(left: string | undefined, right: string | undefined): string | undefined {
   return left === undefined && right === undefined ? undefined : (left ?? '') + (right ?? '');
@@ -55,6 +55,18 @@ export class StreamAssembler {
   /** the provider reported an error mid-stream; nothing after it is a completion */
   get failed(): boolean {
     return this.error !== undefined;
+  }
+
+  /** §7.1 — what the stream has produced so far; a provider sending reasoning twice over is counted once */
+  get streamed(): StreamedChars {
+    const callChars = Array.from(this.toolCalls.values()).reduce((sum, call) => sum + call.arguments.length, 0);
+    const detailChars = (this.reasoningDetails ?? []).reduce((sum, detail) => {
+      return sum + (detail.text?.length ?? 0) + (detail.summary?.length ?? 0);
+    }, 0);
+    return {
+      completionChars: this.content.length + callChars,
+      reasoningChars: this.reasoningContent?.length ?? detailChars
+    };
   }
 
   absorb(chunk: $CompletionChunk): void {

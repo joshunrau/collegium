@@ -86,6 +86,15 @@ export const $ContextBudgetTokens = z
     'How many estimated tokens of channel history one turn may assemble (§3.8). It bounds what a turn starts with, never what the turn goes on to accumulate, and must be below the agent’s turn ceiling. The estimate is a character ratio, not a tokenizer.'
   );
 
+export type $CompletionTimeLimitMs = z.infer<typeof $CompletionTimeLimitMs>;
+export const $CompletionTimeLimitMs = z
+  .number()
+  .int()
+  .positive()
+  .describe(
+    'How long one model completion may run, from the request to its last byte, before it is aborted, nothing of it kept, and the model told so; a second in the same turn ends the turn (§7.1). The idle timeout under inference still cuts a provider that goes quiet sooner.'
+  );
+
 export type $TurnContextCeilingTokens = z.infer<typeof $TurnContextCeilingTokens>;
 export const $TurnContextCeilingTokens = z
   .number()
@@ -196,6 +205,7 @@ export const $SystemPromptSource = z
 
 export type $AgentDefaults = z.infer<typeof $AgentDefaults>;
 export const $AgentDefaults = z.strictObject({
+  completionTimeLimitMs: $CompletionTimeLimitMs.default(CONFIG_DEFAULTS.agentDefaults.completionTimeLimitMs),
   contextBudgetTokens: $ContextBudgetTokens
     .optional()
     .describe(
@@ -278,6 +288,9 @@ export const $AgentDeclaration = z.strictObject({
     .describe(
       'Overrides turns.actionBudget for this agent (§5.3): the action attempts one of its turns may make before asking to continue, and what an approved extension grants. State it for an agent whose unit of work is many ungated reads.'
     ),
+  completionTimeLimitMs: $CompletionTimeLimitMs
+    .optional()
+    .describe('Overrides agentDefaults.completionTimeLimitMs for this agent'),
   contextBudgetTokens: $ContextBudgetTokens
     .optional()
     .describe('Overrides agentDefaults.contextBudgetTokens for this agent'),

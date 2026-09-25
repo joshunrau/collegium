@@ -91,6 +91,7 @@ vi.mock('@mattermost/client', () => ({
 }));
 
 const definition = (username: string): AgentDefinition => ({
+  completionTimeLimitMs: 1_200_000,
   contextBudgetTokens: 8000,
   displayName: username,
   expertise: 'code review',

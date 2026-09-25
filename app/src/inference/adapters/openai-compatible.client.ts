@@ -66,7 +66,7 @@ export class OpenAICompatibleClient extends InferenceClient {
       if (!response.value.ok) {
         return this.classifyFailure(response.value);
       }
-      return await this.readStream(response.value, idle.touch);
+      return await this.readStream(response.value, idle.touch, options.onStreamed);
     } finally {
       idle.clear();
     }
@@ -145,7 +145,11 @@ export class OpenAICompatibleClient extends InferenceClient {
     }
   }
 
-  private async readStream(response: Response, touch: () => void): Promise<Result<CompletionResult, InferenceFailure>> {
+  private async readStream(
+    response: Response,
+    touch: () => void,
+    onStreamed: CompletionOptions['onStreamed']
+  ): Promise<Result<CompletionResult, InferenceFailure>> {
     if (!response.body) {
       return Result.err(MALFORMED_COMPLETION);
     }
@@ -162,6 +166,7 @@ export class OpenAICompatibleClient extends InferenceClient {
           return Result.err(MALFORMED_COMPLETION);
         }
         assembler.absorb(chunk.data);
+        onStreamed?.(assembler.streamed);
         if (assembler.failed) {
           break;
         }

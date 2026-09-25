@@ -185,7 +185,7 @@ describe('ChatEmitter', () => {
     });
     expect(chatGateway.postAsSystemIn).toHaveBeenCalledWith(
       'channel-1',
-      '⏳ Mira has been in one turn here for 31m without waiting on anyone, and has called no tool yet: its status post was opened just now and will show what it does next. /collegium kill ends the turn; a turn still thinking needs nothing. A post addressing Mira is waiting behind this turn.'
+      '⏳ Mira has been in one turn here for 31m without waiting on anyone, and has called no tool yet: its status post was opened just now and will show what it does next. If it still shows nothing, /collegium kill ends the turn. A post addressing Mira is waiting behind this turn.'
     );
   });
 

@@ -1,5 +1,5 @@
 import type { $ModelRef } from '@collegium/config';
-import { estimateTokens } from '@collegium/core/utils';
+import { CHARS_PER_TOKEN, estimateTokens } from '@collegium/core/utils';
 import { match } from 'ts-pattern';
 
 import type { ReasoningDetail } from '@/core/core.types.ts';
@@ -11,8 +11,10 @@ import type {
   CompletionReasoning,
   CompletionRequest,
   CompletionUsage,
+  EstimatedCompletionUsage,
   InferenceFailure,
   ProviderCredentialFailure,
+  StreamedChars,
   ToolCall,
   UnparsedToolCall
 } from './inference.types.ts';
@@ -33,6 +35,15 @@ export function bootProbeRequest(model: $ModelRef): CompletionRequest {
 }
 
 /** what one message adds to a request, by the same ruler the window is measured with (§3.8) */
+/** §7.1 — a cut-off completion's spend, at the codebase's characters per token, marked as the estimate it is */
+export function estimateStreamedUsage(streamed: StreamedChars): EstimatedCompletionUsage {
+  return {
+    completionTokens: Math.ceil(streamed.completionChars / CHARS_PER_TOKEN),
+    estimated: true,
+    reasoningTokens: Math.ceil(streamed.reasoningChars / CHARS_PER_TOKEN)
+  };
+}
+
 export function estimateMessageTokens(message: CompletionMessage): number {
   return estimateTokens(JSON.stringify(message));
 }

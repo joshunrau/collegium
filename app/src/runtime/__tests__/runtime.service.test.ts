@@ -43,6 +43,7 @@ import { BootService } from '../boot/boot.service.ts';
 import { RuntimeService } from '../runtime.service.ts';
 
 const DEFINITION: AgentDefinition = {
+  completionTimeLimitMs: 1_200_000,
   contextBudgetTokens: 8000,
   displayName: 'Mira',
   expertise: 'testing',
@@ -130,6 +131,7 @@ describe('RuntimeService', () => {
     workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'collegium-runtime-'));
     mira = {
       actionBudget: 25,
+      completionTimeLimitMs: 1_200_000,
       contextBudgetTokens: 1000,
       displayName: 'Mira',
       expertise: 'testing',

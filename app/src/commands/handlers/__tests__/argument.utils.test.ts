@@ -14,6 +14,7 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { requireAgentName, requireAgentProfile, requirePostId } from '../argument.utils.ts';
 
 const MIRA: AgentDefinition = {
+  completionTimeLimitMs: 1_200_000,
   contextBudgetTokens: 8000,
   displayName: 'Mira',
   expertise: 'code review',

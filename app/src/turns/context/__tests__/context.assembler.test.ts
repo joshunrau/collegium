@@ -36,6 +36,7 @@ import { ContextAssembler } from '../context.assembler.ts';
 
 const PROFILE: AgentProfile = {
   actionBudget: 25,
+  completionTimeLimitMs: 1_200_000,
   contextBudgetTokens: 1000,
   displayName: 'Mira',
   expertise: 'testing',

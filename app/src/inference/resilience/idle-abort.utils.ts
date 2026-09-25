@@ -23,3 +23,23 @@ export function createIdleAbort(idleMs: number): IdleAbort {
   touch();
   return { clear: () => clearTimeout(timer), signal: controller.signal, touch };
 }
+
+export type DeadlineAbort = {
+  /** cancels the pending abort: the completion settled first */
+  readonly clear: () => void;
+  readonly signal: AbortSignal;
+};
+
+/**
+ * An abort that fires once `limitMs` has passed since it was made, whatever is still arriving: the
+ * bound on how long one completion may hold its lane (§7.1), which a stream kept alive by bytes that
+ * are not an answer would otherwise never meet. Built on setTimeout rather than AbortSignal.timeout,
+ * so fake timers drive it in tests.
+ */
+export function createDeadlineAbort(limitMs: number): DeadlineAbort {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort(new DOMException(`the completion ran past its limit of ${limitMs}ms`, 'TimeoutError'));
+  }, limitMs);
+  return { clear: () => clearTimeout(timer), signal: controller.signal };
+}

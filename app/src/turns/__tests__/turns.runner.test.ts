@@ -6,7 +6,7 @@ import {
 } from '@collegium/core/tools';
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
@@ -23,6 +23,7 @@ import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import type {
+  CompletionOptions,
   CompletionRequest,
   CompletionResult,
   CompletionUsage,
@@ -55,6 +56,7 @@ import type { HeldActivation, Turn } from '../turns.types.ts';
 
 const PROFILE = {
   actionBudget: 10,
+  completionTimeLimitMs: 1_200_000,
   contextBudgetTokens: 1000,
   displayName: 'Mira',
   expertise: 'testing',
@@ -1933,6 +1935,144 @@ describe('TurnRunner', () => {
       { content: expect.stringContaining('cut off at the output limit'), role: 'user' }
     ]);
     expect(turnsService.close).toHaveBeenCalledWith('turn-1', 'completed', expect.objectContaining({ actionCount: 1 }));
+  });
+
+  it('should say nothing was kept when output is cut at the limit before any response (§7.1)', async () => {
+    complete.mockResolvedValueOnce(Result.ok({ content: '', kind: 'truncated', usage: undefined }));
+    complete.mockResolvedValueOnce(Result.ok(text('short')));
+    await run();
+    const retryRequest = complete.mock.calls[1]![0];
+    expect(retryRequest.messages.slice(-2)).toStrictEqual([
+      { content: '@casey: hi', role: 'user' },
+      {
+        content:
+          'output rejected: it reached the output limit before any response or call was finished, and none of it was kept — reach your next call or your reply with less deliberation',
+        role: 'user'
+      }
+    ]);
+  });
+
+  describe('the completion time limit (§7.1)', () => {
+    const LIMITED = { ...PROFILE, completionTimeLimitMs: 60_000 };
+    const OVERRAN_REJECTION =
+      'output rejected: your last response ran past its 1-minute limit and nothing of it was kept — reach your next call or your reply with less deliberation';
+
+    /** a request that streams `reasoningChars` of reasoning, then settles as `value` only once its signal aborts */
+    const settlesOnAbort = (value: Awaited<ReturnType<InferenceClient['complete']>>, reasoningChars = 0) => {
+      return (_request: unknown, options?: CompletionOptions) => {
+        options?.onStreamed?.({ completionChars: 0, reasoningChars });
+        return new Promise<Awaited<ReturnType<InferenceClient['complete']>>>((resolve) => {
+          if (options?.signal?.aborted) {
+            resolve(value);
+            return;
+          }
+          options?.signal?.addEventListener('abort', () => resolve(value), { once: true });
+        });
+      };
+    };
+    const ABORTED = Result.err({ kind: 'transport', reason: 'unknown' } satisfies InferenceFailure.Transport);
+
+    const runLimited = async (advances: number) => {
+      const running = turnRunner.run({
+        activationKind: 'addressed',
+        chainLength: 1,
+        channelId: 'channel-1',
+        depth: 0,
+        profile: LIMITED,
+        releaseHeldActivation,
+        rootPostId: 'post-0'
+      });
+      for (let advance = 0; advance < advances; advance++) {
+        await vi.advanceTimersByTimeAsync(LIMITED.completionTimeLimitMs);
+      }
+      return (await running).unwrap();
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should abort a completion past the limit, keep nothing of it, and tell the model so', async () => {
+      complete.mockImplementationOnce(settlesOnAbort(ABORTED, 4000));
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      const outcome = await runLimited(1);
+      expect(outcome.status).toBe('completed');
+      expect(complete.mock.calls[1]![0].messages.slice(-2)).toStrictEqual([
+        { content: '@casey: hi', role: 'user' },
+        { content: OVERRAN_REJECTION, role: 'user' }
+      ]);
+      expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
+        content: '',
+        kind: 'output_rejected',
+        reason: OVERRAN_REJECTION,
+        usage: { completionTokens: 0, estimated: true, reasoningTokens: 1000 }
+      });
+      expect(statusHandle.appendTrace).toHaveBeenCalledWith({
+        kind: 'note',
+        text: '⏱️ _a response ran past its 1-minute limit and was discarded_'
+      });
+      expect(turnsService.close).toHaveBeenCalledWith(
+        'turn-1',
+        'completed',
+        expect.objectContaining({ actionCount: 1 })
+      );
+    });
+
+    it.each([
+      { between: 'nothing', completions: 2 },
+      { between: 'a completion and a tool call', completions: 3 }
+    ])('should end the turn at its second overrun with $between between them', async ({ completions }) => {
+      complete.mockImplementationOnce(settlesOnAbort(ABORTED));
+      if (completions === 3) {
+        complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+      }
+      complete.mockImplementationOnce(settlesOnAbort(ABORTED));
+      const outcome = await runLimited(2);
+      expect(outcome.status).toBe('semantic_error');
+      expect(sends.at(-1)?.text).toBe(
+        'Two responses in this turn ran past my 1-minute limit, so I stopped: the provider may be slow, or I was deliberating too long. The trace has both.'
+      );
+    });
+
+    it('should keep a completion that settled in the tick its deadline fired', async () => {
+      complete.mockImplementationOnce(settlesOnAbort(Result.ok(text('made it'))));
+      const outcome = await runLimited(1);
+      expect(outcome.status).toBe('completed');
+      expect(sends.map((send) => send.text)).toStrictEqual(['made it']);
+    });
+
+    it('should close a turn killed during a completion as killed, not as an overrun', async () => {
+      complete.mockImplementationOnce((request, options) => {
+        turnControlRegistry.abortChannel('channel-1', 'killed', 'casey');
+        return settlesOnAbort(ABORTED)(request, options);
+      });
+      const outcome = await runLimited(0);
+      expect(outcome.status).toBe('killed');
+    });
+
+    it('should abort a completion when a steer arrives, reading the steer and estimating what streamed (§7.5)', async () => {
+      complete.mockImplementationOnce((request, options) => {
+        turnControlRegistry.steer('channel-1', undefined, { byUsername: 'casey', text: 'use staging' });
+        return settlesOnAbort(ABORTED, 400)(request, options);
+      });
+      complete.mockResolvedValueOnce(Result.ok(text('done')));
+      const outcome = await runLimited(0);
+      expect(outcome.status).toBe('completed');
+      expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
+        byUsername: 'casey',
+        kind: 'steering_received',
+        text: 'use staging',
+        usage: { completionTokens: 0, estimated: true, reasoningTokens: 100 }
+      });
+      expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+        content: 'casey (person): use staging',
+        role: 'user'
+      });
+    });
   });
 
   it('should end the turn after two consecutive rejected posts, saying so under its own name (§4.5)', async () => {

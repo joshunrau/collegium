@@ -6,6 +6,7 @@ export function buildAgentProfile(overrides: Partial<AgentProfile> = {}): AgentP
   const username = overrides.username ?? 'mira';
   return {
     actionBudget: 25,
+    completionTimeLimitMs: 1_200_000,
     contextBudgetTokens: 8000,
     displayName: defaultDisplayNameOf(username),
     expertise: 'end-to-end testing',

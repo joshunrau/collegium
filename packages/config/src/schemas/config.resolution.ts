@@ -68,6 +68,7 @@ function resolveConfig(declaration: $ConfigDeclaration, issues: z.core.$ZodRawIs
     }
     agents[username] = {
       ...declared,
+      completionTimeLimitMs: declared.completionTimeLimitMs ?? config.agentDefaults.completionTimeLimitMs,
       contextBudgetTokens,
       displayName: declared.displayName ?? defaultDisplayNameOf(username),
       model,
@@ -121,8 +122,10 @@ export function defaultDisplayNameOf(username: string): string {
 /** an agent entry once agentDefaults are applied and its key is carried in: what the app runs (§3.1) */
 export type AgentDefinition = Omit<
   $AgentDeclaration,
-  'contextBudgetTokens' | 'displayName' | 'model' | 'turnContextCeilingTokens'
+  'completionTimeLimitMs' | 'contextBudgetTokens' | 'displayName' | 'model' | 'turnContextCeilingTokens'
 > & {
+  /** §7.1 — how long one completion may run: the agent's own, else the deployment's default */
+  readonly completionTimeLimitMs: number;
   readonly contextBudgetTokens: number;
   readonly displayName: string;
   readonly model: $ModelRef;

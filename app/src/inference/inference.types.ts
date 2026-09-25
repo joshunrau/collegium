@@ -59,7 +59,25 @@ export type CompletionRequest = {
 };
 
 /** the turn's kill, so a request whose turn is gone stops streaming rather than running to its end (§7.5) */
+/**
+ * §7.1 — what a completion the framework cut off had produced, estimated from its streamed characters,
+ * since an aborted stream reports no usage. Kept on its event and out of every total (§8.2).
+ */
+export type EstimatedCompletionUsage = {
+  readonly completionTokens: number;
+  readonly estimated: true;
+  readonly reasoningTokens: number;
+};
+
+/** §7.1 — how much a completion has produced so far, in characters, for the estimate a cut-off stream needs, since it reports no usage */
+export type StreamedChars = {
+  readonly completionChars: number;
+  readonly reasoningChars: number;
+};
+
 export type CompletionOptions = {
+  /** told what the stream has produced after each chunk, so a caller that cuts it off can say roughly what was spent */
+  readonly onStreamed?: (streamed: StreamedChars) => void;
   readonly signal?: AbortSignal;
 };
 

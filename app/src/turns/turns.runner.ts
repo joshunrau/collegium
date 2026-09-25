@@ -30,7 +30,9 @@ import type {
   CompletionRequest,
   CompletionResult,
   CompletionUsage,
+  EstimatedCompletionUsage,
   InferenceFailure,
+  StreamedChars,
   ToolCall,
   UnparsedToolCall
 } from '@/inference/inference.types.ts';
@@ -39,10 +41,12 @@ import {
   describeInferenceFailure,
   estimateMessageTokens,
   estimateRequestTokens,
+  estimateStreamedUsage,
   isUnparsedToolCall,
   reasoningOf,
   toReplayableToolCall
 } from '@/inference/inference.utils.ts';
+import { createDeadlineAbort } from '@/inference/resilience/idle-abort.utils.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
 import type { ActivationKind, ResultPresentation, TurnStatus } from '@/prisma/prisma.types.ts';
@@ -63,7 +67,12 @@ import { ContextAssembler } from './context/context.assembler.ts';
 import { renderAuthoredMessage } from './context/context.utils.ts';
 import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
-import { containsToolCallTranscript, lacksProse, renderUnreportedUnitRejection } from './guard/reply-guard.utils.ts';
+import {
+  containsToolCallTranscript,
+  lacksProse,
+  renderOverranRejection,
+  renderUnreportedUnitRejection
+} from './guard/reply-guard.utils.ts';
 import { renderTurnClosedLog, renderTurnOpenedLog } from './logging/turn-log.utils.ts';
 import { SUPERSEDABLE_RETENTION_FLOOR } from './retention/retention.constants.ts';
 import { hashResult, renderResultCutMarker, retentionBudgetFor, shiftExcerpt } from './retention/retention.utils.ts';
@@ -78,6 +87,8 @@ import {
   renderExtensionPrompt,
   renderFoldLine,
   renderOutputRefusedNotice,
+  renderOverranLine,
+  renderOverranNotice,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
   renderSemanticErrorNotice,
@@ -122,8 +133,15 @@ const UNPOSTABLE_COMPLETION_REJECTIONS: {
     'output rejected: it was cut off at the output limit before it finished — answer more briefly, or do the work in smaller steps'
 };
 
+/** §7.1 — a completion cut at the output limit before it wrote anything, for which "more briefly" would be false */
+const EMPTY_TRUNCATION_REJECTION =
+  'output rejected: it reached the output limit before any response or call was finished, and none of it was kept — reach your next call or your reply with less deliberation';
+
 /** §4.5 — rejections in a row a turn survives; the budget bounds the loop too, but with a number that says nothing about why */
 const CONSECUTIVE_REJECTION_LIMIT = 2;
+
+/** §7.1 — the overrun that ends a turn, counted over the whole turn, so however the overruns fall a lane waits at most twice the limit */
+const OVERRUN_LIMIT = 2;
 
 /** §5.3 — how many repeated calls the extension prompt names; the loop it exposes is three URLs long, not fifty */
 const TOP_REPEATED_CALLS = 5;
@@ -211,6 +229,15 @@ type IdentifiedCall = RunnableCall | UnparsedCall;
 /** what answering an unparsed call came to: forgiven and answered in place, or the dispatch loop returns with this outcome */
 type UnparsedCallDisposition = { kind: 'dispatched'; outcome: TurnOutcome | undefined } | { kind: 'forgiven' };
 
+/**
+ * A completion the runner cut short: at the agent's time limit (§7.1), or by a steer (§7.5), which
+ * would discard it anyway. The stream reported no usage, so it carries an estimate of what it spent.
+ */
+type CutCompletion = { readonly cutBy: 'deadline' | 'steer'; readonly usage: EstimatedCompletionUsage };
+
+/** §7.1 — a completion cut at its time limit, as the no-tool-call branch takes it: nothing of it is kept */
+type OverranCompletion = { readonly content: ''; readonly kind: 'overran'; readonly usage: EstimatedCompletionUsage };
+
 /** §3.15 — what publishing a tool's post came to: landed, refused as a post (§4.5), or undeliverable, which ends the turn (§7.1) */
 type ToolPostOutcome =
   | { kind: 'published'; postId: string }
@@ -245,6 +272,8 @@ type TurnState = {
   /** §5.3 — the agent's most recent interim text, quoted on the extension prompt as its own last words */
   lastInterimText: string | undefined;
   readonly messages: CompletionMessage[];
+  /** §7.1 — completions this turn cut at the time limit, never reset: the second ends the turn */
+  overruns: number;
   /** §3.8 — the estimated size of the whole outgoing request, kept current by `pushMessage` and the collapses */
   promptTokens: number;
   /** §3.7 — the last reasoned denial of each tool, by display name, named on that tool's next approval prompt */
@@ -381,6 +410,7 @@ export class TurnRunner {
       heldActivation: undefined,
       lastInterimText: undefined,
       messages: [],
+      overruns: 0,
       promptTokens: 0,
       reasonedDenials: new Map(),
       recordedResults: 0,
@@ -430,13 +460,16 @@ export class TurnRunner {
   /**
    * §7.5 — each steer spends an attempt, is kept on the trace, and reaches the model as the human
    * speaking, prefixed exactly as a post is. It is new information, so the count of rejected posts
-   * starts again (§4.5). Returns the outcome where the budget ends the turn instead.
+   * starts again (§4.5). Where the steer aborted a completion in flight, the first steer's event
+   * carries the estimate of what it had streamed. Returns the outcome where the budget ends the turn instead.
    */
   private async absorbSteering(
     input: RunInput,
     state: TurnState,
-    taken: readonly Steering[]
+    taken: readonly Steering[],
+    estimate?: EstimatedCompletionUsage
   ): Promise<TurnOutcome | undefined> {
+    let usage = estimate;
     for (const [index, steering] of taken.entries()) {
       let denial: string | undefined;
       if (state.budget.trySpendOnSteer() === 'exhausted') {
@@ -450,7 +483,12 @@ export class TurnRunner {
           state.budget.trySpendOnSteer();
         }
       }
-      await this.turnsService.appendEvent(state.turn.id, { kind: 'steering_received', ...steering });
+      await this.turnsService.appendEvent(state.turn.id, {
+        kind: 'steering_received',
+        ...steering,
+        ...(usage !== undefined && { usage })
+      });
+      usage = undefined;
       this.pushMessage(state, {
         content: renderAuthoredMessage(steering.byUsername, 'human', steering.text),
         role: 'user'
@@ -797,23 +835,46 @@ export class TurnRunner {
    * execution and approval waits stay dark: the status post and the approval prompt speak there,
    * and an indicator held through a human's deliberation would be claiming work that is not
    * happening. The finally covers every exit, including the kill race and a thrown request.
+   *
+   * §7.1, §7.5 — the request runs under the agent's time limit and is aborted by a steer, and a
+   * failure either caused comes back as the cut it was, with an estimate of what it had streamed. A
+   * completion that settled in the tick its deadline fired is kept.
    */
   private async complete(
     input: RunInput,
     state: TurnState,
     client: InferenceClient,
     request: CompletionRequest
-  ): Promise<'killed' | Result<CompletionResult, InferenceFailure>> {
+  ): Promise<'killed' | CutCompletion | Result<CompletionResult, InferenceFailure>> {
     const typing = this.typingIndicatorService.start({
       agentUsername: input.profile.username,
       channelId: input.channelId
     });
+    const deadline = createDeadlineAbort(input.profile.completionTimeLimitMs);
+    const steer = state.control.abortOnSteer();
+    let streamed: StreamedChars = { completionChars: 0, reasoningChars: 0 };
     try {
-      return await Promise.race([
-        client.complete({ ...request, messages: state.messages }, { signal: state.control.killSignal }),
+      const settled = await Promise.race([
+        client.complete(
+          { ...request, messages: state.messages },
+          {
+            onStreamed: (sofar) => {
+              streamed = sofar;
+            },
+            signal: AbortSignal.any([state.control.killSignal, deadline.signal, steer])
+          }
+        ),
         state.control.killed
       ]);
+      if (settled === 'killed' || settled.success) {
+        return settled;
+      }
+      if (deadline.signal.aborted) {
+        return { cutBy: 'deadline', usage: estimateStreamedUsage(streamed) };
+      }
+      return steer.aborted ? { cutBy: 'steer', usage: estimateStreamedUsage(streamed) } : settled;
     } finally {
+      deadline.clear();
       typing.stop();
     }
   }
@@ -827,7 +888,7 @@ export class TurnRunner {
   private async concludeOrRetry(
     input: RunInput,
     state: TurnState,
-    completion: Exclude<CompletionResult, CompletionResult.ToolUse>
+    completion: Exclude<CompletionResult, CompletionResult.ToolUse> | OverranCompletion
   ): Promise<TurnOutcome | undefined> {
     const content =
       completion.kind === 'text' ? await this.enforceChainLimits(input, state, completion.content) : completion.content;
@@ -835,15 +896,27 @@ export class TurnRunner {
       completion.kind === 'text'
         ? ((await this.rejectionOf(input, state, content)) ??
           (await this.rejectionOfUnreportedUnit(input, state, completion.content)))
-        : UNPOSTABLE_COMPLETION_REJECTIONS[completion.kind];
-    const reasoning = reasoningOf(completion);
+        : this.rejectionOfUnpostable(input, completion);
+    const reasoning = completion.kind === 'overran' ? {} : reasoningOf(completion);
     if (rejection === undefined) {
       return this.closeWithFinalOutput(input, state, content, reasoning);
     }
-    await this.turnsService.appendEvent(state.turn.id, { content, kind: 'output_rejected', reason: rejection });
+    await this.turnsService.appendEvent(state.turn.id, {
+      content,
+      kind: 'output_rejected',
+      reason: rejection,
+      ...(completion.kind === 'overran' && { usage: completion.usage })
+    });
+    const limitMs = input.profile.completionTimeLimitMs;
+    if (completion.kind === 'overran') {
+      state.overruns += 1;
+      state.status.appendTrace({ kind: 'note', text: renderOverranLine(limitMs) });
+    }
     // checked before the spend: the rejection that ends the turn buys nothing, so it costs nothing
-    if (state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT) {
-      return this.closeWithFailureNotice(input, state, 'semantic_error', renderOutputRefusedNotice());
+    if (state.overruns >= OVERRUN_LIMIT || state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT) {
+      const notice =
+        completion.kind === 'overran' ? renderOverranNotice(limitMs, state.overruns) : renderOutputRefusedNotice();
+      return this.closeWithFailureNotice(input, state, 'semantic_error', notice);
     }
     state.consecutiveRejections += 1;
     if (state.budget.trySpendOnRejectedPost() === 'exhausted') {
@@ -1490,6 +1563,18 @@ export class TurnRunner {
     return undefined;
   }
 
+  /** §7.1, §7.2 — what a completion that never reached the post-time checks is told, saying which limit cut it and whether anything was kept */
+  private rejectionOfUnpostable(
+    input: RunInput,
+    completion: CompletionResult.LeakedCall | CompletionResult.Truncated | OverranCompletion
+  ): string {
+    return match(completion)
+      .with({ kind: 'overran' }, () => renderOverranRejection(input.profile.completionTimeLimitMs))
+      .with({ content: '', kind: 'truncated' }, () => EMPTY_TRUNCATION_REJECTION)
+      .with({ kind: 'truncated' }, { kind: 'leaked-call' }, ({ kind }) => UNPOSTABLE_COMPLETION_REJECTIONS[kind])
+      .exhaustive();
+  }
+
   /**
    * §3.15 — a final reply that reaches nobody, while the unit this turn works is still assigned to
    * it, ends the turn with nothing to start the creator's, so it goes back once. It is read as the
@@ -1683,7 +1768,7 @@ export class TurnRunner {
         return this.close(state, 'killed');
       }
       // §8.2 — the completion was paid for whatever the turn does with it, so its usage is recorded first
-      if (completion.success && completion.value.usage) {
+      if (!('cutBy' in completion) && completion.success && completion.value.usage) {
         state.usage = addCompletionUsage(state.usage, completion.value.usage);
       }
       // §7.5 — checked after every await, before any dispatch: the honest guarantee of /stop is
@@ -1691,6 +1776,16 @@ export class TurnRunner {
       const aborted = state.control.aborted();
       if (aborted) {
         return this.close(state, aborted.kind);
+      }
+      if ('cutBy' in completion) {
+        const outcome =
+          completion.cutBy === 'steer'
+            ? await this.absorbSteering(input, state, state.control.takeSteering(), completion.usage)
+            : await this.concludeOrRetry(input, state, { content: '', kind: 'overran', usage: completion.usage });
+        if (outcome) {
+          return outcome;
+        }
+        continue;
       }
       if (!completion.success) {
         return this.closeOnInferenceFailure(input, state, completion.error);

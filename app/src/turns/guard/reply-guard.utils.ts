@@ -1,3 +1,5 @@
+import { renderTimeLimit } from '@/formatting/durations/duration.utils.ts';
+
 /** the transcript form a model copies back after reading its own history */
 const TOOL_CALL_TRANSCRIPT = /^\[called [^\s(]+\([\s\S]*\)\]$/mu;
 
@@ -60,4 +62,9 @@ export function renderUnreportedUnitRejection(unit: {
     ? `When the result is ready, or something stops you, report it with tasks__report, which posts the report and starts ${creator}'s turn. For an interim update or a question, mention @${creatorUsername} in the post.`
     : `For the result, something that stops you, an interim update or a question, mention @${creatorUsername} in the post.`;
   return `post rejected: unit ${reference} from ${creator} is still assigned to you, and this reply mentions no colleague here and no person, so nothing starts ${creator}'s turn when yours ends. ${wayOn} The same reply sent again is posted, and the unit stays assigned.`;
+}
+
+/** §7.1 — what a completion cut at the agent's time limit is told: nothing of it was kept, and the way on is less deliberation */
+export function renderOverranRejection(limitMs: number): string {
+  return `output rejected: your last response ran past its ${renderTimeLimit(limitMs)} limit and nothing of it was kept — reach your next call or your reply with less deliberation`;
 }
