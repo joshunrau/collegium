@@ -19,6 +19,13 @@ describe('classifyNavigationError', () => {
     });
   });
 
+  it("should say a load past the navigation timeout in the framework's words (§3.4)", () => {
+    expect(classifyNavigationError('page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating')).toStrictEqual({
+      kind: 'navigation',
+      message: 'the page did not finish loading within 30s'
+    });
+  });
+
   it('should pass a message it does not know through unchanged', () => {
     expect(classifyNavigationError('page.goto: Navigation interrupted by another navigation')).toStrictEqual({
       kind: 'navigation',

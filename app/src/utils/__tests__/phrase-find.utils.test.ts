@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FIND_CONTEXT_CHARS, FIND_HITS_PER_PHRASE, findPhrases } from '../phrase-find.utils.ts';
+import { FIND_CONTEXT_CHARS, FIND_HITS_PER_PHRASE, findPhrases, renderPhraseFind } from '../phrase-find.utils.ts';
 
 const PROFILE = `# Duval, P.\n\n${'Publication. '.repeat(400)}\n\n#### Contact\nInformation\n\nEmail: p\\_duval@northmoor.example`;
 
@@ -11,11 +11,22 @@ describe('findPhrases (§3.4)', () => {
     expect(email?.hits[0]?.offset).toBe(PROFILE.indexOf('p\\_duval'));
   });
 
-  it('should bound the text around a hit, on one line, and mark only the end it cut', () => {
-    const [hit] = findPhrases(PROFILE, ['contact information'])[0]!.hits;
-    expect(hit?.snippet).toMatch(/^….+ #### Contact Information Email: p\\_duval@northmoor\.example$/u);
-    expect(hit?.snippet.length).toBeLessThanOrEqual(
-      FIND_CONTEXT_CHARS + PROFILE.length - PROFILE.indexOf('Contact') + 1
+  it('should bound the text around a hit, on one line, labelled with its range and marking only the end it cut', () => {
+    const [, stretch] = renderPhraseFind(PROFILE, findPhrases(PROFILE, ['contact information'])).split('\n\n');
+    const from = PROFILE.indexOf('Contact') - FIND_CONTEXT_CHARS;
+    expect(stretch).toMatch(
+      new RegExp(
+        `^\\[${from}–${PROFILE.length}\\] ….+ #### Contact Information Email: p\\\\_duval@northmoor\\.example$`,
+        'u'
+      )
+    );
+  });
+
+  it('should show a stretch holding two phrases once (§3.4)', () => {
+    const rendered = renderPhraseFind(PROFILE, findPhrases(PROFILE, ['contact information', 'email:']));
+    expect(rendered.match(/#### Contact Information/gu)).toHaveLength(1);
+    expect(rendered.split('\n\n')[0]).toBe(
+      `"contact information" — 1 match at ${PROFILE.indexOf('Contact')}\n"email:" — 1 match at ${PROFILE.indexOf('Email:')}`
     );
   });
 

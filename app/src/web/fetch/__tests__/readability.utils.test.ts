@@ -62,6 +62,18 @@ describe('refuseUnreadablePage', () => {
     });
   });
 
+  it.each([
+    ['', 200],
+    [' \n\t', 200],
+    ['', 204]
+  ])('should report a %j body at %i as empty, not as a page needing a browser (§3.4)', (body, status) => {
+    expect(refuseUnreadablePage(convert(body, status))).toStrictEqual({ kind: 'empty-body', status, url: PAGE_URL });
+  });
+
+  it('should keep an empty error answer an error', () => {
+    expect(refuseUnreadablePage(convert('', 404))).toMatchObject({ kind: 'http-error', status: 404 });
+  });
+
   it.each([401, 403, 429])('should refuse a %i as blocked, whatever its body says (§3.4)', (status) => {
     expect(refuseUnreadablePage(convert(CLOUDFRONT_REFUSAL, status))).toStrictEqual({
       kind: 'blocked',

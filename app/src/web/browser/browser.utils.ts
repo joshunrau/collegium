@@ -10,6 +10,7 @@ import type { TlsReason, WebFailure } from '../web.types.ts';
  * way, but the session types that refusal before this is reached; what is left is the host's.
  */
 const NAVIGATION_ERRORS: { readonly [code: string]: string } = {
+  [`Timeout ${NAVIGATION_TIMEOUT_MS}ms exceeded`]: `the page did not finish loading within ${NAVIGATION_TIMEOUT_MS / 1000}s`,
   NS_ERROR_CONNECTION_REFUSED: 'the connection was refused',
   NS_ERROR_NET_EMPTY_RESPONSE:
     'the connection was closed with no response: the host refused it or could not be reached',

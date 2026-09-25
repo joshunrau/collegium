@@ -93,7 +93,7 @@ describe('RESULTS_TOOLSET, against the store (§3.8)', () => {
   it('should find phrases anywhere in the record, at offsets into it', async () => {
     const { context, ref } = await recordResult(2_000);
     const { text } = (await executeTool(read, { find: ['line 0987'], ref }, context)).unwrap();
-    expect(text).toContain(`at ${RECORD.indexOf('line 0987')}:`);
+    expect(text).toContain(`"line 0987" — 1 match at ${RECORD.indexOf('line 0987')}`);
   });
 
   it('should refuse a reference naming no result of this turn, listing the ones it has', async () => {

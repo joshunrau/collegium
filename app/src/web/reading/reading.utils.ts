@@ -1,4 +1,4 @@
-import { findPhrases, renderPhraseMatches } from '@/utils/phrase-find.utils.ts';
+import { findPhrases, renderPhraseFind } from '@/utils/phrase-find.utils.ts';
 import type { PhraseMatches } from '@/utils/phrase-find.utils.ts';
 
 import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS } from '../web.constants.ts';
@@ -8,23 +8,37 @@ import type { FetchedPage, MarkdownWindow, PageRead, PageView } from '../web.typ
 /** the tail the read-on footer offers, wide enough to hold a closing section without re-reading the page */
 const TAIL_WINDOW_CHARS = 20_000;
 
+/**
+ * §3.4 — a find, or the page itself where the page is no longer than its places would be: the whole
+ * page costs no more, and holds whatever the phrases missed.
+ */
+function findInMarkdown(
+  markdown: string,
+  phrases: readonly string[]
+): Pick<FetchedPage, 'markdown' | 'matches' | 'shown'> {
+  const found = findPhrases(markdown, phrases);
+  const matches = found.reduce((total, { count }) => total + count, 0);
+  const places = renderFoundPhrases(markdown, found);
+  const whole = prependParagraph(
+    windowMarkdown(markdown, 0, markdown.length),
+    `The whole page, since it is no longer than the places of ${phrases.length === 1 ? 'this phrase' : 'these phrases'} would be (${matches} match${matches === 1 ? '' : 'es'}):`
+  );
+  return whole.markdown.length <= places.length ? { ...whole, matches } : { markdown: places, matches };
+}
+
 function readMarkdown(markdown: string, read: PageRead): Pick<FetchedPage, 'markdown' | 'matches' | 'shown'> {
-  if (read.kind === 'window') {
-    return windowMarkdown(markdown, read.startChar, read.maxChars);
-  }
-  const found = findPhrases(markdown, read.phrases);
-  return {
-    markdown: renderFoundPhrases(found, markdown.length),
-    matches: found.reduce((total, { count }) => total + count, 0)
-  };
+  return read.kind === 'window'
+    ? windowMarkdown(markdown, read.startChar, read.maxChars)
+    : findInMarkdown(markdown, read.phrases);
 }
 
 /** §3.4 — a page's finds, worded for a page read on with `startChar` */
-export function renderFoundPhrases(found: readonly PhraseMatches[], pageChars: number): string {
+export function renderFoundPhrases(markdown: string, found: readonly PhraseMatches[]): string {
+  const pageChars = markdown.length;
   const lead = found.some(({ count }) => count > 0)
     ? `Where each phrase occurs in this page's ${pageChars} characters; read around a place with startChar and maxChars:`
     : `None of these phrases occurs in this page's ${pageChars} characters. A phrase matches without regard to case or line breaks; try a shorter or a different one.`;
-  return [lead, ...found.map(renderPhraseMatches)].join('\n\n');
+  return [lead, renderPhraseFind(markdown, found)].join('\n\n');
 }
 
 export type CappedMarkdown = {

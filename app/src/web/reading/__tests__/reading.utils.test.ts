@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { findPhrases } from '@/utils/phrase-find.utils.ts';
 
 import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS } from '../../web.constants.ts';
-import { capMarkdown, renderFoundPhrases, windowMarkdown } from '../reading.utils.ts';
+import { capMarkdown, readPage, renderFoundPhrases, windowMarkdown } from '../reading.utils.ts';
 
 const FIND_PROFILE = `# Duval, P.\n\n${'Publication. '.repeat(400)}\n\n#### Contact\nInformation\n\nEmail: p\\_duval@northmoor.example`;
 
@@ -85,15 +85,25 @@ describe('windowMarkdown (§3.8)', () => {
 
 describe('renderFoundPhrases', () => {
   it('should say where to read around a hit, and name a phrase that matched nothing', () => {
-    const rendered = renderFoundPhrases(findPhrases(FIND_PROFILE, ['Email:', 'Fax:']), FIND_PROFILE.length);
+    const rendered = renderFoundPhrases(FIND_PROFILE, findPhrases(FIND_PROFILE, ['Email:', 'Fax:']));
     expect(rendered).toContain(`in this page's ${FIND_PROFILE.length} characters; read around a place with startChar`);
-    expect(rendered).toContain(`"Email:" — 1 match\nat ${FIND_PROFILE.indexOf('Email:')}: …`);
-    expect(rendered).toContain('"Fax:" — no match');
+    expect(rendered).toContain(`"Email:" — 1 match at ${FIND_PROFILE.indexOf('Email:')}\n"Fax:" — no match`);
   });
 
   it('should say so when nothing matched, rather than return an empty list', () => {
-    expect(renderFoundPhrases(findPhrases(FIND_PROFILE, ['Fax:']), FIND_PROFILE.length)).toMatch(
+    expect(renderFoundPhrases(FIND_PROFILE, findPhrases(FIND_PROFILE, ['Fax:']))).toMatch(
       /^None of these phrases occurs/u
     );
+  });
+});
+
+describe('readPage', () => {
+  it('should return a page no longer than its find whole, with its end-of-page footer (§3.4)', () => {
+    const phrases = ['faculty', 'research', 'email', 'phone'];
+    const page = phrases.map((phrase) => `${'details '.repeat(30)}${phrase}: ${'details '.repeat(30)}`).join('\n');
+    const read = readPage({ leftOutChars: 0, markdown: page }, { kind: 'find', phrases, wholePage: false });
+    expect(read.markdown).toMatch(/^The whole page, since it is no longer than the places of these phrases would be/u);
+    expect(read.markdown).toMatch(/…end of page, \d+ characters in all$/u);
+    expect(read.markdown.length).toBeLessThanOrEqual(renderFoundPhrases(page, findPhrases(page, phrases)).length);
   });
 });

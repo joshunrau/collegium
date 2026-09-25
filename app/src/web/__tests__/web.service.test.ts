@@ -232,16 +232,19 @@ describe('WebService', () => {
     });
 
     it('should answer a find with where each phrase occurs in the page, and how often (§3.4)', async () => {
-      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body: FACULTY_DIRECTORY })));
-      const page = pageToMarkdown(FACULTY_DIRECTORY, 'https://northmoor.example/people/');
+      const body = FACULTY_DIRECTORY.replace(
+        '</table>',
+        `</table><p>${'Office hours by appointment. '.repeat(200)}</p>`
+      );
+      fetchClient.get.mockResolvedValue(Result.ok(fetched({ body })));
+      const page = pageToMarkdown(body, 'https://northmoor.example/people/');
       const result = await webService.fetch('https://northmoor.example/people/', {
         kind: 'find',
         phrases: ['Duval', 'fax'],
         wholePage: false
       });
       expect(result.value?.matches).toBe(3);
-      expect(result.value?.markdown).toContain(`"Duval" — 3 matches\nat ${page.indexOf('Duval')}: `);
-      expect(result.value?.markdown).toContain('"fax" — no match');
+      expect(result.value?.markdown).toContain(`"Duval" — 3 matches at ${page.indexOf('Duval')}\n"fax" — no match`);
       expect(result.value?.shown).toBeUndefined();
     });
 

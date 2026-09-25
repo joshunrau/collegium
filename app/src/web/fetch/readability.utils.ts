@@ -56,7 +56,7 @@ function isRefusal(page: ConvertedPage): boolean {
  */
 export function refuseUnreadablePage(
   page: ConvertedPage
-): undefined | WebFailure.Blocked | WebFailure.HttpError | WebFailure.NoStaticContent {
+): undefined | WebFailure.Blocked | WebFailure.EmptyBody | WebFailure.HttpError | WebFailure.NoStaticContent {
   const { markdown, retry, status, url } = page;
   if (isRefusal(page)) {
     return { kind: 'blocked', status, url, ...(retry && { retry }) };
@@ -64,7 +64,8 @@ export function refuseUnreadablePage(
   if (markdown !== '') {
     return undefined;
   }
-  return status >= 400
-    ? { bodyChars: page.body.length, kind: 'http-error', status, url, ...(retry && { retry }) }
-    : { kind: 'no-static-content', status, url };
+  if (status >= 400) {
+    return { bodyChars: page.body.length, kind: 'http-error', status, url, ...(retry && { retry }) };
+  }
+  return page.body.trim() === '' ? { kind: 'empty-body', status, url } : { kind: 'no-static-content', status, url };
 }

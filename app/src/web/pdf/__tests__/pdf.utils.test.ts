@@ -37,9 +37,10 @@ describe('readPdfText', () => {
   });
 
   it('should find a phrase at an offset a window reads from', () => {
-    const text = { pageCount: 2, pages: ['Faculty Handbook', 'Duval, P. — duval@northmoor.example'] };
+    const handbook = `Faculty Handbook\n${'Policies and procedures. '.repeat(200)}`;
+    const text = { pageCount: 2, pages: [handbook, 'Duval, P. — duval@northmoor.example'] };
     const found = readPdfText(text, { kind: 'find', phrases: ['duval@'], wholePage: false });
-    const offset = Number(/at (\d+):/u.exec(found.markdown)?.[1]);
+    const offset = Number(/— 1 match at (\d+)/u.exec(found.markdown)?.[1]);
     const window = readPdfText(text, { kind: 'window', maxChars: 1_000, startChar: offset, wholePage: false });
     expect(window.markdown).toContain('\n\nduval@northmoor.example\n');
   });

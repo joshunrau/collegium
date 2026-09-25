@@ -64,12 +64,19 @@ describe('extractTitle', () => {
 });
 
 describe('describeFetchError', () => {
-  it('should surface the cause undici hides behind "fetch failed"', () => {
-    expect(describeFetchError(new Error('fetch failed', { cause: new Error('getaddrinfo ENOTFOUND') }))).toBe(
-      'fetch failed: getaddrinfo ENOTFOUND'
+  it('should say a socket error by its own message', () => {
+    expect(describeFetchError(new Error('getaddrinfo ENOTFOUND northmoor.example'))).toBe(
+      'getaddrinfo ENOTFOUND northmoor.example'
     );
-    expect(describeFetchError(new Error('aborted'))).toBe('aborted');
     expect(describeFetchError('boom')).toBe('boom');
+  });
+
+  it("should say a timeout in the framework's words, once (§3.4)", () => {
+    const aborted = new Error('The operation was aborted', {
+      cause: new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    });
+    expect(describeFetchError(aborted)).toBe('the page did not answer within 20s');
+    expect(describeFetchError(aborted)).not.toContain('aborted');
   });
 });
 

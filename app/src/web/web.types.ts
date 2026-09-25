@@ -46,7 +46,7 @@ export type MarkdownWindow = {
 /** one page, in the shape a model reads — what a plain fetch yields */
 export type WebPage = {
   readonly markdown: string;
-  /** absent for a find, which holds places in the page rather than a stretch of it */
+  /** absent for a find that holds places in the page rather than a stretch of it; a find that returned the whole page has it */
   readonly shown?: MarkdownWindow;
   readonly status: number;
   readonly title: string;
@@ -114,6 +114,12 @@ export declare namespace WebFailure {
   type Busy = {
     kind: 'busy';
     sessions: number;
+  };
+  /** §3.4 — the server answered success with nothing at all: there is no page here, rendered or not */
+  type EmptyBody = {
+    kind: 'empty-body';
+    status: number;
+    url: string;
   };
   /** the page rendered and produced nothing — the assertion this module exists for */
   type EmptyRender = {
@@ -205,6 +211,7 @@ export declare namespace WebFailure {
     | ActionFailed
     | Blocked
     | Busy
+    | EmptyBody
     | EmptyRender
     | HttpError
     | Navigation

@@ -1,7 +1,7 @@
 import { parseRetryAfterHeaderMs } from '@/utils/retry-after.utils.ts';
 
 import { decodeHtmlEntities } from '../markdown/entities.utils.ts';
-import { RATE_LIMIT_DEFAULT_WAIT_MS, RATE_LIMIT_RETRY_MIN_ANSWER_MS } from '../web.constants.ts';
+import { FETCH_TIMEOUT_MS, RATE_LIMIT_DEFAULT_WAIT_MS, RATE_LIMIT_RETRY_MIN_ANSWER_MS } from '../web.constants.ts';
 
 import type { TlsReason, WebFailure } from '../web.types.ts';
 import type { PinnedResponse } from './fetch.types.ts';
@@ -85,12 +85,18 @@ export function toDecoder(charset: string): TextDecoder {
   }
 }
 
-/** a lookup or socket error names its reason — ENOTFOUND, ECONNREFUSED — while an abort keeps its reason in `cause` */
+/**
+ * A lookup or socket error names its reason — ENOTFOUND, ECONNREFUSED — in its message. A timeout is
+ * an abort whose reason, in `cause`, is the runtime's; it is said in the framework's words, since the
+ * runtime's reached the model twice over and untyped (§3.4).
+ */
 export function describeFetchError(error: unknown): string {
   if (!(error instanceof Error)) {
     return String(error);
   }
-  return error.cause instanceof Error ? `${error.message}: ${error.cause.message}` : error.message;
+  const isTimeout =
+    error.name === 'TimeoutError' || (error.cause instanceof Error && error.cause.name === 'TimeoutError');
+  return isTimeout ? `the page did not answer within ${FETCH_TIMEOUT_MS / 1000}s` : error.message;
 }
 
 /**

@@ -25,13 +25,18 @@ Without it, such a page is out of your reach: say so rather than fetching it aga
 
 For one field, such as an email address, a phone number, a title or a date, pass `find` with a few
 phrases that sit beside it: a surname, "email", "@". Each place found comes with the text around it
-and its offset. When that text does not hold the answer, read a small window from the offset with
-`startChar` and `maxChars`. Read a page whole only when the whole page is what you need.
+and its offset. A find searches the whole page, so `startChar` and `maxChars` do not apply to it; a
+page no longer than its places would be comes back whole instead. When that text does not hold the
+answer, read a small window from the offset with `startChar` and `maxChars`. Read a page whole only
+when the whole page is what you need.
 
 A result that stops short says where to read on. Fetch again from that `startChar`; a fetch from the
 top returns what you already have. A fetch leaves out a page's navigation, header and footer, and
 says how much it left out; a contact address often lives in the footer, and `wholePage: true` reads
 it. Offsets from a read with `wholePage` do not apply to one without.
+
+An offset belongs to the read that gave it: the page can change before the next fetch. When you
+record how to read a site, name the phrases that find each field, not their offsets.
 
 Done when every value you report was read on a page, not inferred from a pattern.
 
@@ -44,6 +49,8 @@ Done when every value you report was read on a page, not inferred from a pattern
   hold none, the site is closed to you; say so rather than fetching it again.
 - **404 or 410.** On an address you read off a page, the page is gone. On one you built, it proves
   nothing: go back to the site's index or search.
+- **An empty body.** The site answered success with nothing at all. A browser finds nothing more
+  there; treat it as you would a 404.
 - **A PDF.** `web__fetch` reads its text layer, each page under a `[page N of M]` marker, and `find`
   works in it. A scanned PDF has no text layer and says so; no web tool reads more of it.
 - **Identical content to an earlier read.** This address served a page you already have, so the

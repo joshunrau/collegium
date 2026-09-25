@@ -111,6 +111,9 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
           : `all ${sessions} browser sessions this deployment allows are held by other turns, and one frees only when the turn holding it ends`;
       return `${held}. web::fetch needs no session and still works`;
     })
+    .with({ kind: 'empty-body' }, ({ status, url }) => {
+      return `${url} answered HTTP ${status} with an empty body: there is nothing to read at this address. ${BUILT_URL_CAVEAT}`;
+    })
     .with({ kind: 'empty-render' }, ({ status, url }) => {
       const rendered = `the page at ${url} answered HTTP ${status} and rendered no readable content`;
       return GONE_STATUSES.has(status) ? `${rendered}. ${BUILT_URL_CAVEAT}` : rendered;
@@ -162,6 +165,7 @@ export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailur
     .with({ kind: 'action-failed' }, () => '⚠️ action failed')
     .with({ kind: 'blocked' }, ({ status }) => `⚠️ blocked (HTTP ${status})`)
     .with({ kind: 'busy' }, () => '⚠️ browser busy')
+    .with({ kind: 'empty-body' }, () => '⚠️ empty body')
     .with({ kind: 'empty-render' }, () => '⚠️ nothing rendered')
     .with({ kind: 'http-error' }, ({ status }) => `⚠️ HTTP ${status}`)
     .with({ kind: 'navigation' }, () => '⚠️ did not load')

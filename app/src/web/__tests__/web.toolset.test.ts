@@ -1,13 +1,15 @@
+import { CONFIG_DEFAULTS } from '@collegium/config';
 import { Result } from '@collegium/core/utils';
 import { describe, expect, it } from 'vitest';
 
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import { buildToolTurnScope, executeTool } from '@/testing/factories/tool-turn.factory.ts';
+import { viewCapCharsFor } from '@/turns/retention/retention.utils.ts';
 
 import { readPdfText } from '../pdf/pdf.utils.ts';
 import { readPage } from '../reading/reading.utils.ts';
 import { SearchService } from '../search/search.service.ts';
-import { DEFAULT_WINDOW_CHARS } from '../web.constants.ts';
+import { DEFAULT_WINDOW_CHARS, FETCH_FRAME_CHARS, FETCH_MAX_WINDOW_CHARS } from '../web.constants.ts';
 import { WebService } from '../web.service.ts';
 import { WEB_TOOLSET } from '../web.toolset.ts';
 
@@ -234,9 +236,36 @@ describe('WEB_TOOLSET', () => {
     expect(fetch.traceDetail?.(args)).toBe('https://example.org/ find "Email"');
   });
 
-  it('refuses a find that also names a window, since the two read the page differently', () => {
-    const parsed = fetch.parameters.safeParse({ find: ['Email'], startChar: 4000, url: 'https://example.org/' });
-    expect(parsed.success).toBe(false);
+  it('should search the whole page on a find given a window, saying first that the window did not apply (§3.4)', async () => {
+    const { context, web } = buildContext();
+    web.fetch.mockResolvedValue(Result.ok({ ...PAGE, markdown: '"Email" — no match', matches: 0 }));
+    const args = fetch.parameters.parse({
+      find: ['Email'],
+      maxChars: 2000,
+      startChar: 4000,
+      url: 'https://example.org/'
+    });
+    const result = await executeTool(fetch, args, context);
+    expect(web.fetch).toHaveBeenCalledWith('https://example.org/', {
+      kind: 'find',
+      phrases: ['Email'],
+      wholePage: false
+    });
+    expect(result.unwrap().text).toMatch(
+      /^startChar and maxChars do not apply to a find; the whole page was searched\n\n/u
+    );
+  });
+
+  it('should serve a narrow window and refuse one wider than a view holds, naming the widest (§3.4)', () => {
+    expect(fetch.parameters.safeParse({ maxChars: 600, url: 'https://example.org/' }).success).toBe(true);
+    const refused = fetch.parameters.safeParse({ maxChars: 200_000, url: 'https://example.org/' });
+    expect(refused.error?.issues[0]?.message).toContain(String(FETCH_MAX_WINDOW_CHARS));
+  });
+
+  it('should keep the widest window, with its frame, within the widest view at the default ceiling (§3.8)', () => {
+    expect(FETCH_MAX_WINDOW_CHARS + FETCH_FRAME_CHARS).toBe(
+      viewCapCharsFor({ turnContextCeilingTokens: CONFIG_DEFAULTS.agentDefaults.turnContextCeilingTokens })
+    );
   });
 
   it('hovers a ref and returns the snapshot that reveals what the hover exposed', async () => {

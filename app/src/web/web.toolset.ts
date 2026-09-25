@@ -8,7 +8,12 @@ import { z } from 'zod';
 import { holdsWholePage } from './reading/reading.utils.ts';
 import { SEARCH_TIMEOUT_MS } from './search/search.constants.ts';
 import { renderSearchResults } from './search/search.utils.ts';
-import { DEFAULT_WINDOW_CHARS, FETCH_TIMEOUT_MS, MARKDOWN_CAP_CHARS, PDF_READ_TIMEOUT_MS } from './web.constants.ts';
+import {
+  DEFAULT_WINDOW_CHARS,
+  FETCH_MAX_WINDOW_CHARS,
+  FETCH_TIMEOUT_MS,
+  PDF_READ_TIMEOUT_MS
+} from './web.constants.ts';
 import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from './web.renderer.ts';
 import { SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from './web.tokens.ts';
 
@@ -23,42 +28,49 @@ const WEB_TIMEOUT_MS = 45_000;
 const $Ref = z.string().regex(REF_SHAPE);
 
 type $FetchArgs = z.infer<typeof $FetchArgs>;
-const $FetchArgs = z
-  .object({
-    find: z
-      .array(z.string().trim().min(1).max(200))
-      .min(1)
-      .max(5)
-      .optional()
-      .describe(
-        'Up to five phrases to look for, each matched without regard to case; the result is where each occurs, ' +
-          'with the text around it and its offset, instead of the page. Give this or startChar and maxChars, not both'
-      ),
-    maxChars: z
-      .number()
-      .int()
-      .min(1_000)
-      .max(MARKDOWN_CAP_CHARS)
-      .optional()
-      .describe(`How much of the page to return, in characters; omit for ${DEFAULT_WINDOW_CHARS}`),
-    startChar: z
-      .number()
-      .int()
-      .default(0)
-      .describe('Where in the page to start reading, in characters; a negative value counts back from the end'),
-    url: z.url().describe('The absolute http(s) URL of a page, PDF or text resource to fetch'),
-    wholePage: z
-      .boolean()
-      .default(false)
-      .describe(
-        "Include the page's navigation, header and footer, which are otherwise left out; offsets and lengths " +
-          'from a read with it do not apply to one without'
-      )
-  })
-  .refine(
-    (args) => args.find === undefined || (args.startChar === 0 && args.maxChars === undefined),
-    'give find to search the page, or startChar and maxChars to read part of it, not both'
-  );
+const $FetchArgs = z.object({
+  find: z
+    .array(z.string().trim().min(1).max(200))
+    .min(1)
+    .max(5)
+    .optional()
+    .describe(
+      'Up to five phrases to look for, each matched without regard to case; the result is where each occurs, ' +
+        'with the text around it and its offset, instead of the page. A find searches the whole page, so ' +
+        'startChar and maxChars do not apply to it'
+    ),
+  maxChars: z
+    .number()
+    .int()
+    .positive()
+    .max(FETCH_MAX_WINDOW_CHARS)
+    .optional()
+    .describe(
+      `How much of the page to return, in characters, at most ${FETCH_MAX_WINDOW_CHARS}; omit for ${DEFAULT_WINDOW_CHARS}`
+    ),
+  startChar: z
+    .number()
+    .int()
+    .default(0)
+    .describe('Where in the page to start reading, in characters; a negative value counts back from the end'),
+  url: z.url().describe('The absolute http(s) URL of a page, PDF or text resource to fetch'),
+  wholePage: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Include the page's navigation, header and footer, which are otherwise left out; offsets and lengths " +
+        'from a read with it do not apply to one without'
+    )
+});
+
+/** §3.4 — the window arguments a find was given, which it does not read, said first so the model does not think they applied */
+function renderIgnoredWindow(args: $FetchArgs): string {
+  const given = [...(args.startChar === 0 ? [] : ['startChar']), ...(args.maxChars === undefined ? [] : ['maxChars'])];
+  if (given.length === 0) {
+    return '';
+  }
+  return `${given.join(' and ')} ${given.length === 1 ? 'does' : 'do'} not apply to a find; the whole page was searched\n\n`;
+}
 
 function toPageRead(args: $FetchArgs): PageRead {
   return args.find === undefined
@@ -211,9 +223,17 @@ export const WEB_TOOLSET = implementToolset(WEB_TOOLSET_DEF, {
         const read = toPageRead(args);
         const fetched = await context.web.fetch(args.url, read);
         if (read.kind === 'find') {
-          return toPageResult(fetched, renderFetchedPage, fetchOutcome, ({ url }) => {
-            return `places of ${renderPhrases(read.phrases)} in page ${url}`;
-          });
+          const ignored = renderIgnoredWindow(args);
+          return toPageResult(
+            fetched,
+            (page) => ({ text: `${ignored}${renderFetchedPage(page).text}` }),
+            fetchOutcome,
+            (page) => {
+              return page.shown === undefined
+                ? `places of ${renderPhrases(read.phrases)} in page ${page.url}`
+                : describePageSubject(page);
+            }
+          );
         }
         return toPageResult(fetched, renderFetchedPage, fetchOutcome, describePageSubject, identifyReadBody);
       },

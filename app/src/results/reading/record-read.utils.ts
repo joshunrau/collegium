@@ -1,4 +1,4 @@
-import { findPhrases, renderPhraseMatches } from '@/utils/phrase-find.utils.ts';
+import { findPhrases, renderPhraseFind } from '@/utils/phrase-find.utils.ts';
 
 const CHARACTER_FORMAT = new Intl.NumberFormat('en-US');
 
@@ -49,7 +49,10 @@ export function renderOffsetRead({ offset, output, recordedAt, ref, widthChars }
   };
 }
 
-/** §3.8 — each phrase's places in the whole result, at offsets an offset read starts from */
+/**
+ * §3.8 — each phrase's places in the whole result, at offsets an offset read starts from; or the
+ * result itself where it is no longer than its places would be, since it then costs no more.
+ */
 export function renderRecordFind(input: {
   readonly offsetIgnored: boolean;
   readonly output: string;
@@ -64,7 +67,10 @@ export function renderRecordFind(input: {
     ? `Where each phrase occurs in ${size}; read around a place with results__read ref=${ref} offset=<the place's offset>:`
     : `None of these phrases occurs in ${size}. A phrase matches without regard to case or line breaks; try a shorter or a different one.`;
   const ignored = offsetIgnored ? ['offset does not apply to a find; the whole result was searched'] : [];
-  return [...ignored, lead, ...found.map(renderPhraseMatches)].join('\n\n');
+  const places = [lead, renderPhraseFind(output, found)].join('\n\n');
+  const matches = found.reduce((total, { count }) => total + count, 0);
+  const whole = `The whole of ${size}, since it is no longer than the places of ${phrases.length === 1 ? 'this phrase' : 'these phrases'} would be (${matches} match${matches === 1 ? '' : 'es'}):\n${output}${renderFooter(ref, output.length, output.length)}`;
+  return [...ignored, whole.length <= places.length ? whole : places].join('\n\n');
 }
 
 /** §3.8, §7.2 — a reference that names no result of this turn: the ones it may have meant, which the agent was shown */

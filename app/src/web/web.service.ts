@@ -93,6 +93,7 @@ export class WebService {
     Result<
       FetchedPage,
       | WebFailure.Blocked
+      | WebFailure.EmptyBody
       | WebFailure.HttpError
       | WebFailure.Navigation
       | WebFailure.NoStaticContent

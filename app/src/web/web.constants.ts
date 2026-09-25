@@ -15,6 +15,16 @@ export const MARKDOWN_CAP_CHARS = 1_000_000;
  */
 export const DEFAULT_WINDOW_CHARS = 30_000;
 
+/** what a fetch result carries beside its window: the page heading above it and the read-on footer below */
+export const FETCH_FRAME_CHARS = 2_000;
+
+/**
+ * The widest window one fetch returns: the widest view a result gets at the default turn ceiling
+ * (§3.8, 120,000 characters) less the frame, so a whole fetch result fits its view there and its own
+ * footer is the one read-on the model needs. A window wider than the view was never shown whole.
+ */
+export const FETCH_MAX_WINDOW_CHARS = 120_000 - FETCH_FRAME_CHARS;
+
 /** the ceiling on one navigation — generous, because slow public sites are the normal case, not the exception */
 export const NAVIGATION_TIMEOUT_MS = 30_000;
 
