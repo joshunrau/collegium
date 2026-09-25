@@ -6,6 +6,7 @@ import { BUILTINS_TOOLSET } from '@/builtins/builtins.toolset.ts';
 import { CONVERSATIONS_TOOLSET } from '@/conversations/conversations.toolset.ts';
 import { MAIL_TOOLSET } from '@/mail/mail.toolset.ts';
 import { MEMORY_TOOLSET } from '@/memory/memory.toolset.ts';
+import { RESULTS_TOOLSET } from '@/results/results.toolset.ts';
 import { SHELL_TOOLSET } from '@/shell/shell.toolset.ts';
 import { SKILLS_TOOLSET } from '@/skills/skills.toolset.ts';
 import { TASKS_TOOLSET } from '@/tasks/tasks.toolset.ts';
@@ -20,6 +21,7 @@ const IMPLEMENTATIONS = {
   conversations: CONVERSATIONS_TOOLSET,
   mail: MAIL_TOOLSET,
   memory: MEMORY_TOOLSET,
+  results: RESULTS_TOOLSET,
   shell: SHELL_TOOLSET,
   skills: SKILLS_TOOLSET,
   tasks: TASKS_TOOLSET,

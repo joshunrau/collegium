@@ -84,7 +84,7 @@ export type PluginToolDeclaration<TContext, TParams extends z.ZodType> = {
   readonly parameters: TParams;
   /** §7.2 — whether a timed-out call may be reported to the model as a plain failure; false ends the turn as unconfirmable */
   readonly retryable?: boolean;
-  /** a later result of any supersedable tool in the same turn replaces this one's text with its replay line, past the retained few (§3.8) */
+  /** §3.8 — a page whose identical re-read replaces it: a later result with the same content costs a line naming this one; it plays no part in what is collapsed */
   readonly supersedable?: boolean;
   readonly timeoutMs?: number;
   /** §8.1 — the one-line summary beside the name in the status post; absent shows the name alone */

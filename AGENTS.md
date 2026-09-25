@@ -96,6 +96,7 @@ app/src/
   provisioning/   the admin seam: reconciles Mattermost onto what config.json declares, before the app boots
   queue/          the per (agent, channel) pending pointer
   resources/      the one place a file config.json names beneath RESOURCES_ROOT is read off disk
+  results/        the results::read core toolset: reading on in a result of the turn, from the event that recorded it
   runtime/        boot orchestration, shutdown, crash handling
   schedules/      config-declared recurring work: the occurrence arithmetic and the ticker that records a cron trigger (§4.2)
   shell/          the §A2 confinement seam: per-agent OS user derivation, sudo-scoped execution, boot probe

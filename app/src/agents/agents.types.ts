@@ -29,7 +29,7 @@ export type AgentProfile = {
   readonly tools: readonly LiteralUnion<ToolGrant, string>[];
   /** namespace → effective settings, parsed at boot against each granted toolset's own schema (§8) */
   readonly toolSettings: ReadonlyMap<string, unknown>;
-  /** what a turn's own accumulation is bounded by, already capped beneath the model's window; retention is a share of it (§3.8) */
+  /** what a turn's own accumulation is bounded by, already capped beneath the model's window; a result's view is a share of it (§3.8) */
   readonly turnContextCeilingTokens: number;
   readonly username: string;
   /** {workspaceRoot}/{username} — derived, never configurable per agent (§6.1) */

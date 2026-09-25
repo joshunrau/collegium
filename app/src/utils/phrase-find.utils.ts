@@ -1,21 +1,11 @@
 import { escapeRegExp } from 'es-toolkit';
 
-import { FIND_CONTEXT_CHARS, FIND_HITS_PER_PHRASE } from '../web.constants.ts';
-
 /** what node-html-markdown puts a backslash before in running text */
 const MARKDOWN_ESCAPABLE = /[\\`*_~[\]]/u;
 
 type PhraseHit = {
   readonly offset: number;
   readonly snippet: string;
-};
-
-type PhraseMatches = {
-  readonly count: number;
-  readonly hits: readonly PhraseHit[];
-  /** some occurrence is neither a hit nor inside one's snippet */
-  readonly isCut: boolean;
-  readonly phrase: string;
 };
 
 /**
@@ -62,7 +52,22 @@ function findPhrase(markdown: string, phrase: string): PhraseMatches {
   return { count, hits, isCut, phrase };
 }
 
-function renderPhraseMatches({ count, hits, isCut, phrase }: PhraseMatches): string {
+/** how much text a hit shows on each side of the match: a label and the field beside it */
+export const FIND_CONTEXT_CHARS = 250;
+
+/** how many places a find shows for one phrase; the rest are counted, since a narrower phrase finds them */
+export const FIND_HITS_PER_PHRASE = 5;
+
+export type PhraseMatches = {
+  readonly count: number;
+  readonly hits: readonly PhraseHit[];
+  /** some occurrence is neither a hit nor inside one's snippet */
+  readonly isCut: boolean;
+  readonly phrase: string;
+};
+
+/** one phrase's matches: how many, and each place shown with the offset a read starts from */
+export function renderPhraseMatches({ count, hits, isCut, phrase }: PhraseMatches): string {
   if (count === 0) {
     return `"${phrase}" — no match`;
   }
@@ -71,14 +76,7 @@ function renderPhraseMatches({ count, hits, isCut, phrase }: PhraseMatches): str
   return [head, ...hits.map(({ offset, snippet }) => `at ${offset}: ${snippet}`)].join('\n');
 }
 
-/** §3.4 — each phrase's places in the page, a bounded window of text around each, at offsets `startChar` reads from */
+/** §3.4, §3.8 — each phrase's places in a text, a bounded window of text around each, at offsets into that text */
 export function findPhrases(markdown: string, phrases: readonly string[]): PhraseMatches[] {
   return phrases.map((phrase) => findPhrase(markdown, phrase));
-}
-
-export function renderFoundPhrases(found: readonly PhraseMatches[], pageChars: number): string {
-  const lead = found.some(({ count }) => count > 0)
-    ? `Where each phrase occurs in this page's ${pageChars} characters; read around a place with startChar and maxChars:`
-    : `None of these phrases occurs in this page's ${pageChars} characters. A phrase matches without regard to case or line breaks; try a shorter or a different one.`;
-  return [lead, ...found.map(renderPhraseMatches)].join('\n\n');
 }

@@ -221,7 +221,12 @@ describe('TasksService', () => {
 
   describe('the report the framework makes when an assignee runs out of context (§3.15)', () => {
     const exhausted = (triggeringPostId: string) => {
-      return tasksService.prepareExhaustionReport({ agentUsername: 'owen', channelId: 'channel-1', triggeringPostId });
+      return tasksService.prepareExhaustionReport({
+        agentUsername: 'owen',
+        cause: 'accumulated',
+        channelId: 'channel-1',
+        triggeringPostId
+      });
     };
 
     it('should report the assignee’s only assigned unit blocked, to its creator, in fixed words', async () => {
@@ -229,7 +234,7 @@ describe('TasksService', () => {
       expect(await exhausted('post-9')).toStrictEqual({
         addressee: 'mira',
         prepared: { to: 'blocked', unitId: unit.id },
-        text: `@mira — unit \`${unit.id.slice(0, 8)}\` is blocked: context exhausted`
+        text: `@mira — unit \`${unit.id.slice(0, 8)}\` is blocked: context exhausted — the turn’s accumulated context passed its ceiling. What this turn wrote before it stopped is not shown here; check it with your own tools, or continue the unit with follows so its assignee, who sees its own calls, reports it.`
       });
     });
 

@@ -46,30 +46,3 @@ export function replaySubjectWhenLong(name: string, text: string): string | unde
 export function renderReplayLine(subject: string): string {
   return `[${subject} — from an earlier turn; its text is not shown. Make the call again if you need it.]`;
 }
-
-/**
- * What the turn that made the call reads once the result is collapsed (§3.8). It states the cost
- * of a re-read rather than inviting one: told only that the text is gone, a model re-reads, which
- * evicts the next page, and the two chase each other until the budget runs out.
- */
-export function renderSupersededLine(subject: string): string {
-  return `[${subject} — read earlier this turn; its text is no longer shown. Reading it again may displace another result; copy what you need into your own text first.]`;
-}
-
-/** §3.8 — a repeat of a result still shown costs no context and says so, so a re-read is never mistaken for a changed page */
-export function renderDuplicateLine(subject: string): string {
-  return `[${subject} — identical to the result above; nothing changed.]`;
-}
-
-/**
- * §3.8 — the same content from another address, answered like a repeat. It says what was observed
- * and not why: a parameter the site ignores, a soft 404 and a login wall all look like this.
- */
-export function renderSameContentLine(subject: string, earlierSubject: string): string {
-  return `[${subject} — identical content to ${earlierSubject}, which is still shown above.]`;
-}
-
-/** §3.8 — what the same content read again opens with once the earlier copy is no longer shown */
-export function renderSameContentNote(earlierSubject: string): string {
-  return `[identical content to ${earlierSubject}, which you read earlier this turn]`;
-}

@@ -43,23 +43,46 @@ function renderRecordChange(event: Extract<PrismaJson.TurnEventPayload, { kind: 
   return `${event.reference} written${revising}${removing === '' ? '' : `, removing ${removing}`}`;
 }
 
-/** §3.8 — what the model read of a result it did not read whole; the output above is always the whole of it */
-function renderPresentation(presentation: ResultPresentation): string {
-  const read =
-    presentation.cutToChars === undefined
-      ? 'the model read it whole'
-      : `the model read its first ${COUNT_FORMAT.format(presentation.cutToChars)} characters`;
-  return presentation.collapsed === true ? `${read}, then only its line` : read;
+/**
+ * §3.8, §8.3 — how the model read a result it did not read whole, naming its reference; the output
+ * shown after it is always the whole. An event from before views keeps its cut, which had no read-on.
+ */
+function renderPresentation(presentation: ResultPresentation, ref: string, totalChars: number): string | undefined {
+  if (presentation.repeatOf !== undefined) {
+    return `the model was shown only a line naming result ${presentation.repeatOf}, which it repeats`;
+  }
+  const { collapsed, cutToChars, shownChars } = presentation;
+  const shown = (() => {
+    if (cutToChars !== undefined) {
+      return `the model read its first ${COUNT_FORMAT.format(cutToChars)} characters`;
+    }
+    if (shownChars === 0) {
+      return `the model was shown only its size and its reference (result ${ref})`;
+    }
+    if (shownChars !== undefined) {
+      const part = `the model was shown its first ${COUNT_FORMAT.format(shownChars)} of ${COUNT_FORMAT.format(totalChars)} characters (result ${ref})`;
+      return collapsed === true ? part : `${part}; the rest by reference`;
+    }
+    return collapsed === true ? 'the model read it whole' : undefined;
+  })();
+  return shown !== undefined && collapsed === true ? `${shown}, then only its line` : shown;
 }
 
-function renderResultLine(event: Extract<PrismaJson.TurnEventPayload, { kind: 'tool_result' }>): string {
+function renderResultLine(
+  event: Extract<PrismaJson.TurnEventPayload, { kind: 'tool_result' }>,
+  sequence: number
+): string {
   const mark = event.traceMark === undefined ? '' : ` ${event.traceMark.text}`;
-  const presented = event.presentedAs === undefined ? '' : ` (${renderPresentation(event.presentedAs)})`;
+  const presentation =
+    event.presentedAs === undefined
+      ? undefined
+      : renderPresentation(event.presentedAs, `r${sequence}`, event.output.length);
+  const presented = presentation === undefined ? '' : ` (${presentation})`;
   const sent = event.rawArgumentsPreview === undefined ? '' : ` (arguments as sent: ${event.rawArgumentsPreview})`;
   return `\`${toDisplayName(event.toolName)}\`${mark}${presented} → ${event.output}${sent}`;
 }
 
-function renderEventLine(payload: PrismaJson.TurnEventPayload): string {
+function renderEventLine(payload: PrismaJson.TurnEventPayload, sequence: number): string {
   return match(payload)
     .with(
       { kind: 'approval_decided' },
@@ -93,7 +116,7 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload): string {
     )
     .with({ kind: 'output_rejected' }, (event) => `rejected output (${event.reason}): ${event.content}`)
     .with({ kind: 'steering_received' }, (event) => `steered by ${event.byUsername}: ${event.text}`)
-    .with({ kind: 'tool_result' }, renderResultLine)
+    .with({ kind: 'tool_result' }, (event) => renderResultLine(event, sequence))
     .exhaustive();
 }
 
@@ -180,7 +203,7 @@ export function renderTrace(trace: TraceInput): string {
     ...renderTurnRecord(trace),
     ...parked.map((parkedOn) => `Waiting on a person: ${renderParkedOn(parkedOn, now)}`),
     ...events.map((event, index) => {
-      return `${index + 1}. [${renderOffset(turn, event.createdAt)}] ${renderEventLine(event.payload)}`;
+      return `${index + 1}. [${renderOffset(turn, event.createdAt)}] ${renderEventLine(event.payload, event.sequence)}`;
     })
   ].join('\n');
 }

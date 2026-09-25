@@ -256,7 +256,6 @@ describe('ContextAssembler across two turns', () => {
       { gates: false, id: ['tasks', 'assign'] }
     ]);
     toolRegistry.listGrantedNamespacesFor.mockReturnValue(['tasks']);
-    toolRegistry.listSupersedableFor.mockReturnValue([]);
     windowService = MockFactory.createMock(WindowService);
     windowService.build.mockResolvedValue({ entries: firstWindow, oldestAt: new Date(1000) });
     windowService.readRecentActions.mockResolvedValue([]);

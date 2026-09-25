@@ -4,7 +4,7 @@ import { match } from 'ts-pattern';
 
 import type { ReasoningDetail } from '@/core/core.types.ts';
 
-import { toCompletionBody } from './adapters/openai-compatible.utils.ts';
+import { toCompletionBody, toWireMessage } from './adapters/openai-compatible.utils.ts';
 
 import type {
   CompletionMessage,
@@ -34,7 +34,6 @@ export function bootProbeRequest(model: $ModelRef): CompletionRequest {
   };
 }
 
-/** what one message adds to a request, by the same ruler the window is measured with (§3.8) */
 /** §7.1 — a cut-off completion's spend, at the codebase's characters per token, marked as the estimate it is */
 export function estimateStreamedUsage(streamed: StreamedChars): EstimatedCompletionUsage {
   return {
@@ -44,8 +43,13 @@ export function estimateStreamedUsage(streamed: StreamedChars): EstimatedComplet
   };
 }
 
-export function estimateMessageTokens(message: CompletionMessage): number {
-  return estimateTokens(JSON.stringify(message));
+/**
+ * §3.8 — what one message adds to a request, measured in the form its provider receives, the ruler
+ * the request itself is measured by: a provider that takes one of the two reasoning fields a message
+ * stores is never charged for both.
+ */
+export function estimateMessageTokens(message: CompletionMessage, provider: $ModelRef['provider']): number {
+  return estimateTokens(JSON.stringify(toWireMessage(message, provider)));
 }
 
 /** the whole request as the provider receives it — system prompt, tool definitions and messages — by the same ruler (§3.8) */

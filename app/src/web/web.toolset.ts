@@ -9,13 +9,7 @@ import { holdsWholePage } from './reading/reading.utils.ts';
 import { SEARCH_TIMEOUT_MS } from './search/search.constants.ts';
 import { renderSearchResults } from './search/search.utils.ts';
 import { DEFAULT_WINDOW_CHARS, FETCH_TIMEOUT_MS, MARKDOWN_CAP_CHARS, PDF_READ_TIMEOUT_MS } from './web.constants.ts';
-import {
-  describeWebFailureOutcome,
-  locateShownStretch,
-  renderWebFailure,
-  renderWebPage,
-  renderWebSnapshot
-} from './web.renderer.ts';
+import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from './web.renderer.ts';
 import { SEARCH_SERVICE_TOKEN, WEB_SERVICE_TOKEN } from './web.tokens.ts';
 
 import type { SearchFailure, SearchResult } from './search/search.types.ts';
@@ -83,20 +77,12 @@ function describePageSubject({ shown, url }: WebPage): string {
     : `page ${url} (characters ${shown.from}–${shown.to} of ${shown.total})`;
 }
 
-/** what a page result shows the model, and where in it the stretch of the page it holds sits (§3.8) */
-type RenderedPageResult = Pick<ToolOutput, 'excerpt' | 'text'>;
+/** what a page result shows the model (§3.8) */
+type RenderedPageResult = Pick<ToolOutput, 'text'>;
 
-/**
- * §3.8 — a fetched page, and where the stretch of it a window read holds sits, so a turn that must
- * cut the result can say where to read on
- */
+/** §3.8 — a fetched page; one too long for the turn's view is read on by reference, past its own read-on footer */
 function renderFetchedPage(page: FetchedPage): RenderedPageResult {
-  const text = renderWebPage(page);
-  const stretch = locateShownStretch(page);
-  if (stretch === undefined) {
-    return { text };
-  }
-  return { excerpt: { ...stretch, offsetArgument: 'startChar' satisfies keyof $FetchArgs }, text };
+  return { text: renderWebPage(page) };
 }
 
 const DESCRIPTION_PREAMBLE =
@@ -121,14 +107,13 @@ function toPageResult<TPage extends WebPage>(
     }
     return Result.ok({ text: renderWebFailure(result.error), traceOutcome: describeWebFailureOutcome(result.error) });
   }
-  const { excerpt, text } = render(result.value);
+  const { text } = render(result.value);
   const traceOutcome = describeOutcome(result.value);
   const contentIdentity = identifyContent(result.value);
   return Result.ok({
     replaySubject: describeReplaySubject(describeSubject(result.value), text),
     text,
     ...(contentIdentity !== undefined && { contentIdentity }),
-    ...(excerpt && { excerpt }),
     ...(traceOutcome !== undefined && { traceOutcome })
   });
 }

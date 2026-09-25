@@ -15,6 +15,7 @@ import { InjectModel } from '@/prisma/prisma.decorators.ts';
 import { PrismaService } from '@/prisma/prisma.service.ts';
 import type { Model, TransactionClient } from '@/prisma/prisma.types.ts';
 import { createRecordId } from '@/prisma/prisma.utils.ts';
+import type { ContextExhaustionCause } from '@/turns/turns.types.ts';
 import { renderReference } from '@/utils/reference.utils.ts';
 
 import { CounterpartStateService } from './counterparts/counterpart-state.service.ts';
@@ -77,7 +78,14 @@ type Addressed<TPrepared> = Prepared<TPrepared> & { readonly addressee: string }
 type PreparedClose = Prepared<PreparedTransition> & { readonly leavesNoneOpen: boolean };
 
 /** §3.15 — fixed text, never the model's: a report written now would come from the context that just ran out */
-const CONTEXT_EXHAUSTED_REASON = 'context exhausted';
+/** §3.15, §7.1 — the blocked report of a unit whose assignee ran out of room, which cannot show what the turn did */
+const CONTEXT_EXHAUSTED_REASONS = {
+  accumulated: 'context exhausted — the turn’s accumulated context passed its ceiling',
+  initial: 'context exhausted — its starting context did not fit its ceiling'
+} as const;
+
+const CONTEXT_EXHAUSTED_FOLLOW_UP =
+  'What this turn wrote before it stopped is not shown here; check it with your own tools, or continue the unit with follows so its assignee, who sees its own calls, reports it.';
 
 /**
  * §3.15 — the record of delegated work. Every verb is two methods: `prepare*` validates against
@@ -409,6 +417,7 @@ export class TasksService {
   /** §3.15 — the report the framework makes for a turn that ran out of context, on the unit it was working, or nothing */
   async prepareExhaustionReport(input: {
     agentUsername: string;
+    cause: ContextExhaustionCause;
     channelId: string;
     triggeringPostId: string | undefined;
   }): Promise<Addressed<PreparedTransition> | undefined> {
@@ -419,7 +428,11 @@ export class TasksService {
     return {
       addressee: unit.creatorUsername,
       prepared: { to: 'blocked', unitId: unit.id },
-      text: renderReportPost(unit, 'blocked', CONTEXT_EXHAUSTED_REASON)
+      text: renderReportPost(
+        unit,
+        'blocked',
+        `${CONTEXT_EXHAUSTED_REASONS[input.cause]}. ${CONTEXT_EXHAUSTED_FOLLOW_UP}`
+      )
     };
   }
 

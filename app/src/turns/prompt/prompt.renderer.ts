@@ -104,7 +104,6 @@ export class PromptRenderer {
       presentCommands: this.shellService.listPresentCommands(),
       profile,
       skillsManifest: this.skillsService.renderManifest(profile),
-      supersedableCalls: this.toolRegistry.listSupersedableFor(profile),
       textFormatter: this.textFormatter
     };
   }

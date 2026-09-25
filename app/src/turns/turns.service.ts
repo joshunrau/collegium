@@ -103,7 +103,11 @@ export class TurnsService {
    * the two can never disagree. The sequence is gapless per turn; the unique constraint turns a
    * concurrent append into a retry rather than a gap. Returns the event's id.
    */
-  async appendEvent(turnId: string, event: TurnEventInput): Promise<string> {
+  /** §3.8 — the event's sequence is its result's reference within the turn, so the caller gets it with the id */
+  async appendEvent(
+    turnId: string,
+    event: TurnEventInput
+  ): Promise<{ readonly id: string; readonly sequence: number }> {
     for (;;) {
       const last = await this.events.findFirst({
         orderBy: { sequence: 'desc' },
@@ -111,11 +115,10 @@ export class TurnsService {
         where: { turnId }
       });
       try {
-        const created = await this.events.create({
+        return await this.events.create({
           data: { kind: event.kind, payload: event, sequence: (last?.sequence ?? -1) + 1, turnId },
-          select: { id: true }
+          select: { id: true, sequence: true }
         });
-        return created.id;
       } catch (error) {
         if (!isUniqueConstraintViolation(error)) {
           throw error;

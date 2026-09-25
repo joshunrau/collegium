@@ -206,9 +206,13 @@ awk '/^[0-9]+\. \[\+/ { if (h) print n "\t" h; h = $0; n = 0; next } { n += leng
   END { if (h) print n "\t" h }' trace.txt | sort -rn | head
 ```
 
-A result marked `(the model read its first N characters)` was cut to fit the turn, and a cut or one
-dominant result is the cause. Otherwise total the results by tool, by piping the listing, without
-`head`, through:
+A result marked `(the model was shown its first X of Y characters (result rN); the rest by
+reference)` arrived as a view, and `then only its line` means it was later replaced by its line; the
+model can read either on with `results__read`. A trace from before views says `(the model read its
+first N characters)` instead, which was a cut with no read-on, and a cut or one dominant result was
+the cause. An exhaustion notice states the context's size against the ceiling and names its largest
+parts, which are the place to look first. Otherwise total the results by tool, by piping the
+listing, without `head`, through:
 
 ```sh
 awk -F'\t' '{ split($2, tool, "`"); total[tool[2]] += $1 } END { for (t in total) print total[t] "\t" t }' | sort -rn

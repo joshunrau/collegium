@@ -14,7 +14,6 @@ export function buildStablePromptInput(overrides: Partial<StablePromptInput> = {
     presentCommands: [],
     profile: buildAgentProfile(),
     skillsManifest: '',
-    supersedableCalls: [],
     textFormatter: new TextFormatter(),
     ...overrides
   };

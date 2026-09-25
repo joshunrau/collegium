@@ -75,16 +75,13 @@ export type ToolPost = {
 };
 
 /**
- * §3.8 — where a result is a stretch of a longer whole read by offset, such as a page: `text` from
- * `textIndex` on holds the whole's characters `from` to `to`, and `offsetArgument` names the
- * argument that starts a read at an offset. A result cut to fit a turn's ceiling says with it where
- * to read on, since the cut drops the result's own word on that.
+ * §3.8 — where a result that is itself a read of another sits in that record: its `text` from
+ * `textIndex` on is the record named by `ref` from `offset` on. Framework tools only.
  */
-export type ToolExcerpt = {
-  readonly from: number;
-  readonly offsetArgument: string;
+export type ToolReadOn = {
+  readonly offset: number;
+  readonly ref: string;
   readonly textIndex: number;
-  readonly to: number;
 };
 
 /**
@@ -104,12 +101,18 @@ export type ToolOutput = {
    */
   readonly contentIdentity?: string;
   readonly disclosure?: ToolDisclosure;
-  readonly excerpt?: ToolExcerpt;
   /** §3.15 — framework tools only; a plugin's output type carries no post */
   readonly post?: ToolPost;
+  /** §3.8 — framework tools only: the record this result was read from, which its view line and its stand-in name */
+  readonly readOn?: ToolReadOn;
   readonly text: string;
   /** §8.1 — what the call came to, shown after its line in the status post: the page a click landed on, the status a fetch got */
   readonly traceOutcome?: string;
+  /**
+   * §3.8 — framework tools only: how much of `text`, from its start, the model is shown as the result
+   * arrives, where the tool wants a view narrower than the turn's own; the rest is read on by reference
+   */
+  readonly viewChars?: number;
 } & (
   | { readonly replay?: never; readonly replaySubject?: string }
   | { readonly replay?: string; readonly replaySubject?: never }
@@ -214,9 +217,9 @@ export type ToolDefinition<TContext, TParams extends z.ZodType> = {
   /** §7.2 — whether a timed-out call may be reported to the model as a plain failure; false ends the turn as unconfirmable */
   readonly retryable?: boolean;
   /**
-   * A later result of any supersedable tool in the same turn makes this one stale: once more than
-   * the retained few exist, the model reads its `replay` line in place of the text (§3.8). For a
-   * page or document the model acts on once and moves past, never for anything it keeps re-reading.
+   * §3.8 — a page whose identical re-read replaces it: a later result of the turn with the same
+   * content, at whatever address served it, costs a line naming this one while it is shown, and is
+   * shown again, naming it, once it has been replaced. It plays no part in what is collapsed.
    */
   readonly supersedable?: boolean;
   readonly timeoutMs?: number;

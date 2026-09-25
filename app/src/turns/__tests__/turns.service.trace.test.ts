@@ -63,20 +63,20 @@ describe('TurnsService’s record of a turn for its trace, against the store (§
 
   it('should merge how the model read a result into its event, leaving the output whole (§3.8)', async () => {
     const turn = await open();
-    const eventId = await turnsService.appendEvent(turn.id, {
+    const { id: eventId } = await turnsService.appendEvent(turn.id, {
       callId: 'c1',
       kind: 'tool_result',
       output: 'a long page',
       toolName: ['web', 'fetch']
     });
-    await turnsService.recordPresentation(eventId, { cutToChars: 4 });
+    await turnsService.recordPresentation(eventId, { shownChars: 4 });
     await turnsService.recordPresentation(eventId, { collapsed: true });
     const [event] = await turnsService.listEvents(turn.id);
     expect(event?.payload).toStrictEqual({
       callId: 'c1',
       kind: 'tool_result',
       output: 'a long page',
-      presentedAs: { collapsed: true, cutToChars: 4 },
+      presentedAs: { collapsed: true, shownChars: 4 },
       toolName: ['web', 'fetch']
     });
   });

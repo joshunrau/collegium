@@ -69,6 +69,6 @@ describe('Harness fixtures', () => {
     await channels.main.awaitReplyFrom('owen', { text: 'pong' });
 
     const [request] = inference.requestsFor('owen').slice(-1);
-    expect(request?.toolNames).toEqual(['builtins__now', 'skills__load', 'triggers__resolve']);
+    expect(request?.toolNames).toEqual(['builtins__now', 'results__read', 'skills__load', 'triggers__resolve']);
   });
 });

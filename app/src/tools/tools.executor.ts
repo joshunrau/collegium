@@ -287,11 +287,12 @@ export class ToolExecutor {
       output: output.text,
       ...(output.contentIdentity !== undefined && { contentIdentity: output.contentIdentity }),
       ...(output.disclosure && { disclosure: output.disclosure }),
-      ...(output.excerpt && { excerpt: output.excerpt }),
       ...(output.post && { post: output.post }),
+      ...(output.readOn && { readOn: output.readOn }),
       ...(output.replay !== undefined && { replay: output.replay }),
       ...(output.replaySubject !== undefined && { replaySubject: output.replaySubject }),
-      ...(output.traceOutcome !== undefined && { traceOutcome: output.traceOutcome })
+      ...(output.traceOutcome !== undefined && { traceOutcome: output.traceOutcome }),
+      ...(output.viewChars !== undefined && { viewChars: output.viewChars })
     };
   }
 

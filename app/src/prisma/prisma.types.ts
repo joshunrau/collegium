@@ -142,10 +142,19 @@ export type TraceMark = {
   readonly text: string;
 };
 
-/** §3.8 — what the turn did to a result under pressure: collapsed to its line once read, cut to its leading characters to fit */
+/**
+ * §3.8 — how the model came to read a result: the width of the view it arrived in, how much of it a
+ * view showed where that was not all of it, a repeat answered with a line naming the result it
+ * repeats, and its collapse to a line once read. `cutToChars` is what events from before views
+ * recorded: a cut with no read-on, read back as one.
+ */
 export type ResultPresentation = {
   collapsed?: true;
   cutToChars?: number;
+  /** the reference of the earlier result, still shown, whose text this one repeats */
+  repeatOf?: string;
+  shownChars?: number;
+  viewChars?: number;
 };
 
 export type PrismaModelName = Prisma.ModelName;

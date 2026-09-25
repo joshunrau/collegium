@@ -94,7 +94,7 @@ describe('WEB_TOOLSET', () => {
     );
   });
 
-  it('should locate the stretch a window holds of a page or a PDF past every line that heads it (§3.8)', async () => {
+  it('should hold the stretch a window reads of a page or a PDF, after every line that heads it (§3.8)', async () => {
     const { context, web } = buildContext();
     const page = `# Faculty\n\n${'Duval, P. — 217 BSB\n'.repeat(3_000)}`.trimEnd();
     const read: PageRead = { kind: 'window', startChar: 4_000, wholePage: false };
@@ -111,14 +111,12 @@ describe('WEB_TOOLSET', () => {
       };
       web.fetch.mockResolvedValueOnce(Result.ok({ ...fetched, ...answered }));
       const args = { startChar: 4_000, url: 'https://northmoor.example/', wholePage: false };
-      const { excerpt, text } = (await executeTool(fetch, args, context)).unwrap();
-      const to = 4_000 + DEFAULT_WINDOW_CHARS;
-      expect(excerpt).toMatchObject({ from: 4_000, offsetArgument: 'startChar', to });
-      expect(text.slice(excerpt!.textIndex, excerpt!.textIndex + DEFAULT_WINDOW_CHARS)).toBe(source.slice(4_000, to));
+      const { text } = (await executeTool(fetch, args, context)).unwrap();
+      expect(text).toContain(source.slice(4_000, 4_000 + DEFAULT_WINDOW_CHARS));
     }
   });
 
-  it('should locate a page a read holds whole, which a turn may still have to cut (§3.8)', async () => {
+  it('should name a page a read holds whole by its address alone (§3.8)', async () => {
     const { context, web } = buildContext();
     const read = readPage(
       { leftOutChars: 0, markdown: '# Example Domain' },
@@ -126,12 +124,6 @@ describe('WEB_TOOLSET', () => {
     );
     web.fetch.mockResolvedValue(Result.ok({ ...PAGE, ...read }));
     const result = await executeTool(fetch, { startChar: 0, url: 'https://example.org/', wholePage: false }, context);
-    expect(result.unwrap().excerpt).toStrictEqual({
-      from: 0,
-      offsetArgument: 'startChar',
-      textIndex: 'Example — https://example.org/ (HTTP 200)\n\n'.length,
-      to: '# Example Domain'.length
-    });
     expect(result.unwrap().replaySubject).toMatch(/^page https:\/\/example\.org\/, \d+ characters$/u);
   });
 

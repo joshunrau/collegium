@@ -1,4 +1,4 @@
-import type { ToolDisclosure, ToolExcerpt, ToolPost } from '@collegium/core/tools';
+import type { ToolDisclosure, ToolPost, ToolReadOn } from '@collegium/core/tools';
 
 import type { TraceMark, TurnStatus } from '@/prisma/prisma.types.ts';
 
@@ -11,12 +11,12 @@ export declare namespace ToolAttempt {
     contentIdentity?: string;
     /** a durable record the call created, for the turn to write into the event trail and trace (§3) */
     disclosure?: ToolDisclosure;
-    /** §3.8 — where `output` is a stretch of a longer whole, for the turn that must cut it to say where to read on */
-    excerpt?: ToolExcerpt;
     kind: 'continue';
     output: string;
     /** §3.15 — published under the agent's account by the runner, never by the tool (§3.3) */
     post?: ToolPost;
+    /** §3.8 — the record this result was read from, which its view line and its line name */
+    readOn?: ToolReadOn;
     /** §3.7 — the person's words this attempt came to, which the next approval prompt for the tool names */
     reasonedDenial?: { byUsername: string; reason: string };
     /** the line later turns replay in place of the output, owned by the tool (§3.8) */
@@ -27,6 +27,8 @@ export declare namespace ToolAttempt {
     traceMark?: TraceMark;
     /** §8.1 — what the call came to, from the tool, for its status-post line */
     traceOutcome?: string;
+    /** §3.8 — how much of `output`, from its start, the tool wants the model shown as it arrives */
+    viewChars?: number;
   };
   /** §5.4 — a bare denial ends the turn, and whoever denied it is named wherever the end is shown (§8.1) */
   type Denied = {

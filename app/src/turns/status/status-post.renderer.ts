@@ -8,6 +8,8 @@ import type { TraceMark } from '@/tools/tools.types.ts';
 
 import { OUTCOME_PHRASES, PARKED_LINE_STEMS, WORKING_LINE } from './status-post.constants.ts';
 
+const COUNT_FORMAT = new Intl.NumberFormat('en-US');
+
 import type { ContextExhaustionCause } from '../turns.types.ts';
 
 const TRACE_DETAIL_LIMIT_CHARS = 150;
@@ -64,6 +66,12 @@ function groupTraceLines(lines: readonly TraceLine[]): { calls: number; text: st
 /** §8.1 — what keeps the closing edit within the substrate's limit; the store has every line */
 function renderElisionLine(droppedCalls: number): string {
   return `_… ${droppedCalls} earlier call${droppedCalls === 1 ? '' : 's'}; the full trace is in /collegium trace_`;
+}
+
+/** a token count a notice states: about the thousand, or about the hundred below ten thousand */
+function renderApproximateTokens(tokens: number): string {
+  const step = tokens >= 10_000 ? 1000 : 100;
+  return COUNT_FORMAT.format(Math.round(tokens / step) * step);
 }
 
 /**
@@ -235,17 +243,44 @@ export function renderOverranNotice(limitMs: number, overruns: number): string {
   return `${cut}, so I stopped: the provider may be slow, or I was deliberating too long. The trace has ${overruns >= 2 ? 'both' : 'the rest'}.`;
 }
 
-/** §7.1 — the turn ran out of room, not the provider; each cause names where the human should look */
-export function renderContextExhaustedNotice(cause: ContextExhaustionCause): string {
-  return match(cause)
-    .with(
-      'accumulated',
-      () => 'I ran out of room in my context part-way through this turn and stopped. What I did so far is in the trace.'
-    )
+/**
+ * §7.1 — the turn ran out of room, not the provider: the context's size against the ceiling, and,
+ * since no single result can now be the cause, the largest things in it, which are where to look first
+ */
+export function renderContextExhaustedNotice(input: {
+  readonly cause: ContextExhaustionCause;
+  readonly ceilingTokens: number;
+  readonly largest: readonly { readonly label: string; readonly tokens: number }[];
+  readonly promptTokens: number;
+}): string {
+  const held = `about ${renderApproximateTokens(input.promptTokens)} tokens`;
+  const ceiling = COUNT_FORMAT.format(input.ceilingTokens);
+  return match(input.cause)
+    .with('accumulated', () => {
+      const parts = input.largest
+        .map(({ label, tokens }) => `${label}, about ${renderApproximateTokens(tokens)}`)
+        .join('; ');
+      return `I ran out of room in my context part-way through this turn and stopped: it held ${held} against my ceiling of ${ceiling}, with every result I had read reduced to its line. The largest parts: ${parts}. What I did so far is in the trace.`;
+    })
     .with('initial', () => {
-      return 'My starting context does not fit in one turn. This is a configuration problem — my context budget against my turn ceiling — not something I can work around.';
+      return `My starting context does not fit my turn ceiling: ${held} against ${ceiling}. This is a configuration problem — my context budget against my turn ceiling — not something I can work around.`;
     })
     .exhaustive();
+}
+
+/**
+ * §8.1 — a call's line where the model was shown only part of its result: how much, after the tool's
+ * own mark or outcome, which it never replaces
+ */
+export function withViewMark(
+  mark: TraceMark | undefined,
+  view: undefined | { readonly shownChars: number; readonly totalChars: number }
+): TraceMark | undefined {
+  if (view === undefined) {
+    return mark;
+  }
+  const shown = `shown ${COUNT_FORMAT.format(view.shownChars)} of ${COUNT_FORMAT.format(view.totalChars)} chars; the rest by reference`;
+  return mark === undefined ? { ran: true, text: shown } : { ran: mark.ran, text: `${mark.text} · ${shown}` };
 }
 
 /** §7.1 — the agent asks how to proceed, naming who denied what and the unit left assigned to it, whose creator an @ would wake (§3.15) */

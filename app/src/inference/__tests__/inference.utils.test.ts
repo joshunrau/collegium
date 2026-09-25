@@ -3,11 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   bootProbeRequest,
   describeInferenceFailure,
+  estimateMessageTokens,
   estimateRequestTokens,
   isUnparsedToolCall
 } from '../inference.utils.ts';
 
-import type { CompletionRequest } from '../inference.types.ts';
+import type { CompletionMessage, CompletionRequest } from '../inference.types.ts';
 
 describe('bootProbeRequest', () => {
   it('should ask the model for the least a provider will price: one user message, no tools', () => {
@@ -66,6 +67,34 @@ describe('estimateRequestTokens', () => {
     expect(estimateRequestTokens(withTool)).toBeGreaterThan(estimateRequestTokens(request));
     expect(estimateRequestTokens({ ...request, systemPrompt: '' })).toBeLessThan(estimateRequestTokens(request));
   });
+});
+
+describe('estimateMessageTokens', () => {
+  const reasoned: CompletionMessage = {
+    content: 'done',
+    reasoningContent: 'thinking '.repeat(400),
+    reasoningDetails: [{ format: 'unknown', index: 0, text: 'thinking '.repeat(400), type: 'reasoning.text' }],
+    role: 'assistant'
+  };
+
+  it.each([
+    { model: { name: 'deepseek-v4-flash', provider: 'deepseek' } },
+    { model: { name: 'deepseek/deepseek-v4-flash', provider: 'openrouter' } }
+  ] as const)(
+    'should cost a message as its request grows by it, one reasoning field charged once ($model.provider) (§3.8)',
+    ({ model }) => {
+      const request: CompletionRequest = {
+        cacheKey: 'mira:channel-1',
+        messages: [{ content: 'hello', role: 'user' }],
+        model,
+        systemPrompt: 'You are Mira.',
+        tools: []
+      };
+      const grown = estimateRequestTokens({ ...request, messages: [...request.messages, reasoned] });
+      const alone = estimateMessageTokens(reasoned, model.provider);
+      expect(Math.abs(alone - (grown - estimateRequestTokens(request)))).toBeLessThanOrEqual(1);
+    }
+  );
 });
 
 describe('isUnparsedToolCall', () => {

@@ -1,12 +1,6 @@
-import {
-  describeReplaySubject,
-  renderDuplicateLine,
-  renderSameContentLine,
-  renderSameContentNote,
-  renderSupersededLine
-} from '@collegium/core/tools';
-import type { ToolExcerpt, ToolPost, ToolTurnScope } from '@collegium/core/tools';
-import { CHARS_PER_TOKEN, Result } from '@collegium/core/utils';
+import { describeReplaySubject, REPLAY_VERBATIM_MAX_CHARS } from '@collegium/core/tools';
+import type { ToolPost, ToolReadOn, ToolTurnScope } from '@collegium/core/tools';
+import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 import { match } from 'ts-pattern';
 
@@ -22,6 +16,7 @@ import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { TurnRequestOrigin } from '@/conversations/conversations.types.ts';
 import type { SpokenPostKind } from '@/conversations/conversations.utils.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
+import { MomentFormatter } from '@/formatting/dates/moment.formatter.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import type {
@@ -74,8 +69,18 @@ import {
   renderUnreportedUnitRejection
 } from './guard/reply-guard.utils.ts';
 import { renderTurnClosedLog, renderTurnOpenedLog } from './logging/turn-log.utils.ts';
-import { SUPERSEDABLE_RETENTION_FLOOR } from './retention/retention.constants.ts';
-import { hashResult, renderResultCutMarker, retentionBudgetFor, shiftExcerpt } from './retention/retention.utils.ts';
+import {
+  hashResult,
+  planRelief,
+  planView,
+  renderCollapsedLine,
+  renderRepeatLine,
+  renderRepeatNote,
+  renderUnreadStandIn,
+  renderViewLine,
+  viewCapCharsFor,
+  viewFloorChars
+} from './retention/retention.utils.ts';
 import {
   renderBudgetExhaustedNotice,
   renderChainLengthLimitNotice,
@@ -95,7 +100,8 @@ import {
   renderSideEffectAmbiguityNotice,
   renderSteeringLine,
   renderToolCallLine,
-  toOutcomeTraceMark
+  toOutcomeTraceMark,
+  withViewMark
 } from './status/status-post.renderer.ts';
 import { StatusPostService } from './status/status-post.service.ts';
 import { TurnsService } from './turns.service.ts';
@@ -106,17 +112,39 @@ import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle, TraceLineHandle } from './status/status-post.service.ts';
-import type { HeldActivation, Steering, Turn, TurnEventInput, TurnOpenFailure, TurnOutcome } from './turns.types.ts';
+import type {
+  ContextExhaustionCause,
+  HeldActivation,
+  Steering,
+  Turn,
+  TurnEventInput,
+  TurnOpenFailure,
+  TurnOutcome
+} from './turns.types.ts';
 
-/** §3.8 — a supersedable result's latest verbatim copy: where it sits, what it was, and the hash of its whole text */
-type SeenSupersedable = {
+/** §3.8 — a recorded result still shown whole or as a view, longer than its line: what relief may replace, and with what */
+type ShownResult = {
+  readonly messageIndex: number;
+  readonly readOn: ToolReadOn | undefined;
+  readonly recordedAt: string;
+  readonly ref: string;
+  /** how much of the result the model is shown now; the rest is read on by reference */
+  shownChars: number;
+  readonly subject: string;
+  readonly totalChars: number;
+};
+
+/** §3.8 — the result a later identical one repeats: where it sits, its reference, and the hash of its whole text */
+type SeenResult = {
   readonly messageIndex: number;
   readonly outputHash: string;
+  readonly ref: string;
   readonly subject: string;
 };
 
-/** §3.8 — what a re-read of a result already collapsed opens with, so the model learns the page did not change without paying to compare */
-const REPEATED_READ_NOTE = '[identical to a result you read earlier this turn; nothing changed]';
+/** §5.1, §3.8 — what a call that would park a person reads while the turn's context is over its ceiling */
+const OVER_CEILING_RESULT =
+  'this call was not run: this turn’s context is over its ceiling, and a call that waits on a person is not started then';
 
 /** §4.5 — a tool call written as prose, whether a transcript the model copied or its provider's own markup */
 const TOOL_CALL_AS_TEXT_REJECTION = 'post rejected: a tool call written as text runs nothing — invoke the tool instead';
@@ -146,9 +174,6 @@ const OVERRUN_LIMIT = 2;
 /** §5.3 — how many repeated calls the extension prompt names; the loop it exposes is three URLs long, not fifty */
 const TOP_REPEATED_CALLS = 5;
 
-/** §3.8 — below this a cut result is not long but the turn has no room, and the honest outcome is exhaustion */
-const RESULT_MIN_TOKENS = 500;
-
 /** §7.2 — how many calls with unparseable arguments a turn survives; the second is a pattern, not a mistake */
 const UNPARSED_CALL_LIMIT = 1;
 
@@ -161,6 +186,7 @@ const UNPARSED_ARGUMENTS_RESULT = 'the arguments to this call were not valid JSO
 /** §8.1 — the lines of calls the runner answered itself, which must not read as calls that ran */
 const NOT_RUN_MARKS = {
   budgetSpent: { ran: false, text: '⚠️ not run: the action budget is spent' },
+  overCeiling: { ran: false, text: '⚠️ not run: over the context ceiling' },
   unknownTool: { ran: false, text: '⚠️ not a tool it holds' },
   unparsedArguments: { ran: false, text: '⚠️ arguments not valid JSON' }
 } as const satisfies { readonly [key: string]: TraceMark };
@@ -258,6 +284,8 @@ type FailureStatus = Extract<
 type TurnState = {
   /** §4.5 — the one peer this turn has addressed, whatever number of posts it emits */
   addressedPeer: string | undefined;
+  /** §3.8 — how many messages the assembled context holds, so what the turn added is told from what it started with */
+  assembledMessages: number;
   readonly budget: ActionBudget;
   /** §5.3 — how often each status-post line was admitted, so the extension prompt can name what the turn keeps repeating */
   readonly callTally: Map<string, number>;
@@ -272,23 +300,33 @@ type TurnState = {
   /** §5.3 — the agent's most recent interim text, quoted on the extension prompt as its own last words */
   lastInterimText: string | undefined;
   readonly messages: CompletionMessage[];
+  /** §3.8 — the whole text of each result the latest completion's calls returned, while its view may still be refitted */
+  readonly newestOutputs: Map<number, string>;
   /** §7.1 — completions this turn cut at the time limit, never reset: the second ends the turn */
   overruns: number;
-  /** §3.8 — the estimated size of the whole outgoing request, kept current by `pushMessage` and the collapses */
+  /** §7.1 — what each message the turn added is, by its place, for the exhaustion notice's largest parts */
+  readonly partLabels: Map<number, string>;
+  /** §3.8 — the estimated size of the whole outgoing request, kept current by `pushMessage` and `replaceMessage` */
   promptTokens: number;
+  /** §3.8 — the provider whose wire form every message is measured in */
+  readonly provider: AgentProfile['model']['provider'];
   /** §3.7 — the last reasoned denial of each tool, by display name, named on that tool's next approval prompt */
   readonly reasonedDenials: Map<string, { byUsername: string; reason: string }>;
   /** §7.1 — results this turn recorded; a turn that recorded none accumulated nothing a fresh one would not rebuild */
   recordedResults: number;
+  /** §3.8 — the results replaced by their line or shown only by reference, whose repeat is shown again rather than answered by a line */
+  readonly replacedResults: Set<number>;
   /** §3.7 — resolved at turn setup and again at every fold (§4.4), and quoted on every approval prompt the turn raises */
   requestedBy: ApprovalRequester | undefined;
   /** §3.8 — each recorded result's event, by the index of the message carrying it, where relief later says how the model read it (§8.3) */
   readonly resultEventIds: Map<number, string>;
-  /** §3.8 — the content of every supersedable result this turn produced, by hash, and the copy last pushed verbatim */
-  readonly seenSupersedable: Map<string, SeenSupersedable>;
+  /** §3.8 — every result a later one could repeat, by what makes it identical, and where its copy was last shown */
+  readonly seenResults: Map<string, SeenResult>;
+  /** §3.8 — the results still shown whole or as a view, which relief may replace with their lines */
+  readonly shownResults: ShownResult[];
+  /** §7.1 — the estimated size of the context as assembled, the first of the exhaustion notice's largest parts */
+  startTokens: number;
   readonly status: StatusPostHandle;
-  /** the supersedable results still verbatim in `messages`, oldest first (§3.8) */
-  readonly supersedable: { messageIndex: number; subject: string }[];
   /** §8.1 — each admitted call's status-post line, by call id, marked once the call's disposition is known */
   readonly traceHandles: Map<string, TraceLineHandle>;
   readonly transport: ChatTransport;
@@ -329,6 +367,7 @@ export class TurnRunner {
     private readonly inferenceRegistry: InferenceRegistry,
     private readonly loggingService: LoggingService,
     private readonly memorySightingsRegistry: MemorySightingsRegistry,
+    private readonly momentFormatter: MomentFormatter,
     private readonly multiMentionPolicy: MultiMentionPolicy,
     private readonly statusPostService: StatusPostService,
     private readonly tasksService: TasksService,
@@ -392,6 +431,7 @@ export class TurnRunner {
     const workUnit = await this.resolveServedUnit(input);
     const state: TurnState = {
       addressedPeer: undefined,
+      assembledMessages: 0,
       budget: new ActionBudget(profile.actionBudget),
       callTally: new Map(),
       consecutiveRejections: 0,
@@ -410,15 +450,20 @@ export class TurnRunner {
       heldActivation: undefined,
       lastInterimText: undefined,
       messages: [],
+      newestOutputs: new Map(),
       overruns: 0,
+      partLabels: new Map(),
       promptTokens: 0,
+      provider: profile.model.provider,
       reasonedDenials: new Map(),
       recordedResults: 0,
+      replacedResults: new Set(),
       requestedBy: await this.resolveRequester(input.triggeringPostId, workUnit),
       resultEventIds: new Map(),
-      seenSupersedable: new Map(),
+      seenResults: new Map(),
+      shownResults: [],
+      startTokens: 0,
       status,
-      supersedable: [],
       traceHandles: new Map(),
       transport: this.transportRegistry.get(profile.username),
       turn,
@@ -547,6 +592,28 @@ export class TurnRunner {
     };
   }
 
+  /** §5.1, §3.8 — a call that would park a person is not started while the context is over its ceiling: its line and its event say it did not run */
+  private async answerOverCeiling(state: TurnState, identified: RunnableCall): Promise<void> {
+    state.traceHandles.set(
+      identified.call.id,
+      state.status.appendTrace({
+        detail: identified.detail,
+        effect: undefined,
+        kind: 'call',
+        toolName: identified.displayName
+      })
+    );
+    this.markTraceLine(state, identified, NOT_RUN_MARKS.overCeiling);
+    await this.turnsService.appendEvent(state.turn.id, {
+      callId: identified.call.id,
+      kind: 'tool_result',
+      output: OVER_CEILING_RESULT,
+      toolName: identified.recordedName,
+      traceMark: NOT_RUN_MARKS.overCeiling
+    });
+    this.pushMessage(state, { content: OVER_CEILING_RESULT, role: 'tool', toolCallId: identified.call.id });
+  }
+
   /**
    * §7.2 — a call naming no tool the agent holds is answered with the tools it does, and counts
    * toward §4.5's rejections in a row, so a model that keeps misnaming ends as refused output does.
@@ -664,6 +731,29 @@ export class TurnRunner {
   }
 
   /**
+   * §7.1 — out of room: the notice states the context's size against the ceiling and its largest
+   * parts, and a unit the turn worked is reported blocked (§3.15)
+   */
+  private async closeOnContextExhausted(
+    input: RunInput,
+    state: TurnState,
+    cause: ContextExhaustionCause
+  ): Promise<TurnOutcome> {
+    await this.postNotice(
+      input,
+      state,
+      renderContextExhaustedNotice({
+        cause,
+        ceilingTokens: input.profile.turnContextCeilingTokens,
+        largest: this.largestPartsOf(state),
+        promptTokens: state.promptTokens
+      })
+    );
+    await this.reportExhaustedUnit(input, state, cause);
+    return this.writeClosingStatus(state, 'context_exhausted');
+  }
+
+  /**
    * §5.4 — a bare denial ends the turn, and its line, its outcome and its notice name who denied it
    * (§8.1). The unit the turn was working stays assigned: the notice names it, and nothing reports
    * it to its creator (§3.15).
@@ -713,12 +803,7 @@ export class TurnRunner {
       );
     }
     if (failure.kind === 'context-overflow') {
-      return this.closeWithFailureNotice(
-        input,
-        state,
-        'context_exhausted',
-        renderContextExhaustedNotice(state.recordedResults === 0 ? 'initial' : 'accumulated')
-      );
+      return this.closeOnContextExhausted(input, state, state.recordedResults === 0 ? 'initial' : 'accumulated');
     }
     if (failure.kind === 'provider') {
       return this.closeWithFailureNotice(
@@ -779,17 +864,14 @@ export class TurnRunner {
     );
   }
 
-  /** §7.1 — the notice goes out as one post, then the turn closes; §3.15 for a unit */
+  /** §7.1 — the notice goes out as one post, then the turn closes */
   private async closeWithFailureNotice(
     input: RunInput,
     state: TurnState,
-    status: FailureStatus,
+    status: Exclude<FailureStatus, 'context_exhausted'>,
     notice: string
   ): Promise<TurnOutcome> {
     await this.postNotice(input, state, notice);
-    if (status === 'context_exhausted') {
-      await this.reportExhaustedUnit(input, state);
-    }
     return this.writeClosingStatus(state, status);
   }
 
@@ -820,14 +902,13 @@ export class TurnRunner {
     return this.close(state, 'completed');
   }
 
-  /** §3.8 — the oldest verbatim page reads as its in-turn line for the rest of the turn; the event keeps the text and says so (§8.3) */
-  private async collapseOldestSupersedable(state: TurnState): Promise<void> {
-    const stale = state.supersedable.shift()!;
-    const message = state.messages[stale.messageIndex]!;
-    const collapsed = { ...message, content: renderSupersededLine(stale.subject) };
-    state.messages[stale.messageIndex] = collapsed;
-    state.promptTokens += estimateMessageTokens(collapsed) - estimateMessageTokens(message);
-    await this.recordPresentation(state, stale.messageIndex, { collapsed: true });
+  /** §3.8 — a read result replaced by its line for the rest of the turn; its event keeps the text and says so (§8.3) */
+  private async collapseResult(state: TurnState, messageIndex: number): Promise<void> {
+    const at = state.shownResults.findIndex((shown) => shown.messageIndex === messageIndex);
+    const [shown] = state.shownResults.splice(at, 1);
+    state.replacedResults.add(messageIndex);
+    this.replaceMessage(state, messageIndex, renderCollapsedLine(shown!));
+    await this.recordPresentation(state, messageIndex, { collapsed: true });
   }
 
   /**
@@ -949,35 +1030,10 @@ export class TurnRunner {
     };
   }
 
-  /**
-   * §3.8 — the newest result cut to what fits beneath the ceiling, marker included, or left alone
-   * when what would fit is not worth keeping. Escaping can lengthen a cut, so the cut is remeasured.
-   */
-  private async cutResultToFit(
-    state: TurnState,
-    target: { ceiling: number; excerpt: ToolExcerpt | undefined; index: number }
-  ): Promise<boolean> {
-    const { ceiling, excerpt, index } = target;
-    const original = state.messages[index]!;
-    const totalChars = original.content.length;
-    const markerFor = (keptChars: number) => renderResultCutMarker({ excerpt, keptChars, totalChars });
-    const rest = state.promptTokens - estimateMessageTokens(original);
-    const overhead = estimateMessageTokens({ ...original, content: markerFor(totalChars) });
-    let kept = (ceiling - rest - overhead) * CHARS_PER_TOKEN;
-    for (;;) {
-      if (kept < RESULT_MIN_TOKENS * CHARS_PER_TOKEN) {
-        return false;
-      }
-      const cut = { ...original, content: `${original.content.slice(0, kept)}${markerFor(kept)}` };
-      const excess = rest + estimateMessageTokens(cut) - ceiling;
-      if (excess <= 0) {
-        state.messages[index] = cut;
-        state.promptTokens = rest + estimateMessageTokens(cut);
-        await this.recordPresentation(state, index, { cutToChars: kept });
-        return true;
-      }
-      kept -= excess * CHARS_PER_TOKEN;
-    }
+  /** §7.1 — a call as its status-post line names it, in a code span so a notice quoting it addresses no one */
+  private describeCall(identified: IdentifiedCall): string {
+    const detail = identified.kind === 'runnable' ? identified.detail : undefined;
+    return renderToolCallLine(identified.displayName, detail).replace(/^→ /u, '');
   }
 
   /** §3 — the tool returned the disclosure; the turn owns writing the event the trace reads back */
@@ -1024,7 +1080,12 @@ export class TurnRunner {
       toolCalls: completion.toolCalls.map(toReplayableToolCall),
       ...reasoning
     });
+    state.partLabels.set(
+      state.messages.length - 1,
+      `${calls.map((call) => this.describeCall(call)).join(', ')} (my call)`
+    );
     state.unreadFrom = state.messages.length;
+    state.newestOutputs.clear();
     // §3.7a — this completion's own text, which an earlier completion's must not stand in for
     const interimText =
       completion.content === '' ? undefined : this.multiMentionPolicy.stripAgentMentions(completion.content);
@@ -1039,6 +1100,14 @@ export class TurnRunner {
         if (disposition.kind === 'dispatched') {
           return disposition.outcome;
         }
+        position += 1;
+        continue;
+      }
+      if (
+        this.toolRegistry.parksOnPerson(input.profile, first.call.name) &&
+        (await this.fitContext(input, state)) === 'exhausted'
+      ) {
+        await this.answerOverCeiling(state, first);
         position += 1;
         continue;
       }
@@ -1109,6 +1178,64 @@ export class TurnRunner {
 
   private exceedsCeiling(input: RunInput, state: TurnState): boolean {
     return state.promptTokens > input.profile.turnContextCeilingTokens;
+  }
+
+  /**
+   * §3.8 — the ceiling, checked before each completion, before a call that would park a person, and
+   * before an extension is asked for. Over it, read results give way to their lines, the largest first,
+   * down to the low-water mark in one pass; still over, the views of the results just received shorten
+   * together towards the floor, and one that cannot keep even that shows only its size and reference.
+   * Only what is over after both is a turn out of room.
+   */
+  private async fitContext(input: RunInput, state: TurnState): Promise<'exhausted' | 'fits'> {
+    const ceilingTokens = input.profile.turnContextCeilingTokens;
+    if (state.promptTokens <= ceilingTokens) {
+      return 'fits';
+    }
+    const candidates = state.shownResults
+      .filter(({ messageIndex }) => messageIndex < state.unreadFrom)
+      .map((shown) => {
+        const message = state.messages[shown.messageIndex]!;
+        const standIn = { ...message, content: renderCollapsedLine(shown) };
+        return {
+          key: shown.messageIndex,
+          savedTokens: estimateMessageTokens(message, state.provider) - estimateMessageTokens(standIn, state.provider)
+        };
+      });
+    for (const key of planRelief({ candidates, ceilingTokens, promptTokens: state.promptTokens })) {
+      await this.collapseResult(state, key);
+    }
+    if (state.promptTokens > ceilingTokens) {
+      await this.fitNewestResults(input, state);
+    }
+    return state.promptTokens <= ceilingTokens ? 'fits' : 'exhausted';
+  }
+
+  /** §3.8 — the views of the results the latest completion's calls returned, shortened together while the context is still over its ceiling */
+  private async fitNewestResults(input: RunInput, state: TurnState): Promise<void> {
+    const newest = state.shownResults.filter(({ messageIndex }) => state.newestOutputs.has(messageIndex));
+    const plan = planView({
+      candidates: newest.map(({ messageIndex, shownChars }) => ({ key: messageIndex, shownChars })),
+      excessTokens: state.promptTokens - input.profile.turnContextCeilingTokens,
+      floorChars: viewFloorChars()
+    });
+    for (const shown of newest) {
+      const output = state.newestOutputs.get(shown.messageIndex)!;
+      if (plan.standIns.includes(shown.messageIndex)) {
+        state.shownResults.splice(state.shownResults.indexOf(shown), 1);
+        state.replacedResults.add(shown.messageIndex);
+        this.replaceMessage(state, shown.messageIndex, renderUnreadStandIn(shown));
+        await this.recordPresentation(state, shown.messageIndex, { shownChars: 0 });
+        continue;
+      }
+      const shownChars = plan.shownChars.get(shown.messageIndex);
+      if (shownChars === undefined) {
+        continue;
+      }
+      shown.shownChars = shownChars;
+      this.replaceMessage(state, shown.messageIndex, `${output.slice(0, shownChars)}${renderViewLine(shown)}`);
+      await this.recordPresentation(state, shown.messageIndex, { shownChars });
+    }
   }
 
   /**
@@ -1187,6 +1314,10 @@ export class TurnRunner {
     if (aborted) {
       return { kind: 'ended', outcome: await this.close(state, aborted.kind) };
     }
+    // §5.3 — nobody is asked to extend a turn whose context is over its ceiling
+    if ((await this.fitContext(input, state)) === 'exhausted') {
+      return { kind: 'ended', outcome: await this.closeOnContextExhausted(input, state, 'accumulated') };
+    }
     if (!state.budget.acceptsExtension) {
       await this.postNotice(input, state, renderBudgetExhaustedNotice(state.budget.limitCount));
       return { kind: 'ended', outcome: await this.close(state, 'budget_exhausted') };
@@ -1253,12 +1384,6 @@ export class TurnRunner {
     );
   }
 
-  /** whether the oldest verbatim page is one the model has already read, so collapsing it loses nothing unseen */
-  private hasReadSupersedable(state: TurnState): boolean {
-    const oldest = state.supersedable[0];
-    return oldest !== undefined && oldest.messageIndex < state.unreadFrom;
-  }
-
   /**
    * §8.1 — resolved before anything runs, so the arguments are still raw model output: a call the
    * executor will reject as unknown keeps the name the model wrote, and one with malformed
@@ -1278,6 +1403,30 @@ export class TurnRunner {
     return { ...identity, call, detail: described?.detail, effect: described?.effect, kind: 'runnable' };
   }
 
+  /** §3.8 — what makes a later result identical to this one: its text, or for a supersedable page its content; nothing for a result too short to be worth matching */
+  private identityOf(
+    input: RunInput,
+    identified: IdentifiedCall,
+    result: ToolAttempt.Continue
+  ): undefined | { readonly key: string; readonly outputHash: string } {
+    const outputHash = hashResult(result.output);
+    if (this.toolRegistry.isSupersedable(input.profile, identified.call.name)) {
+      return { key: `content ${hashResult(result.contentIdentity ?? result.output)}`, outputHash };
+    }
+    return result.output.length > REPLAY_VERBATIM_MAX_CHARS ? { key: `text ${outputHash}`, outputHash } : undefined;
+  }
+
+  /** §7.1 — the three largest things in the context: what the turn started with, and each part it added since, by what it is */
+  private largestPartsOf(state: TurnState): { readonly label: string; readonly tokens: number }[] {
+    const added = state.messages.slice(state.assembledMessages).map((message, offset) => {
+      const label = state.partLabels.get(state.assembledMessages + offset) ?? 'a note to me in this turn';
+      return { label, tokens: estimateMessageTokens(message, state.provider) };
+    });
+    return [{ label: 'the context this turn started with', tokens: state.startTokens }, ...added]
+      .toSorted((left, right) => right.tokens - left.tokens)
+      .slice(0, 3);
+  }
+
   /**
    * §3.8 — the request as assembled is measured whole; everything pushed afterwards adds its own
    * estimate. The window's posts are what this turn has read, which a close rests on (§3.15), and
@@ -1286,6 +1435,8 @@ export class TurnRunner {
   private async loadAssembledContext(state: TurnState, assembled: AssembledContext): Promise<void> {
     state.messages.splice(0, state.messages.length, ...assembled.request.messages);
     state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
+    state.startTokens = state.promptTokens;
+    state.assembledMessages = state.messages.length;
     state.contextAssembledAt = assembled.assembledAt;
     state.windowPostIds = assembled.windowPostIds;
     this.tasksService.recordPostsRead(state.turn.id, assembled.windowPostIds);
@@ -1399,7 +1550,62 @@ export class TurnRunner {
   /** §3.8 — the one door onto `messages`: every push adds its estimate, so the number cannot drift */
   private pushMessage(state: TurnState, message: CompletionMessage): void {
     state.messages.push(message);
-    state.promptTokens += estimateMessageTokens(message);
+    state.promptTokens += estimateMessageTokens(message, state.provider);
+  }
+
+  /**
+   * §3.8 — a result as the model reads it: whole where it fits its view, else the view's part with a
+   * line naming its size, when it was recorded and how to read on. A repeat of a result still shown is
+   * one line naming it, and a repeat of one since replaced is shown again, saying which it repeats.
+   */
+  private async pushResult(
+    input: RunInput,
+    state: TurnState,
+    identified: IdentifiedCall,
+    result: ToolAttempt.Continue,
+    recorded: { readonly eventId: string; readonly ref: string; readonly shownChars: number }
+  ): Promise<void> {
+    const { output } = result;
+    const { ref, shownChars } = recorded;
+    const toolCallId = identified.call.id;
+    const subject = result.replaySubject ?? describeReplaySubject(`${identified.displayName} result`, output);
+    const identity = this.identityOf(input, identified, result);
+    const earlier = identity === undefined ? undefined : state.seenResults.get(identity.key);
+    const isSameText = earlier?.outputHash === identity?.outputHash;
+    if (earlier !== undefined && !state.replacedResults.has(earlier.messageIndex)) {
+      const line = renderRepeatLine({ earlierRef: earlier.ref, earlierSubject: earlier.subject, isSameText, ref });
+      this.pushMessage(state, { content: line, role: 'tool', toolCallId });
+      state.resultEventIds.set(state.messages.length - 1, recorded.eventId);
+      await this.recordPresentation(state, state.messages.length - 1, { repeatOf: earlier.ref });
+      return;
+    }
+    const now = new Date();
+    const recordedAt = this.momentFormatter.format(now, now);
+    const shown =
+      shownChars < output.length
+        ? `${output.slice(0, shownChars)}${renderViewLine({ readOn: result.readOn, recordedAt, ref, shownChars, totalChars: output.length })}`
+        : output;
+    const content =
+      earlier === undefined ? shown : `${renderRepeatNote({ earlierRef: earlier.ref, isSameText })}\n\n${shown}`;
+    this.pushMessage(state, { content, role: 'tool', toolCallId });
+    const messageIndex = state.messages.length - 1;
+    state.resultEventIds.set(messageIndex, recorded.eventId);
+    state.newestOutputs.set(messageIndex, output);
+    state.partLabels.set(messageIndex, `result ${ref}, ${this.describeCall(identified)}`);
+    if (identity !== undefined) {
+      state.seenResults.set(identity.key, { messageIndex, outputHash: identity.outputHash, ref, subject });
+    }
+    if (content.length > REPLAY_VERBATIM_MAX_CHARS) {
+      state.shownResults.push({
+        messageIndex,
+        readOn: result.readOn,
+        recordedAt,
+        ref,
+        shownChars,
+        subject,
+        totalChars: output.length
+      });
+    }
   }
 
   /** the result the model reads, the event the trace keeps, and the lines the status post shows */
@@ -1423,43 +1629,38 @@ export class TurnRunner {
     if (published?.kind === 'undelivered') {
       return published.outcome;
     }
-    const result = published?.kind === 'refused' ? { kind: 'continue' as const, output: published.output } : attempt;
+    const result: ToolAttempt.Continue =
+      published?.kind === 'refused' ? { kind: 'continue', output: published.output } : attempt;
     const mark =
       published?.kind === 'refused'
         ? { ran: true, text: '⚠️ post refused' }
         : (attempt.traceMark ?? toOutcomeTraceMark(attempt.traceOutcome));
-    const eventId = await this.turnsService.appendEvent(state.turn.id, {
+    const viewChars = Math.min(result.viewChars ?? Number.POSITIVE_INFINITY, viewCapCharsFor(input.profile));
+    const shownChars = Math.min(result.output.length, viewChars);
+    const isView = shownChars < result.output.length;
+    const event = await this.turnsService.appendEvent(state.turn.id, {
       callId: identified.call.id,
       kind: 'tool_result',
       output: result.output,
+      presentedAs: { viewChars, ...(isView && { shownChars }) },
       toolName: identified.recordedName,
       ...(result.replay !== undefined && { replay: result.replay }),
       ...(result.replaySubject !== undefined && { replaySubject: result.replaySubject }),
       ...(mark !== undefined && { traceMark: mark })
     });
-    let outputAt: number | undefined = 0;
-    if (this.toolRegistry.isSupersedable(input.profile, identified.call.name)) {
-      outputAt = await this.recordSupersedableResult(input, state, identified, result);
-    } else {
-      this.pushMessage(state, { content: result.output, role: 'tool', toolCallId: identified.call.id });
-    }
-    state.resultEventIds.set(state.messages.length - 1, eventId);
+    await this.pushResult(input, state, identified, result, {
+      eventId: event.id,
+      ref: `r${event.sequence}`,
+      shownChars
+    });
     state.recordedResults += 1;
-    this.markTraceLine(state, identified, mark);
+    const view = isView ? { shownChars, totalChars: result.output.length } : undefined;
+    this.markTraceLine(state, identified, withViewMark(mark, view));
     if (published?.kind === 'published' && attempt.post) {
       await attempt.post.onPublished(published.postId);
     }
     if (result.disclosure) {
       await this.discloseRecord(state, result.disclosure);
-    }
-    const excerpt = outputAt === undefined ? undefined : shiftExcerpt(result.excerpt, outputAt);
-    if ((await this.relieveContextPressure(input, state, excerpt)) === 'exhausted') {
-      return this.closeWithFailureNotice(
-        input,
-        state,
-        'context_exhausted',
-        renderContextExhaustedNotice('accumulated')
-      );
     }
     return undefined;
   }
@@ -1474,50 +1675,6 @@ export class TurnRunner {
     if (eventId !== undefined) {
       await this.turnsService.recordPresentation(eventId, presentation);
     }
-  }
-
-  /**
-   * §3.8 — a supersedable result joins the retained set, and the oldest read ones past the share
-   * collapse to their lines; the event keeps the text, so the trace and the window's own replay are
-   * untouched. A repeat of a result still shown — the same text, or the same content read at another
-   * address — is answered with one line and joins nothing, and a repeat of one already collapsed is
-   * kept without collapsing another: a re-read never evicts a sibling, which is the cycle a fixed
-   * count produced. Only the backstop in `relieveContextPressure` bounds a re-read, and a later fresh
-   * read collapses it like any other. Returns where the output begins in the message pushed, and
-   * nothing where a line answered it instead.
-   */
-  private async recordSupersedableResult(
-    input: RunInput,
-    state: TurnState,
-    identified: IdentifiedCall,
-    result: ToolAttempt.Continue
-  ): Promise<number | undefined> {
-    const subject = result.replaySubject ?? describeReplaySubject(`${identified.displayName} result`, result.output);
-    const contentHash = hashResult(result.contentIdentity ?? result.output);
-    const outputHash = hashResult(result.output);
-    const earlier = state.seenSupersedable.get(contentHash);
-    const isVerbatimRepeat = earlier?.outputHash === outputHash;
-    const toolCallId = identified.call.id;
-    if (earlier !== undefined && state.supersedable.some((entry) => entry.messageIndex === earlier.messageIndex)) {
-      const line = isVerbatimRepeat ? renderDuplicateLine(subject) : renderSameContentLine(subject, earlier.subject);
-      this.pushMessage(state, { content: line, role: 'tool', toolCallId });
-      return undefined;
-    }
-    const note =
-      earlier === undefined
-        ? undefined
-        : isVerbatimRepeat
-          ? REPEATED_READ_NOTE
-          : renderSameContentNote(earlier.subject);
-    const content = note === undefined ? result.output : `${note}\n\n${result.output}`;
-    this.pushMessage(state, { content, role: 'tool', toolCallId });
-    const messageIndex = state.messages.length - 1;
-    state.seenSupersedable.set(contentHash, { messageIndex, outputHash, subject });
-    state.supersedable.push({ messageIndex, subject });
-    if (earlier === undefined) {
-      await this.retireSupersedablePastShare(input, state);
-    }
-    return content.length - result.output.length;
   }
 
   /** why a post the framework publishes for the turn may not post (§4.5), or nothing */
@@ -1627,26 +1784,13 @@ export class TurnRunner {
     }
   }
 
-  /**
-   * §3.8 — under pressure the count rule relaxes: stale pages collapse however recent they are, but
-   * never a result the model has not read; the newest result, if it still does not fit, is cut.
-   * Only when even that leaves the turn over its ceiling is it out of room.
-   */
-  private async relieveContextPressure(
-    input: RunInput,
-    state: TurnState,
-    excerpt: ToolExcerpt | undefined
-  ): Promise<'exhausted' | 'relieved'> {
-    const ceiling = input.profile.turnContextCeilingTokens;
-    while (state.promptTokens > ceiling && this.hasReadSupersedable(state)) {
-      await this.collapseOldestSupersedable(state);
-    }
-    if (state.promptTokens <= ceiling) {
-      return 'relieved';
-    }
-    return (await this.cutResultToFit(state, { ceiling, excerpt, index: state.messages.length - 1 }))
-      ? 'relieved'
-      : 'exhausted';
+  /** §3.8 — the one door for changing a message already pushed: the estimate moves with it */
+  private replaceMessage(state: TurnState, messageIndex: number, content: string): void {
+    const message = state.messages[messageIndex]!;
+    const replaced = { ...message, content };
+    state.messages[messageIndex] = replaced;
+    state.promptTokens +=
+      estimateMessageTokens(replaced, state.provider) - estimateMessageTokens(message, state.provider);
   }
 
   /**
@@ -1654,10 +1798,11 @@ export class TurnRunner {
    * report takes: refused as any post is, and written only once its post has landed. Best-effort
    * and never retried, since the turn is already closing (A4).
    */
-  private async reportExhaustedUnit(input: RunInput, state: TurnState): Promise<void> {
+  private async reportExhaustedUnit(input: RunInput, state: TurnState, cause: ContextExhaustionCause): Promise<void> {
     try {
       const report = await this.tasksService.prepareExhaustionReport({
         agentUsername: input.profile.username,
+        cause,
         channelId: input.channelId,
         triggeringPostId: input.triggeringPostId
       });
@@ -1725,31 +1870,13 @@ export class TurnRunner {
     return unit ? { creatorUsername: unit.creatorUsername, reference: renderReference(unit.id) } : null;
   }
 
-  /** §3.8 — oldest read first, past the share and never below the floor; measured from the messages themselves, since a cut can shrink one after it was pushed */
-  private async retireSupersedablePastShare(input: RunInput, state: TurnState): Promise<void> {
-    const budget = retentionBudgetFor(input.profile);
-    const verbatimTokens = () => {
-      return state.supersedable.reduce(
-        (sum, entry) => sum + estimateMessageTokens(state.messages[entry.messageIndex]!),
-        0
-      );
-    };
-    while (
-      state.supersedable.length > SUPERSEDABLE_RETENTION_FLOOR &&
-      verbatimTokens() > budget &&
-      this.hasReadSupersedable(state)
-    ) {
-      await this.collapseOldestSupersedable(state);
-    }
-  }
-
   /** everything here may throw; run() owns the boundary so no exit can leave the turn 'running' */
   private async runLoop(input: RunInput, state: TurnState): Promise<TurnOutcome> {
     const { channelId, profile } = input;
     let assembled = await this.contextAssembler.assemble({ channelId, profile });
     await this.loadAssembledContext(state, assembled);
     if (this.exceedsCeiling(input, state)) {
-      return this.closeWithFailureNotice(input, state, 'context_exhausted', renderContextExhaustedNotice('initial'));
+      return this.closeOnContextExhausted(input, state, 'initial');
     }
     if (input.drainedFromPostId !== undefined && !assembled.windowPostIds.has(input.drainedFromPostId)) {
       // §5.2 — the drain is visible even when context is not
@@ -1762,6 +1889,10 @@ export class TurnRunner {
       const steered = await this.absorbSteering(input, state, state.control.takeSteering());
       if (steered) {
         return steered;
+      }
+      // §3.8 — the ceiling is checked before each completion, so every call the last one made has run
+      if ((await this.fitContext(input, state)) === 'exhausted') {
+        return this.closeOnContextExhausted(input, state, 'accumulated');
       }
       const completion = await this.complete(input, state, client, assembled.request);
       if (completion === 'killed') {
@@ -1799,12 +1930,7 @@ export class TurnRunner {
         assembled = await this.contextAssembler.assemble({ channelId, profile });
         await this.loadAssembledContext(state, assembled);
         if (this.exceedsCeiling(input, state)) {
-          return this.closeWithFailureNotice(
-            input,
-            state,
-            'context_exhausted',
-            renderContextExhaustedNotice('initial')
-          );
+          return this.closeOnContextExhausted(input, state, 'initial');
         }
         continue;
       }
@@ -1847,7 +1973,11 @@ export class TurnRunner {
       return batch;
     }
     for (const next of rest) {
-      if (next.kind === 'unparsed' || !runsConcurrently(next)) {
+      if (
+        next.kind === 'unparsed' ||
+        !runsConcurrently(next) ||
+        this.toolRegistry.parksOnPerson(input.profile, next.call.name)
+      ) {
         break;
       }
       batch.push(next);

@@ -101,7 +101,7 @@ export const $TurnContextCeilingTokens = z
   .int()
   .positive()
   .describe(
-    `How many estimated tokens one turn’s whole context may reach: the prompt, the channel history and the turn’s own tool results (§3.8). Past it, results the agent has already read collapse to one line each, a result that still does not fit is cut with a marker saying so, and a turn that cannot get beneath it ends. Retention within a turn is a share of it. Capped at ${TURN_CONTEXT_WINDOW_SHARE * 100}% of the model’s context window, so it binds where that window is too large to bound a turn.`
+    `How many estimated tokens one turn’s whole context may reach: the prompt, the channel history and the turn’s own tool results (§3.8). A result longer than a share of it arrives as a view with a reference to the rest; past it, results the agent has already read collapse to one line each, and a turn that cannot get beneath it ends. Capped at ${TURN_CONTEXT_WINDOW_SHARE * 100}% of the model’s context window, so it binds where that window is too large to bound a turn.`
   );
 
 /** a Mattermost account name: the slug an agent is addressed by, and its bot account's own handle */

@@ -1,4 +1,3 @@
-import type { ToolExcerpt } from '@collegium/core/tools';
 import { match } from 'ts-pattern';
 
 import {
@@ -183,17 +182,6 @@ export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailur
 
 export function renderWebPage(page: Pick<FetchedPage, 'retry'> & WebPage): string {
   return `${renderWebPageHead(page)}${page.markdown}`;
-}
-
-/** §3.8 — where the stretch of the page a result holds begins in the text `renderWebPage` renders */
-export function locateShownStretch(
-  page: Pick<FetchedPage, 'retry'> & WebPage
-): Omit<ToolExcerpt, 'offsetArgument'> | undefined {
-  if (page.shown === undefined) {
-    return undefined;
-  }
-  const { from, markdownIndex, to } = page.shown;
-  return { from, textIndex: renderWebPageHead(page).length + markdownIndex, to };
 }
 
 export function renderWebSnapshot(snapshot: WebSnapshot): string {

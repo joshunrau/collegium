@@ -5,10 +5,7 @@ import {
   assertToolSegment,
   assertWireNameWithinLimit,
   describeReplaySubject,
-  renderDuplicateLine,
   renderReplayLine,
-  renderSameContentLine,
-  renderSupersededLine,
   renderToolDisplayName,
   renderToolWireName,
   replaySubjectWhenLong
@@ -65,28 +62,6 @@ describe('replay subjects and lines (§3.8)', () => {
     const line = renderReplayLine('page https://x.example/, 5 characters');
     expect(line).toBe(
       '[page https://x.example/, 5 characters — from an earlier turn; its text is not shown. Make the call again if you need it.]'
-    );
-  });
-
-  it('tells the turn that made the call what a re-read costs, and gives no instruction to call again', () => {
-    const line = renderSupersededLine('page https://x.example/, 5 characters');
-    expect(line).toContain('read earlier this turn');
-    expect(line).toContain('may displace another result');
-    expect(line).toContain('copy what you need into your own text first');
-    expect(line).not.toContain('call the tool again');
-  });
-
-  it('says a repeat changed nothing', () => {
-    expect(renderDuplicateLine('page https://x.example/, 5 characters')).toBe(
-      '[page https://x.example/, 5 characters — identical to the result above; nothing changed.]'
-    );
-  });
-
-  it('should name the earlier read of the same content without saying why they match (§3.8)', () => {
-    expect(
-      renderSameContentLine('page https://x.example/?page=2, 9 characters', 'page https://x.example/, 5 characters')
-    ).toBe(
-      '[page https://x.example/?page=2, 9 characters — identical content to page https://x.example/, 5 characters, which is still shown above.]'
     );
   });
 });

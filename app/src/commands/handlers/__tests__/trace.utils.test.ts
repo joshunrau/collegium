@@ -182,6 +182,30 @@ describe('renderTrace', () => {
     );
   });
 
+  it('should say how much of a result a view showed, naming its reference, and read an old cut as it was (§3.8, §8.3)', () => {
+    const output = 'x'.repeat(656_811);
+    const text = render([
+      event({
+        callId: 'c1',
+        kind: 'tool_result',
+        output,
+        presentedAs: { shownChars: 120_000, viewChars: 120_000 },
+        toolName: ['prospects', 'list_prospects']
+      }),
+      event({
+        callId: 'c2',
+        kind: 'tool_result',
+        output: 'whole',
+        presentedAs: { viewChars: 120_000 },
+        toolName: ['builtins', 'now']
+      })
+    ]);
+    expect(text).toContain(
+      '1. [+0s] `prospects::list_prospects` (the model was shown its first 120,000 of 656,811 characters (result r1); the rest by reference) →'
+    );
+    expect(text).toContain('2. [+0s] `builtins::now` → whole');
+  });
+
   it('should keep a rejected output and the reason it was refused (§4.5)', () => {
     const text = render([
       event({ content: '@owen and @tess', kind: 'output_rejected', reason: 'post rejected: multiple agent mentions' })

@@ -135,6 +135,14 @@ const ROWS: readonly GateRow[] = [
     note: 'a core tool is in every agent’s set and reads the clock (§3.4)'
   },
   {
+    args: { ref: 'r1' },
+    call: 'results__read',
+    expected: 'ungated',
+    grants: [],
+    id: 'results-read-ungated',
+    note: 'reading on in a result of the turn is reading what the turn already made (§3.8)'
+  },
+  {
     args: { name: 'triage' },
     call: 'skills__load',
     expected: 'ungated',

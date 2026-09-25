@@ -1,9 +1,3 @@
-import {
-  describeReplaySubject,
-  renderDuplicateLine,
-  renderSameContentLine,
-  renderSupersededLine
-} from '@collegium/core/tools';
 import { Result } from '@collegium/core/utils';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,6 +14,9 @@ import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
 import { DateFormatter } from '@/formatting/dates/date.formatter.ts';
+import { DayFormatter } from '@/formatting/dates/day.formatter.ts';
+import { MomentFormatter } from '@/formatting/dates/moment.formatter.ts';
+import { TimeOfDayFormatter } from '@/formatting/dates/time-of-day.formatter.ts';
 import type { InferenceClient } from '@/inference/inference.client.ts';
 import { InferenceRegistry } from '@/inference/inference.registry.ts';
 import type {
@@ -198,8 +195,10 @@ describe('TurnRunner', () => {
     turnsService.open.mockResolvedValue(
       Result.ok({ agentUsername: 'mira', channelId: 'channel-1', id: 'turn-1', startedAt: new Date(0) } as Turn)
     );
+    let sequence = 0;
     turnsService.appendEvent.mockImplementation((_turnId, event) => {
-      return Promise.resolve(event.kind === 'tool_result' ? `event-${event.callId}` : `event-${event.kind}`);
+      const id = event.kind === 'tool_result' ? `event-${event.callId}` : `event-${event.kind}`;
+      return Promise.resolve({ id, sequence: sequence++ });
     });
     turnsService.close.mockResolvedValue(undefined);
     turnsService.recordStatusPost.mockResolvedValue(undefined);
@@ -214,6 +213,9 @@ describe('TurnRunner', () => {
         { provide: ContextAssembler, useValue: contextAssembler },
         { provide: ConversationsService, useValue: conversationsService },
         DateFormatter,
+        DayFormatter,
+        MomentFormatter,
+        TimeOfDayFormatter,
         { provide: InferenceRegistry, useValue: inferenceRegistry },
         MockFactory.createForService(LoggingService),
         { provide: MemorySightingsRegistry, useValue: memorySightingsRegistry },
@@ -2233,172 +2235,182 @@ describe('TurnRunner', () => {
     windowPostIds: new Set(['post-0'])
   });
 
-  it('should retire the oldest page early under context pressure, never the one just recorded (§3.8)', async () => {
-    toolRegistry.isSupersedable.mockImplementation((_profile, name: string) => name === 'web__fetch');
-    for (const page of ['one', 'two']) {
-      toolExecutor.execute.mockResolvedValueOnce({
-        kind: 'continue',
-        output: `page ${page} ${'x'.repeat(8_000)}`,
-        replaySubject: `page ${page}`
-      });
-    }
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
-    complete.mockResolvedValueOnce(Result.ok(text('done')));
-    await run();
-    const results = complete.mock.calls[2]![0].messages.filter((message) => message.role === 'tool');
-    expect(results[0]?.content).toBe(renderSupersededLine('page one'));
-    expect(results[1]?.content.startsWith('page two x')).toBe(true);
-    expect(results[1]?.content).not.toContain('…result cut');
-    expect(turnsService.recordPresentation).toHaveBeenCalledExactlyOnceWith('event-call-0', { collapsed: true });
-  });
-
-  it('should cut a result that alone would not fit, marking the cut, and keep the trace whole (§3.8)', async () => {
-    const output = 'y'.repeat(20_000);
-    toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', output });
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
-    complete.mockResolvedValueOnce(Result.ok(text('done')));
-    const outcome = await run();
-    expect(outcome.status).toBe('completed');
-    const result = complete.mock.calls[1]![0].messages.at(-1);
-    const kept = result!.content.indexOf('\n…result cut');
-    expect(
-      result?.content.endsWith(`y\n…result cut to its first ${kept} of 20000 characters to fit this turn's context`)
-    ).toBe(true);
-    expect(turnsService.appendEvent).toHaveBeenCalledWith(
-      'turn-1',
-      expect.objectContaining({ kind: 'tool_result', output })
-    );
-    expect(turnsService.recordPresentation).toHaveBeenCalledWith('event-call-0', { cutToChars: kept });
-  });
-
-  it('should say where to read on from when the result it cuts is a stretch of a longer page (§3.8)', async () => {
-    const header = 'Venues — https://example.com/venues (HTTP 200)\n\n';
-    toolExecutor.execute.mockResolvedValueOnce({
-      excerpt: { from: 30_000, offsetArgument: 'startChar', textIndex: header.length, to: 50_000 },
-      kind: 'continue',
-      output: `${header}${'v'.repeat(20_000)}\n…showing characters 30000–50000 of 90000; read on with startChar=50000`
+  /** a turn whose whole context may reach `ceiling` tokens, so the view cap is 15% of it (§3.8) */
+  const runWithCeiling = async (turnContextCeilingTokens: number, overrides: Partial<AgentProfile> = {}) => {
+    const outcome = await turnRunner.run({
+      activationKind: 'addressed',
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 0,
+      profile: { ...PROFILE, turnContextCeilingTokens, ...overrides },
+      releaseHeldActivation,
+      rootPostId: 'post-0'
     });
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
-    complete.mockResolvedValueOnce(Result.ok(text('done')));
-    await run();
-    const result = complete.mock.calls[1]![0].messages.at(-1)!.content;
-    const kept = result.indexOf('\n…result cut');
-    expect(result).not.toContain('startChar=50000');
-    expect(result.endsWith(`; read on with startChar=${30_000 + kept - header.length}`)).toBe(true);
-  });
-
-  it('should end the turn as context exhausted when nothing can be retired and a cut would keep too little (§3.8)', async () => {
-    contextAssembler.assemble.mockResolvedValue(assembledWith('z'.repeat(12_000)));
-    toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', output: 'w'.repeat(4_000) });
-    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
-    const outcome = await run();
-    expect(outcome.status).toBe('context_exhausted');
-    expect(sends.at(-1)?.text).toContain('ran out of room in my context part-way through this turn');
-    expect(complete).toHaveBeenCalledTimes(1);
-  });
-
-  it('should call a starting context over the ceiling a configuration problem, calling no provider (§3.8)', async () => {
-    contextAssembler.assemble.mockResolvedValue(assembledWith('z'.repeat(16_000)));
-    const outcome = await run();
-    expect(outcome.status).toBe('context_exhausted');
-    expect(sends.at(-1)?.text).toContain('My starting context does not fit');
-    expect(complete).not.toHaveBeenCalled();
-  });
-
-  // the profile's 3,400-token ceiling retains 1,020 tokens of pages (§3.8); a page this size is about 700
-  const pageText = (name: string) => `page ${name} ${'x'.repeat(2_800)}`;
+    return outcome.unwrap();
+  };
 
   const toolMessagesOf = (request: CompletionRequest) => {
     return request.messages.filter((message) => message.role === 'tool').map((message) => message.content);
   };
 
-  it('should keep every result of one completion verbatim until the model has read it (§3.8)', async () => {
-    toolRegistry.isSupersedable.mockReturnValue(true);
-    toolRegistry.isConcurrent.mockReturnValue(true);
-    let read = 0;
-    toolExecutor.execute.mockImplementation(() => Promise.resolve({ kind: 'continue', output: pageText(`${read++}`) }));
-    const seen: string[][] = [];
-    complete.mockImplementationOnce((request) => {
-      seen.push(toolMessagesOf(request));
-      return Promise.resolve(Result.ok(toolUse(['workspace__read', 'workspace__read', 'workspace__read'])));
-    });
-    complete.mockImplementationOnce((request) => {
-      seen.push(toolMessagesOf(request));
-      return Promise.resolve(Result.ok(toolUse(['workspace__read'])));
-    });
-    complete.mockImplementationOnce((request) => {
-      seen.push(toolMessagesOf(request));
-      return Promise.resolve(Result.ok(text('done')));
-    });
-    await run();
-    expect(seen[1]).toStrictEqual([pageText('0'), pageText('1'), pageText('2')]);
-    expect(seen[2]).toStrictEqual([
-      renderSupersededLine(describeReplaySubject('workspace__read result', pageText('0'))),
-      renderSupersededLine(describeReplaySubject('workspace__read result', pageText('1'))),
-      pageText('2'),
-      pageText('3')
-    ]);
-  });
-
-  const readPages = (names: string[]) => {
-    toolRegistry.isSupersedable.mockImplementation((_profile, name: string) => name === 'web__fetch');
-    for (const name of names) {
-      toolExecutor.execute.mockResolvedValueOnce({
-        kind: 'continue',
-        output: pageText(name),
-        replaySubject: `page ${name}`
-      });
-      complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
+  const results = (outputs: readonly string[]) => {
+    for (const output of outputs) {
+      toolExecutor.execute.mockResolvedValueOnce({ kind: 'continue', output });
     }
-    complete.mockResolvedValueOnce(Result.ok(text('done')));
   };
 
-  it('should keep every page verbatim while they fit the retention share (§3.8)', async () => {
-    toolRegistry.isSupersedable.mockImplementation((_profile, name: string) => name === 'web__fetch');
-    for (const name of ['one', 'two', 'three', 'four', 'five']) {
-      toolExecutor.execute.mockResolvedValueOnce({
-        kind: 'continue',
-        output: `page ${name}`,
-        replaySubject: `page ${name}`
-      });
-      complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
-    }
+  it('should show a result longer than its view as its first part and a line naming its reference (§3.8)', async () => {
+    results(['y'.repeat(20_000)]);
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     await run();
-    expect(toolMessagesOf(complete.mock.calls[5]![0])).toStrictEqual([
-      'page one',
-      'page two',
-      'page three',
-      'page four',
-      'page five'
-    ]);
-  });
-
-  it('should collapse the oldest read page to its in-turn line past the share, never below two (§3.8)', async () => {
-    readPages(['one', 'two', 'three']);
-    await run();
-    expect(toolMessagesOf(complete.mock.calls[3]![0])).toStrictEqual([
-      renderSupersededLine('page one'),
-      pageText('two'),
-      pageText('three')
-    ]);
+    const shown = complete.mock.calls[1]![0].messages.at(-1)!.content;
+    expect(shown.startsWith(`${'y'.repeat(2_040)}\n[result r1, recorded at `)).toBe(true);
+    expect(shown).toContain(
+      'shown its first 2,040 of 20,000 characters; read the rest with results__read ref=r1 offset=2040, or search it with find]'
+    );
     expect(turnsService.appendEvent).toHaveBeenCalledWith(
       'turn-1',
-      expect.objectContaining({ kind: 'tool_result', output: pageText('one'), replaySubject: 'page one' })
+      expect.objectContaining({ kind: 'tool_result', presentedAs: { shownChars: 2_040, viewChars: 2_040 } })
+    );
+    expect(statusHandle.markTrace).toHaveBeenCalledExactlyOnceWith(0, {
+      ran: true,
+      text: 'shown 2,040 of 20,000 chars; the rest by reference'
+    });
+  });
+
+  it('should name the record a read was taken from where its own view is shorter than it (§3.8)', async () => {
+    toolExecutor.execute.mockResolvedValueOnce({
+      kind: 'continue',
+      output: 'x'.repeat(20_000),
+      readOn: { offset: 4_000, ref: 'r7', textIndex: 50 }
+    });
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['results__read'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(complete.mock.calls[1]![0].messages.at(-1)!.content).toContain(
+      '[this read of result r7 is shown to its first 2,040 characters; read on with results__read ref=r7 offset=5990]'
     );
   });
 
-  it('should answer a byte-identical repeat without evicting a sibling (§3.8)', async () => {
-    readPages(['one', 'two', 'three', 'two', 'one']);
-    await run();
-    expect(toolMessagesOf(complete.mock.calls[5]![0])).toStrictEqual([
-      renderSupersededLine('page one'),
-      pageText('two'),
-      pageText('three'),
-      renderDuplicateLine('page two'),
-      `[identical to a result you read earlier this turn; nothing changed]\n\n${pageText('one')}`
+  it('should keep every result verbatim while the context is under its ceiling, pages included (§3.8)', async () => {
+    toolRegistry.isSupersedable.mockReturnValue(true);
+    const pages = ['one', 'two', 'three'].map((name) => `page ${name} ${'x'.repeat(2_800)}`);
+    results(pages);
+    for (const _page of pages) {
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['web__fetch'])));
+    }
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await runWithCeiling(20_000);
+    expect(toolMessagesOf(complete.mock.calls[3]![0])).toStrictEqual(pages);
+    expect(turnsService.recordPresentation).not.toHaveBeenCalled();
+  });
+
+  it('should collapse the largest read results first, oldest first among equals, and stop at the low-water mark (§3.8)', async () => {
+    const skill = `skill ${'s'.repeat(2_500)}`;
+    const views = ['b', 'c', 'd', 'e', 'f'].map((letter) => letter.repeat(20_000));
+    results([skill, 'a'.repeat(6_000), ...views]);
+    for (const _call of [0, 1, 2, 3, 4, 5, 6]) {
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    }
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await runWithCeiling(10_000);
+    const shown = toolMessagesOf(complete.mock.calls[7]![0]);
+    expect(shown[0]).toBe(skill);
+    expect(shown[1]).toBe('a'.repeat(6_000));
+    expect(shown.slice(2, 4)).toStrictEqual([
+      expect.stringMatching(
+        /^\[lookup_fixture result, 20000 characters, result r5, recorded at .+ — read earlier this turn and no longer shown; results__read ref=r5 shows it again as it was then\./u
+      ),
+      expect.stringMatching(/^\[lookup_fixture result, 20000 characters, result r7, recorded at /u)
     ]);
+    expect(shown.slice(4).map((content) => content.slice(0, 1))).toStrictEqual(['d', 'e', 'f']);
+    expect(turnsService.recordPresentation).toHaveBeenCalledTimes(2);
+  });
+
+  it('should never collapse a result the model has not read (§3.8)', async () => {
+    contextAssembler.assemble.mockResolvedValue(assembledWith('z'.repeat(30_000)));
+    results(['c'.repeat(9_000)]);
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await runWithCeiling(10_000);
+    expect(toolMessagesOf(complete.mock.calls[1]![0])[0]!.startsWith('c'.repeat(1_000))).toBe(true);
+  });
+
+  it('should shorten the views of one completion’s results together, making none a stand-in while their floors fit (§3.8)', async () => {
+    contextAssembler.assemble.mockResolvedValue(assembledWith('z'.repeat(40_000)));
+    toolRegistry.isConcurrent.mockReturnValue(true);
+    results(['p', 'q', 'r', 's'].map((letter) => letter.repeat(20_000)));
+    complete.mockResolvedValueOnce(
+      Result.ok(toolUse(['lookup_fixture', 'lookup_fixture', 'lookup_fixture', 'lookup_fixture']))
+    );
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await runWithCeiling(20_000);
+    const shown = toolMessagesOf(complete.mock.calls[1]![0]).map((content) => content.indexOf('\n[result r'));
+    expect(new Set(shown).size).toBe(1);
+    expect(shown[0]).toBeGreaterThan(2_000);
+    expect(shown[0]).toBeLessThan(12_000);
+  });
+
+  it('should show a result with no room even for the floor as only its size and reference (§3.8)', async () => {
+    contextAssembler.assemble.mockResolvedValue(assembledWith('z'.repeat(12_600)));
+    results(['w'.repeat(20_000)]);
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await run();
+    expect(complete.mock.calls[1]![0].messages.at(-1)!.content).toBe(
+      "[lookup_fixture result, 20000 characters, result r1 — not shown: this turn's context is nearly full. results__read ref=r1 reads it in parts, or find searches it.]"
+    );
+  });
+
+  it('should run every call a completion made, then end out of room after exactly one completion, naming its largest parts (§3.8, F59)', async () => {
+    contextAssembler.assemble.mockResolvedValue(assembledWith('z'.repeat(13_400)));
+    results(['u'.repeat(20_000), 'v'.repeat(20_000)]);
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture', 'lookup_fixture'])));
+    const outcome = await run();
+    expect(outcome.status).toBe('context_exhausted');
+    expect(toolExecutor.execute).toHaveBeenCalledTimes(2);
+    expect(complete).toHaveBeenCalledOnce();
+    expect(sends.at(-1)?.text).toMatch(
+      /^I ran out of room in my context part-way through this turn and stopped: it held about [\d,]+ tokens against my ceiling of 3,400, with every result I had read reduced to its line\. The largest parts: the context this turn started with, about [\d,]+;/u
+    );
+  });
+
+  it('should not run a call that would park a person while the context is over its ceiling, and ask no one (§5.1)', async () => {
+    contextAssembler.assemble.mockResolvedValue(assembledWith('z'.repeat(13_400)));
+    toolRegistry.parksOnPerson.mockImplementation((_profile, name: string) => name === 'gated_fixture');
+    results(['u'.repeat(20_000)]);
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture', 'gated_fixture'])));
+    await run();
+    expect(approvalsService.request).not.toHaveBeenCalled();
+    expect(toolExecutor.execute).toHaveBeenCalledOnce();
+    expect(statusHandle.markTrace).toHaveBeenCalledWith(0, {
+      ran: false,
+      text: '⚠️ not run: over the context ceiling'
+    });
+  });
+
+  it('should raise no extension prompt for a turn whose context is over its ceiling (§5.3)', async () => {
+    contextAssembler.assemble.mockResolvedValue(assembledWith('z'.repeat(13_400)));
+    results(['u'.repeat(20_000)]);
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture', 'lookup_fixture'])));
+    const outcome = await runWithCeiling(3_400, { actionBudget: 1 });
+    expect(outcome.status).toBe('context_exhausted');
+    expect(approvalsService.request).not.toHaveBeenCalled();
+  });
+
+  it('should answer a repeat of a result still shown with one line naming it (§3.8)', async () => {
+    const page = `page ${'x'.repeat(2_500)}`;
+    results([page, page]);
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(toolUse(['lookup_fixture'])));
+    complete.mockResolvedValueOnce(Result.ok(text('done')));
+    await runWithCeiling(20_000);
+    expect(toolMessagesOf(complete.mock.calls[2]![0])).toStrictEqual([
+      page,
+      '[result r3 — the same text as result r1, which is still shown above]'
+    ]);
+    expect(turnsService.recordPresentation).toHaveBeenCalledExactlyOnceWith('event-call-0', { repeatOf: 'r1' });
   });
 
   it('should answer the same content read at another address with one line naming the first (§3.8)', async () => {
@@ -2416,7 +2428,7 @@ describe('TurnRunner', () => {
     await run();
     expect(toolMessagesOf(complete.mock.calls[2]![0])).toStrictEqual([
       'Faculty — https://northmoor.example/people (HTTP 200)\n\n# Faculty',
-      renderSameContentLine('page https://northmoor.example/people?page=2', 'page https://northmoor.example/people')
+      '[result r3 — the same content as result r1 (page https://northmoor.example/people), which is still shown above]'
     ]);
   });
 

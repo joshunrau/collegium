@@ -12,6 +12,8 @@ type AgentSpec = Pick<$AgentDeclaration, 'expertise'> & {
   toolSettings?:
     | $AgentDeclaration['toolSettings']
     | ((botUsernameOf: (agent: string) => string) => $AgentDeclaration['toolSettings']);
+  /** §3.8 — the agent's own ceiling, which sets the view a long result arrives in */
+  turnContextCeilingTokens?: $AgentDeclaration['turnContextCeilingTokens'];
   username: string;
 };
 

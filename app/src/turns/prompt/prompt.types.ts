@@ -31,7 +31,6 @@ export type StablePromptInput = {
   readonly presentCommands: readonly string[];
   readonly profile: AgentProfile;
   readonly skillsManifest: string;
-  readonly supersedableCalls: readonly string[];
   readonly textFormatter: TextFormatter;
 };
 

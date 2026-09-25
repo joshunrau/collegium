@@ -92,7 +92,7 @@ describe('TurnsService', () => {
                 throw new Prisma.PrismaClientKnownRequestError('unique', { clientVersion: '0', code: 'P2002' });
               }
               events.push(data);
-              return Promise.resolve({ id: `event-${data.turnId}-${data.sequence}` });
+              return Promise.resolve({ id: `event-${data.turnId}-${data.sequence}`, sequence: data.sequence });
             },
             findFirst: ({ where }: any) => {
               const [last] = events
@@ -165,7 +165,7 @@ describe('TurnsService', () => {
     });
     await expect(
       turnsService.appendEvent(second.id, { content: 'hi', kind: 'assistant_message', toolCalls: [] })
-    ).resolves.toBe(`event-${second.id}-0`);
+    ).resolves.toStrictEqual({ id: `event-${second.id}-0`, sequence: 0 });
     expect(events.map(({ kind, sequence: n, turnId }) => [turnId, n, kind])).toStrictEqual([
       [first.id, 0, 'assistant_message'],
       [first.id, 1, 'tool_result'],

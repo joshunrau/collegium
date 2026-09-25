@@ -133,7 +133,8 @@ function buildCollegiumConfig({
             toolSettings:
               typeof agent.toolSettings === 'function'
                 ? agent.toolSettings((name) => resolveBotUsername(agents, name))
-                : { ...agent.toolSettings }
+                : { ...agent.toolSettings },
+            turnContextCeilingTokens: agent.turnContextCeilingTokens
           }
         ];
       })

@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
+import { extractMentionedUsernames } from '@/utils/mention.utils.ts';
+
 import {
   renderAbandonedStatusPost,
+  renderContextExhaustedNotice,
   renderDenialNotice,
   renderExtensionPrompt,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
   renderStatusPost,
   renderSteeringLine,
-  renderToolCallLine
+  renderToolCallLine,
+  withViewMark
 } from '../status-post.renderer.ts';
 
 import type { StatusPostState } from '../status-post.renderer.ts';
@@ -229,5 +233,42 @@ describe('renderProviderRejectionNotice', () => {
 
   it('§7.1 — should give any other status the number alone', () => {
     expect(renderProviderRejectionNotice(500)).toBe('⚠️ **Error**: The model provider rejected the request (HTTP 500)');
+  });
+});
+
+describe('renderContextExhaustedNotice (§7.1)', () => {
+  const exhausted = renderContextExhaustedNotice({
+    cause: 'accumulated',
+    ceilingTokens: 200_000,
+    largest: [
+      { label: 'the context this turn started with', tokens: 52_310 },
+      { label: `result r14, ${renderToolCallLine('web::navigate', 'ask @owen')}`.replace('→ ', ''), tokens: 18_020 },
+      { label: 'a note to me in this turn', tokens: 9_790 }
+    ],
+    promptTokens: 203_400
+  });
+
+  it('should state the context against the ceiling and its largest parts', () => {
+    expect(exhausted).toBe(
+      'I ran out of room in my context part-way through this turn and stopped: it held about 203,000 tokens against my ceiling of 200,000, with every result I had read reduced to its line. The largest parts: the context this turn started with, about 52,000; result r14, `web::navigate ask @owen`, about 18,000; a note to me in this turn, about 9,800. What I did so far is in the trace.'
+    );
+  });
+
+  it('should address no one through a call it quotes (F53)', () => {
+    expect(extractMentionedUsernames(exhausted)).toStrictEqual([]);
+  });
+});
+
+describe('withViewMark (§8.1)', () => {
+  it('should add how much of a result was shown after the tool’s own mark, never replacing it', () => {
+    const view = { shownChars: 120_000, totalChars: 656_811 };
+    expect(withViewMark(undefined, view)).toStrictEqual({
+      ran: true,
+      text: 'shown 120,000 of 656,811 chars; the rest by reference'
+    });
+    expect(withViewMark({ ran: true, text: '→ Faculty' }, view)?.text).toBe(
+      '→ Faculty · shown 120,000 of 656,811 chars; the rest by reference'
+    );
+    expect(withViewMark({ ran: true, text: '→ Faculty' }, undefined)?.text).toBe('→ Faculty');
   });
 });

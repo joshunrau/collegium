@@ -22,6 +22,8 @@ export const MEMORY_TOOLSET_DEF = {
   tools: ['append', 'delete', 'read', 'replace', 'rewrite', 'write']
 } as const satisfies ToolsetDef;
 
+export const RESULTS_TOOLSET_DEF = { name: 'results', tools: ['read'] } as const satisfies ToolsetDef;
+
 export const SHELL_TOOLSET_DEF = { name: 'shell', tools: ['run'] } as const satisfies ToolsetDef;
 
 export const SKILLS_TOOLSET_DEF = { name: 'skills', tools: ['load'] } as const satisfies ToolsetDef;
@@ -51,7 +53,12 @@ export const WORKSPACE_TOOLSET_DEF = {
  * refusal. Framework machinery rather than capability an operator hands out; `builtins` is the
  * one namespace shared by the tools too small to own a module each (§2).
  */
-export const CORE_TOOLSET_DEFS = [BUILTINS_TOOLSET_DEF, SKILLS_TOOLSET_DEF, TRIGGERS_TOOLSET_DEF] as const;
+export const CORE_TOOLSET_DEFS = [
+  BUILTINS_TOOLSET_DEF,
+  RESULTS_TOOLSET_DEF,
+  SKILLS_TOOLSET_DEF,
+  TRIGGERS_TOOLSET_DEF
+] as const;
 
 export const GRANTABLE_TOOLSET_DEFS = [
   ASK_TOOLSET_DEF,

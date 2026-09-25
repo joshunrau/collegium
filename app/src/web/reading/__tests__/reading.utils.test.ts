@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { findPhrases } from '@/utils/phrase-find.utils.ts';
+
 import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS } from '../../web.constants.ts';
-import { capMarkdown, windowMarkdown } from '../reading.utils.ts';
+import { capMarkdown, renderFoundPhrases, windowMarkdown } from '../reading.utils.ts';
+
+const FIND_PROFILE = `# Duval, P.\n\n${'Publication. '.repeat(400)}\n\n#### Contact\nInformation\n\nEmail: p\\_duval@northmoor.example`;
 
 describe('capMarkdown', () => {
   it('should leave a page within the guard untouched, holding it whole', () => {
@@ -75,6 +79,21 @@ describe('windowMarkdown (§3.8)', () => {
   it('should say when the offset is past the end rather than return nothing', () => {
     expect(windowMarkdown('0123456789', 10).markdown).toBe(
       '…startChar 10 is past the end of this page, which has 10 characters'
+    );
+  });
+});
+
+describe('renderFoundPhrases', () => {
+  it('should say where to read around a hit, and name a phrase that matched nothing', () => {
+    const rendered = renderFoundPhrases(findPhrases(FIND_PROFILE, ['Email:', 'Fax:']), FIND_PROFILE.length);
+    expect(rendered).toContain(`in this page's ${FIND_PROFILE.length} characters; read around a place with startChar`);
+    expect(rendered).toContain(`"Email:" — 1 match\nat ${FIND_PROFILE.indexOf('Email:')}: …`);
+    expect(rendered).toContain('"Fax:" — no match');
+  });
+
+  it('should say so when nothing matched, rather than return an empty list', () => {
+    expect(renderFoundPhrases(findPhrases(FIND_PROFILE, ['Fax:']), FIND_PROFILE.length)).toMatch(
+      /^None of these phrases occurs/u
     );
   });
 });

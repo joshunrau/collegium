@@ -1,5 +1,7 @@
+import { findPhrases, renderPhraseMatches } from '@/utils/phrase-find.utils.ts';
+import type { PhraseMatches } from '@/utils/phrase-find.utils.ts';
+
 import { DEFAULT_WINDOW_CHARS, MARKDOWN_CAP_CHARS } from '../web.constants.ts';
-import { findPhrases, renderFoundPhrases } from './find.utils.ts';
 
 import type { FetchedPage, MarkdownWindow, PageRead, PageView } from '../web.types.ts';
 
@@ -15,6 +17,14 @@ function readMarkdown(markdown: string, read: PageRead): Pick<FetchedPage, 'mark
     markdown: renderFoundPhrases(found, markdown.length),
     matches: found.reduce((total, { count }) => total + count, 0)
   };
+}
+
+/** §3.4 — a page's finds, worded for a page read on with `startChar` */
+export function renderFoundPhrases(found: readonly PhraseMatches[], pageChars: number): string {
+  const lead = found.some(({ count }) => count > 0)
+    ? `Where each phrase occurs in this page's ${pageChars} characters; read around a place with startChar and maxChars:`
+    : `None of these phrases occurs in this page's ${pageChars} characters. A phrase matches without regard to case or line breaks; try a shorter or a different one.`;
+  return [lead, ...found.map(renderPhraseMatches)].join('\n\n');
 }
 
 export type CappedMarkdown = {

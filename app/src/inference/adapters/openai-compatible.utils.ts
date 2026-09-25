@@ -36,27 +36,6 @@ function toWireReasoning(message: AssistantMessage, provider: $ModelRef['provide
     .exhaustive();
 }
 
-function toWireMessage(message: CompletionMessage, provider: $ModelRef['provider']) {
-  switch (message.role) {
-    case 'assistant': {
-      const reasoning = toWireReasoning(message, provider);
-      if (!message.toolCalls || message.toolCalls.length === 0) {
-        return { content: message.content, role: message.role, ...reasoning };
-      }
-      return {
-        content: message.content,
-        role: message.role,
-        tool_calls: message.toolCalls.map(toWireToolCall),
-        ...reasoning
-      };
-    }
-    case 'tool':
-      return { content: message.content, role: message.role, tool_call_id: message.toolCallId };
-    case 'user':
-      return { content: message.content, role: message.role };
-  }
-}
-
 /** each provider's own knob for how hard the model thinks; nothing is sent where config states nothing, leaving the provider's default */
 function toReasoningOptions(model: $ModelRef) {
   return match(model)
@@ -104,6 +83,28 @@ const CONTEXT_OVERFLOW_MARKERS = [
   'reduce the length of the messages',
   'prompt is too long'
 ];
+
+/** one message as its provider receives it: the reasoning field that provider takes, and no other (§3.12) */
+export function toWireMessage(message: CompletionMessage, provider: $ModelRef['provider']) {
+  switch (message.role) {
+    case 'assistant': {
+      const reasoning = toWireReasoning(message, provider);
+      if (!message.toolCalls || message.toolCalls.length === 0) {
+        return { content: message.content, role: message.role, ...reasoning };
+      }
+      return {
+        content: message.content,
+        role: message.role,
+        tool_calls: message.toolCalls.map(toWireToolCall),
+        ...reasoning
+      };
+    }
+    case 'tool':
+      return { content: message.content, role: message.role, tool_call_id: message.toolCallId };
+    case 'user':
+      return { content: message.content, role: message.role };
+  }
+}
 
 /** the request in Chat Completions wire form: system prompt leading, streamed with usage on the last chunk, tools omitted when none are offered */
 export function toCompletionBody(request: CompletionRequest) {

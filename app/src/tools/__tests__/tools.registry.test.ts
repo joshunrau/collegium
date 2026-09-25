@@ -251,10 +251,12 @@ describe('ToolRegistry', () => {
     expect(registry.listBudgetExemptFor(profile)).toStrictEqual(['skills__load']);
   });
 
-  it('lists the calls whose results fold by wire name from the same flags (§3.8)', () => {
+  it('should say whether a call waits on a person, never for an unknown name (§5.1)', () => {
     const profile = buildAgentProfile({ tools: ['notes'] });
     const registry = new ToolRegistry(LIBRARY, [profile]);
-    expect(registry.listSupersedableFor(profile)).toStrictEqual(['notes__list']);
+    expect(registry.parksOnPerson(profile, 'notes__add')).toBe(true);
+    expect(registry.parksOnPerson(profile, 'notes__list')).toBe(false);
+    expect(registry.parksOnPerson(profile, 'ghost__tool')).toBe(false);
   });
 
   it('lists granted namespaces alphabetically, a single-tool grant by its namespace, core left out (§3.11)', () => {

@@ -172,7 +172,7 @@ export class ToolRegistry {
     return this.callableToolsFor(profile).get(ref)?.displayName === ref;
   }
 
-  /** §3.8 — whether a later result of a supersedable tool retires this call's text within the turn; an unknown name never is */
+  /** §3.8 — whether a later result with this call's content costs a line naming it; an unknown name never does */
   isSupersedable(profile: AgentProfile, name: string): boolean {
     return this.callableToolsFor(profile).get(name)?.definition.supersedable === true;
   }
@@ -200,19 +200,18 @@ export class ToolRegistry {
       .toSorted();
   }
 
-  /** §3.8 — the wire names whose results a turn collapses past the retention share, so the prompt states the rule from the flags the runner folds by */
-  listSupersedableFor(profile: AgentProfile): string[] {
-    return Array.from(this.toolsFor(profile).values())
-      .filter((tool) => tool.definition.supersedable === true)
-      .map((tool) => tool.wireName);
-  }
-
   /** §3.14 — the tools of the named toolsets that no agent's expanded grants include, which no turn can ever call */
   listUngrantedIn(namespaces: ReadonlySet<string>): ToolId[] {
     const granted = new Set(Array.from(this.agentTools.values()).flatMap((tools) => Array.from(tools.keys())));
     return this.library
       .filter((tool) => namespaces.has(tool.id[0]) && !granted.has(tool.wireName))
       .map((tool) => tool.id);
+  }
+
+  /** §5.1, §3.8 — whether a call waits on a person, which is never started while a turn's context is over its ceiling; an unknown name never does */
+  parksOnPerson(profile: AgentProfile, name: string): boolean {
+    const definition = this.callableToolsFor(profile).get(name)?.definition;
+    return definition?.approval !== undefined || definition?.ask !== undefined;
   }
 
   /** §7.2 — what a call naming no granted tool reads: the name it used, and the tools it can call by the names it calls them */

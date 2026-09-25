@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FIND_CONTEXT_CHARS, FIND_HITS_PER_PHRASE } from '../../web.constants.ts';
-import { findPhrases, renderFoundPhrases } from '../find.utils.ts';
+import { FIND_CONTEXT_CHARS, FIND_HITS_PER_PHRASE, findPhrases } from '../phrase-find.utils.ts';
 
 const PROFILE = `# Duval, P.\n\n${'Publication. '.repeat(400)}\n\n#### Contact\nInformation\n\nEmail: p\\_duval@northmoor.example`;
 
@@ -27,20 +26,5 @@ describe('findPhrases (§3.4)', () => {
     expect(publication?.isCut).toBe(true);
     const [first, second] = publication!.hits;
     expect(second!.offset - first!.offset).toBeGreaterThan(FIND_CONTEXT_CHARS);
-  });
-});
-
-describe('renderFoundPhrases', () => {
-  it('should say where to read around a hit, and name a phrase that matched nothing', () => {
-    const rendered = renderFoundPhrases(findPhrases(PROFILE, ['Email:', 'Fax:']), PROFILE.length);
-    expect(rendered).toContain(`in this page's ${PROFILE.length} characters; read around a place with startChar`);
-    expect(rendered).toContain(`"Email:" — 1 match\nat ${PROFILE.indexOf('Email:')}: …`);
-    expect(rendered).toContain('"Fax:" — no match');
-  });
-
-  it('should say so when nothing matched, rather than return an empty list', () => {
-    expect(renderFoundPhrases(findPhrases(PROFILE, ['Fax:']), PROFILE.length)).toMatch(
-      /^None of these phrases occurs/u
-    );
   });
 });

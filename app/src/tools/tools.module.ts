@@ -14,6 +14,7 @@ import { PLUGIN_TOOLSET_SERVICES } from '@/plugins/plugins.constants.ts';
 import { PluginsModule } from '@/plugins/plugins.module.ts';
 import { PluginsRegistry } from '@/plugins/plugins.registry.ts';
 import { PLUGIN_WORK_UNIT_LOOKUP_TOKEN } from '@/plugins/plugins.tokens.ts';
+import { ResultsModule } from '@/results/results.module.ts';
 import { ShellModule } from '@/shell/shell.module.ts';
 import { SkillsModule } from '@/skills/skills.module.ts';
 import { TasksModule } from '@/tasks/tasks.module.ts';
@@ -45,6 +46,7 @@ const SERVICE_TOKENS: readonly ServiceToken<unknown>[] = [
     MailModule,
     MemoryModule,
     PluginsModule,
+    ResultsModule,
     ShellModule,
     SkillsModule,
     TasksModule,

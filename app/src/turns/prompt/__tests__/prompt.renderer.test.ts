@@ -76,7 +76,6 @@ describe('PromptRenderer', () => {
     skillsService.renderManifest.mockReturnValue('');
     toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listBudgetExemptFor.mockReturnValue(['builtins__now', 'skills__load']);
-    toolRegistry.listSupersedableFor.mockReturnValue([]);
     toolRegistry.listFor.mockReturnValue([]);
     windowService = MockFactory.createMock(WindowService);
     windowService.reachesBackTo.mockReturnValue(undefined);
@@ -135,13 +134,12 @@ describe('PromptRenderer', () => {
 
   it('should state what the registries and the configuration report of this agent in the preamble (§3.8)', async () => {
     toolRegistry.listFor.mockReturnValue([{ gates: true, id: ['shell', 'run'] }]);
-    toolRegistry.listSupersedableFor.mockReturnValue(['web__fetch', 'workspace__read']);
     agentRegistry.settingsFor.mockReturnValue({ maxBodyChars: 16_000, maxDescriptionChars: 200, maxEntries: 50 });
     const prompt = await render();
     expect(prompt).toContain('Calls to builtins__now and skills__load spend none.');
     expect(prompt).toContain("A memory's description holds at most 200 characters and its body at most 16,000.");
     expect(agentRegistry.settingsFor).toHaveBeenCalledWith(MEMORY_TOOLSET_DEF, 'mira');
-    expect(prompt).toContain('results of web__fetch and workspace__read are kept word for word');
+    expect(prompt).toContain('results__read reads on from an offset or finds phrases in it');
     expect(prompt).toContain('these commands are present: node and git.');
     expect(prompt).toContain('you begin the turn again, at most 3 times in one turn');
   });

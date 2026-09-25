@@ -15,12 +15,6 @@ export const MARKDOWN_CAP_CHARS = 1_000_000;
  */
 export const DEFAULT_WINDOW_CHARS = 30_000;
 
-/** how much of the page a `find` hit shows on each side of the match: a label and the field beside it */
-export const FIND_CONTEXT_CHARS = 250;
-
-/** how many places a `find` shows for one phrase; the rest are counted, since a narrower phrase finds them */
-export const FIND_HITS_PER_PHRASE = 5;
-
 /** the ceiling on one navigation — generous, because slow public sites are the normal case, not the exception */
 export const NAVIGATION_TIMEOUT_MS = 30_000;
 
