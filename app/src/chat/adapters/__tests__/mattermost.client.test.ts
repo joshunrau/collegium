@@ -170,9 +170,19 @@ describe('MattermostClient', () => {
     await expect(client.getChannelType('channel-1')).resolves.toBe('O');
   });
 
-  it('should return a channel by its display name and type', async () => {
-    sdk.getChannel.mockResolvedValue({ display_name: 'Town Square', id: 'channel-1', team_id: 'team-1', type: 'O' });
-    await expect(client.getChannel('channel-1')).resolves.toStrictEqual({ displayName: 'Town Square', type: 'O' });
+  it('should return a channel by its display name, handle and type', async () => {
+    sdk.getChannel.mockResolvedValue({
+      display_name: 'Town Square',
+      id: 'channel-1',
+      name: 'town-square',
+      team_id: 'team-1',
+      type: 'O'
+    });
+    await expect(client.getChannel('channel-1')).resolves.toStrictEqual({
+      displayName: 'Town Square',
+      handle: 'town-square',
+      type: 'O'
+    });
   });
 
   it('should walk every page of a channel’s members', async () => {

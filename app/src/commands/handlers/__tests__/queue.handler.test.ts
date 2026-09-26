@@ -46,9 +46,13 @@ describe('QueueHandler', () => {
     channelLockService.heldSince.mockReturnValue(undefined);
     const conversationsService = MockFactory.createMock(ConversationsService);
     conversationsService.findUnforgotten.mockResolvedValue({
+      authorKind: 'human',
+      authorUsername: 'casey',
       createdAt: new Date(0),
       id: 'post-1',
-      message: 'scrape dal.ca'
+      kind: 'message',
+      message: 'scrape dal.ca',
+      observedAt: new Date(0)
     });
     queueService = MockFactory.createMock(QueueService);
     queueService.listUntaken.mockResolvedValue([entry('post-1'), entry('post-2')]);

@@ -4,6 +4,7 @@ import type { AnyTool } from '@collegium/core/toolsets';
 export function buildToolTurnScope(overrides: Partial<ToolTurnScope> = {}): ToolTurnScope {
   return {
     agentUsername: 'mira',
+    channelHandle: 'main',
     channelId: 'channel-1',
     isGranted: () => true,
     triggeringPostId: 'post-1',

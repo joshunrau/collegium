@@ -507,6 +507,14 @@ describe('TasksService', () => {
     });
   });
 
+  it('should find a unit by the post that assigned it or last moved it, as the posts a turn answers name it (§3.8)', async () => {
+    const unit = await assign('post-assign');
+    expect(await tasksService.findReferenceOfPost('post-assign')).toBe(unit.id.slice(0, 8));
+    await tasksService.commitTransition({ to: 'review', unitId: unit.id }, 'post-report');
+    expect(await tasksService.findReferenceOfPost('post-report')).toBe(unit.id.slice(0, 8));
+    expect(await tasksService.findReferenceOfPost('post-9')).toBeUndefined();
+  });
+
   describe('the view tasks::read shows (§3.15)', () => {
     const view = (reference: string) => {
       return tasksService.readView({ agentUsername: 'mira', channelId: 'channel-1', reference });
@@ -522,7 +530,15 @@ describe('TasksService', () => {
     it('should show the report a unit last moved by, and say so when that post was forgotten (§8.4)', async () => {
       const unit = await assign();
       await tasksService.commitTransition({ to: 'review', unitId: unit.id }, 'post-report');
-      const report = { createdAt: new Date(5), id: 'post-report', message: '@mira — unit is ready for review: done' };
+      const report = {
+        authorKind: 'agent' as const,
+        authorUsername: 'owen',
+        createdAt: new Date(5),
+        id: 'post-report',
+        kind: 'unit' as const,
+        message: '@mira — unit is ready for review: done',
+        observedAt: new Date(5)
+      };
       conversationsService.findUnforgotten.mockResolvedValueOnce(report);
       expect((await view(unit.id.slice(0, 8))).value?.latestChange).toStrictEqual({ kind: 'posted', post: report });
       expect(conversationsService.findUnforgotten).toHaveBeenCalledWith('post-report');
@@ -536,7 +552,15 @@ describe('TasksService', () => {
         { closedByUsername: 'mira', to: 'done', unitId: unit.id, verdict: 'ok' },
         'p-2'
       );
-      conversationsService.findUnforgotten.mockResolvedValue({ createdAt: new Date(5), id: 'p-2', message: 'closed' });
+      conversationsService.findUnforgotten.mockResolvedValue({
+        authorKind: 'agent',
+        authorUsername: 'mira',
+        createdAt: new Date(5),
+        id: 'p-2',
+        kind: 'unit',
+        message: 'closed',
+        observedAt: new Date(5)
+      });
       counterpartStateService.readFor.mockClear();
       expect((await view(unit.id.slice(0, 8))).value?.counterpart).toBeUndefined();
       expect(counterpartStateService.readFor).not.toHaveBeenCalled();

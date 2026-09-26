@@ -67,3 +67,34 @@ describe('Context assembly', () => {
     expect(request?.messages.at(-1)).toStrictEqual({ content: request?.tail, role: 'user' });
   });
 });
+
+const TWO_LANES = defineScenario({
+  agents: [
+    {
+      expertise: 'End-to-end testing',
+      systemPrompt: 'You are Mira. Reply clearly and briefly.',
+      tools: ['memory'],
+      username: 'mira'
+    }
+  ],
+  channels: [
+    { displayName: 'First Lane', name: 'first' },
+    { displayName: 'Second Lane', name: 'second' }
+  ]
+});
+
+describe('Where a turn runs', () => {
+  const harness = setupHarness(TWO_LANES);
+
+  it('names the channel and its handle after the date, ahead of the people here (§3.8)', async () => {
+    const { channels, inference } = harness();
+    const reply = `lane-${randomUUID()}`;
+    inference.willReply({ agent: 'mira', contains: 'which lane' }, textResponse(reply));
+    await channels.second.mention('mira', 'which lane is this?');
+    await channels.second.awaitReplyFrom('mira', { text: reply });
+    const tail = inference.requestsFor('mira').at(-1)?.tail ?? '';
+    expect(tail).toMatch(/## Channel\n\nThis turn runs in Second Lane \(~[\w-]*second\)\./u);
+    expect(tail.indexOf('## Date')).toBeLessThan(tail.indexOf('## Channel'));
+    expect(tail.indexOf('## Channel')).toBeLessThan(tail.indexOf('## People here'));
+  });
+});

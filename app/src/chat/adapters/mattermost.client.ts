@@ -104,9 +104,9 @@ export class MattermostClient {
     return $PostErasureReport.parse(await response.json());
   }
 
-  async getChannel(channelId: string): Promise<{ displayName: string; type: MattermostChannelType }> {
+  async getChannel(channelId: string): Promise<{ displayName: string; handle: string; type: MattermostChannelType }> {
     const channel = $MattermostChannel.parse(await this.sdk.getChannel(channelId));
-    return { displayName: channel.display_name, type: channel.type };
+    return { displayName: channel.display_name, handle: channel.name, type: channel.type };
   }
 
   /** the id of a channel named by its handle, scoped to the team it lives in */

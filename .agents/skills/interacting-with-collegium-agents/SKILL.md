@@ -40,7 +40,8 @@ by itself, so an agent that writes "next I will…" waits for you. Post again to
 tool yet has no status post, and can run for minutes that way. A mention of an agent whose turn is
 still running starts nothing. It queues behind that turn, the agent reacts 👀 to it, and the next
 turn takes everything that queued before it began, so a second nudge adds nothing to the first.
-What queues after a turn began drains into the turn after it. Before you post
+Each turn lists the posts it answers at its start, and its trace names them on its `Answering:`
+line. What queues after a turn began drains into the turn after it. Before you post
 again, run `/collegium queue {agent}` for every agent in the channel (see
 [Inspect a turn](#inspect-a-turn)). It says whether a turn is running for the agent in this channel,
 since when, and which post started it, then what waits. A turn waiting on a person reads as parked,

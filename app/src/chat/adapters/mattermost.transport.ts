@@ -98,7 +98,12 @@ export class MattermostTransport extends ChatTransport {
         this.client.getChannel(channelId),
         this.client.getChannelMemberUsernames(channelId)
       ]);
-      return { displayName: channel.displayName, kind: toChannelKind(channel.type), memberUsernames };
+      return {
+        displayName: channel.displayName,
+        handle: channel.handle,
+        kind: toChannelKind(channel.type),
+        memberUsernames
+      };
     });
   }
 

@@ -18,6 +18,8 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 import { PromptRenderer } from '../prompt.renderer.ts';
+import { AnsweringSection } from '../sections/answering.section.ts';
+import { ChannelSection } from '../sections/channel.section.ts';
 import { DateLineSection } from '../sections/date-line.section.ts';
 import { EarlierActionsSection } from '../sections/earlier-actions.section.ts';
 import { MemoriesSection } from '../sections/memories.section.ts';
@@ -37,6 +39,8 @@ const PROFILE = {
 
 describe('PromptRenderer', () => {
   let agentRegistry: MockedInstance<AgentRegistry>;
+  let answeringSection: MockedInstance<AnsweringSection>;
+  let channelSection: MockedInstance<ChannelSection>;
   let dateLineSection: MockedInstance<DateLineSection>;
   let earlierActionsSection: MockedInstance<EarlierActionsSection>;
   let mailRegistry: MockedInstance<MailRegistry>;
@@ -54,6 +58,10 @@ describe('PromptRenderer', () => {
   beforeEach(async () => {
     agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.settingsFor.mockReturnValue(undefined);
+    answeringSection = MockFactory.createMock(AnsweringSection);
+    answeringSection.render.mockResolvedValue(undefined);
+    channelSection = MockFactory.createMock(ChannelSection);
+    channelSection.render.mockReturnValue(undefined);
     dateLineSection = MockFactory.createMock(DateLineSection);
     dateLineSection.render.mockReturnValue('## Date');
     earlierActionsSection = MockFactory.createMock(EarlierActionsSection);
@@ -84,6 +92,8 @@ describe('PromptRenderer', () => {
         PromptRenderer,
         TextFormatter,
         { provide: AgentRegistry, useValue: agentRegistry },
+        { provide: AnsweringSection, useValue: answeringSection },
+        { provide: ChannelSection, useValue: channelSection },
         { provide: ConfigService, useValue: createConfigServiceMock() },
         { provide: DateLineSection, useValue: dateLineSection },
         { provide: EarlierActionsSection, useValue: earlierActionsSection },
@@ -225,14 +235,18 @@ describe('PromptRenderer', () => {
     expect(await render()).toBe(`${stable}\n\n${tail}`);
   });
 
-  it('should place the date first, the pinned posts after the memories, the earlier actions before peers, and open work last (§3.8)', async () => {
+  it('should place the answered posts first, the channel after the date, the pinned posts after the memories, the earlier actions before peers, and open work last (§3.8)', async () => {
+    answeringSection.render.mockResolvedValue('## Posts this turn answers');
+    channelSection.render.mockReturnValue('## Channel');
     memoriesSection.render.mockResolvedValue('## Memories');
     pinnedPostsSection.render.mockResolvedValue('## Pinned in this channel');
     earlierActionsSection.render.mockResolvedValue('## Earlier in this channel');
     peersSection.render.mockResolvedValue('## Peers');
     openWorkSection.render.mockResolvedValue('## Open work');
     const tail = await renderTail(new Date(1000));
-    expect(tail.indexOf('## Date')).toBeLessThan(tail.indexOf('## Memories'));
+    expect(tail.indexOf('## Posts this turn answers')).toBeLessThan(tail.indexOf('## Date'));
+    expect(tail.indexOf('## Date')).toBeLessThan(tail.indexOf('## Channel'));
+    expect(tail.indexOf('## Channel')).toBeLessThan(tail.indexOf('## Memories'));
     expect(tail.indexOf('## Memories')).toBeLessThan(tail.indexOf('## Pinned in this channel'));
     expect(tail.indexOf('## Pinned in this channel')).toBeLessThan(tail.indexOf('## Earlier in this channel'));
     expect(tail.indexOf('## Earlier in this channel')).toBeLessThan(tail.indexOf('## Peers'));

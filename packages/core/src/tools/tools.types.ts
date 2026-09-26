@@ -14,6 +14,8 @@ export type ToolId = readonly [namespace: string, name: string];
 /** the facts of the running turn (§4) — everything else a tool needs, its toolset declares */
 export type ToolTurnScope = {
   readonly agentUsername: string;
+  /** §3.14 — the channel's handle, so a record can name the lane that wrote it; null in a direct or group message */
+  readonly channelHandle: null | string;
   readonly channelId: string;
   /** §3.4 — whether the acting agent is granted the tool named by its full `ns::tool` ref: a text offers a tool as the way on only where this holds */
   isGranted(ref: string): boolean;

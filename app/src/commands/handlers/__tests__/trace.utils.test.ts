@@ -37,6 +37,7 @@ const NOW = new Date('2026-01-01T00:05:00.000Z');
 
 const RECORD = [
   'Started: 2026-01-01T00:00:00.000Z, by addressed (a post addressing it while it was idle), answering post `post-9`.',
+  'Answering: `post-9`.',
   'Ran: 1m 5s, 2 actions.',
   'Context: assembled at +1s, a window of about 3,200 tokens reaching back to 2025-12-31T23:00:00.000Z.',
   'Usage: 12,000 prompt tokens (9,000 cached), 400 completion (150 reasoning); cost $0.0123.'
@@ -91,6 +92,17 @@ describe('renderTrace', () => {
     );
   });
 
+  it('should list every post the turn answers, taken, batched or folded in, and say where a person steered it (§5.2, §8.3)', () => {
+    const text = render([
+      event({ batchedFragmentIds: ['post-10'], kind: 'posts_taken', postIds: ['post-3', 'post-9'] }),
+      event({ byUsername: 'casey', kind: 'steering_received', text: 'use staging' }),
+      event({ foldedPostIds: ['post-11'], kind: 'posts_taken', postIds: ['post-11'] })
+    ]);
+    expect(text).toContain('Answering: `post-9`, `post-10`, `post-3`, `post-11`; steered.');
+    expect(text).toContain('took queued posts `post-3`, `post-9`; with the fragments `post-10`');
+    expect(text).toContain('took queued posts `post-11`; folded in `post-11`');
+  });
+
   it('should say what drained into the turn and how long a running one has run, without a count it lacks (§8.3)', () => {
     const text = render([], {
       turn: {
@@ -139,7 +151,7 @@ describe('renderTrace', () => {
         turn: { ...TURN, endedAt: null, status: 'running' }
       }
     );
-    expect(text.split('\n')[5]).toBe(
+    expect(text.split('\n')[6]).toBe(
       'Waiting on a person: 🔐 `workspace::write` · for 5m, since January 1, 2026 at 12:00:00 AM UTC · prompt `prompt-1`'
     );
   });

@@ -121,6 +121,8 @@ export const $MattermostChannel = z.object({
   // empty for direct channels, which are named by their members
   display_name: z.string().default(''),
   id: z.string().min(1),
+  // the handle a channel link and ~mention use; a direct or group channel's is its members' ids
+  name: z.string().default(''),
   // empty for direct and group channels, which belong to no team
   team_id: z.string().default(''),
   type: z.enum(MattermostChannelType)

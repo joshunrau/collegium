@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
-import type { ChatEvent, ChatFailure } from '@/chat/chat.types.ts';
+import type { ChannelKind, ChatEvent, ChatFailure } from '@/chat/chat.types.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 
 import { ChannelsService } from '../channels.service.ts';
@@ -25,6 +25,26 @@ export class RosterService {
     private readonly channelsService: ChannelsService,
     private readonly transportRegistry: TransportRegistry
   ) {}
+
+  /**
+   * §3.8 — where a turn runs, as its prompt names it: the channel's name and kind, with its handle
+   * for an open or private channel; unknown where no agent is in it
+   */
+  describe(
+    channelId: string,
+    selfUsername: string
+  ): undefined | { readonly handle: string | undefined; readonly kind: ChannelKind; readonly name: string } {
+    const record = this.channels.get(channelId);
+    if (record === undefined) {
+      return undefined;
+    }
+    const named = record.kind === 'open' || record.kind === 'private';
+    return {
+      handle: named && record.handle !== '' ? record.handle : undefined,
+      kind: record.kind,
+      name: renderChannelName(record, selfUsername)
+    };
+  }
 
   /** the §3.10 one-agent rule, asked of this module because only it knows membership */
   findRespondToAllViolation(): TopologyViolation | undefined {
@@ -92,6 +112,7 @@ export class RosterService {
       }
       this.channels.set(event.channelId, {
         displayName: described.value.displayName,
+        handle: described.value.handle,
         kind: described.value.kind,
         memberUsernames: new Set([...described.value.memberUsernames, event.agentUsername])
       });
@@ -138,6 +159,7 @@ export class RosterService {
         }
         channels.set(channelId, {
           displayName: described.value.displayName,
+          handle: described.value.handle,
           kind: described.value.kind,
           memberUsernames: new Set([...described.value.memberUsernames, profile.username])
         });

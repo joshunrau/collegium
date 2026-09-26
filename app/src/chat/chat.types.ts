@@ -17,6 +17,8 @@ export type ChannelKind = 'direct' | 'group' | 'open' | 'private';
 export type ChannelDescription = {
   /** empty where the substrate gives none, as on a direct channel */
   readonly displayName: string;
+  /** the channel's name in links and ~mentions; meaningful for an open or private channel only */
+  readonly handle: string;
   readonly kind: ChannelKind;
   readonly memberUsernames: readonly string[];
 };

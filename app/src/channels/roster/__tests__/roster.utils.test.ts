@@ -6,6 +6,7 @@ import type { ChannelRecord } from '../../channels.types.ts';
 
 const record = (kind: ChannelRecord['kind'], members: string[], displayName = ''): ChannelRecord => ({
   displayName,
+  handle: '',
   kind,
   memberUsernames: new Set(members)
 });

@@ -351,11 +351,16 @@ describe('MattermostTransport', () => {
   });
 
   it('should describe a channel by its kind, display name and members', async () => {
-    client.getChannel.mockResolvedValue({ displayName: 'Town Square', type: MattermostChannelType.Open });
+    client.getChannel.mockResolvedValue({
+      displayName: 'Town Square',
+      handle: 'town-square',
+      type: MattermostChannelType.Open
+    });
     client.getChannelMemberUsernames.mockResolvedValue(['casey', 'mira']);
     const described = await transport.describeChannel('channel-1');
     expect(described.value).toStrictEqual({
       displayName: 'Town Square',
+      handle: 'town-square',
       kind: 'open',
       memberUsernames: ['casey', 'mira']
     });

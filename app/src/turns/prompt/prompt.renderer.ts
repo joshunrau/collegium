@@ -15,6 +15,8 @@ import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { renderBaselineSection } from './baseline/baseline.section.ts';
 import { renderPreambleSection } from './preamble/preamble.section.ts';
 import { TAIL_OPENING_LINE } from './prompt.constants.ts';
+import { AnsweringSection } from './sections/answering.section.ts';
+import { ChannelSection } from './sections/channel.section.ts';
 import { DateLineSection } from './sections/date-line.section.ts';
 import { EarlierActionsSection } from './sections/earlier-actions.section.ts';
 import { MemoriesSection } from './sections/memories.section.ts';
@@ -37,6 +39,8 @@ export class PromptRenderer {
 
   constructor(
     private readonly agentRegistry: AgentRegistry,
+    private readonly answeringSection: AnsweringSection,
+    private readonly channelSection: ChannelSection,
     configService: ConfigService,
     private readonly dateLineSection: DateLineSection,
     private readonly earlierActionsSection: EarlierActionsSection,
@@ -75,7 +79,9 @@ export class PromptRenderer {
       renderSkillsSection(stableInput)
     ].filter((section) => section !== undefined);
     const tail = [
+      await this.answeringSection.render(input),
       this.dateLineSection.render(),
+      this.channelSection.render(input),
       await this.memoriesSection.render(input),
       await this.pinnedPostsSection.render(input),
       await this.earlierActionsSection.render(input),

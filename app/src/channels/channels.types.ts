@@ -14,6 +14,7 @@ export type LockHandle = {
 /** what the roster holds per channel: what it is, what it is called, and everyone in it (§3.11) */
 export type ChannelRecord = {
   readonly displayName: string;
+  readonly handle: string;
   readonly kind: ChannelKind;
   readonly memberUsernames: Set<string>;
 };

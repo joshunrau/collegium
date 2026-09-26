@@ -20,6 +20,8 @@ import { ContextAssembler } from './context/context.assembler.ts';
 import { TurnControlRegistry } from './control/turn-control.registry.ts';
 import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
 import { PromptRenderer } from './prompt/prompt.renderer.ts';
+import { AnsweringSection } from './prompt/sections/answering.section.ts';
+import { ChannelSection } from './prompt/sections/channel.section.ts';
 import { DateLineSection } from './prompt/sections/date-line.section.ts';
 import { EarlierActionsSection } from './prompt/sections/earlier-actions.section.ts';
 import { MemoriesSection } from './prompt/sections/memories.section.ts';
@@ -60,6 +62,8 @@ import { TypingIndicatorService } from './typing/typing-indicator.service.ts';
   ],
   providers: [
     ContextAssembler,
+    AnsweringSection,
+    ChannelSection,
     DateLineSection,
     EarlierActionsSection,
     MemoriesSection,

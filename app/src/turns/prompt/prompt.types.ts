@@ -10,7 +10,16 @@ export type TurnPrompt = {
   readonly tail: string;
 };
 
+/** §5.2 — what the posts a turn answers are read against: the window as assembled, and when the turn began */
+export type TurnAnswering = {
+  readonly postIds: readonly string[];
+  readonly turnStartedAt: Date;
+  readonly windowPostIds: ReadonlySet<string>;
+};
+
 export type TurnPromptInput = {
+  /** §5.2 — absent outside a turn, as for /collegium inspect, which answers nothing */
+  readonly answering?: TurnAnswering;
   readonly channelId: string;
   readonly profile: AgentProfile;
   /** the instant the window reaches back to, where the earlier-action lines pick up; absent for an empty window */

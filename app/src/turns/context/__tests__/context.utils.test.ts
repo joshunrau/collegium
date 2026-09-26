@@ -61,10 +61,7 @@ describe('toCompletionMessages', () => {
   });
 
   it('should close a window that ends on the agent’s own turn with the line marking where it ended (§5.2)', () => {
-    const turnEnded = {
-      content: '[your previous turn ended here; this turn is for what arrived while you were busy]',
-      role: 'user'
-    };
+    const turnEnded = { content: '[your previous turn ended here]', role: 'user' };
     const reply = event({ content: 'done, see above', kind: 'assistant_message', toolCalls: [] });
     expect(render([post('casey', 'hello @mira'), reply]).at(-1)).toStrictEqual(turnEnded);
 
@@ -77,6 +74,14 @@ describe('toCompletionMessages', () => {
     expect(render([call, result]).at(-1)).toStrictEqual(turnEnded);
     expect(render([reply, post('casey', 'thanks')]).at(-1)).toStrictEqual({
       content: 'casey (person): thanks',
+      role: 'user'
+    });
+  });
+
+  it('should say a restart cut the previous turn off where it did (§5.2, §7.3)', () => {
+    const reply = event({ content: 'working on it', kind: 'assistant_message', toolCalls: [] });
+    expect(toCompletionMessages([reply], READER, { lastTurnCutByRestart: true }).at(-1)).toStrictEqual({
+      content: '[a restart cut your previous turn off here]',
       role: 'user'
     });
   });

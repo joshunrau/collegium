@@ -7,11 +7,14 @@ import type { CompletionRequest } from '@/inference/inference.types.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 
 import { PromptRenderer } from '../prompt/prompt.renderer.ts';
+import { TurnsService } from '../turns.service.ts';
 import { estimateWindowTokens, toCompletionMessages } from './context.utils.ts';
 
 import type { WindowReader } from './context.utils.ts';
 
 type AssembleInput = {
+  /** §5.2 — the posts the turn answers so far, to which this assembly adds what it takes; absent outside a turn */
+  readonly answering?: { readonly postIds: readonly string[]; readonly turnStartedAt: Date };
   readonly channelId: string;
   readonly profile: AgentProfile;
   /**
@@ -48,6 +51,7 @@ export class ContextAssembler {
     private readonly agentRegistry: AgentRegistry,
     private readonly promptRenderer: PromptRenderer,
     private readonly toolRegistry: ToolRegistry,
+    private readonly turnsService: TurnsService,
     private readonly windowService: WindowService
   ) {}
 
@@ -65,25 +69,34 @@ export class ContextAssembler {
       costOf: (candidates) => estimateWindowTokens(candidates, reader)
     });
     const takenPostIds = (await input.takeQueued?.(assembledAt)) ?? [];
+    const windowPostIds = new Set(entries.flatMap((entry) => (entry.kind === 'post' ? [entry.post.id] : [])));
     const { stable, tail } = await this.promptRenderer.renderParts({
+      answering: input.answering && {
+        postIds: [...input.answering.postIds, ...takenPostIds],
+        turnStartedAt: input.answering.turnStartedAt,
+        windowPostIds
+      },
       channelId,
       profile,
       windowReachesBackTo: oldestAt
     });
+    const lastTurnId = entries.findLast((entry) => entry.kind === 'event')?.event.turnId;
+    const lastTurnCutByRestart =
+      lastTurnId !== undefined && (await this.turnsService.findStatus(lastTurnId)) === 'abandoned';
     return {
       assembledAt,
       reachesBackTo: oldestAt,
       request: {
         cacheKey: JSON.stringify([profile.username, channelId]),
         // §3.8 — a user-role message, since a provider may hoist a system message ahead of the window
-        messages: [...toCompletionMessages(entries, reader), { content: tail, role: 'user' }],
+        messages: [...toCompletionMessages(entries, reader, { lastTurnCutByRestart }), { content: tail, role: 'user' }],
         model: profile.model,
         systemPrompt: stable,
         tools: this.toolRegistry.describeFor(profile)
       },
       takenPostIds,
       windowEstimatedTokens: estimateWindowTokens(entries, reader),
-      windowPostIds: new Set(entries.flatMap((entry) => (entry.kind === 'post' ? [entry.post.id] : [])))
+      windowPostIds
     };
   }
 }

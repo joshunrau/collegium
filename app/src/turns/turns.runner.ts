@@ -10,6 +10,7 @@ import { EXTEND_BUDGET_ACTION } from '@/approvals/approvals.constants.ts';
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
 import type { ApprovalDecision } from '@/approvals/approvals.types.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
+import { RosterService } from '@/channels/roster/roster.service.ts';
 import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
@@ -297,6 +298,8 @@ type FailureStatus = Extract<
 type TurnState = {
   /** §4.5 — the one peer this turn has addressed, whatever number of posts it emits */
   addressedPeer: string | undefined;
+  /** §5.2 — the posts this turn answers: its trigger, what the debounce batched in, what each assembly took, what folded in */
+  readonly answeringPostIds: string[];
   /** §3.8 — how many messages the assembled context holds, so what the turn added is told from what it started with */
   assembledMessages: number;
   readonly budget: ActionBudget;
@@ -381,6 +384,7 @@ export class TurnRunner {
     private readonly memorySightingsRegistry: MemorySightingsRegistry,
     private readonly momentFormatter: MomentFormatter,
     private readonly multiMentionPolicy: MultiMentionPolicy,
+    private readonly rosterService: RosterService,
     private readonly statusPostService: StatusPostService,
     private readonly tasksService: TasksService,
     private readonly toolExecutor: ToolExecutor,
@@ -449,6 +453,10 @@ export class TurnRunner {
     });
     const state: TurnState = {
       addressedPeer: undefined,
+      answeringPostIds: [
+        ...(input.triggeringPostId === undefined ? [] : [input.triggeringPostId]),
+        ...(input.batchedFragmentIds ?? [])
+      ],
       assembledMessages: 0,
       budget: new ActionBudget(profile.actionBudget),
       callTally: new Map(),
@@ -568,6 +576,11 @@ export class TurnRunner {
       }
     }
     return undefined;
+  }
+
+  /** §5.2 — a folded post that named the agent is also a row the reassembly takes, and is answered once */
+  private addAnswering(state: TurnState, postIds: readonly string[]): void {
+    state.answeringPostIds.push(...postIds.filter((postId) => !state.answeringPostIds.includes(postId)));
   }
 
   /**
@@ -742,10 +755,12 @@ export class TurnRunner {
   ): Promise<AssembledContext> {
     const { takeQueued } = input;
     const assembled = await this.contextAssembler.assemble({
+      answering: { postIds: state.answeringPostIds, turnStartedAt: state.turn.startedAt },
       channelId: input.channelId,
       profile: input.profile,
       ...(takeQueued && { takeQueued: (enqueuedBefore: Date) => takeQueued(state.turn.id, enqueuedBefore) })
     });
+    this.addAnswering(state, assembled.takenPostIds);
     await this.loadAssembledContext(state, assembled);
     await this.recordPostsTaken(state, assembled.takenPostIds, alongside);
     return assembled;
@@ -1068,6 +1083,7 @@ export class TurnRunner {
   private createTurnScope(input: RunInput, state: TurnState): ToolTurnScope {
     return {
       agentUsername: input.profile.username,
+      channelHandle: this.rosterService.describe(input.channelId, input.profile.username)?.handle ?? null,
       channelId: input.channelId,
       isGranted: (ref) => this.toolRegistry.isGranted(input.profile, ref),
       triggeringPostId: input.triggeringPostId ?? null,
@@ -1301,6 +1317,7 @@ export class TurnRunner {
     // §3.7 — the newest post is the request the prompt should quote, not the one the turn began on
     state.requestedBy = await this.resolveRequester(folded.at(-1), state.workUnit);
     state.status.appendTrace({ kind: 'note', text: renderFoldLine() });
+    this.addAnswering(state, folded);
     return this.assembleContext(input, state, { foldedPostIds: folded, usage });
   }
 

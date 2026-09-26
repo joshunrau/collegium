@@ -180,6 +180,16 @@ export class TurnsService {
     });
   }
 
+  /** §3.8 — when the agent's latest turn in the channel before a moment started; undefined where it had none */
+  async findLatestStartBefore(agentUsername: string, channelId: string, before: Date): Promise<Date | undefined> {
+    const latest = await this.turns.findFirst({
+      orderBy: { startedAt: 'desc' },
+      select: { startedAt: true },
+      where: { agentUsername, channelId, startedAt: { lt: before } }
+    });
+    return latest?.startedAt;
+  }
+
   /** when the agent's most recent turn in the channel started, whatever became of it; undefined where it has had none */
   async findLatestStartIn(agentUsername: string, channelId: string): Promise<Date | undefined> {
     const latest = await this.turns.findFirst({
@@ -200,6 +210,12 @@ export class TurnsService {
       where: { agentUsername, channelId, status: 'running' }
     });
     return running ?? undefined;
+  }
+
+  /** §5.2 — how a turn ended, or that it is still running; undefined for a turn the store does not hold */
+  async findStatus(turnId: string): Promise<TurnStatus | undefined> {
+    const turn = await this.turns.findUnique({ select: { status: true }, where: { id: turnId } });
+    return turn?.status;
   }
 
   /** the full §8.3 trace, in the order it happened */

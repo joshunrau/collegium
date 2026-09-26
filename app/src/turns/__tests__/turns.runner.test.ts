@@ -7,6 +7,7 @@ import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { ApprovalsService } from '@/approvals/approvals.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
+import { RosterService } from '@/channels/roster/roster.service.ts';
 import type { ChatTransport } from '@/chat/chat.transport.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConfigService } from '@/config/config.service.ts';
@@ -94,6 +95,7 @@ describe('TurnRunner', () => {
   let contextAssembler: MockedInstance<ContextAssembler>;
   let conversationsService: MockedInstance<ConversationsService>;
   let multiMentionPolicy: MockedInstance<MultiMentionPolicy>;
+  let rosterService: MockedInstance<RosterService>;
   let releaseDeferredHandoff: Mock<(deferred: DeferredHandoff) => void>;
   let sends: { channelId: string; text: string }[];
   let statusHandle: {
@@ -163,6 +165,8 @@ describe('TurnRunner', () => {
     tasksService.findWorkedUnit.mockResolvedValue(undefined);
     tasksService.prepareExhaustionReport.mockResolvedValue(undefined);
     multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
+    rosterService = MockFactory.createMock(RosterService);
+    rosterService.describe.mockReturnValue({ handle: 'main', kind: 'open', name: 'Main' });
     multiMentionPolicy.addressesAnyone.mockImplementation(({ message }) => message.includes('@'));
     multiMentionPolicy.addresseesOf.mockReturnValue([]);
     multiMentionPolicy.refuses.mockReturnValue(false);
@@ -221,6 +225,7 @@ describe('TurnRunner', () => {
         MockFactory.createForService(LoggingService),
         { provide: MemorySightingsRegistry, useValue: memorySightingsRegistry },
         { provide: MultiMentionPolicy, useValue: multiMentionPolicy },
+        { provide: RosterService, useValue: rosterService },
         { provide: StatusPostService, useValue: statusPostService },
         { provide: TasksService, useValue: tasksService },
         { provide: ToolExecutor, useValue: toolExecutor },
@@ -388,6 +393,11 @@ describe('TurnRunner', () => {
       takeQueued
     });
     expect(takeQueued).toHaveBeenCalledWith('turn-1', new Date(0));
+    expect(contextAssembler.assemble.mock.calls.at(-1)?.[0].answering?.postIds).toStrictEqual([
+      'post-6',
+      'post-5',
+      'post-2'
+    ]);
     expect(turnsService.appendEvent.mock.calls.filter(([, event]) => event.kind === 'posts_taken')).toStrictEqual([
       ['turn-1', { batchedFragmentIds: ['post-6'], kind: 'posts_taken', postIds: ['post-5'] }],
       ['turn-1', { foldedPostIds: ['post-2'], kind: 'posts_taken', postIds: ['post-2'] }]
@@ -1472,6 +1482,7 @@ describe('TurnRunner', () => {
           { provide: AgentRegistry, useValue: agentRegistry },
           { provide: PromptRenderer, useValue: promptRenderer },
           { provide: ToolRegistry, useValue: toolRegistryForContext },
+          { provide: TurnsService, useValue: turnsService },
           { provide: WindowService, useValue: windowService }
         ]
       }).compile();

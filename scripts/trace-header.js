@@ -16,6 +16,8 @@
  * @typedef {object} TraceHeader
  * @property {number | undefined} actionCount
  * @property {string | undefined} activation what started the turn, as the framework names it
+ * @property {string[] | undefined} answeringPostIds the posts the turn answers; undefined on a trace from
+ *   before the framework listed them
  * @property {string} agent
  * @property {number | undefined} cachedPromptTokens the prompt tokens the provider's cache served
  * @property {number} chain
@@ -29,6 +31,7 @@
  * @property {string} outcome
  * @property {number | undefined} promptTokens
  * @property {number | undefined} reasoningTokens
+ * @property {boolean | undefined} steered whether a person steered the turn; undefined as answeringPostIds is
  * @property {string | undefined} startedAt ISO 8601; undefined where the trace's Started date does not
  *   parse
  * @property {number | undefined} turnDurationMs how long the turn ran, or has run so far
@@ -72,6 +75,9 @@ const TRACE_HEADER_PATTERN =
  */
 const TRACE_STARTED_PATTERN =
   /^Started: (?<date>.*?)(?:, by (?<activation>[a-z]+) \([^)]*\))?(?:, answering post `[^`]+`)?(?:, drained from post `(?<drained>[^`]+)`)?\.$/m;
+
+/** `Answering: \`{id}\`, \`{id}\`; steered.` — the posts the turn answers (§5.2), and whether a person steered it */
+const TRACE_ANSWERING_PATTERN = /^Answering: (?<posts>.*?)(?<steered>; steered)?\.$/m;
 
 /** `Ran: {duration}, {n} actions.`, `Ran: {duration}, until the process restarted.`, or `Running: {duration} so far.` */
 const TRACE_RAN_PATTERN = /^(?:Ran|Running): (?<duration>(?:\d+m )?\d+s)(?:, (?<actions>[\d,]+) actions?\.)?/m;
@@ -187,12 +193,14 @@ export function readTraceHeader(trace) {
     return undefined;
   }
   const started = TRACE_STARTED_PATTERN.exec(trace)?.groups;
+  const answering = TRACE_ANSWERING_PATTERN.exec(trace)?.groups;
   const ran = TRACE_RAN_PATTERN.exec(trace)?.groups;
   const usage = TRACE_USAGE_PATTERN.exec(trace)?.groups;
   return {
     actionCount: readCount(ran?.actions),
     activation: started?.activation,
     agent: groups.agent,
+    answeringPostIds: answering && [...(answering.posts ?? '').matchAll(/`([^`]+)`/g)].map((match) => match[1] ?? ''),
     cachedPromptTokens: readCount(usage?.cached),
     chain: Number(groups.chain),
     completions: readCompletions(trace),
@@ -205,6 +213,7 @@ export function readTraceHeader(trace) {
     promptTokens: readCount(usage?.prompt),
     reasoningTokens: readCount(usage?.reasoning),
     startedAt: readStartedAt(started?.date),
+    steered: answering && answering.steered !== undefined,
     turnDurationMs: ran === undefined ? undefined : readReportedDuration(`(${ran.duration})`),
     turnId: groups.turnId,
     windowEstimatedTokens: readCount(TRACE_WINDOW_PATTERN.exec(trace)?.groups?.tokens)

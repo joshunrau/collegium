@@ -9,7 +9,10 @@ import type { AuthorKind, ModelRow } from '@/prisma/prisma.types.ts';
 import { renderRecordedToolName } from '@/utils/tool-name.utils.ts';
 
 /** §5.2 — what closes a window that ends on the agent's own turn, so the model begins a message rather than continuing one */
-const TURN_ENDED_LINE = '[your previous turn ended here; this turn is for what arrived while you were busy]';
+const TURN_ENDED_LINE = '[your previous turn ended here]';
+
+/** §5.2, §7.3 — the same, where a restart abandoned that turn, which says it did not end of its own accord */
+const TURN_CUT_BY_RESTART_LINE = '[a restart cut your previous turn off here]';
 
 /** §3.8 — what a post's author is, in the word the model reads beside the name */
 const AUTHOR_KIND_WORDS: { readonly [K in AuthorKind]: string } = {
@@ -160,15 +163,19 @@ export type WindowReader = {
 /**
  * §5.2 — a draining turn's window ends on the trace of the turn it drains behind, and a model
  * handed its own message as the last thing said continues it; the closing line makes the next
- * completion a new message.
+ * completion a new message, and says where a restart cut that turn off (§7.3).
  */
-export function toCompletionMessages(entries: readonly WindowEntry[], reader: WindowReader): CompletionMessage[] {
+export function toCompletionMessages(
+  entries: readonly WindowEntry[],
+  reader: WindowReader,
+  { lastTurnCutByRestart = false }: { readonly lastTurnCutByRestart?: boolean } = {}
+): CompletionMessage[] {
   const messages = renderEntries(entries, reader);
   const last = messages.at(-1);
   if (last === undefined || last.role === 'user') {
     return messages;
   }
-  return [...messages, { content: TURN_ENDED_LINE, role: 'user' }];
+  return [...messages, { content: lastTurnCutByRestart ? TURN_CUT_BY_RESTART_LINE : TURN_ENDED_LINE, role: 'user' }];
 }
 
 /** §3.8 — what entries cost the window, measured on the messages they render to, so the budget and what the model reads cannot disagree */

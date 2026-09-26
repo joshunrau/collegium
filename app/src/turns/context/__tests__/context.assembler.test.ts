@@ -6,6 +6,7 @@ import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { ConfigService } from '@/config/config.service.ts';
+import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { WindowEntry } from '@/conversations/conversations.types.ts';
 import { PinsService } from '@/conversations/pins/pins.service.ts';
 import { WindowService } from '@/conversations/window/window.service.ts';
@@ -24,14 +25,18 @@ import { createConfigServiceMock } from '@/testing/factories/config-service.fact
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
+import { TriggersService } from '@/triggers/triggers.service.ts';
 
 import { PromptRenderer } from '../../prompt/prompt.renderer.ts';
+import { AnsweringSection } from '../../prompt/sections/answering.section.ts';
+import { ChannelSection } from '../../prompt/sections/channel.section.ts';
 import { DateLineSection } from '../../prompt/sections/date-line.section.ts';
 import { EarlierActionsSection } from '../../prompt/sections/earlier-actions.section.ts';
 import { MemoriesSection } from '../../prompt/sections/memories.section.ts';
 import { OpenWorkSection } from '../../prompt/sections/open-work.section.ts';
 import { PeersSection } from '../../prompt/sections/peers.section.ts';
 import { PinnedPostsSection } from '../../prompt/sections/pinned-posts.section.ts';
+import { TurnsService } from '../../turns.service.ts';
 import { ContextAssembler } from '../context.assembler.ts';
 
 const PROFILE: AgentProfile = {
@@ -86,6 +91,7 @@ const event = (payload: PrismaJson.TurnEventPayload, at: number): WindowEntry =>
 describe('ContextAssembler', () => {
   let contextAssembler: ContextAssembler;
   let promptRenderer: MockedInstance<PromptRenderer>;
+  let turnsService: MockedInstance<TurnsService>;
   let windowService: MockedInstance<WindowService>;
 
   beforeEach(async () => {
@@ -97,12 +103,15 @@ describe('ContextAssembler', () => {
     windowService.build.mockResolvedValue({ entries: [], oldestAt: undefined });
     const agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.displayNameOf.mockImplementation((username) => (username === 'tess' ? 'Tess Okafor' : username));
+    turnsService = MockFactory.createMock(TurnsService);
+    turnsService.findStatus.mockResolvedValue('completed');
     const moduleRef = await Test.createTestingModule({
       providers: [
         ContextAssembler,
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: PromptRenderer, useValue: promptRenderer },
         { provide: ToolRegistry, useValue: toolRegistry },
+        { provide: TurnsService, useValue: turnsService },
         { provide: WindowService, useValue: windowService }
       ]
     }).compile();
@@ -131,6 +140,36 @@ describe('ContextAssembler', () => {
       { content: expect.stringContaining('your previous turn ended here'), role: 'user' },
       { content: '[notes]\n\n## Open work', role: 'user' }
     ]);
+  });
+
+  it('should close the window saying a restart cut off the turn it ends on (§5.2, §7.3)', async () => {
+    windowService.build.mockResolvedValue({
+      entries: [event({ content: 'working on it', kind: 'assistant_message', toolCalls: [] }, 1000)],
+      oldestAt: new Date(1000)
+    });
+    turnsService.findStatus.mockResolvedValue('abandoned');
+    expect((await assemble()).messages.at(-2)).toStrictEqual({
+      content: '[a restart cut your previous turn off here]',
+      role: 'user'
+    });
+    expect(turnsService.findStatus).toHaveBeenCalledWith('turn-1');
+  });
+
+  it('should render the posts the turn answers with what this assembly took, against its window (§5.2)', async () => {
+    windowService.build.mockResolvedValue({ entries: [post('casey', 'hello @mira', 1000)], oldestAt: new Date(1000) });
+    const turnStartedAt = new Date(500);
+    const assembled = await contextAssembler.assemble({
+      answering: { postIds: ['post-0'], turnStartedAt },
+      channelId: 'channel-1',
+      profile: PROFILE,
+      takeQueued: () => Promise.resolve(['post-1000'])
+    });
+    expect(assembled.takenPostIds).toStrictEqual(['post-1000']);
+    expect(promptRenderer.renderParts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        answering: { postIds: ['post-0', 'post-1000'], turnStartedAt, windowPostIds: new Set(['post-1000']) }
+      })
+    );
   });
 
   it('should keep the cache key stable per agent and channel', async () => {
@@ -260,8 +299,14 @@ describe('ContextAssembler across two turns', () => {
     windowService.build.mockResolvedValue({ entries: firstWindow, oldestAt: new Date(1000) });
     windowService.readRecentActions.mockResolvedValue([]);
     windowService.listRecentPeople.mockResolvedValue(['casey']);
+    const conversationsService = MockFactory.createMock(ConversationsService);
+    const triggersService = MockFactory.createMock(TriggersService);
+    const turnsService = MockFactory.createMock(TurnsService);
+    turnsService.findStatus.mockResolvedValue('completed');
     const moduleRef = await Test.createTestingModule({
       providers: [
+        AnsweringSection,
+        ChannelSection,
         ContextAssembler,
         DateLineSection,
         DayFormatter,
@@ -276,6 +321,7 @@ describe('ContextAssembler across two turns', () => {
         TimeOfDayFormatter,
         { provide: AgentRegistry, useValue: agentRegistry },
         { provide: ConfigService, useValue: createConfigServiceMock() },
+        { provide: ConversationsService, useValue: conversationsService },
         { provide: MailRegistry, useValue: mailRegistry },
         { provide: MemoryService, useValue: memoryService },
         { provide: PinsService, useValue: pinsService },
@@ -284,6 +330,8 @@ describe('ContextAssembler across two turns', () => {
         { provide: SkillsService, useValue: skillsService },
         { provide: TasksService, useValue: tasksService },
         { provide: ToolRegistry, useValue: toolRegistry },
+        { provide: TriggersService, useValue: triggersService },
+        { provide: TurnsService, useValue: turnsService },
         { provide: WindowService, useValue: windowService }
       ]
     }).compile();

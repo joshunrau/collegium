@@ -148,7 +148,7 @@ class Workspace {
     agents: ReadonlyMap<string, AgentBot>
   ): Promise<WorkspaceChannel> {
     if (spec.type !== 'direct') {
-      return this.createPublicChannel(client, teamId, workspaceId, spec.name);
+      return this.createPublicChannel(client, teamId, workspaceId, spec.name, spec.displayName);
     }
     const [member, ...rest] = spec.members ?? [];
     if (member === undefined || rest.length > 0) {
@@ -165,11 +165,12 @@ class Workspace {
     client: Client4,
     teamId: string,
     workspaceId: string,
-    name: string
+    name: string,
+    displayName?: string
   ): Promise<WorkspaceChannel> {
     const channelName = toChannelName(workspaceId, name);
     const channel = await client.createChannel({
-      display_name: channelName,
+      display_name: displayName ?? channelName,
       name: channelName,
       team_id: teamId,
       type: MattermostChannelType.Open

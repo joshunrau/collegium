@@ -197,6 +197,15 @@ export class TasksService {
     await transaction.workUnit.deleteMany({ where: { channelId, createdAt: { lt: boundary.eventsAfter } } });
   }
 
+  /** §3.8 — the reference of the unit a post assigned or last moved, which tasks::read shows whole */
+  async findReferenceOfPost(postId: string): Promise<string | undefined> {
+    const unit = await this.units.findFirst({
+      select: { id: true },
+      where: { OR: [{ originPostId: postId }, { lastPostId: postId }] }
+    });
+    return unit === null ? undefined : renderReference(unit.id);
+  }
+
   /** §3.15 — the unit still assigned to this agent here whose assignment post started its turn */
   async findServedUnit(input: {
     agentUsername: string;

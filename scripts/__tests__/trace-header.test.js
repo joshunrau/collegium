@@ -20,6 +20,18 @@ describe('readTraceHeader', () => {
     expect(readTraceHeader(paris)?.startedAt).toBe('2026-09-23T19:53:12.000Z');
   });
 
+  it('should read the posts a turn answers and whether it was steered, which an older trace lacks (§5.2)', () => {
+    const answering = [...HEAD];
+    answering.splice(3, 0, 'Answering: `post-9`, `post-10`; steered.');
+    expect(readTraceHeader(answering.join('\n'))).toMatchObject({
+      answeringPostIds: ['post-9', 'post-10'],
+      steered: true
+    });
+    const header = readTraceHeader(HEAD.join('\n'));
+    expect(header?.answeringPostIds).toBeUndefined();
+    expect(header?.steered).toBeUndefined();
+  });
+
   it('should leave the start unset where its date does not parse', () => {
     const header = readTraceHeader(HEAD.join('\n').replace('September 23, 2026 at 3:53:12 PM EDT', 'yesterday'));
     expect(header?.startedAt).toBeUndefined();

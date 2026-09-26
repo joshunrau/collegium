@@ -104,9 +104,22 @@ export class ConversationsService {
   }
 
   /** one post by id, of any kind, as agent context may show it: absent once forgotten (§8.4) or where the store never took it */
-  async findUnforgotten(postId: string): Promise<Pick<ModelRow<'Post'>, 'createdAt' | 'id' | 'message'> | undefined> {
+  async findUnforgotten(
+    postId: string
+  ): Promise<
+    | Pick<ModelRow<'Post'>, 'authorKind' | 'authorUsername' | 'createdAt' | 'id' | 'kind' | 'message' | 'observedAt'>
+    | undefined
+  > {
     const post = await this.posts.findFirst({
-      select: { createdAt: true, id: true, message: true },
+      select: {
+        authorKind: true,
+        authorUsername: true,
+        createdAt: true,
+        id: true,
+        kind: true,
+        message: true,
+        observedAt: true
+      },
       where: { id: postId, isForgotten: false }
     });
     return post ?? undefined;

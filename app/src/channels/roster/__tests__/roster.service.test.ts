@@ -16,11 +16,11 @@ import { RosterService } from '../roster.service.ts';
 const profile = (username: string): AgentProfile => ({ username }) as AgentProfile;
 
 const describedChannels: { [channelId: string]: ChannelDescription } = {
-  'channel-1': { displayName: 'Main', kind: 'open', memberUsernames: ['casey', 'mira', 'tess'] },
-  'channel-2': { displayName: 'Ops', kind: 'private', memberUsernames: ['casey', 'tess'] },
-  'channel-3': { displayName: 'Leads', kind: 'private', memberUsernames: ['casey', 'jo', 'tess'] },
-  'channel-9': { displayName: 'Nine', kind: 'open', memberUsernames: ['mira'] },
-  'dm-casey-tess': { displayName: '', kind: 'direct', memberUsernames: ['casey', 'tess'] }
+  'channel-1': { displayName: 'Main', handle: 'main', kind: 'open', memberUsernames: ['casey', 'mira', 'tess'] },
+  'channel-2': { displayName: 'Ops', handle: 'ops', kind: 'private', memberUsernames: ['casey', 'tess'] },
+  'channel-3': { displayName: 'Leads', handle: 'leads', kind: 'private', memberUsernames: ['casey', 'jo', 'tess'] },
+  'channel-9': { displayName: 'Nine', handle: 'nine', kind: 'open', memberUsernames: ['mira'] },
+  'dm-casey-tess': { displayName: '', handle: '', kind: 'direct', memberUsernames: ['casey', 'tess'] }
 };
 
 const event = (overrides: Partial<ChatEvent.Membership>): ChatEvent.Membership => ({
@@ -200,6 +200,16 @@ describe('RosterService', () => {
 
     it('should reach nothing from a channel the agent is not in', () => {
       expect(rosterService.listReachableFrom('mira', 'channel-2')).toStrictEqual([]);
+    });
+
+    it('should describe where a turn runs, with a handle only for a named channel (§3.8)', () => {
+      expect(rosterService.describe('channel-1', 'tess')).toStrictEqual({ handle: 'main', kind: 'open', name: 'Main' });
+      expect(rosterService.describe('dm-casey-tess', 'tess')).toStrictEqual({
+        handle: undefined,
+        kind: 'direct',
+        name: '@casey'
+      });
+      expect(rosterService.describe('channel-404', 'tess')).toBeUndefined();
     });
   });
 

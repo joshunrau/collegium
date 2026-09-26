@@ -76,9 +76,11 @@ describe('Queue', () => {
 
     await channels.main.mention('mira', 'slow work');
     await blocked.arrived;
+    const queuedIds: string[] = [];
     for (const fragment of fragments) {
       const queued = await channels.main.mention('mira', fragment);
       await channels.main.awaitReaction(queued, QUEUED_ACKNOWLEDGEMENT_EMOJI);
+      queuedIds.push(queued.id);
     }
 
     inference.willReply({ agent: 'mira' }, textResponse(drainReply));
@@ -87,9 +89,14 @@ describe('Queue', () => {
 
     expect(inference.requestsFor('mira')).toHaveLength(3);
     const drainRequest = inference.requestsFor('mira').at(-1);
+    const window = drainRequest?.messages.filter((message) => message.content !== drainRequest.tail) ?? [];
     for (const fragment of fragments) {
-      expect(drainRequest?.messages.some((message) => message.content?.includes(fragment))).toBe(true);
+      expect(window.some((message) => message.content?.includes(fragment))).toBe(true);
     }
+    // §5.2 — the drain names every post it answers, oldest first
+    const listed = queuedIds.map((id) => drainRequest?.tail.indexOf(`post ${id},`) ?? -1);
+    expect(listed.every((index) => index > 0)).toBe(true);
+    expect(listed).toStrictEqual(listed.toSorted((left, right) => left - right));
   });
 
   it('answers a post naming the agent during its first model call in that turn, aborting the call (§4.4, §5.2)', async () => {

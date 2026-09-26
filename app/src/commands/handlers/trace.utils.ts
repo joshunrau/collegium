@@ -1,4 +1,5 @@
 import { renderToolDisplayName } from '@collegium/core/tools';
+import { uniq } from 'es-toolkit';
 import { match } from 'ts-pattern';
 
 import { renderDuration } from '@/formatting/durations/duration.utils.ts';
@@ -192,6 +193,25 @@ function renderStartedLine({ formatDate, turn }: TraceInput): string {
   return `Started: ${formatDate(turn.startedAt)}${activation}${answering}${drained}.`;
 }
 
+/**
+ * §5.2, §8.3 — every post the turn answers: its trigger and what each assembly took, batched in or
+ * folded in, in the order it came to answer them; and whether a person steered it (§7.5)
+ */
+function renderAnsweringLine({ events, turn }: TraceInput): string[] {
+  const taken = events.flatMap(({ payload }) => {
+    return payload.kind === 'posts_taken'
+      ? [...(payload.batchedFragmentIds ?? []), ...payload.postIds, ...(payload.foldedPostIds ?? [])]
+      : [];
+  });
+  const postIds = uniq([...(turn.triggeringPostId === null ? [] : [turn.triggeringPostId]), ...taken]);
+  const steered = events.some(({ payload }) => payload.kind === 'steering_received');
+  if (postIds.length === 0 && !steered) {
+    return [];
+  }
+  const posts = postIds.length === 0 ? 'no post' : postIds.map((postId) => `\`${postId}\``).join(', ');
+  return [`Answering: ${posts}${steered ? '; steered' : ''}.`];
+}
+
 /** a running turn's count is written only when it closes, and a restart closes a turn without one (§7.3) */
 function renderRanLine({ now, turn }: TraceInput): string {
   if (turn.endedAt === null) {
@@ -230,7 +250,13 @@ function renderUsageLine(turn: Turn): string {
 
 /** §8.3 — the turn's own record, which never enters the window: what started it, how long it ran, what it read and spent */
 function renderTurnRecord(trace: TraceInput): string[] {
-  return [renderStartedLine(trace), renderRanLine(trace), ...renderContextLine(trace), renderUsageLine(trace.turn)];
+  return [
+    renderStartedLine(trace),
+    ...renderAnsweringLine(trace),
+    renderRanLine(trace),
+    ...renderContextLine(trace),
+    renderUsageLine(trace.turn)
+  ];
 }
 
 /** everything the trace is rendered from: the turn's row and events, and the reader's clock and timezone */

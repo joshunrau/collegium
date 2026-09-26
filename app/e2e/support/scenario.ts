@@ -18,6 +18,8 @@ type AgentSpec = Pick<$AgentDeclaration, 'expertise'> & {
 };
 
 type ChannelSpec = {
+  /** what people see as the channel's name; its handle when omitted */
+  displayName?: string;
   /**
    * Agent usernames to add to the channel; every agent when omitted. Naming a subset is what makes
    * the §8.2 obligation testable — that backfill uses each agent's own token and therefore cannot
