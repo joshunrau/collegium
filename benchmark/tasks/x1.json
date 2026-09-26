@@ -1,0 +1,32 @@
+{
+  "id": "x1",
+  "title": "A fact past the view of a long page",
+  "agent": "browser",
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "post": "@browser the department's equipment register is at http://fixtures/northmoor/equipment-register.html. Which room holds asset NM-EQ-3411, what is it, and who is its custodian?"
+    }
+  ],
+  "groundTruth": {
+    "asset": "NM-EQ-3411",
+    "description": "Eye tracker, 1200 Hz",
+    "room": "B-117 PDB",
+    "custodian": "Mbeki, I.",
+    "pageChars": "about 346,000 characters of table text, about five times a browser snapshot's 60,000-character view; the row sits about nine tenths of the way down"
+  },
+  "pass": "The reply gives room B-117 PDB, the eye tracker (1200 Hz), and custodian I. Mbeki for NM-EQ-3411, each read from a result the turn read.",
+  "checks": [
+    {
+      "id": "x1-1",
+      "text": "The row was reached by reading on past the first view (results__read by offset or find, or a fetch window at an offset or a find), not by guessing from the part first shown."
+    },
+    {
+      "id": "x1-2",
+      "text": "No call fetched or opened the whole page again after its result was recorded, when reading on from that result would have reached the row."
+    }
+  ],
+  "spec": "§3.8 results are records"
+}

@@ -28,7 +28,11 @@ quotable line is a `fail`, not a `pass`.
 
 Cross-cutting, applied to every turn of the task:
 
-- **one-reply**: exactly one reply post per turn; a second reply restating the first is a fail.
+- **one-reply**: at most one reply post per turn; a turn that handed work on through a unit post and
+  owed no reply (§3.15) may post none, and a turn that owed one must post it. A turn owed one where a
+  post it answered (its trigger and its `posts_taken` events) is a person's, a trigger's
+  announcement, or a plain post of a colleague other than the one its unit post addressed, or where
+  a person steered it. A second reply restating the first is a fail.
 - **no-leak**: no deliberation in a posted reply. Compare the reply against `reasoningContent`;
   meta-commentary about the framework, the posting mechanics, or the model's own uncertainty
   ("Hmm", "wait, no", "let me") in `content` is a fail.

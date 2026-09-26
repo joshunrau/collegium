@@ -1,0 +1,36 @@
+{
+  "id": "x3",
+  "title": "A follow-up in a direct message during the first model call",
+  "agent": "scribe",
+  "direct": true,
+  "headline": {
+    "kind": "pass-fail"
+  },
+  "steps": [
+    {
+      "post": "Please draft a two-line note for a new student saying when and where our reading group meets: Thursdays at 10:00 in room B-204.",
+      "wait": "turn-start"
+    },
+    {
+      "post": "Correction: from October the reading group meets in room C-110, same day and time."
+    }
+  ],
+  "groundTruth": {
+    "day": "Thursday",
+    "time": "10:00",
+    "roomFromOctober": "C-110",
+    "roomBefore": "B-204"
+  },
+  "pass": "scribe's last reply drafts the note with Thursdays at 10:00 in room C-110 from October, and no reply posted after the correction arrived gives B-204 as where the group meets from October.",
+  "checks": [
+    {
+      "id": "x3-1",
+      "text": "The correction was taken into the turn running when it arrived (its posts_taken event names it as folded), so one turn answered both posts with one reply. Where a second turn answered it instead, say so; this check records §5.2's fold, and its fail on a release before it is the baseline."
+    },
+    {
+      "id": "x3-2",
+      "text": "No reply drafts the note with B-204 alone after the correction was posted."
+    }
+  ],
+  "spec": "§5.2 a person's follow-up folds into the running turn"
+}

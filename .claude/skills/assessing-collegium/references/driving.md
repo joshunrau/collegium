@@ -14,14 +14,21 @@ Provisioning creates the team, the bots, and every channel `plan.json` names, bu
 system bot in a task channel (§3.9: membership is set by people). Before a task, resolve the ids
 of its members with `POST /api/v4/users/usernames`, add yourself and each member with
 `POST /api/v4/channels/{id}/members`, and look the channel up by name under the team with
-`GET /api/v4/teams/name/bench/channels/name/{handle}`.
+`GET /api/v4/teams/name/bench/channels/name/{handle}`. A task whose channel in `plan.json` is
+`@direct` is played in the direct message between you and its agent: open it with
+`POST /api/v4/channels/direct` and the two user ids, and record its id as the task's `main`.
 
 ## Steps
 
 - **post**: `POST /api/v4/posts` in the step's channel (`main` unless the step names another).
   Then wait for the agent's status post to reach a terminal marker and for a reply post from the
   agent with no marker. A post with `expect: refusal` is followed instead by the system bot's
-  refusal post and no status post.
+  refusal post and no status post. A post with `wait: turn-start` waits only until the agent's turn
+  is running, and the next step is posted at once, while the turn's first model call runs. A turn
+  that has called no tool has no status post yet, so read the start from the store instead: a
+  `Turn` row for the agent in that channel with status `running`, in
+  `benchmark/stack/state/app/data/prod.db`, opened read-only and polled at least every 250 ms.
+  Note in the task's `notes` how long after the turn started the next post went out.
 - **approval**: wait for the prompt post (it carries `approve`, `deny`, `reason` actions). `approve`
   and `deny` are `POST /api/v4/posts/{id}/actions/{action}`. `deny-with-reason` opens a dialog and
   needs the websocket: `node benchmark/scripts/dialog.js --action reason --field reason --text "…"`.

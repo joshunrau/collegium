@@ -29,6 +29,7 @@ const tasksDir = path.join(benchmarkRoot, 'tasks');
 const stackDir = path.join(benchmarkRoot, 'stack');
 
 const MAIL_POLL_INTERVAL_MS = 15_000;
+const DIRECT_CHANNEL = '@direct';
 
 /** @param {string} message */
 function fail(message) {
@@ -155,6 +156,11 @@ for (const tier of tierNames) {
     const members = (task.members ?? [task.agent]).map((/** @type {string} */ member) => `${member}${suffix}`);
     if (members.some((member) => !agents[member])) {
       tierTasks.push({ id: task.id, skipped: `needs ${members.join(', ')}` });
+      continue;
+    }
+    // a direct message is opened by the driver between the human and the agent; nothing provisions it
+    if (task.direct) {
+      tierTasks.push({ agent: `${task.agent}${suffix}`, channels: { main: DIRECT_CHANNEL }, id: task.id, members });
       continue;
     }
     const handles = {};
