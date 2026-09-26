@@ -12,11 +12,15 @@ export type WorkUnitView = {
   readonly assigneeUsername: string;
   /** what the assignee needs to know, as the creator wrote it */
   readonly context: string;
+  /** the reference of the unit that follows this one, which carries its work on; a unit is followed once */
+  readonly continuedBy?: string;
   /** when it was assigned */
   readonly createdAt: Date;
   readonly creatorUsername: string;
   /** what the creator will judge the result by */
   readonly criteria: string;
+  /** the reference of the unit this one follows, whose work it carries on */
+  readonly follows?: string;
   readonly outcome: string;
   /** what `tasks::` tools take, the prompt lists, and `turn.workUnit` names */
   readonly reference: string;

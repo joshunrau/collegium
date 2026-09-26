@@ -37,6 +37,7 @@ import {
 } from './tasks.utils.ts';
 
 import type {
+  FollowedUnit,
   LatestChange,
   OpenUnitSummary,
   PreparedTransition,
@@ -45,6 +46,14 @@ import type {
   UnitView,
   WorkUnit
 } from './tasks.types.ts';
+
+/** a unit's row as it is created: the prepared fields, the link to the unit it follows, and its first post */
+type CreatedUnit = Omit<PreparedUnit, 'follows'> & {
+  readonly followsId: null | string;
+  readonly lastPostId: string;
+  readonly originPostId: string;
+  readonly state: 'assigned';
+};
 
 type AssignInput = {
   readonly actingAgentUsername: string;
@@ -142,31 +151,28 @@ export class TasksService {
    * The row is born pointing at its post: origin and latest are the same post until a report lands.
    * A continuation's post is also the close of the unit it follows, written with it or not at all,
    * and against that unit as it is now: one that moved since stays as it is, as a transition's does.
+   * A unit its creator closed as done earlier is only linked: its verdict gains its successor, and
+   * a second unit following it rolls back whole, since a unit is followed once.
    */
   async commitAssign(prepared: PreparedUnit, postId: string): Promise<void> {
-    const create = this.units.create({
-      data: { ...prepared, lastPostId: postId, originPostId: postId, state: 'assigned' }
-    });
-    if (prepared.followsId === null) {
-      await create;
+    const { follows, ...fields } = prepared;
+    const data: CreatedUnit = {
+      ...fields,
+      followsId: follows?.id ?? null,
+      lastPostId: postId,
+      originPostId: postId,
+      state: 'assigned'
+    };
+    if (follows === null) {
+      await this.units.create({ data });
       return;
     }
-    const [, closed] = await this.prismaService.$transaction([
-      create,
-      this.units.updateMany({
-        data: {
-          closedAt: new Date(),
-          closedByUsername: prepared.creatorUsername,
-          lastPostId: postId,
-          state: 'done',
-          verdict: renderContinuationVerdict(prepared.id)
-        },
-        where: { id: prepared.followsId, state: { in: [...ASSIGNEE_TARGETS] } }
-      })
-    ]);
-    if (closed.count === 0) {
+    const linked = follows.closes
+      ? await this.closeFollowed(data, follows, postId)
+      : await this.linkFollowed(data, follows);
+    if (!linked) {
       this.loggingService.warn(
-        `unit ${renderReference(prepared.followsId)} moved before the unit following it landed; the post stands, the row is unchanged`
+        `unit ${renderReference(follows.id)} moved before the unit following it landed; the post stands, the row is unchanged`
       );
     }
   }
@@ -262,14 +268,27 @@ export class TasksService {
     if (!found.success) {
       return null;
     }
-    const { assigneeUsername, context, createdAt, creatorUsername, criteria, id, outcome, state, updatedAt } =
-      found.value;
-    return {
+    const {
       assigneeUsername,
       context,
       createdAt,
       creatorUsername,
       criteria,
+      followsId,
+      id,
+      outcome,
+      state,
+      updatedAt
+    } = found.value;
+    const continuedBy = await this.findSuccessorReference(id);
+    return {
+      assigneeUsername,
+      context,
+      ...(continuedBy !== undefined && { continuedBy }),
+      createdAt,
+      creatorUsername,
+      criteria,
+      ...(followsId !== null && { follows: renderReference(followsId) }),
       outcome,
       reference: renderReference(id),
       state,
@@ -335,7 +354,8 @@ export class TasksService {
     const open = await this.units.count({
       where: { channelId: input.channelId, creatorUsername: input.actingAgentUsername, state: { in: [...OPEN_STATES] } }
     });
-    if (open - (followed ? 1 : 0) >= input.openUnitCap) {
+    // §3.15 — the unit a continuation closes stops counting against the cap; one closed already never counted
+    if (open - (followed?.value.closes ? 1 : 0) >= input.openUnitCap) {
       return Result.err({ cap: input.openUnitCap, kind: 'cap-reached' });
     }
     const limit = await this.atLoopLimit(input.turnId);
@@ -348,7 +368,7 @@ export class TasksService {
       context: input.context,
       creatorUsername: input.actingAgentUsername,
       criteria: input.criteria,
-      followsId: followed?.value.id ?? null,
+      follows: followed?.value ?? null,
       id: createRecordId(),
       outcome: input.outcome
     };
@@ -509,6 +529,7 @@ export class TasksService {
     }
     const unit = read.value;
     return Result.ok({
+      continuedBy: await this.findSuccessorReference(unit.id),
       counterpart: isOpenUnit(unit) ? await this.counterpartStateService.readFor(unit, input.agentUsername) : undefined,
       latestChange: await this.readLatestChange(unit),
       unit
@@ -541,14 +562,50 @@ export class TasksService {
     return undefined;
   }
 
+  /** §3.15 — creates the continuation and closes the unit it follows as done, together or not at all */
+  private async closeFollowed(
+    data: CreatedUnit,
+    follows: Extract<FollowedUnit, { closes: true }>,
+    postId: string
+  ): Promise<boolean> {
+    const [, closed] = await this.prismaService.$transaction([
+      this.units.create({ data }),
+      this.units.updateMany({
+        data: {
+          closedAt: new Date(),
+          closedByUsername: data.creatorUsername,
+          lastPostId: postId,
+          state: 'done',
+          verdict: renderContinuationVerdict(data.id, follows.stood)
+        },
+        where: { id: follows.id, state: { in: [...ASSIGNEE_TARGETS] } }
+      })
+    ]);
+    return closed.count > 0;
+  }
+
+  /** §3.15 — where a reported unit stands as a continuation closes it: in review, or blocked, and by what */
+  private async describeStanding(unit: WorkUnit): Promise<string> {
+    if (unit.state !== 'blocked') {
+      return 'in review';
+    }
+    // the framework reports a unit blocked only from a turn that ran out of context (§7.1)
+    const reportedBy = await this.conversationsService.findAuthoringTurn(unit.lastPostId);
+    return reportedBy?.status === 'context_exhausted' ? 'blocked — context exhausted' : 'blocked';
+  }
+
   /**
    * §3.15 — the unit a new one would continue: the acting agent's own, with its report in and read
    * by this turn, since the continuation closes it as done, and handed to the same assignee
    */
+  /**
+   * §3.15 — the unit a continuation follows: its creator's, to the same assignee, and either in
+   * review or blocked with its latest report read, or closed as done and followed by nothing yet
+   */
   private async findContinuable(
     input: AssignInput,
     reference: string
-  ): Promise<Result<WorkUnit, TaskFailure.ContinueRefused>> {
+  ): Promise<Result<FollowedUnit, TaskFailure.ContinueRefused>> {
     const read = await this.read(input.actingAgentUsername, input.channelId, reference);
     if (!read.success) {
       return read;
@@ -558,7 +615,7 @@ export class TasksService {
     if (unit.creatorUsername !== input.actingAgentUsername) {
       return Result.err({ creatorUsername: unit.creatorUsername, kind: 'not-the-creator' });
     }
-    if (!awaitsVerdictOnReport(unit.state)) {
+    if (unit.state === 'assigned' || unit.state === 'cancelled') {
       return Result.err({ kind: 'not-continuable', reference: resolved, state: unit.state });
     }
     if (unit.assigneeUsername !== input.assigneeUsername) {
@@ -568,10 +625,50 @@ export class TasksService {
         reference: resolved
       });
     }
+    if (unit.state === 'done') {
+      const successor = await this.units.findFirst({ select: { id: true }, where: { followsId: unit.id } });
+      return successor === null
+        ? Result.ok({ closes: false, id: unit.id })
+        : Result.err({
+            kind: 'already-continued',
+            reference: resolved,
+            successorReference: renderReference(successor.id)
+          });
+    }
     if (!this.postSightingsRegistry.hasSeen(input.turnId, unit.lastPostId)) {
       return Result.err({ kind: 'report-unread', reference: resolved });
     }
-    return Result.ok(unit);
+    return Result.ok({ closes: true, id: unit.id, stood: await this.describeStanding(unit) });
+  }
+
+  /** §3.15 — the unit that follows this one, which holds the link; a unit is followed once */
+  private async findSuccessorReference(unitId: string): Promise<string | undefined> {
+    const successor = await this.units.findFirst({ select: { id: true }, where: { followsId: unitId } });
+    return successor === null ? undefined : renderReference(successor.id);
+  }
+
+  /**
+   * §3.15 — links a unit closed as done earlier, keeping its creator's verdict and naming its
+   * successor there. The verdict is written only as it was read, so of two links racing for one
+   * unit exactly one lands, and the other writes nothing: not the link, and not its successor.
+   */
+  private linkFollowed(data: CreatedUnit, follows: FollowedUnit): Promise<boolean> {
+    return this.prismaService.$transaction(async (transaction) => {
+      const followed = await transaction.workUnit.findUnique({ where: { id: follows.id } });
+      const taken = await transaction.workUnit.count({ where: { followsId: follows.id } });
+      if (followed?.state !== 'done' || taken > 0) {
+        return false;
+      }
+      const linked = await transaction.workUnit.updateMany({
+        data: { verdict: renderContinuationVerdict(data.id, followed.verdict) },
+        where: { id: follows.id, state: 'done', verdict: followed.verdict }
+      });
+      if (linked.count === 0) {
+        return false;
+      }
+      await transaction.workUnit.create({ data });
+      return true;
+    });
   }
 
   /** the open units the agent is a party to in the channel, as creator or assignee (§3.15) */

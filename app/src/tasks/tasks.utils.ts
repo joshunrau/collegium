@@ -28,7 +28,7 @@ function renderClosedUnit(closed: TaskFailure.Closed, nameOf: PartyNamer, now: D
   return `unit ${closed.reference} is closed: ${closer}${verdict}`;
 }
 
-/** §7.2 — the references it lists are the ones Open work already showed; an id too long to be one is said to be another record's */
+/** §7.2 — the references it lists are the ones Open work already showed; a reference too long to be one is told how a unit is named */
 function renderUnresolvedUnit(failure: TaskFailure.Unresolved, wording: UnitWording): string {
   if (failure.kind === 'ambiguous') {
     return `reference "${failure.reference}" matches more than one work unit`;
@@ -37,7 +37,7 @@ function renderUnresolvedUnit(failure: TaskFailure.Unresolved, wording: UnitWord
   const open = `${wording.readerPossessive} open units here: ${openReferences.length === 0 ? 'none' : openReferences.join(', ')}`;
   const tooLong =
     reference.length > REFERENCE_LENGTH
-      ? `. A work unit is named by the ${REFERENCE_LENGTH} characters Open work lists in brackets; an id of ${reference.length} characters that matches none here is some other record's`
+      ? `. A work unit is named by the ${REFERENCE_LENGTH} characters Open work lists in brackets`
       : '';
   return `no work unit with reference "${reference}" exists for you in this channel; ${open}${tooLong}`;
 }
@@ -52,7 +52,8 @@ export const OPEN_STATES = ['assigned', 'blocked', 'review'] as const satisfies 
 
 export const LEGAL_FROM: { readonly [State in WorkUnitState]: readonly WorkUnitState[] } = {
   assigned: ['blocked', 'cancelled', 'done', 'review'],
-  blocked: ['cancelled', 'review'],
+  // §3.15 — done means not abandoned: a blocked pass may have delivered what its creator needs
+  blocked: ['cancelled', 'done', 'review'],
   cancelled: [],
   done: [],
   review: ['cancelled', 'done']
@@ -103,13 +104,14 @@ export function holdsReportTool(grants: readonly string[]): boolean {
   return grants.includes('tasks') || grants.includes('tasks::report');
 }
 
-/** §3.15 — one post both assigns a continuation and closes the unit it follows, so it says both */
+/** §3.15 — one post both assigns a continuation and closes the unit it follows, so it says both; one closed earlier it only links */
 export function renderAssignmentPost(prepared: PreparedUnit): string {
   const unit = `work unit \`${renderReference(prepared.id)}\``;
+  const { follows } = prepared;
   const heading =
-    prepared.followsId === null
+    follows === null
       ? unit
-      : `${unit} follows unit \`${renderReference(prepared.followsId)}\`, now closed as done`;
+      : `${unit} follows unit \`${renderReference(follows.id)}\`, ${follows.closes ? 'now closed as done' : 'closed as done earlier'}`;
   return [
     `@${prepared.assigneeUsername} — ${heading}`,
     `**Outcome:** ${prepared.outcome}`,
@@ -127,9 +129,13 @@ export function renderClosePost(unit: WorkUnit, to: (typeof CREATOR_TARGETS)[num
   return `Unit \`${renderReference(unit.id)}\` closed as ${to}: ${verdict}`;
 }
 
-/** §3.15 — what a continuation records as the verdict on the unit it closes: where its work went on */
-export function renderContinuationVerdict(successorId: string): string {
-  return `continued as unit ${renderReference(successorId)}`;
+/**
+ * §3.15 — what a continuation records on the unit it follows: where that unit stood when the link
+ * closed it, or the verdict its creator gave closing it earlier; then where its work went on
+ */
+export function renderContinuationVerdict(successorId: string, stoodOrVerdict: null | string): string {
+  const continued = `continued as unit ${renderReference(successorId)}`;
+  return stoodOrVerdict === null ? continued : `${stoodOrVerdict}; ${continued}`;
 }
 
 /** the agents are named by display name, not @: a mention from the system bot would start the turns this cancellation spares */
@@ -171,7 +177,7 @@ export function wordingForPerson(
  * rests on its words
  */
 export function renderUnitView(
-  { counterpart, latestChange, unit }: UnitView,
+  { continuedBy, counterpart, latestChange, unit }: UnitView,
   readerUsername: string,
   wording: UnitWording
 ): string {
@@ -179,7 +185,7 @@ export function renderUnitView(
   const readerCreated = unit.creatorUsername === readerUsername;
   const changed = latestChange.kind === 'none' ? '' : `, last changed ${wording.formatMoment(unit.updatedAt)}`;
   const record = [
-    `unit ${renderReference(unit.id)} — ${unit.state}`,
+    `unit ${renderReference(unit.id)} — ${unit.state}${continuedBy === undefined ? '' : `, continued as unit ${continuedBy}`}`,
     ...(unit.followsId === null ? [] : [`follows: unit ${renderReference(unit.followsId)}`]),
     `assigned ${wording.formatMoment(unit.createdAt)}${changed}`,
     `creator: ${wording.nameOf(unit.creatorUsername)}${readerCreated ? '' : standing}`,
@@ -261,21 +267,25 @@ export function renderTaskRefusal(failure: TaskFailure, wording: UnitWording, no
       ({ assigneeUsername, reference }) =>
         `unit ${reference} was handed to ${nameOf(assigneeUsername)} (@${assigneeUsername}), and a unit that follows it goes to them; to hand its work to someone else, close it and assign afresh without follows`
     )
-    .with({ from: 'blocked', kind: 'illegal-transition', to: 'done' }, () => {
-      return isGranted('tasks::assign')
-        ? 'a blocked unit closes only as cancelled; to go on with its work, assign the next part with tasks__assign naming it in follows, which closes it as done'
-        : 'a blocked unit closes only as cancelled';
-    })
     .with({ kind: 'illegal-transition' }, ({ from, to }) => `a unit in ${from} cannot move to ${to}`)
     .with(
-      { kind: 'not-continuable', state: 'assigned' },
-      ({ reference }) =>
-        `unit ${reference} is still assigned, with no report in: a unit follows only one in review or blocked`
+      { kind: 'already-continued' },
+      ({ reference, successorReference }) =>
+        `unit ${reference} is already continued as unit ${successorReference}; a unit is followed once`
     )
+    .with({ kind: 'not-continuable', state: 'assigned' }, ({ reference }) => {
+      // §4.5 — a tool cannot see whom the turn has addressed, so the posts it offers are offered conditionally
+      const closes = isGranted('tasks::close');
+      const fresh = closes
+        ? 'work its outcome does not cover is closed with tasks__close and assigned afresh without follows, and '
+        : '';
+      const later = closes ? '; where it has, close it now and assign the rest afresh in a later turn' : '';
+      return `unit ${reference} is still assigned, with no report in: a unit follows only one in review or blocked, or one closed as done. Unless this turn has already addressed another colleague, ${fresh}an answer within its outcome goes in a post mentioning its assignee, and the unit stays assigned${later}`;
+    })
     .with(
-      { kind: 'not-continuable' },
-      ({ reference, state }) =>
-        `unit ${reference} is closed as ${state}: a unit follows only one in review or blocked, so its work is assigned afresh, without follows`
+      { kind: 'not-continuable', state: 'cancelled' },
+      ({ reference }) =>
+        `unit ${reference} was cancelled, and a cancelled unit is not continued: its work is assigned afresh, without follows`
     )
     .with(
       { kind: 'not-the-assignee' },

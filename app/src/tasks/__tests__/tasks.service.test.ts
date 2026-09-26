@@ -80,7 +80,11 @@ describe('TasksService', () => {
         PostSightingsRegistry,
         {
           provide: PrismaService,
-          useValue: { $transaction: (operations: Promise<unknown>[]) => Promise.all(operations) }
+          useValue: {
+            $transaction: (operations: ((client: unknown) => Promise<unknown>) | Promise<unknown>[]) => {
+              return typeof operations === 'function' ? operations({ workUnit: units }) : Promise.all(operations);
+            }
+          }
         },
         { provide: RosterService, useValue: rosterService },
         {
@@ -448,6 +452,94 @@ describe('TasksService', () => {
       return unit.id.slice(0, 8);
     };
 
+    const closedDone = async () => {
+      const unit = await assign('post-1');
+      await tasksService.commitTransition({ to: 'review', unitId: unit.id }, 'post-2');
+      await tasksService.commitTransition(
+        { closedByUsername: 'mira', to: 'done', unitId: unit.id, verdict: 'the shortlist holds' },
+        'post-close'
+      );
+      return unit.id.slice(0, 8);
+    };
+
+    it('should close a unit blocked by the exhaustion report as done, once its block report is read (§3.15)', async () => {
+      const unit = await assign('post-1');
+      await tasksService.commitTransition({ to: 'blocked', unitId: unit.id }, 'post-block');
+      const close = () => {
+        return tasksService.prepareClose({
+          actingAgentUsername: 'mira',
+          channelId: 'channel-1',
+          reference: unit.id.slice(0, 8),
+          to: 'done',
+          turnId: 'turn-1',
+          verdict: 'the rows landed'
+        });
+      };
+      expect((await close()).error).toMatchObject({ kind: 'report-unread' });
+      postSightingsRegistry.recordSeen('turn-1', ['post-block']);
+      expect((await close()).success).toBe(true);
+    });
+
+    it('should link a unit closed as done once, keeping its verdict and state, inside the cap (§3.15)', async () => {
+      const followed = await closedDone();
+      const next = (await prepare({ follows: followed, openUnitCap: 1 })).unwrap();
+      const reference = next.prepared.id.slice(0, 8);
+      expect(next.text).toContain(`follows unit \`${followed}\`, closed as done earlier`);
+      await tasksService.commitAssign(next.prepared, 'post-3');
+      expect(units.rows[0]).toMatchObject({
+        lastPostId: 'post-close',
+        state: 'done',
+        verdict: `the shortlist holds; continued as unit ${reference}`
+      });
+      expect((await prepare({ follows: followed })).error).toStrictEqual({
+        kind: 'already-continued',
+        reference: followed,
+        successorReference: reference
+      });
+      expect(
+        await tasksService.findWorkUnitView({ agentUsername: 'mira', channelId: 'channel-1', reference: followed })
+      ).toMatchObject({ continuedBy: reference });
+      expect(
+        await tasksService.findWorkUnitView({ agentUsername: 'mira', channelId: 'channel-1', reference })
+      ).toMatchObject({ follows: followed });
+    });
+
+    it('should let one of two links racing for a done unit land, and the other write nothing (§3.15)', async () => {
+      const followed = await closedDone();
+      const first = (await prepare({ follows: followed })).unwrap();
+      const second = (await prepare({ follows: followed })).unwrap();
+      await tasksService.commitAssign(first.prepared, 'post-3');
+      await tasksService.commitAssign(second.prepared, 'post-4');
+      expect(units.rows.map((row) => row.originPostId)).toStrictEqual(['post-1', 'post-3']);
+      expect(loggingService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('moved before the unit following it landed')
+      );
+    });
+
+    it('should record where a unit stood when a continuation alone closes it: blocked by exhaustion (§3.15)', async () => {
+      const unit = await assign('post-1');
+      await tasksService.commitTransition({ to: 'blocked', unitId: unit.id }, 'post-block');
+      conversationsService.findAuthoringTurn.mockResolvedValue({ status: 'context_exhausted' } as never);
+      postSightingsRegistry.recordSeen('turn-1', ['post-block']);
+      const next = (await prepare({ follows: unit.id.slice(0, 8) })).unwrap();
+      await tasksService.commitAssign(next.prepared, 'post-3');
+      expect(units.rows[0]?.verdict).toBe(
+        `blocked — context exhausted; continued as unit ${next.prepared.id.slice(0, 8)}`
+      );
+    });
+
+    it('should still refuse to continue a cancelled unit (§3.15)', async () => {
+      const unit = await assign('post-1');
+      await tasksService.commitTransition(
+        { closedByUsername: 'mira', to: 'cancelled', unitId: unit.id, verdict: 'x' },
+        'p-2'
+      );
+      expect((await prepare({ follows: unit.id.slice(0, 8) })).error).toMatchObject({
+        kind: 'not-continuable',
+        state: 'cancelled'
+      });
+    });
+
     it('should close the unit it follows as done and open the next to the same assignee, in one post', async () => {
       const followed = await reported();
       postSightingsRegistry.recordSeen('turn-1', ['post-2']);
@@ -462,7 +554,7 @@ describe('TasksService', () => {
         closedByUsername: 'mira',
         lastPostId: 'post-3',
         state: 'done',
-        verdict: `continued as unit ${reference}`
+        verdict: `in review; continued as unit ${reference}`
       });
       expect(units.rows[1]).toMatchObject({ followsId: units.rows[0]?.id, originPostId: 'post-3', state: 'assigned' });
       const open = await tasksService.listOpenFor({ agentUsername: 'mira', channelId: 'channel-1' });

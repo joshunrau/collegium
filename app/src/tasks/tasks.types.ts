@@ -2,6 +2,14 @@ import type { ModelRow, WorkUnitState } from '@/prisma/prisma.types.ts';
 
 export type WorkUnit = ModelRow<'WorkUnit'>;
 
+/**
+ * §3.15 — the unit a continuation follows, and what its post does to it: closes one in review or
+ * blocked as done, recording where it stood, or links one its creator had already closed as done
+ */
+export type FollowedUnit =
+  | { readonly closes: false; readonly id: string }
+  | { readonly closes: true; readonly id: string; readonly stood: string };
+
 /** §3.15 — an assignment validated and rendered but not yet written: everything the row will hold, minus the post it waits for */
 export type PreparedUnit = {
   readonly assigneeUsername: string;
@@ -9,8 +17,8 @@ export type PreparedUnit = {
   readonly context: string;
   readonly creatorUsername: string;
   readonly criteria: string;
-  /** the unit this one continues, which the same post closes as done; null for a fresh hand-off */
-  readonly followsId: null | string;
+  /** the unit this one continues; null for a fresh hand-off */
+  readonly follows: FollowedUnit | null;
   /** minted before the post so the post can carry the reference; the row is created under this id */
   readonly id: string;
   readonly outcome: string;
@@ -95,6 +103,8 @@ export type LatestChange =
 
 /** §3.15 — what tasks::read shows: the record, where the counterpart stands while it is open, and its latest change */
 export type UnitView = {
+  /** §3.15 — the reference of the unit that follows this one, where one does */
+  readonly continuedBy: string | undefined;
   readonly counterpart: CounterpartState | undefined;
   readonly latestChange: LatestChange;
   readonly unit: WorkUnit;
@@ -132,13 +142,17 @@ export declare namespace TaskFailure {
   /** §3.15 — a close waits for the assignee's turn on the unit, and rests on the report it judges */
   type CloseRefused =
     ReportUnread | StateRefused | { assigneeUsername: string; kind: 'assignee-working'; reference: string };
-  /** §3.15 — only the creator continues a unit, once its report is in and read, and only to the same assignee */
+  /**
+   * §3.15 — only the creator continues a unit, once its report is in and read, and only to the same
+   * assignee; a unit closed as done is linked once, and a cancelled one never
+   */
   type ContinueRefused =
     | NotTheCreator
     | ReportUnread
     | Unresolved
     | { assigneeUsername: string; kind: 'follows-other-assignee'; reference: string }
-    | { kind: 'not-continuable'; reference: string; state: Exclude<WorkUnitState, 'blocked' | 'review'> };
+    | { kind: 'already-continued'; reference: string; successorReference: string }
+    | { kind: 'not-continuable'; reference: string; state: Extract<WorkUnitState, 'assigned' | 'cancelled'> };
   type AssignRefused =
     | ContinueRefused
     /** §3.15 — outside the colleagues the creator's settings declare, whom the refusal names */

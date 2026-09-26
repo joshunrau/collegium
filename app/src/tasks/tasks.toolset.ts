@@ -58,7 +58,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
   tools: {
     assign: {
       description:
-        'Hand one unit of work to a colleague in this channel: the result you need, how you will judge it, and what they need to know. The framework posts it mentioning them, which starts their turn once yours ends, and records the unit. Their report is posted mentioning you and starts your turn once theirs ends, so a work order needs no instruction to mention you. Only you can close the unit. To go on with a unit of yours in review or blocked, name it in follows: the one post closes it as done and hands this unit to the same colleague. A question to a colleague is a post, not a unit.',
+        'Hand one unit of work to a colleague in this channel: the result you need, how you will judge it, and what they need to know. The framework posts it mentioning them, which starts their turn once yours ends, and records the unit. Their report is posted mentioning you and starts your turn once theirs ends, so a work order needs no instruction to mention you. Only you can close the unit. To go on with a unit of yours, name it in follows: one in review or blocked is closed as done by the one post, with a verdict naming the unit that continues it; one you closed as done already is linked, keeping your verdict. A cancelled unit is not continued. A question to a colleague is a post, not a unit.',
       execute: async (args, context) => {
         const wording = wordingFor(context);
         const prepared = await context.tasks.prepareAssign({
@@ -81,9 +81,9 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         return Result.ok({
           post: { addressee, onPublished: (postId) => context.tasks.commitAssign(unit, postId), text },
           text:
-            unit.followsId === null
+            unit.follows === null
               ? `${assigned}; the assignment is posted, so your reply need not repeat it`
-              : `unit ${renderReference(unit.followsId)} closed as done and continued as ${assigned}; the post is in the channel, so your reply need not repeat it`
+              : `unit ${renderReference(unit.follows.id)} ${unit.follows.closes ? 'closed as done and ' : ''}continued as ${assigned}; the post is in the channel, so your reply need not repeat it`
         });
       },
       parameters: z.object({
@@ -95,7 +95,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
           .string()
           .min(1)
           .describe(
-            'What is already established: what was tried, what it produced, what has been ruled out, and anything you learned outside this channel. The assignee reads the recent history of this channel and nothing else.'
+            'What is already established: what was tried, what it produced, what has been ruled out, and anything you learned outside this channel. The assignee reads the recent history of this channel and the posts pinned in it, and nothing else.'
           ),
         criteria: z
           .string()
@@ -108,7 +108,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
           .min(1)
           .optional()
           .describe(
-            'The reference of a unit you handed to the same colleague that is in review or blocked, when this unit continues its work; you must have read its latest report. The post that assigns this unit closes that one as done.'
+            'The reference of a unit you handed to the same colleague, when this unit continues its work. One in review or blocked, whose latest report you have read, is closed as done by this post, with a verdict naming this unit. To record your own verdict first, close it done with tasks__close and then name it here. A cancelled unit is not continued.'
           ),
         outcome: z.string().min(1).describe('The result you need, stated as a result rather than as a step')
       }),
@@ -119,7 +119,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
     },
     close: {
       description:
-        'Close a unit you handed over, after reading the result: done when it meets your criteria, or when the report shows a criterion of yours could not be met from what you supplied, with that verdict; cancelled with the reason when the work will never be right. The framework posts the close, which mentions nobody. Only the creator closes a unit, and not while the assignee is still working on it or before you have read its latest report. To go on with its work under corrected criteria, call tasks__assign naming it in follows instead, which closes it as done.',
+        'Close a unit you handed over, after reading the result. Done means the pass is not abandoned: it delivered, or a unit that follows it will continue its work, and your verdict says which and what it delivered. Cancelled means the work is abandoned. A blocked unit may close either way. The framework posts the close, which addresses nobody. Only the creator closes a unit, and not while the assignee is still working on it or before you have read its latest report. To go on with the work of a unit in review or blocked, call tasks__assign naming it in follows, which closes it as done; or close it done first and then name it in follows.',
       execute: async (args, context) => {
         const wording = wordingFor(context);
         const prepared = await context.tasks.prepareClose({
@@ -137,9 +137,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         const closed = `unit ${args.reference} closed as ${args.state}; the close is posted, so your reply need not repeat it`;
         return Result.ok({
           post: { onPublished: (postId) => context.tasks.commitTransition(transition, postId), text },
-          text: leavesNoneOpen
-            ? `${closed}. You hold no other open unit in this channel; no turn of yours starts here until a post addresses you`
-            : closed
+          text: leavesNoneOpen ? `${closed}. No turn of yours starts here until a post addresses you` : closed
         });
       },
       parameters: z.object({
@@ -147,7 +145,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         state: z
           .enum(CREATOR_TARGETS)
           .describe(
-            'done when the result meets your criteria or your criterion was the defect; cancelled when the work never will'
+            'done when the pass is not abandoned: it delivered, or a unit following it continues its work; cancelled when the work is abandoned'
           ),
         verdict: z
           .string()
