@@ -11,4 +11,12 @@ describe('renderSearchPreamble', () => {
       renderSearchPreamble(buildStablePromptInput({ granted: [{ gates: false, id: ['conversations', 'search'] }] }))
     ).toContain('conversations__search finds past posts in the channels you are in.');
   });
+
+  it('should say that work-unit posts are found and framework notices are not (§3.8)', () => {
+    const preamble = renderSearchPreamble(
+      buildStablePromptInput({ granted: [{ gates: false, id: ['conversations', 'search'] }] })
+    );
+    expect(preamble).toContain('the posts that assign, report or close a work unit');
+    expect(preamble).toContain('It does not find status text, approval prompts or framework notices');
+  });
 });

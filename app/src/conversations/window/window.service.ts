@@ -39,10 +39,10 @@ type PageQuery = {
 
 /**
  * §3.8 — an agent reads its colleagues through what they said, never through their machinery: a
- * peer's status post is its trace rendered, and is left out as the agent's own is. A notice or a
- * prompt stays, being what the framework said under the peer's name.
+ * peer's status post is its trace rendered, and is left out as the agent's own is. A notice, a
+ * prompt or a work-unit post stays, being what the framework said under the peer's name.
  */
-const WINDOW_POST_KINDS: PostKind[] = ['message', 'notice', 'prompt', 'reply'];
+const WINDOW_POST_KINDS: PostKind[] = ['message', 'notice', 'prompt', 'reply', 'unit'];
 
 /** how many rows one page of the newest-first walk reads; the walk stops at the budget, so a long channel is never read whole */
 const PAGE_SIZE = 200;

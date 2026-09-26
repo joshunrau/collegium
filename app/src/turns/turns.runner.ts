@@ -1560,7 +1560,7 @@ export class TurnRunner {
     if (refusal !== undefined) {
       return { kind: 'refused', output: refusal };
     }
-    const sent = await this.publish(input, state, text, 'notice');
+    const sent = await this.publish(input, state, text, 'unit');
     if (!sent.success) {
       this.loggingService.error(new Error(`failed to publish a tool post: ${sent.error.message}`));
       return {
@@ -1856,7 +1856,7 @@ export class TurnRunner {
         this.loggingService.warn(`did not report the unit of "${input.profile.username}" blocked: ${refusal}`);
         return;
       }
-      const sent = await this.publish(input, state, text, 'notice');
+      const sent = await this.publish(input, state, text, 'unit');
       if (!sent.success) {
         this.loggingService.error(new Error(`failed to report a unit blocked: ${sent.error.message}`));
         return;

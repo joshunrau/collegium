@@ -12,7 +12,7 @@ function renderAttachmentLine(file: PrismaJson.PostAttachments['files'][number])
 }
 
 /** §5.2 — the posts a turn speaks in, the only ones that address a colleague: never its status post, nor a prompt it parks on (§4.5) */
-export const SPOKEN_POST_KINDS = ['notice', 'reply'] as const satisfies readonly PostKind[];
+export const SPOKEN_POST_KINDS = ['notice', 'reply', 'unit'] as const satisfies readonly PostKind[];
 
 export type SpokenPostKind = (typeof SPOKEN_POST_KINDS)[number];
 

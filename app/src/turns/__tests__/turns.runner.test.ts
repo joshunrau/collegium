@@ -1649,7 +1649,7 @@ describe('TurnRunner', () => {
       const onPublished = vi.fn<(postId: string) => Promise<void>>().mockImplementation(() => {
         expect(conversationsService.record).toHaveBeenCalledWith(
           expect.objectContaining({ authorKind: 'agent', message: '@owen — work unit `abcd1234`' }),
-          { kind: 'notice', turnId: 'turn-1' }
+          { kind: 'unit', turnId: 'turn-1' }
         );
         return Promise.resolve();
       });

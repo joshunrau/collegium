@@ -32,8 +32,8 @@ function renderSearchHit(hit: SearchHit, query: string): string {
 
 /** §3.8 — the bound the description states, said again where a search came back empty, since that is where it decided the result */
 const UNSEARCHABLE_KINDS_NOTE =
-  'posts the framework made under an agent’s name, work-unit assignments, reports and closes, approval prompts, ' +
-  'notices and status posts, are never matched';
+  'approval prompts, notices and status posts, which the framework made under an agent’s name, are never ' +
+  'matched; work-unit assignments, reports and closes are';
 
 /** §3.8 — each hit's source named and its text bounded, with the whole post one call away */
 export function renderSearchHits(hits: readonly SearchHit[], query: string): string {

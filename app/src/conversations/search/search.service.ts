@@ -8,12 +8,13 @@ import { EpisodesService } from '../episodes/episodes.service.ts';
 
 import type { SearchHit, SearchInput, SearchPostInput } from '../conversations.types.ts';
 
-const READABLE_KINDS = { in: ['message', 'reply'] } satisfies { in: PostKind[] };
+const READABLE_KINDS = { in: ['message', 'reply', 'unit'] } satisfies { in: PostKind[] };
 
 /**
  * §3.8 — a read over the post store bounded exactly as the window is, per channel: behind each
  * channel's own episode boundary, never a forgotten post, and never a status post, a notice or a
  * prompt — the one is the trace rendered, the others the framework speaking under the agent's name.
+ * A work-unit post is found: it is the durable record of delegation (§3.15).
  */
 @Injectable()
 export class SearchService {

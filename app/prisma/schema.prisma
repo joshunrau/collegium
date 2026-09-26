@@ -46,13 +46,15 @@ enum AuthorKind {
 }
 
 /// what a post is to the agent whose turn authored it; `message` is every post observed rather than authored,
-/// and `prompt` an approval or ask prompt the turn parked on, which addresses no colleague (§4.5)
+/// `prompt` an approval or ask prompt the turn parked on, which addresses no colleague (§4.5), and `unit` the
+/// assignment, report or close a tool published, which search finds (§3.8, §3.15)
 enum PostKind {
   message
   notice
   prompt
   reply
   status
+  unit
 }
 
 enum TriggerSource {

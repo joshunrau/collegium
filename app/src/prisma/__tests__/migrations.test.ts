@@ -10,6 +10,8 @@ const MEMORY_MIGRATION = '20260918010000_memory_last_used';
 
 const QUEUE_MIGRATION = '20260918040000_queue_last_enqueued';
 
+const UNIT_KIND_MIGRATION = '20260926120000_post_kind_unit';
+
 const migrations = () => {
   return fs
     .readdirSync(MIGRATIONS_DIR)
@@ -50,6 +52,27 @@ describe('the checked-in migrations', () => {
     });
     expect(database.prepare('SELECT "createdAt", "lastEnqueuedAt" FROM "QueueEntry"').all()).toEqual([
       { createdAt: '2026-01-02 03:04:05', lastEnqueuedAt: '2026-01-02 03:04:05' }
+    ]);
+  });
+
+  it('should mark the work-unit posts recorded as notices as unit posts, and no failure notice (§3.15)', () => {
+    const notice = (id: string, message: string) =>
+      `INSERT INTO "Post" ("id", "authorKind", "authorUsername", "channelId", "createdAt", "kind", "message") VALUES ('${id}', 'agent', 'mira', 'channel-1', '2026-01-02 03:04:05', 'notice', '${message}');`;
+    const database = migrateSeeding({
+      [UNIT_KIND_MIGRATION]: [
+        notice('assign', '@owen — work unit `abcd1234`\n\n**Outcome:** a schedule'),
+        notice('report', '@mira — unit `abcd1234` is ready for review: done'),
+        notice('blocked', '@mira — unit `abcd1234` is blocked: no access'),
+        notice('close', 'Unit `abcd1234` closed as done: checked'),
+        notice('failure', 'I ran out of room in this turn, so I stopped.')
+      ].join('\n')
+    });
+    expect(database.prepare('SELECT "id", "kind" FROM "Post" ORDER BY "id"').all()).toEqual([
+      { id: 'assign', kind: 'unit' },
+      { id: 'blocked', kind: 'unit' },
+      { id: 'close', kind: 'unit' },
+      { id: 'failure', kind: 'notice' },
+      { id: 'report', kind: 'unit' }
     ]);
   });
 });

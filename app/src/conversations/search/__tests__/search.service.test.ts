@@ -17,7 +17,7 @@ type PostRow = {
   createdAt: Date;
   id: string;
   isForgotten: boolean;
-  kind: 'message' | 'notice' | 'reply' | 'status';
+  kind: 'message' | 'notice' | 'reply' | 'status' | 'unit';
   message: string;
 };
 
@@ -99,13 +99,14 @@ describe('SearchService', () => {
     expect(hits.map((hit) => hit.id)).toStrictEqual(['post-2', 'post-3']);
   });
 
-  it('should find the agent’s own replies but never a status post or a notice', async () => {
+  it('should find the agent’s own replies and work-unit posts but never a status post or a notice (§3.8)', async () => {
     const rows = [
       post('post-1', 1000, { authorUsername: 'mira', kind: 'reply' }),
       post('post-2', 2000, { authorUsername: 'mira', kind: 'status' }),
-      post('post-3', 3000, { authorUsername: 'mira', kind: 'notice' })
+      post('post-3', 3000, { authorUsername: 'mira', kind: 'notice' }),
+      post('post-4', 4000, { authorUsername: 'mira', kind: 'unit' })
     ];
-    expect((await find(rows)).map((hit) => hit.id)).toStrictEqual(['post-1']);
+    expect((await find(rows)).map((hit) => hit.id)).toStrictEqual(['post-4', 'post-1']);
   });
 
   it('should skip forgotten posts', async () => {
@@ -141,6 +142,11 @@ describe('SearchService', () => {
   it('should read a post by id, whatever its text (§3.8)', async () => {
     const hit = await findById([post('post-1', 1000, { message: 'nothing about money' })]);
     expect(hit?.message).toBe('nothing about money');
+  });
+
+  it('should read a work-unit post by id (§3.15)', async () => {
+    const hit = await findById([post('post-1', 1000, { kind: 'unit', message: '@owen — work unit `abcd1234`' })]);
+    expect(hit?.message).toBe('@owen — work unit `abcd1234`');
   });
 
   it('should not find by id a post the search itself could not reach (§3.8)', async () => {

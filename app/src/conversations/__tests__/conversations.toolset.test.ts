@@ -112,4 +112,10 @@ describe('CONVERSATIONS_TOOLSET', () => {
     );
     expect(search.traceDetail?.({ count: 10, postId: 'post-7' })).toBe('post post-7');
   });
+
+  it('should describe work-unit posts as found and notices and status posts as not (§3.8)', () => {
+    expect(search.description).toContain('Work-unit assignments, reports and closes are found');
+    expect(search.description).toContain('approval prompts, a turn’s notices and status posts');
+    expect(search.description).not.toContain('not found here');
+  });
 });
