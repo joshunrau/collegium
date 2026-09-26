@@ -174,14 +174,13 @@ export class AsksService {
         turnId: input.turnId
       }
     });
-    const posted = await this.postPrompt(input, askId);
+    const posted = await this.pendingRegistry.completeBeforeShutdown(() => this.postAndRecordPrompt(input, askId));
     if (!posted.success) {
       // the rollback is "un-create", not "resolve": there is no prompt to rewrite and no answer to fire
       this.pendingRegistry.take(askId);
       await this.claimPending(askId, 'invalidated');
       return posted;
     }
-    await this.asks.updateMany({ data: { promptPostId: posted.value.postId }, where: { id: askId } });
     await this.rewriteIfResolvedMeanwhile(input, askId, posted.value.postId, pendingDecision);
     await input.appendEvent({
       askId,
@@ -279,7 +278,7 @@ export class AsksService {
     return Result.ok({ human: human.value, row });
   }
 
-  private async postPrompt(
+  private async postAndRecordPrompt(
     input: AskRequest,
     askId: string
   ): Promise<Result<{ postId: string }, PendingDecisionFailure.PromptUndeliverable>> {
@@ -297,6 +296,7 @@ export class AsksService {
     if (!sent.success) {
       return Result.err({ kind: 'prompt-undeliverable', message: sent.error.message });
     }
+    await this.asks.updateMany({ data: { promptPostId: sent.value.postId }, where: { id: askId } });
     // §3.7a — the turn's own prompt, as an approval's is (§3.7): left out of the agent's window, replayed through the call
     await this.conversationsService.record(
       {

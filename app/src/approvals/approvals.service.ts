@@ -162,14 +162,13 @@ export class ApprovalsService {
         turnId: input.turnId
       }
     });
-    const posted = await this.postPrompt(input, approvalId);
+    const posted = await this.pendingRegistry.completeBeforeShutdown(() => this.postAndRecordPrompt(input, approvalId));
     if (!posted.success) {
       // the rollback is "un-create", not "resolve": there is no prompt to rewrite and no decision to fire
       this.pendingRegistry.take(approvalId);
       await this.claimPending(approvalId, 'invalidated');
       return posted;
     }
-    await this.approvals.updateMany({ data: { promptPostId: posted.value.postId }, where: { id: approvalId } });
     await this.rewriteIfResolvedMeanwhile(input, approvalId, posted.value.postId, pendingDecision);
     const callId = input.callId === undefined ? {} : { callId: input.callId };
     await input.appendEvent({
@@ -301,7 +300,7 @@ export class ApprovalsService {
     return Result.ok();
   }
 
-  private async postPrompt(
+  private async postAndRecordPrompt(
     input: ApprovalRequest,
     approvalId: string
   ): Promise<Result<{ postId: string }, PendingDecisionFailure.PromptUndeliverable>> {
@@ -323,6 +322,7 @@ export class ApprovalsService {
     if (!sent.success) {
       return Result.err({ kind: 'prompt-undeliverable', message: sent.error.message });
     }
+    await this.approvals.updateMany({ data: { promptPostId: sent.value.postId }, where: { id: approvalId } });
     await this.recordPrompt(input, { createdAt: sent.value.createdAt, postId: sent.value.postId, text: prompt.text });
     return Result.ok({ postId: sent.value.postId });
   }

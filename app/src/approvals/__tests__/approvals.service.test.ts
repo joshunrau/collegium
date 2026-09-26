@@ -39,6 +39,7 @@ describe('ApprovalsService', () => {
   let conversationsService: MockedInstance<ConversationsService>;
   let events: TurnEventInput[];
   let loggingService: MockedInstance<LoggingService>;
+  let pendingRegistry: ApprovalPendingRegistry;
   let rows: ApprovalRow[];
   let transport: MockedInstance<ChatTransport>;
   let updates: { postId: string; text: string }[];
@@ -85,6 +86,7 @@ describe('ApprovalsService', () => {
       ]
     }).compile();
     approvalsService = moduleRef.get(ApprovalsService);
+    pendingRegistry = moduleRef.get(ApprovalPendingRegistry);
   });
 
   const requestInput = () => ({
@@ -113,6 +115,22 @@ describe('ApprovalsService', () => {
     });
     return { outcome };
   };
+
+  it('should hold a clean stop until a prompt being posted has its post id recorded (§7.3)', async () => {
+    const delivery = Promise.withResolvers<Awaited<ReturnType<ChatTransport['send']>>>();
+    transport.send.mockReturnValueOnce(delivery.promise);
+    void approvalsService.request(requestInput());
+    await vi.waitFor(() => expect(transport.send).toHaveBeenCalledOnce());
+    let stopped = false;
+    const stopping = pendingRegistry.beforeApplicationShutdown().then(() => {
+      stopped = true;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(stopped).toBe(false);
+    delivery.resolve(Result.ok({ createdAt: new Date(), postId: 'prompt-1' }));
+    await stopping;
+    expect(rows[0]?.promptPostId).toBe('prompt-1');
+  });
 
   it('should block until resolved, then hand the decision back and record both trace events', async () => {
     const { outcome: pending } = await request();
