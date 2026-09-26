@@ -32,6 +32,17 @@ describe('readTraceHeader', () => {
     expect(header?.steered).toBeUndefined();
   });
 
+  it('should read whether a turn that handed work on owed a reply (§3.15)', () => {
+    const owed = (line) => {
+      const trace = [...HEAD];
+      trace.splice(3, 0, line);
+      return readTraceHeader(trace.join('\n'))?.owesReply;
+    };
+    expect(owed('Answering: `post-9`; owed no reply.')).toBe(false);
+    expect(owed('Answering: `post-9`; steered; owed a reply.')).toBe(true);
+    expect(owed('Answering: `post-9`.')).toBeUndefined();
+  });
+
   it('should leave the start unset where its date does not parse', () => {
     const header = readTraceHeader(HEAD.join('\n').replace('September 23, 2026 at 3:53:12 PM EDT', 'yesterday'));
     expect(header?.startedAt).toBeUndefined();

@@ -75,6 +75,7 @@ enum TurnEventKind {
   ask_answered
   ask_requested
   assistant_message
+  ending_noted
   output_rejected
   record_written
   posts_taken

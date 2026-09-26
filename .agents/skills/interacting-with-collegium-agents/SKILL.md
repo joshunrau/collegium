@@ -37,7 +37,8 @@ A turn starts only from a post that addresses the agent, a trigger, a drain of w
 a turn, or a restart running again a turn that had no effects. After a turn stops, the framework
 starts no new turn by itself, so an agent that writes "next I will…" waits for you. Post again to
 continue it. The boot notice after a restart says which turns it queued again, names each post it
-did not, and names each unit still assigned to an agent whose abandoned turn had effects.
+did not, and names each unit still assigned to an agent whose abandoned turn had effects, and each
+unit such a turn left awaiting its creator's verdict.
 
 **Read the lane before you nudge.** A quiet channel is not an idle agent: a turn that has called no
 tool yet has no status post, and can run for minutes that way. A mention of an agent whose turn is
@@ -137,12 +138,17 @@ One turn writes three kinds of post. Confusing them wastes the most time.
   `🔐 _waiting on a decision since 14:05 EDT_` or `❓ _waiting on an answer since …_` means it is
   parked on a prompt. The framework **edits this same post** as the turn proceeds. A terminal
   marker replaces it: `✅ _done_`, or a `⚠️ _stopped — …_` line that names the failure.
-- The **reply** is a separate post with no marker. This is the agent's message to you.
+- The **reply** is a separate post with no marker. This is the agent's message to you. A turn that
+  handed work on with a work-unit post, and owed no one else a reply, may end on that unit post with
+  no reply. A turn you steered, or one answering your post, still replies to you.
 - A **prompt** is a separate post that parks the turn on a human: `🔐 **Approval required**` for a
   gated call, `❓ **Answer needed**` for `ask::human`. It carries buttons.
 
 So a poll that waits for a new post from the agent stops on the status post, not on the answer.
-Wait for a post from the agent that starts with no marker. The harness has `awaitPostUpdate` for
+Wait for a post from the agent that starts with no marker: its last reply or unit post. A turn that
+ends while a unit it owes a move on stays open names that unit on its status line (`unit … still
+awaits my verdict`, `unit … is still assigned to me`), and an exhausted one names it in its
+notice. Read those before you nudge. The harness has `awaitPostUpdate` for
 the edit case. The status post lists the tool names only. It is a summary. It is not the record.
 
 A `⏱️ _a response ran past its N-minute limit_` line means one model completion was cut at the

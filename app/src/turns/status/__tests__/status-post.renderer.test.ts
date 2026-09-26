@@ -6,12 +6,14 @@ import {
   renderAbandonedStatusPost,
   renderContextExhaustedNotice,
   renderDenialNotice,
+  renderEndingLine,
   renderExtensionPrompt,
   renderProviderOutageNotice,
   renderProviderRejectionNotice,
   renderStatusPost,
   renderSteeringLine,
   renderToolCallLine,
+  renderUnitLeftOpen,
   withViewMark
 } from '../status-post.renderer.ts';
 
@@ -189,10 +191,10 @@ describe('renderToolCallLine', () => {
 describe('renderDenialNotice', () => {
   it('should name who denied which tool, and the unit left assigned by its creator’s name alone (§7.1, §3.15)', () => {
     const denial = { byUsername: 'casey', toolName: 'workspace::write' };
-    expect(renderDenialNotice({ ...denial, unit: undefined })).toBe(
+    expect(renderDenialNotice({ ...denial, units: [] })).toBe(
       '@casey denied `workspace::write`, so I stopped. How would you like me to proceed?'
     );
-    expect(renderDenialNotice({ ...denial, unit: { creatorDisplayName: 'Owen', reference: 'ab12cd34' } })).toBe(
+    expect(renderDenialNotice({ ...denial, units: [{ creatorDisplayName: 'Owen', reference: 'ab12cd34' }] })).toBe(
       '@casey denied `workspace::write`, so I stopped. Work unit `ab12cd34` from Owen is still assigned to me. How would you like me to proceed?'
     );
   });
@@ -238,6 +240,7 @@ describe('renderProviderRejectionNotice', () => {
 
 describe('renderContextExhaustedNotice (§7.1)', () => {
   const exhausted = renderContextExhaustedNotice({
+    awaitingVerdict: [],
     cause: 'accumulated',
     ceilingTokens: 200_000,
     largest: [
@@ -256,6 +259,30 @@ describe('renderContextExhaustedNotice (§7.1)', () => {
 
   it('should address no one through a call it quotes (F53)', () => {
     expect(extractMentionedUsernames(exhausted)).toStrictEqual([]);
+  });
+
+  it('should name each report the turn answered and did not judge, not queued again (§3.15, §7.1)', () => {
+    const notice = renderContextExhaustedNotice({
+      awaitingVerdict: [{ assigneeDisplayName: 'Owen', reference: 'ab12cd34' }],
+      cause: 'accumulated',
+      ceilingTokens: 200_000,
+      largest: [],
+      promptTokens: 203_000
+    });
+    expect(notice).toMatch(/The report on unit ab12cd34 from Owen still awaits my verdict; it is not queued again\.$/u);
+  });
+});
+
+describe('renderEndingLine (§3.15, §8.1)', () => {
+  it('should say how a hand-off turn ended and name each unit it leaves open', () => {
+    const leftOpen = [renderUnitLeftOpen({ awaits: 'verdict', reference: 'ab12cd34' })];
+    expect(renderEndingLine({ ending: 'no-reply', leftOpen })).toBe(
+      'ended with no reply; unit ab12cd34 still awaits my verdict'
+    );
+    expect(renderEndingLine({ ending: 'at-ceiling', leftOpen: [] })).toBe('ended at its ceiling after its hand-off');
+    expect(
+      renderEndingLine({ ending: 'reply', leftOpen: [renderUnitLeftOpen({ awaits: 'report', reference: 'cd34ef56' })] })
+    ).toBe('ended with a reply; unit cd34ef56 is still assigned to me');
   });
 });
 

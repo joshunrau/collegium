@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { containsToolCallTranscript, lacksProse, renderUnreportedUnitRejection } from '../reply-guard.utils.ts';
+import {
+  containsToolCallTranscript,
+  lacksProse,
+  renderOwedReplyRejection,
+  renderUnreportedUnitRejection,
+  renderVerdictOwedRejection
+} from '../reply-guard.utils.ts';
 
 describe('containsToolCallTranscript', () => {
   it('should recognise the replayed call form, including a fabricated tool name', () => {
@@ -41,12 +47,44 @@ describe('lacksProse (§4.5)', () => {
 });
 
 describe('renderUnreportedUnitRejection', () => {
-  const unit = { creatorDisplayName: 'Mira', creatorUsername: 'mira', reference: 'abcd1234' };
+  const unit = { creatorDisplayName: 'Mira', creatorUsername: 'mira', others: 0, reference: 'abcd1234' };
 
   it('should offer tasks__report only to an agent granted it, and a mention either way (§3.4)', () => {
     expect(renderUnreportedUnitRejection({ ...unit, canReport: true })).toContain('report it with tasks__report');
     const unreporting = renderUnreportedUnitRejection({ ...unit, canReport: false });
     expect(unreporting).not.toContain('tasks__report');
     expect(unreporting).toContain('mention @mira in the post');
+  });
+
+  it('should count the other units still assigned beside the one it names (§3.15)', () => {
+    expect(renderUnreportedUnitRejection({ ...unit, canReport: true, others: 2 })).toContain(
+      'unit abcd1234 from Mira is still assigned to you, as are 2 more units here,'
+    );
+  });
+});
+
+describe('renderVerdictOwedRejection', () => {
+  const unit = { assigneeDisplayName: 'Owen', assigneeUsername: 'owen', others: 0, reference: 'abcd1234' };
+
+  it('should offer a continuation and a mention only where §4.5 would let their post through (§3.15)', () => {
+    const open = renderVerdictOwedRejection({ ...unit, canContinue: true, canMention: true });
+    expect(open).toContain('the report on unit abcd1234 from Owen awaits your verdict');
+    expect(open).toContain('close it with tasks__close; or continue its work with tasks__assign naming it in follows');
+    expect(open).toContain('in a post mentioning @owen');
+    const addressedElsewhere = renderVerdictOwedRejection({ ...unit, canContinue: false, canMention: false });
+    expect(addressedElsewhere).toContain('close it with tasks__close.');
+    expect(addressedElsewhere).not.toContain('follows');
+    expect(addressedElsewhere).not.toContain('@owen');
+  });
+});
+
+describe('renderOwedReplyRejection', () => {
+  it('should say why an empty ending owes a reply, answering a third colleague without an @ (§3.15, §4.5)', () => {
+    expect(renderOwedReplyRejection({ kind: 'steered' })).toBe(
+      'output rejected: an empty reply, but this turn owes one — a person steered it; answer them'
+    );
+    const colleague = renderOwedReplyRejection({ addressedUsername: 'owen', displayName: 'Tess', kind: 'colleague' });
+    expect(colleague).toContain("a post of Tess's is among those it answers; answer it here in text and without an @");
+    expect(colleague).toContain('this turn has already addressed @owen');
   });
 });

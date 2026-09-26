@@ -114,6 +114,8 @@ function renderEvent(event: ModelRow<'TurnEvent'>, results: ReadonlyMap<string, 
       .with({ kind: 'ask_answered' }, (): CompletionMessage[] => [])
       .with({ kind: 'ask_requested' }, (): CompletionMessage[] => [])
       .with({ kind: 'assistant_message' }, (payload) => renderAssistantEvent(payload, results))
+      // §3.15 — how a turn ended is its trace's and its status line's; the window has its posts
+      .with({ kind: 'ending_noted' }, (): CompletionMessage[] => [])
       // §8.3 — the model was told why and answered again; the trace alone keeps what was refused
       .with({ kind: 'output_rejected' }, (): CompletionMessage[] => [])
       // §5.2 — what a turn took from its queue is its trace's; the posts themselves are in the window

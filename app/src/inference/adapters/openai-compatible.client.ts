@@ -66,7 +66,7 @@ export class OpenAICompatibleClient extends InferenceClient {
       if (!response.value.ok) {
         return this.classifyFailure(response.value);
       }
-      return await this.readStream(response.value, idle.touch, options.onStreamed);
+      return await this.readStream(response.value, idle.touch, options);
     } finally {
       idle.clear();
     }
@@ -148,7 +148,7 @@ export class OpenAICompatibleClient extends InferenceClient {
   private async readStream(
     response: Response,
     touch: () => void,
-    onStreamed: CompletionOptions['onStreamed']
+    { acceptsEmptyText = false, onStreamed }: CompletionOptions
   ): Promise<Result<CompletionResult, InferenceFailure>> {
     if (!response.body) {
       return Result.err(MALFORMED_COMPLETION);
@@ -174,7 +174,7 @@ export class OpenAICompatibleClient extends InferenceClient {
     } catch (error) {
       return Result.err(classifyTransportError(error));
     }
-    return this.toCompletion(assembler.finish(), finished);
+    return this.toCompletion(assembler.finish(), finished, acceptsEmptyText);
   }
 
   /**
@@ -182,7 +182,11 @@ export class OpenAICompatibleClient extends InferenceClient {
    * the provider's refusal; interrupted is the provider's own failure and is retried like any other
    * transport fault; a stream that ended without saying why is a connection lost mid-body.
    */
-  private toCompletion(assembled: AssembledCompletion, finished: boolean): Result<CompletionResult, InferenceFailure> {
+  private toCompletion(
+    assembled: AssembledCompletion,
+    finished: boolean,
+    acceptsEmptyText: boolean
+  ): Result<CompletionResult, InferenceFailure> {
     if (assembled.error) {
       return this.classifyStreamError(assembled.error);
     }
@@ -210,12 +214,13 @@ export class OpenAICompatibleClient extends InferenceClient {
       .with('insufficient_system_resource', 'aborted', (reason) => {
         return Result.err({ detail: `finish_reason ${reason}`, kind: 'transport', reason: 'interrupted' });
       })
-      .otherwise(() => this.toOutput(assembled, reasoning));
+      .otherwise(() => this.toOutput(assembled, reasoning, acceptsEmptyText));
   }
 
   private toOutput(
     assembled: AssembledCompletion,
-    reasoning: CompletionReasoning
+    reasoning: CompletionReasoning,
+    acceptsEmptyText: boolean
   ): Result<CompletionResult, InferenceFailure> {
     if (assembled.toolCalls.length > 0) {
       const toolCalls: (ToolCall | UnparsedToolCall)[] = [];
@@ -240,7 +245,8 @@ export class OpenAICompatibleClient extends InferenceClient {
         ...reasoning
       } satisfies CompletionResult.ToolUse);
     }
-    if (assembled.content.trim() === '') {
+    // §3.3 — empty is the model's choice only where it was offered one and the provider says it stopped
+    if (assembled.content.trim() === '' && !(acceptsEmptyText && assembled.finishReason === 'stop')) {
       return Result.err({ kind: 'malformed', message: 'completion returned empty content' });
     }
     if (containsLeakedCall(assembled.content)) {

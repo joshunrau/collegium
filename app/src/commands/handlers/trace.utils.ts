@@ -161,6 +161,7 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload, sequence: number)
       { kind: 'output_rejected' },
       (event) => `rejected output (${event.reason}): ${event.content}${renderCompletionSuffix(event)}`
     )
+    .with({ kind: 'ending_noted' }, (event) => event.line)
     .with({ kind: 'posts_taken' }, (event) => `${renderPostsTaken(event)}${renderCompletionSuffix(event)}`)
     .with(
       { kind: 'steering_received' },
@@ -205,11 +206,18 @@ function renderAnsweringLine({ events, turn }: TraceInput): string[] {
   });
   const postIds = uniq([...(turn.triggeringPostId === null ? [] : [turn.triggeringPostId]), ...taken]);
   const steered = events.some(({ payload }) => payload.kind === 'steering_received');
-  if (postIds.length === 0 && !steered) {
+  const owedReply = events.findLast(({ payload }) => payload.kind === 'ending_noted')?.payload;
+  const owed =
+    owedReply?.kind !== 'ending_noted' || owedReply.owedReply === undefined
+      ? ''
+      : owedReply.owedReply
+        ? '; owed a reply'
+        : '; owed no reply';
+  if (postIds.length === 0 && !steered && owed === '') {
     return [];
   }
   const posts = postIds.length === 0 ? 'no post' : postIds.map((postId) => `\`${postId}\``).join(', ');
-  return [`Answering: ${posts}${steered ? '; steered' : ''}.`];
+  return [`Answering: ${posts}${steered ? '; steered' : ''}${owed}.`];
 }
 
 /** a running turn's count is written only when it closes, and a restart closes a turn without one (§7.3) */

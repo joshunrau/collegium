@@ -210,6 +210,25 @@ export class TurnsService {
     return turn?.status;
   }
 
+  /**
+   * §5.2 — the posts a turn answered, read off its record: the post that started it, then what each
+   * of its assemblies took, batched in or folded in, in the order it came to answer them
+   */
+  async listAnsweringPostIds(turnId: string): Promise<string[]> {
+    const turn = await this.turns.findUnique({ select: { triggeringPostId: true }, where: { id: turnId } });
+    const taken = await this.events.findMany({
+      orderBy: { sequence: 'asc' },
+      select: { payload: true },
+      where: { kind: 'posts_taken', turnId }
+    });
+    const postIds = taken.flatMap(({ payload }) => {
+      return payload.kind === 'posts_taken'
+        ? [...(payload.batchedFragmentIds ?? []), ...payload.postIds, ...(payload.foldedPostIds ?? [])]
+        : [];
+    });
+    return [...new Set([...(turn?.triggeringPostId ? [turn.triggeringPostId] : []), ...postIds])];
+  }
+
   /** the full §8.3 trace, in the order it happened */
   listEvents(turnId: string): Promise<ModelRow<'TurnEvent'>[]> {
     return this.events.findMany({ orderBy: { sequence: 'asc' }, where: { turnId } });

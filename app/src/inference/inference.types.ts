@@ -75,6 +75,12 @@ export type StreamedChars = {
 };
 
 export type CompletionOptions = {
+  /**
+   * §3.3 — an empty completion the provider finished with reason `stop` is the model's choice to end
+   * with no text, returned as text rather than as a malformed completion; set once a unit post of the
+   * turn has handed work to a colleague. One that ended without a reason is still a fault.
+   */
+  readonly acceptsEmptyText?: boolean;
   /** told what the stream has produced after each chunk, so a caller that cuts it off can say roughly what was spent */
   readonly onStreamed?: (streamed: StreamedChars) => void;
   /** the turn's kill, so a request whose turn is gone stops streaming rather than running to its end (§7.5) */

@@ -212,6 +212,27 @@ export class TasksService {
     return unit === null ? undefined : renderReference(unit.id);
   }
 
+  /**
+   * §3.15 — the units a creator's turn owes a verdict: its own units here whose latest report is among
+   * the posts the turn answers (§5.2) and still awaits a verdict, oldest first. Keyed on the posts the
+   * turn answers, so a report that landed mid-turn and was closed by the next turn is never one.
+   */
+  findReportsAwaitingVerdict(input: {
+    agentUsername: string;
+    answeringPostIds: readonly string[];
+    channelId: string;
+  }): Promise<WorkUnit[]> {
+    return this.units.findMany({
+      orderBy: { createdAt: 'asc' },
+      where: {
+        channelId: input.channelId,
+        creatorUsername: input.agentUsername,
+        lastPostId: { in: [...input.answeringPostIds] },
+        state: { in: [...ASSIGNEE_TARGETS] }
+      }
+    });
+  }
+
   /** §3.15 — the unit still assigned to this agent here whose assignment post started its turn */
   async findServedUnit(input: {
     agentUsername: string;
@@ -233,26 +254,34 @@ export class TasksService {
   }
 
   /**
-   * §3.15 — the unit a turn of this agent here was working, while it is still assigned: the one whose
-   * assignment post started the turn, else, where no assignment started it, the only one it holds
-   * assigned in the channel. A turn that reported its own unit worked no other; with several and
-   * none that started the turn, it does not guess which it was.
+   * §3.15 — the units a turn of this agent here was working, while they are still assigned: those
+   * whose assignment post is among the posts the turn answers (§5.2), oldest first, else, where none
+   * of those posts assigned it a unit, the only one it holds assigned in the channel. A unit the turn
+   * handed on, by assigning work to a colleague other than that unit's creator, is left out: that
+   * colleague's report returns to it. Read from the store, so a running turn and one a restart
+   * abandoned are read alike; with several units and none among its posts, it does not guess.
    */
-  async findWorkedUnit(input: {
+  async findWorkedUnits(input: {
     agentUsername: string;
+    answeringPostIds: readonly string[];
     channelId: string;
-    triggeringPostId: string | undefined;
-  }): Promise<undefined | WorkUnit> {
+    turnId: string;
+  }): Promise<WorkUnit[]> {
     const held = { assigneeUsername: input.agentUsername, channelId: input.channelId };
-    const served =
-      input.triggeringPostId === undefined
-        ? null
-        : await this.units.findFirst({ where: { ...held, originPostId: input.triggeringPostId } });
-    if (served) {
-      return served.state === 'assigned' ? served : undefined;
+    const answered = await this.units.findMany({
+      orderBy: { createdAt: 'asc' },
+      where: { ...held, originPostId: { in: [...input.answeringPostIds] } }
+    });
+    const worked =
+      answered.length > 0
+        ? answered.filter((unit) => unit.state === 'assigned')
+        : await this.units.findMany({ take: 2, where: { ...held, state: 'assigned' } });
+    const candidates = answered.length > 0 || worked.length === 1 ? worked : [];
+    if (candidates.length === 0) {
+      return [];
     }
-    const assigned = await this.units.findMany({ take: 2, where: { ...held, state: 'assigned' } });
-    return assigned.length === 1 ? assigned[0] : undefined;
+    const handedTo = await this.findAssigneesOfTurn(input.agentUsername, input.channelId, input.turnId);
+    return candidates.filter((unit) => ![...handedTo].some((assignee) => assignee !== unit.creatorUsername));
   }
 
   /** §3.14 — a unit as a plugin tool reads it, found as `read` finds one; an empty reference names none */
@@ -443,18 +472,16 @@ export class TasksService {
     });
   }
 
-  /** §3.15 — the report the framework makes for a turn that ran out of context, on the unit it was working, or nothing */
-  async prepareExhaustionReport(input: {
+  /** §3.15 — the reports the framework makes for a turn that ran out of context, one for each unit it was working */
+  async prepareExhaustionReports(input: {
     agentUsername: string;
+    answeringPostIds: readonly string[];
     cause: ContextExhaustionCause;
     channelId: string;
-    triggeringPostId: string | undefined;
-  }): Promise<Addressed<PreparedTransition> | undefined> {
-    const unit = await this.findWorkedUnit(input);
-    if (!unit) {
-      return undefined;
-    }
-    return {
+    turnId: string;
+  }): Promise<Addressed<PreparedTransition>[]> {
+    const units = await this.findWorkedUnits(input);
+    return units.map((unit) => ({
       addressee: unit.creatorUsername,
       prepared: { to: 'blocked', unitId: unit.id },
       text: renderReportPost(
@@ -462,7 +489,7 @@ export class TasksService {
         'blocked',
         `${CONTEXT_EXHAUSTED_REASONS[input.cause]}. ${CONTEXT_EXHAUSTED_FOLLOW_UP}`
       )
-    };
+    }));
   }
 
   /** §3.15 — a unit already reported is with its creator, and one closed is past reporting; either refusal names the creator */
@@ -592,6 +619,19 @@ export class TasksService {
     // the framework reports a unit blocked only from a turn that ran out of context (§7.1)
     const reportedBy = await this.conversationsService.findAuthoringTurn(unit.lastPostId);
     return reportedBy?.status === 'context_exhausted' ? 'blocked — context exhausted' : 'blocked';
+  }
+
+  /** §3.15 — the colleagues a turn handed units to, read off the assignments it posted */
+  private async findAssigneesOfTurn(agentUsername: string, channelId: string, turnId: string): Promise<Set<string>> {
+    const spoken = await this.conversationsService.listSpokenBy(turnId);
+    if (spoken.length === 0) {
+      return new Set();
+    }
+    const assigned = await this.units.findMany({
+      select: { assigneeUsername: true },
+      where: { channelId, creatorUsername: agentUsername, originPostId: { in: spoken.map(({ id }) => id) } }
+    });
+    return new Set(assigned.map(({ assigneeUsername }) => assigneeUsername));
   }
 
   /**

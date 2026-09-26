@@ -69,7 +69,7 @@ describe('TASKS_TOOLSET', () => {
     const result = await executeTool(TASKS_TOOLSET.tools.assign, ASSIGN_ARGS, context);
     expect(result.value).toMatchObject({
       post: { addressee: 'owen', text: '@owen — work unit `unit-abc`' },
-      text: 'unit unit-abc assigned to Owen, whose turn starts when this turn ends; the assignment is posted, so your reply need not repeat it'
+      text: 'unit unit-abc assigned to Owen, whose turn starts when this turn ends or waits on a person, so anything more you do first delays it; the assignment is posted'
     });
     expect(tasksService.commitAssign).not.toHaveBeenCalled();
     await result.value?.post?.onPublished('post-9');
@@ -82,7 +82,7 @@ describe('TASKS_TOOLSET', () => {
     const result = await executeTool(TASKS_TOOLSET.tools.assign, { ...ASSIGN_ARGS, follows: 'unit-xyz' }, context);
     expect(tasksService.prepareAssign).toHaveBeenCalledWith(expect.objectContaining({ follows: 'unit-xyz' }));
     expect(result.value?.text).toBe(
-      'unit unit-xyz closed as done and continued as unit unit-abc assigned to Owen, whose turn starts when this turn ends; the post is in the channel, so your reply need not repeat it'
+      'unit unit-xyz closed as done and continued as unit unit-abc assigned to Owen, whose turn starts when this turn ends or waits on a person, so anything more you do first delays it; the post is in the channel'
     );
     const linked = { ...PREPARED, follows: { closes: false, id: 'unit-xyzwvuts' } } as const;
     tasksService.prepareAssign.mockResolvedValue(Result.ok({ addressee: 'owen', prepared: linked, text: 'post' }));
@@ -146,7 +146,7 @@ describe('TASKS_TOOLSET', () => {
     expect(report.value?.post?.text).toMatch(/^@mira /);
     expect(report.value?.text).toContain('the report is posted to Mira, whose turn starts when this turn ends');
     expect(close.value?.post?.text).not.toContain('@');
-    expect(close.value?.text).toBe('unit unit-1 closed as done; the close is posted, so your reply need not repeat it');
+    expect(close.value?.text).toBe('unit unit-1 closed as done; the close is posted, and your reply ends the turn');
   });
 
   it('should say a close leaves the agent nothing open here that would start its next turn (§3.15)', async () => {

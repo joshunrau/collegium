@@ -49,6 +49,7 @@ import { LoggingService } from '@/logging/logging.service.ts';
 import { MemorySightingsRegistry } from '@/memory/sightings/memory-sightings.registry.ts';
 import type { ActivationKind, ResultPresentation, TurnStatus } from '@/prisma/prisma.types.ts';
 import { TasksService } from '@/tasks/tasks.service.ts';
+import type { WorkUnit } from '@/tasks/tasks.types.ts';
 import { ToolExecutor } from '@/tools/tools.executor.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { renderDenialTraceMark } from '@/tools/tools.renderer.ts';
@@ -68,8 +69,11 @@ import { TurnFoldRegistry } from './folding/turn-fold.registry.ts';
 import {
   containsToolCallTranscript,
   lacksProse,
+  QUIET_ENDING_CLAUSE,
   renderOverranRejection,
-  renderUnreportedUnitRejection
+  renderOwedReplyRejection,
+  renderUnreportedUnitRejection,
+  renderVerdictOwedRejection
 } from './guard/reply-guard.utils.ts';
 import { renderTurnClosedLog, renderTurnOpenedLog } from './logging/turn-log.utils.ts';
 import {
@@ -92,6 +96,7 @@ import {
   renderDeliveryFailureNotice,
   renderDenialNotice,
   renderDrainLine,
+  renderEndingLine,
   renderExtensionPrompt,
   renderFoldLine,
   renderOutputRefusedNotice,
@@ -103,6 +108,7 @@ import {
   renderSideEffectAmbiguityNotice,
   renderSteeringLine,
   renderToolCallLine,
+  renderUnitLeftOpen,
   toOutcomeTraceMark,
   withViewMark
 } from './status/status-post.renderer.ts';
@@ -114,6 +120,7 @@ import type { ApprovalContext, ApprovalRequester } from './approval-context/appr
 import type { AssembledContext } from './context/context.assembler.ts';
 import type { TurnControlHandle } from './control/turn-control.registry.ts';
 import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
+import type { OwedReply } from './guard/reply-guard.utils.ts';
 import type { StatusPostHandle, TraceLineHandle } from './status/status-post.service.ts';
 import type {
   ContextExhaustionCause,
@@ -165,6 +172,9 @@ const UNPOSTABLE_COMPLETION_REJECTIONS: {
 };
 
 /** §7.1 — a completion cut at the output limit before it wrote anything, for which "more briefly" would be false */
+/** §4.5 — a reply with nothing a person could read in it */
+const NO_PROSE_REJECTION = 'post rejected: the reply has no prose in it — write the message you mean to send';
+
 const EMPTY_TRUNCATION_REJECTION =
   'output rejected: it reached the output limit before any response or call was finished, and none of it was kept — reach your next call or your reply with less deliberation';
 
@@ -308,6 +318,8 @@ type TurnState = {
   /** §4.5 — rejected posts and unknown tool names (§7.2) since the last call that ran */
   consecutiveRejections: number;
   readonly control: TurnControlHandle;
+  /** §3.15 — whether a reply was already sent back for leaving a report it answers unjudged, which happens once */
+  creatorReminded: boolean;
   /** §5.2 — the colleague this turn has addressed since it last stopped acting, not yet started */
   deferredHandoff: DeferredHandoff | undefined;
   readonly fold: TurnFoldHandle;
@@ -318,6 +330,8 @@ type TurnState = {
   readonly newestOutputs: Map<number, string>;
   /** §7.1 — completions this turn cut at the time limit, never reset: the second ends the turn */
   overruns: number;
+  /** §3.15 — whether an empty ending after a hand-off was already sent back for a reply the turn owes, which happens once */
+  owedReplySentBack: boolean;
   /** §7.1 — what each message the turn added is, by its place, for the exhaustion notice's largest parts */
   readonly partLabels: Map<number, string>;
   /** §3.8 — the estimated size of the whole outgoing request, kept current by `pushMessage` and `replaceMessage` */
@@ -343,6 +357,8 @@ type TurnState = {
   /** §7.1 — the estimated size of the context as assembled, the first of the exhaustion notice's largest parts */
   startTokens: number;
   readonly status: StatusPostHandle;
+  /** §3.15 — whether a person's steer reached this turn, which then owes them a reply (R8) */
+  steered: boolean;
   /** §8.1 — each admitted call's status-post line, by call id, marked once the call's disposition is known */
   readonly traceHandles: Map<string, TraceLineHandle>;
   readonly transport: ChatTransport;
@@ -351,9 +367,9 @@ type TurnState = {
   unparsedCalls: number;
   /** §3.8 — the first message the model has not read yet: a result at or past it is never collapsed or cut short */
   unreadFrom: number;
-  /** §3.15 — whether a reply was already sent back for leaving the unit the turn works unreported, which happens once */
-  unreportedUnitRejected: boolean;
   usage: CompletionUsage | undefined;
+  /** §3.15 — whether a reply was already sent back for leaving a unit assigned to it unreported, which happens once */
+  workerReminded: boolean;
   /** §3.14 — the unit this turn serves as its assignee, resolved once at setup so a report mid-turn does not unname it */
   readonly workUnit: ToolTurnScope['workUnit'];
 };
@@ -462,6 +478,7 @@ export class TurnRunner {
       callTally: new Map(),
       consecutiveRejections: 0,
       control,
+      creatorReminded: false,
       deferredHandoff: undefined,
       fold: this.turnFoldRegistry.register({
         agentUsername: profile.username,
@@ -473,6 +490,7 @@ export class TurnRunner {
       messages: [],
       newestOutputs: new Map(),
       overruns: 0,
+      owedReplySentBack: false,
       partLabels: new Map(),
       promptTokens: 0,
       provider: profile.model.provider,
@@ -486,13 +504,14 @@ export class TurnRunner {
       shownResults: [],
       startTokens: 0,
       status,
+      steered: false,
       traceHandles: new Map(),
       transport: this.transportRegistry.get(profile.username),
       turn,
       unparsedCalls: 0,
       unreadFrom: 0,
-      unreportedUnitRejected: false,
       usage: undefined,
+      workerReminded: false,
       workUnit
     };
     try {
@@ -555,6 +574,7 @@ export class TurnRunner {
         ...(usage !== undefined && { usage })
       });
       usage = undefined;
+      state.steered = true;
       this.pushMessage(state, {
         content: renderAuthoredMessage(steering.byUsername, 'human', steering.text),
         role: 'user'
@@ -787,24 +807,33 @@ export class TurnRunner {
     state: TurnState,
     cause: ContextExhaustionCause
   ): Promise<TurnOutcome> {
+    // §3.15 — a finished hand-off that owes nothing ends at its ceiling as that hand-off's answer (RC2)
+    if (cause === 'accumulated' && (await this.mayEndQuietly(input, state))) {
+      return this.closeWithNoReply(input, state, { ending: 'at-ceiling' });
+    }
+    const { awaitingVerdict } = await this.findUnitsOwed(input, state).catch(() => ({ awaitingVerdict: [] }));
     await this.postNotice(
       input,
       state,
       renderContextExhaustedNotice({
+        awaitingVerdict: awaitingVerdict.map((unit) => ({
+          assigneeDisplayName: this.agentRegistry.displayNameOf(unit.assigneeUsername),
+          reference: renderReference(unit.id)
+        })),
         cause,
         ceilingTokens: input.profile.turnContextCeilingTokens,
         largest: this.largestPartsOf(state),
         promptTokens: state.promptTokens
       })
     );
-    await this.reportExhaustedUnit(input, state, cause);
+    await this.reportExhaustedUnits(input, state, cause);
     return this.writeClosingStatus(state, 'context_exhausted');
   }
 
   /**
    * §5.4 — a bare denial ends the turn, and its line, its outcome and its notice name who denied it
-   * (§8.1). The unit the turn was working stays assigned: the notice names it, and nothing reports
-   * it to its creator (§3.15).
+   * (§8.1). Each unit the turn was working stays assigned: the notice names each, and nothing
+   * reports them to their creators (§3.15).
    */
   private async closeOnDenial(
     input: RunInput,
@@ -813,21 +842,17 @@ export class TurnRunner {
     byUsername: string
   ): Promise<TurnOutcome> {
     this.markTraceLine(state, identified, renderDenialTraceMark(byUsername));
-    const unit = await this.tasksService.findWorkedUnit({
-      agentUsername: input.profile.username,
-      channelId: input.channelId,
-      triggeringPostId: input.triggeringPostId
-    });
+    const { stillAssigned } = await this.findUnitsOwed(input, state);
     await this.postNotice(
       input,
       state,
       renderDenialNotice({
         byUsername,
         toolName: identified.displayName,
-        unit: unit && {
+        units: stillAssigned.map((unit) => ({
           creatorDisplayName: this.agentRegistry.displayNameOf(unit.creatorUsername),
           reference: renderReference(unit.id)
-        }
+        }))
       })
     );
     return this.writeClosingStatus(state, 'denied', byUsername);
@@ -949,6 +974,33 @@ export class TurnRunner {
       this.loggingService.error(new Error(`failed to post final output: ${sent.error.message}`));
       return this.closeWithFailureNotice(input, state, 'delivery_failure', renderDeliveryFailureNotice());
     }
+    await this.noteEnding(input, state, 'reply');
+    return this.close(state, 'completed');
+  }
+
+  /**
+   * §3.15 — a turn whose unit post handed work on closes as completed with no reply: after an empty
+   * ending, at its ceiling, or at a second overrun. Nothing posts; the final completion, where there
+   * is one, is recorded empty, since no reply of it went out to be replayed. The status line names
+   * each unit it still owes a move on, which nothing queues again (§7.1, A4).
+   */
+  private async closeWithNoReply(
+    input: RunInput,
+    state: TurnState,
+    ending:
+      | { readonly ending: 'at-ceiling' | 'overran' }
+      | { readonly ending: 'no-reply'; readonly reasoning: CompletionReasoning; readonly report: CompletionReport }
+  ): Promise<TurnOutcome> {
+    if (ending.ending === 'no-reply') {
+      await this.turnsService.appendEvent(state.turn.id, {
+        content: '',
+        kind: 'assistant_message',
+        toolCalls: [],
+        ...ending.reasoning,
+        ...this.recordOf(state, ending.report)
+      });
+    }
+    await this.noteEnding(input, state, ending.ending);
     return this.close(state, 'completed');
   }
 
@@ -990,6 +1042,8 @@ export class TurnRunner {
         client.complete(
           { ...request, messages: state.messages },
           {
+            // §3.3 — once a unit post has handed work on, an ending with no text may be the model's choice
+            acceptsEmptyText: state.addressedPeer !== undefined,
             onStreamed: (sofar) => {
               streamed = sofar;
             },
@@ -1016,6 +1070,10 @@ export class TurnRunner {
    * user message for another try under the budget — this branch carries no tool call for a tool
    * result to reference (§4.5). Output cut at the provider's limit (§7.1) and a call the provider
    * left in the text take the same loop. The trace keeps every rejected output and why (§8.3).
+   *
+   * §3.15 — after a unit post handed work to a colleague, an ending with no prose is decided here,
+   * never by the transport: a reminder the turn can still afford, then a reply it owes, then a close
+   * with no reply, which names any unit it owes a move on that stays open.
    */
   private async concludeOrRetry(
     input: RunInput,
@@ -1024,12 +1082,23 @@ export class TurnRunner {
   ): Promise<TurnOutcome | undefined> {
     const content =
       completion.kind === 'text' ? await this.enforceChainLimits(input, state, completion.content) : completion.content;
-    let rejection =
-      completion.kind === 'text'
-        ? ((await this.rejectionOf(input, state, content)) ??
-          (await this.rejectionOfUnreportedUnit(input, state, completion.content)))
-        : this.rejectionOfUnpostable(input, completion);
     const reasoning = completion.kind === 'overran' ? {} : reasoningOf(completion);
+    const endsEmpty =
+      completion.kind === 'text' && state.addressedPeer !== undefined && (content.trim() === '' || lacksProse(content));
+    let rejection: string | undefined;
+    if (completion.kind !== 'text') {
+      rejection = this.rejectionOfUnpostable(input, completion, await this.mayEndQuietly(input, state));
+    } else if (endsEmpty) {
+      const decided = await this.decideEmptyEnding(input, state, completion.content);
+      if (decided.kind === 'close') {
+        return this.closeWithNoReply(input, state, { ending: 'no-reply', reasoning, report: completion });
+      }
+      rejection = decided.rejection;
+    } else {
+      rejection =
+        (await this.rejectionOf(input, state, content)) ??
+        (await this.rejectionOfOpenUnits(input, state, completion.content));
+    }
     if (rejection === undefined) {
       return this.closeWithFinalOutput(
         input,
@@ -1056,6 +1125,10 @@ export class TurnRunner {
     }
     // checked before the spend: the rejection that ends the turn buys nothing, so it costs nothing
     if (state.overruns >= OVERRUN_LIMIT || state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT) {
+      // §3.15 — a second overrun after a finished hand-off that owes nothing closes as that hand-off's answer
+      if (completion.kind === 'overran' && (await this.mayEndQuietly(input, state))) {
+        return this.closeWithNoReply(input, state, { ending: 'overran' });
+      }
       const notice =
         completion.kind === 'overran' ? renderOverranNotice(limitMs, state.overruns) : renderOutputRefusedNotice();
       return this.closeWithFailureNotice(input, state, 'semantic_error', notice);
@@ -1090,6 +1163,31 @@ export class TurnRunner {
       turnId: state.turn.id,
       workUnit: state.workUnit
     };
+  }
+
+  /**
+   * §3.15 — an ending with no prose after a unit post handed work to a colleague: a reminder the turn
+   * can still afford comes first, then a reply it owes, sent back once, after which §4.5's no-prose
+   * refusal and its limit apply; otherwise the turn closes with no reply
+   */
+  private async decideEmptyEnding(
+    input: RunInput,
+    state: TurnState,
+    written: string
+  ): Promise<{ readonly kind: 'close' } | { readonly kind: 'reject'; readonly rejection: string }> {
+    const reminder = await this.rejectionOfOpenUnits(input, state, written);
+    if (reminder !== undefined) {
+      return { kind: 'reject', rejection: reminder };
+    }
+    const owed = await this.findOwedReply(input, state);
+    if (owed === undefined) {
+      return { kind: 'close' };
+    }
+    if (state.owedReplySentBack) {
+      return { kind: 'reject', rejection: NO_PROSE_REJECTION };
+    }
+    state.owedReplySentBack = true;
+    return { kind: 'reject', rejection: renderOwedReplyRejection(owed) };
   }
 
   /** §7.1 — a call as its status-post line names it, in a code span so a notice quoting it addresses no one */
@@ -1241,6 +1339,58 @@ export class TurnRunner {
 
   private exceedsCeiling(input: RunInput, state: TurnState): boolean {
     return state.promptTokens > input.profile.turnContextCeilingTokens;
+  }
+
+  /**
+   * §3.15, RC1 — whom the turn owes a reply, where it owes one: a person who steered it (R8), or a
+   * post it answers (§5.2) that is neither a unit post nor the addressed colleague's own — a
+   * person's, a trigger's announcement, or another colleague's plain post
+   */
+  private async findOwedReply(input: RunInput, state: TurnState): Promise<OwedReply | undefined> {
+    if (state.steered) {
+      return { kind: 'steered' };
+    }
+    for (const postId of state.answeringPostIds) {
+      const post = await this.conversationsService.findUnforgotten(postId);
+      if (post === undefined || post.kind === 'unit' || post.authorUsername === input.profile.username) {
+        continue;
+      }
+      if (post.authorKind === 'human') {
+        return { kind: 'person' };
+      }
+      if (post.authorKind === 'system') {
+        return { kind: 'trigger' };
+      }
+      if (post.authorUsername !== state.addressedPeer) {
+        return {
+          addressedUsername: state.addressedPeer ?? '',
+          displayName: this.agentRegistry.displayNameOf(post.authorUsername),
+          kind: 'colleague'
+        };
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * §3.15 — what the turn still owes a move on: the reports it answers awaiting its verdict, and the
+   * units still assigned to it that it did not hand on. One reading, shared by the gate, the naming,
+   * both reminders and the exhaustion report, so none of them disagrees with another.
+   */
+  private async findUnitsOwed(
+    input: RunInput,
+    state: TurnState
+  ): Promise<{ readonly awaitingVerdict: WorkUnit[]; readonly stillAssigned: WorkUnit[] }> {
+    const query = {
+      agentUsername: input.profile.username,
+      answeringPostIds: state.answeringPostIds,
+      channelId: input.channelId
+    };
+    const [awaitingVerdict, stillAssigned] = await Promise.all([
+      this.tasksService.findReportsAwaitingVerdict(query),
+      this.tasksService.findWorkedUnits({ ...query, turnId: state.turn.id })
+    ]);
+    return { awaitingVerdict, stillAssigned };
   }
 
   /**
@@ -1536,6 +1686,15 @@ export class TurnRunner {
     }
   }
 
+  /** §3.15 — the one gate every close without a reply shares: a unit post handed work on, and the turn owes no one and nothing */
+  private async mayEndQuietly(input: RunInput, state: TurnState): Promise<boolean> {
+    if (state.addressedPeer === undefined || (await this.findOwedReply(input, state)) !== undefined) {
+      return false;
+    }
+    const owed = await this.findUnitsOwed(input, state);
+    return owed.awaitingVerdict.length === 0 && owed.stillAssigned.length === 0;
+  }
+
   /**
    * §4.5 — a post over the substrate's limit (§6.2) is refused, never truncated. The limit counts
    * characters as Mattermost does, by code point. Where it cannot be read, the post is attempted as
@@ -1552,6 +1711,36 @@ export class TurnRunner {
     }
     const length = Array.from(text).length;
     return length > limit.value ? { length, limit: limit.value } : undefined;
+  }
+
+  /**
+   * §3.15, §8.1 — how a completed turn ended where it handed work on or leaves a unit open, on its
+   * status line and in its trace: each unit it still owes a move on, and whether it owed a reply
+   */
+  private async noteEnding(
+    input: RunInput,
+    state: TurnState,
+    ending: 'at-ceiling' | 'no-reply' | 'overran' | 'reply'
+  ): Promise<void> {
+    const owed = await this.findUnitsOwed(input, state);
+    const leftOpen = [
+      ...owed.awaitingVerdict.map((unit) =>
+        renderUnitLeftOpen({ awaits: 'verdict', reference: renderReference(unit.id) })
+      ),
+      ...owed.stillAssigned.map((unit) => renderUnitLeftOpen({ awaits: 'report', reference: renderReference(unit.id) }))
+    ];
+    if (state.addressedPeer === undefined && leftOpen.length === 0) {
+      return;
+    }
+    const line = renderEndingLine({ ending, leftOpen });
+    if (ending !== 'reply' || leftOpen.length > 0) {
+      state.status.appendTrace({ kind: 'note', text: line });
+    }
+    await this.turnsService.appendEvent(state.turn.id, {
+      kind: 'ending_noted',
+      line,
+      ...(state.addressedPeer !== undefined && { owedReply: (await this.findOwedReply(input, state)) !== undefined })
+    });
   }
 
   /** §7.1's human-visible notices: deterministic strings posted under the agent's name (§3.2) */
@@ -1717,8 +1906,13 @@ export class TurnRunner {
     if (published?.kind === 'undelivered') {
       return published.outcome;
     }
+    if (published?.kind === 'published' && attempt.post) {
+      await attempt.post.onPublished(published.postId);
+    }
     const result: ToolAttempt.Continue =
-      published?.kind === 'refused' ? { kind: 'continue', output: published.output } : attempt;
+      published?.kind === 'refused'
+        ? { kind: 'continue', output: published.output }
+        : await this.withQuietEndingClause(input, state, attempt, published);
     const mark =
       published?.kind === 'refused'
         ? { ran: true, text: '⚠️ post refused' }
@@ -1744,9 +1938,6 @@ export class TurnRunner {
     state.recordedResults += 1;
     const view = isView ? { shownChars, totalChars: result.output.length } : undefined;
     this.markTraceLine(state, identified, withViewMark(mark, view));
-    if (published?.kind === 'published' && attempt.post) {
-      await attempt.post.onPublished(published.postId);
-    }
     if (result.disclosure) {
       await this.discloseRecord(state, result.disclosure);
     }
@@ -1831,7 +2022,7 @@ export class TurnRunner {
       return TOOL_CALL_AS_TEXT_REJECTION;
     }
     if (lacksProse(content)) {
-      return 'post rejected: the reply has no prose in it — write the message you mean to send';
+      return NO_PROSE_REJECTION;
     }
     const oversize = await this.measureAgainstPostLimit(state, content);
     if (oversize) {
@@ -1840,34 +2031,15 @@ export class TurnRunner {
     return undefined;
   }
 
-  /** §7.1, §7.2 — what a completion that never reached the post-time checks is told, saying which limit cut it and whether anything was kept */
-  private rejectionOfUnpostable(
-    input: RunInput,
-    completion: CompletionResult.LeakedCall | CompletionResult.Truncated | OverranCompletion
-  ): string {
-    return match(completion)
-      .with({ kind: 'overran' }, () => renderOverranRejection(input.profile.completionTimeLimitMs))
-      .with({ content: '', kind: 'truncated' }, () => EMPTY_TRUNCATION_REJECTION)
-      .with({ kind: 'truncated' }, { kind: 'leaked-call' }, ({ kind }) => UNPOSTABLE_COMPLETION_REJECTIONS[kind])
-      .exhaustive();
-  }
-
   /**
-   * §3.15 — a final reply that reaches nobody, while the unit this turn works is still assigned to
-   * it, ends the turn with nothing to start the creator's, so it goes back once. It is read as the
-   * model wrote it, before a loop limit strips a mention (§7.4). Not where the turn has addressed a
-   * colleague already, since that colleague's turn is the way on and a second addressee would be
-   * refused (§4.5); and never as the rejection that ends the turn or asks a person for attempts,
-   * since the reply it would cost is a valid one.
+   * §3.15 — a final reply that reaches nobody goes back once for each side of the unit work the turn
+   * still owes a move on: first a report it answers that awaits its verdict, where it may close
+   * one, then a unit still assigned to it. Each is read as the model wrote it, before a loop limit
+   * strips a mention (§7.4), and neither is the rejection that ends the turn or asks a person for
+   * attempts, since the reply it would cost is a valid one.
    */
-  private async rejectionOfUnreportedUnit(
-    input: RunInput,
-    state: TurnState,
-    written: string
-  ): Promise<string | undefined> {
+  private async rejectionOfOpenUnits(input: RunInput, state: TurnState, written: string): Promise<string | undefined> {
     if (
-      state.unreportedUnitRejected ||
-      state.addressedPeer !== undefined ||
       state.consecutiveRejections >= CONSECUTIVE_REJECTION_LIMIT ||
       state.budget.spentCount >= state.budget.limitCount ||
       this.multiMentionPolicy.addressesAnyone({
@@ -1878,21 +2050,28 @@ export class TurnRunner {
     ) {
       return undefined;
     }
-    const unit = await this.tasksService.findWorkedUnit({
-      agentUsername: input.profile.username,
-      channelId: input.channelId,
-      triggeringPostId: input.triggeringPostId
-    });
-    if (!unit) {
-      return undefined;
-    }
-    state.unreportedUnitRejected = true;
-    return renderUnreportedUnitRejection({
-      canReport: this.toolRegistry.isGranted(input.profile, 'tasks::report'),
-      creatorDisplayName: this.agentRegistry.displayNameOf(unit.creatorUsername),
-      creatorUsername: unit.creatorUsername,
-      reference: renderReference(unit.id)
-    });
+    const owed = await this.findUnitsOwed(input, state);
+    return (
+      this.remindOfVerdict(input, state, owed.awaitingVerdict) ?? this.remindOfReport(input, state, owed.stillAssigned)
+    );
+  }
+
+  /**
+   * §7.1, §7.2 — what a completion that never reached the post-time checks is told, saying which
+   * limit cut it and whether anything was kept; after a hand-off that owes nothing, that the turn
+   * may also end with no text (§3.15)
+   */
+  private rejectionOfUnpostable(
+    input: RunInput,
+    completion: CompletionResult.LeakedCall | CompletionResult.Truncated | OverranCompletion,
+    mayEndQuietly: boolean
+  ): string {
+    const quietly = mayEndQuietly ? ', or end the turn with no text' : '';
+    return match(completion)
+      .with({ kind: 'overran' }, () => renderOverranRejection(input.profile.completionTimeLimitMs, mayEndQuietly))
+      .with({ content: '', kind: 'truncated' }, () => `${EMPTY_TRUNCATION_REJECTION}${quietly}`)
+      .with({ kind: 'truncated' }, { kind: 'leaked-call' }, ({ kind }) => UNPOSTABLE_COMPLETION_REJECTIONS[kind])
+      .exhaustive();
   }
 
   /** §5.2 — takes the deferred hand-off, so a colleague a park released is not released again when the turn ends */
@@ -1904,6 +2083,51 @@ export class TurnRunner {
     }
   }
 
+  /**
+   * §3.15 — the worker side: the oldest unit still assigned to it, the rest counted; not where the
+   * turn already addressed a colleague other than that unit's creator, whose turn carries the work on
+   * and beside whom a mention of the creator would be refused (§4.5)
+   */
+  private remindOfReport(input: RunInput, state: TurnState, stillAssigned: readonly WorkUnit[]): string | undefined {
+    const [oldest] = stillAssigned;
+    if (
+      oldest === undefined ||
+      state.workerReminded ||
+      (state.addressedPeer !== undefined && state.addressedPeer !== oldest.creatorUsername)
+    ) {
+      return undefined;
+    }
+    state.workerReminded = true;
+    return renderUnreportedUnitRejection({
+      canReport: this.toolRegistry.isGranted(input.profile, 'tasks::report'),
+      creatorDisplayName: this.agentRegistry.displayNameOf(oldest.creatorUsername),
+      creatorUsername: oldest.creatorUsername,
+      others: stillAssigned.length - 1,
+      reference: renderReference(oldest.id)
+    });
+  }
+
+  /**
+   * §3.15 — the creator side: the oldest report awaiting its verdict, the rest counted, with a
+   * continuation or a mention offered only where §4.5 would let its post through
+   */
+  private remindOfVerdict(input: RunInput, state: TurnState, awaiting: readonly WorkUnit[]): string | undefined {
+    const [oldest] = awaiting;
+    if (oldest === undefined || state.creatorReminded || !this.toolRegistry.isGranted(input.profile, 'tasks::close')) {
+      return undefined;
+    }
+    state.creatorReminded = true;
+    const reachable = state.addressedPeer === undefined || state.addressedPeer === oldest.assigneeUsername;
+    return renderVerdictOwedRejection({
+      assigneeDisplayName: this.agentRegistry.displayNameOf(oldest.assigneeUsername),
+      assigneeUsername: oldest.assigneeUsername,
+      canContinue: reachable && this.toolRegistry.isGranted(input.profile, 'tasks::assign'),
+      canMention: reachable,
+      others: awaiting.length - 1,
+      reference: renderReference(oldest.id)
+    });
+  }
+
   /** §3.8 — the one door for changing a message already pushed: the estimate moves with it */
   private replaceMessage(state: TurnState, messageIndex: number, content: string): void {
     const message = state.messages[messageIndex]!;
@@ -1913,22 +2137,12 @@ export class TurnRunner {
       estimateMessageTokens(replaced, state.provider) - estimateMessageTokens(message, state.provider);
   }
 
-  /**
-   * §3.15 — the unit this turn was working goes to its creator as blocked, through the path a
-   * report takes: refused as any post is, and written only once its post has landed. Best-effort
-   * and never retried, since the turn is already closing (A4).
-   */
-  private async reportExhaustedUnit(input: RunInput, state: TurnState, cause: ContextExhaustionCause): Promise<void> {
+  private async reportExhaustedUnit(
+    input: RunInput,
+    state: TurnState,
+    report: Awaited<ReturnType<TasksService['prepareExhaustionReports']>>[number]
+  ): Promise<void> {
     try {
-      const report = await this.tasksService.prepareExhaustionReport({
-        agentUsername: input.profile.username,
-        cause,
-        channelId: input.channelId,
-        triggeringPostId: input.triggeringPostId
-      });
-      if (!report) {
-        return;
-      }
       const text = this.multiMentionPolicy.stripAgentMentionsExcept(
         { authorUsername: input.profile.username, text: report.text },
         report.addressee
@@ -1946,6 +2160,29 @@ export class TurnRunner {
       await this.tasksService.commitTransition(report.prepared, sent.value.postId);
     } catch (error) {
       this.loggingService.error(new Error('failed to report the exhausted turn’s unit blocked', { cause: error }));
+    }
+  }
+
+  /**
+   * §3.15 — each unit this turn was working goes to its creator as blocked, through the path a
+   * report takes: refused as any post is, and written only once its post has landed. Best-effort
+   * and never retried, since the turn is already closing (A4).
+   */
+  private async reportExhaustedUnits(input: RunInput, state: TurnState, cause: ContextExhaustionCause): Promise<void> {
+    const reports = await this.tasksService
+      .prepareExhaustionReports({
+        agentUsername: input.profile.username,
+        answeringPostIds: state.answeringPostIds,
+        cause,
+        channelId: input.channelId,
+        turnId: state.turn.id
+      })
+      .catch((error: unknown) => {
+        this.loggingService.error(new Error('failed to read the exhausted turn’s units', { cause: error }));
+        return [];
+      });
+    for (const report of reports) {
+      await this.reportExhaustedUnit(input, state, report);
     }
   }
 
@@ -2148,6 +2385,25 @@ export class TurnRunner {
       state.fold.stopAbsorbing();
     }
     return takes ? offered : [];
+  }
+
+  /**
+   * §3.15 — a unit post that addressed a colleague, in a turn that owes no one a reply and no unit a
+   * move, may end the turn: the runner says so on that call's result, once the post's write has
+   * landed, so it never invites an ending a reminder would then send back
+   */
+  private async withQuietEndingClause(
+    input: RunInput,
+    state: TurnState,
+    attempt: ToolAttempt.Continue,
+    published: ToolPostOutcome | undefined
+  ): Promise<ToolAttempt.Continue> {
+    if (published?.kind !== 'published' || attempt.post?.addressee === undefined) {
+      return attempt;
+    }
+    return (await this.mayEndQuietly(input, state))
+      ? { ...attempt, output: `${attempt.output}\n\n${QUIET_ENDING_CLAUSE}` }
+      : attempt;
   }
 
   /** best-effort on both writes: a close that itself fails must never leave the turn 'running' silently */

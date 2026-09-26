@@ -15,12 +15,16 @@ export type Downtime =
   | { readonly kind: 'clean'; readonly startedAt: Date; readonly stoppedAt: Date }
   | { readonly kind: 'since-last-alive'; readonly lastAliveAt: Date; readonly startedAt: Date };
 
-/** §7.3 — a unit left assigned to an agent whose turn on it the restart abandoned after it had effects */
+/**
+ * §7.3 — a unit an abandoned turn with effects left open: still assigned to the agent whose turn
+ * worked it, or awaiting the verdict of the creator whose turn was judging its report (RC8)
+ */
 export type StrandedUnit = {
   readonly assigneeUsername: string;
   readonly channelId: string;
   readonly creatorUsername: string;
   readonly reference: string;
+  readonly side: 'assignee' | 'creator';
 };
 
 export type BootReport = RestartRequeue & {

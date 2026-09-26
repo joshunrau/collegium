@@ -10,4 +10,11 @@ describe('renderRepliesPreamble', () => {
     expect(renderRepliesPreamble(reporting)).toContain('the same reply sent again is posted');
     expect(renderRepliesPreamble(buildStablePromptInput())).not.toContain('Once in a turn');
   });
+
+  it('should allow an empty ending after a unit post only to an agent that assigns or reports (§3.15)', () => {
+    const exception = 'except an empty ending after a unit post of yours has handed work to a colleague';
+    const assigning = buildStablePromptInput({ granted: [{ gates: false, id: ['tasks', 'assign'] }] });
+    expect(renderRepliesPreamble(assigning)).toContain(exception);
+    expect(renderRepliesPreamble(buildStablePromptInput())).not.toContain(exception);
+  });
 });

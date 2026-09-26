@@ -224,36 +224,63 @@ describe('TasksService', () => {
   });
 
   describe('the report the framework makes when an assignee runs out of context (§3.15)', () => {
-    const exhausted = (triggeringPostId: string) => {
-      return tasksService.prepareExhaustionReport({
+    const exhausted = (answeringPostIds: readonly string[]) => {
+      return tasksService.prepareExhaustionReports({
         agentUsername: 'owen',
+        answeringPostIds,
         cause: 'accumulated',
         channelId: 'channel-1',
-        triggeringPostId
+        turnId: 'turn-9'
       });
     };
 
-    it('should report the assignee’s only assigned unit blocked, to its creator, in fixed words', async () => {
-      const unit = await assign('post-1');
-      expect(await exhausted('post-9')).toStrictEqual({
-        addressee: 'mira',
-        prepared: { to: 'blocked', unitId: unit.id },
-        text: `@mira — unit \`${unit.id.slice(0, 8)}\` is blocked: context exhausted — the turn’s accumulated context passed its ceiling. What this turn wrote before it stopped is not shown here; check it with your own tools, or continue the unit with follows so its assignee, who sees its own calls, reports it.`
-      });
+    beforeEach(() => {
+      conversationsService.listSpokenBy.mockResolvedValue([]);
     });
 
-    it('should pick the unit whose assignment started the turn, and guess none among several', async () => {
-      await assign('post-1');
+    it('should report the assignee’s only assigned unit blocked, to its creator, in fixed words', async () => {
+      const unit = await assign('post-1');
+      expect(await exhausted(['post-9'])).toStrictEqual([
+        {
+          addressee: 'mira',
+          prepared: { to: 'blocked', unitId: unit.id },
+          text: `@mira — unit \`${unit.id.slice(0, 8)}\` is blocked: context exhausted — the turn’s accumulated context passed its ceiling. What this turn wrote before it stopped is not shown here; check it with your own tools, or continue the unit with follows so its assignee, who sees its own calls, reports it.`
+        }
+      ]);
+    });
+
+    it('should report each unit whose assignment the turn answers, and guess none among several otherwise', async () => {
+      const first = await assign('post-1');
       const second = await assign('post-2');
-      expect((await exhausted('post-2'))?.prepared.unitId).toBe(second.id);
-      expect(await exhausted('post-9')).toBeUndefined();
+      expect((await exhausted(['post-2', 'post-1'])).map(({ prepared }) => prepared.unitId)).toStrictEqual([
+        first.id,
+        second.id
+      ]);
+      expect(await exhausted(['post-9'])).toStrictEqual([]);
     });
 
     it('should report nothing for a turn that already reported its own unit, though another stays assigned', async () => {
       const served = await assign('post-1');
       await assign('post-2');
       await tasksService.commitTransition({ to: 'review', unitId: served.id }, 'post-3');
-      expect(await exhausted('post-1')).toBeUndefined();
+      expect(await exhausted(['post-1'])).toStrictEqual([]);
+    });
+
+    it('should leave out a unit the turn handed on to a colleague other than its creator (§3.15)', async () => {
+      const worked = await assign('post-1');
+      conversationsService.listSpokenBy.mockResolvedValue([
+        { id: 'post-handoff', message: '', observedAt: new Date(0) }
+      ]);
+      await units.create({
+        data: {
+          ...worked,
+          assigneeUsername: 'tess',
+          creatorUsername: 'owen',
+          id: 'unit-sub',
+          originPostId: 'post-handoff'
+        }
+      });
+      expect(await exhausted(['post-1'])).toStrictEqual([]);
     });
   });
 

@@ -62,6 +62,16 @@ type TurnEventPayloadByKind = {
     reasoningDetails?: readonly ReasoningDetail[];
     toolCalls: RecordedToolCall[];
   };
+  /**
+   * §3.15, §8.3 — how a completed turn ended where it handed work on or left a unit open: with no
+   * reply, at its ceiling or a second overrun after its hand-off, or with one; whether it owed a
+   * reply, where it handed work on; and each unit it left open, which nothing queues again
+   */
+  ending_noted: {
+    /** as the status line states it */
+    line: string;
+    owedReply?: boolean;
+  };
   /** §4.5 — a final output refused as a post: never replayed, since the model was told why and answered again (§8.3) */
   output_rejected: Omit<CompletionRecord, 'usage'> & {
     content: string;

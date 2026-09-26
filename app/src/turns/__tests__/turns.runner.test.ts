@@ -162,8 +162,9 @@ describe('TurnRunner', () => {
     inferenceRegistry.getClientForModel.mockReturnValue({ complete });
     tasksService = MockFactory.createMock(TasksService);
     tasksService.findServedUnit.mockResolvedValue(undefined);
-    tasksService.findWorkedUnit.mockResolvedValue(undefined);
-    tasksService.prepareExhaustionReport.mockResolvedValue(undefined);
+    tasksService.findReportsAwaitingVerdict.mockResolvedValue([]);
+    tasksService.findWorkedUnits.mockResolvedValue([]);
+    tasksService.prepareExhaustionReports.mockResolvedValue([]);
     multiMentionPolicy = MockFactory.createMock(MultiMentionPolicy);
     rosterService = MockFactory.createMock(RosterService);
     rosterService.describe.mockReturnValue({ handle: 'main', kind: 'open', name: 'Main' });
@@ -963,7 +964,7 @@ describe('TurnRunner', () => {
       "post rejected: unit ab12cd34 from Owen is still assigned to you, and this reply mentions no colleague here and no person, so nothing starts Owen's turn when yours ends.";
 
     beforeEach(() => {
-      tasksService.findWorkedUnit.mockResolvedValue({ creatorUsername: 'owen', id: 'ab12cd34ef56' } as WorkUnit);
+      tasksService.findWorkedUnits.mockResolvedValue([{ creatorUsername: 'owen', id: 'ab12cd34ef56' } as WorkUnit]);
     });
 
     it('should send it back once, naming the creator and the way on, then post it sent again', async () => {
@@ -1001,7 +1002,7 @@ describe('TurnRunner', () => {
     it('should post at once where the unit is no longer assigned, as once the turn has reported it', async () => {
       complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__report'])));
       toolExecutor.execute.mockImplementationOnce(() => {
-        tasksService.findWorkedUnit.mockResolvedValue(undefined);
+        tasksService.findWorkedUnits.mockResolvedValue([]);
         return Promise.resolve({ kind: 'continue', output: 'unit ab12cd34 reported review' } satisfies ToolAttempt);
       });
       complete.mockResolvedValueOnce(Result.ok(text('reported')));
@@ -1014,7 +1015,7 @@ describe('TurnRunner', () => {
   it('should post at once a reply reaching nobody from an agent holding no assigned unit (§3.15)', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('all done')));
     await run();
-    expect(tasksService.findWorkedUnit).toHaveBeenCalledOnce();
+    expect(complete).toHaveBeenCalledOnce();
     expect(sends.map((send) => send.text)).toStrictEqual(['all done']);
   });
 
@@ -1333,14 +1334,14 @@ describe('TurnRunner', () => {
       kind: 'terminal',
       status: 'denied'
     } satisfies ToolAttempt);
-    tasksService.findWorkedUnit.mockResolvedValue({ creatorUsername: 'owen', id: 'ab12cd34ef56' } as WorkUnit);
+    tasksService.findWorkedUnits.mockResolvedValue([{ creatorUsername: 'owen', id: 'ab12cd34ef56' } as WorkUnit]);
     await run();
     expect(statusHandle.markTrace).toHaveBeenCalledWith(0, { ran: false, text: '🛑 denied by @casey' });
     expect(statusHandle.close).toHaveBeenCalledWith('denied', 'casey');
     expect(sends.at(-1)?.text).toBe(
       '@casey denied `fixture::gated`, so I stopped. Work unit `ab12cd34` from Owen is still assigned to me. How would you like me to proceed?'
     );
-    expect(tasksService.prepareExhaustionReport).not.toHaveBeenCalled();
+    expect(tasksService.prepareExhaustionReports).not.toHaveBeenCalled();
   });
 
   it('should close as stopped at the next boundary after /stop, posting nothing further', async () => {
@@ -1614,11 +1615,13 @@ describe('TurnRunner', () => {
   });
 
   it('should report the unit it was working blocked, to its creator, after its own notice (§3.15)', async () => {
-    tasksService.prepareExhaustionReport.mockResolvedValue({
-      addressee: 'sam',
-      prepared: { to: 'blocked', unitId: 'unit-1' },
-      text: '@sam — unit `unit-1` is blocked: context exhausted'
-    });
+    tasksService.prepareExhaustionReports.mockResolvedValue([
+      {
+        addressee: 'sam',
+        prepared: { to: 'blocked', unitId: 'unit-1' },
+        text: '@sam — unit `unit-1` is blocked: context exhausted'
+      }
+    ]);
     complete.mockResolvedValueOnce(Result.err({ kind: 'context-overflow' } satisfies InferenceFailure.ContextOverflow));
     await run();
     expect(sends.map((send) => send.text)).toStrictEqual([
@@ -2116,6 +2119,33 @@ describe('TurnRunner', () => {
       );
     });
 
+    it('should close at a second overrun after a hand-off that owes nothing, offering the quiet ending (§3.15)', async () => {
+      conversationsService.findUnforgotten.mockResolvedValue({
+        authorKind: 'agent',
+        authorUsername: 'owen',
+        createdAt: new Date(0),
+        id: 'post-0',
+        kind: 'message',
+        message: 'the post',
+        observedAt: new Date(0)
+      });
+      multiMentionPolicy.findAddressee.mockReturnValue('owen');
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__report'])));
+      toolExecutor.execute.mockResolvedValueOnce({
+        kind: 'continue',
+        output: 'unit abcd1234 reported review',
+        post: { addressee: 'owen', onPublished: () => Promise.resolve(), text: '@owen — unit `abcd1234` is ready' }
+      });
+      complete.mockImplementationOnce(settlesOnAbort(ABORTED));
+      complete.mockImplementationOnce(settlesOnAbort(ABORTED));
+      const outcome = await runLimited(2);
+      expect(outcome.status).toBe('completed');
+      expect(complete.mock.calls[2]![0].messages.at(-1)?.content).toBe(
+        `${OVERRAN_REJECTION}, or end the turn with no text`
+      );
+      expect(statusHandle.appendTrace).toHaveBeenCalledWith({ kind: 'note', text: 'ended after its hand-off' });
+    });
+
     it('should keep a completion that settled in the tick its deadline fired', async () => {
       complete.mockImplementationOnce(settlesOnAbort(Result.ok(text('made it'))));
       const outcome = await runLimited(1);
@@ -2589,5 +2619,177 @@ describe('TurnRunner', () => {
     ).unwrap();
     expect(outcome.status).toBe('completed');
     expect(sends.map((send) => send.text)).toStrictEqual(['nothing to delegate']);
+  });
+
+  describe('how a turn ends after it hands work on (§3.15)', () => {
+    const REPORT: ToolAttempt = {
+      kind: 'continue',
+      output: 'unit abcd1234 reported review',
+      post: {
+        addressee: 'owen',
+        onPublished: () => Promise.resolve(),
+        text: '@owen — unit `abcd1234` is ready for review: done'
+      }
+    };
+    const stored = (
+      authorKind: 'agent' | 'human' | 'system',
+      authorUsername: string,
+      kind: 'message' | 'unit' = 'message'
+    ) => ({
+      authorKind,
+      authorUsername,
+      createdAt: new Date(0),
+      id: 'post-0',
+      kind,
+      message: 'the post',
+      observedAt: new Date(0)
+    });
+    const unit = (overrides: Partial<WorkUnit>) => {
+      return { assigneeUsername: 'owen', creatorUsername: 'mira', id: 'ef56ab12cd34', ...overrides } as WorkUnit;
+    };
+
+    const handingOff = (...endings: string[]) => {
+      multiMentionPolicy.findAddressee.mockImplementation(({ message }) =>
+        message.includes('@owen') ? 'owen' : undefined
+      );
+      complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__report'])));
+      toolExecutor.execute.mockResolvedValueOnce(REPORT);
+      for (const ending of endings) {
+        complete.mockResolvedValueOnce(Result.ok(text(ending)));
+      }
+    };
+
+    const answering = async (triggeringPostId = 'post-0') => {
+      const outcome = await turnRunner.run({
+        activationKind: 'handoff',
+        chainLength: 2,
+        channelId: 'channel-1',
+        depth: 1,
+        profile: PROFILE,
+        releaseDeferredHandoff,
+        rootPostId: 'post-root',
+        triggeringPostId
+      });
+      return outcome.unwrap();
+    };
+
+    it.each(['', '—'])('should end with no reply after a report that owes nothing, ending %j', async (ending) => {
+      conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen'));
+      handingOff(ending);
+      const outcome = await answering();
+      expect(outcome.status).toBe('completed');
+      expect(sends.map((send) => send.text)).toStrictEqual(['@owen — unit `abcd1234` is ready for review: done']);
+      expect(complete.mock.calls[1]![1]).toMatchObject({ acceptsEmptyText: true });
+      expect(complete.mock.calls[0]![1]).toMatchObject({ acceptsEmptyText: false });
+      expect(statusHandle.appendTrace).toHaveBeenCalledWith({ kind: 'note', text: 'ended with no reply' });
+      expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
+        kind: 'ending_noted',
+        line: 'ended with no reply',
+        owedReply: false
+      });
+    });
+
+    it('should tell the model on the report’s result that it may end with no text, as the runner’s words (§3.15)', async () => {
+      conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen'));
+      handingOff('');
+      await answering();
+      expect(complete.mock.calls[1]![0].messages.at(-1)?.content).toContain(
+        'unit abcd1234 reported review\n\nIf nothing remains to say to anyone here, end the turn with no text'
+      );
+    });
+
+    it.each([
+      ["a person's post", stored('human', 'casey'), "a person's post is among those it answers; answer them"],
+      ['a trigger', stored('system', 'collegium'), "a trigger's announcement is among those it answers"],
+      [
+        'a third colleague',
+        stored('agent', 'tess'),
+        "a post of Tess's is among those it answers; answer it here in text and without an @"
+      ]
+    ])('should send back once an empty ending that owes %s a reply (RC1)', async (_case, post, why) => {
+      conversationsService.findUnforgotten.mockResolvedValue(post);
+      handingOff('', 'answered in words');
+      const outcome = await answering();
+      expect(outcome.status).toBe('completed');
+      expect(complete.mock.calls[2]![0].messages.at(-1)?.content).toContain(why);
+      expect(sends.at(-1)?.text).toBe('answered in words');
+    });
+
+    it('should owe a person a reply once they steer the turn, even after the report offered the quiet ending (R8)', async () => {
+      conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen'));
+      handingOff();
+      complete.mockImplementationOnce(() => {
+        turnControlRegistry.steer('channel-1', undefined, { byUsername: 'casey', text: 'and tell me when done' });
+        return Promise.resolve(Result.ok(text('')));
+      });
+      complete.mockResolvedValueOnce(Result.ok(text('')));
+      complete.mockResolvedValueOnce(Result.ok(text('done, casey')));
+      await answering();
+      expect(complete.mock.calls.at(-1)![0].messages.at(-1)?.content).toContain('a person steered it; answer them');
+    });
+
+    it('should remind a creator of the report it answers, then close naming it, without reposting (§3.15, recheck-1 issue 1)', async () => {
+      conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen', 'unit'));
+      tasksService.findReportsAwaitingVerdict.mockResolvedValue([unit({ lastPostId: 'post-0' })]);
+      toolRegistry.isGranted.mockReturnValue(true);
+      handingOff('', '');
+      const outcome = await answering();
+      expect(outcome.status).toBe('completed');
+      const reminder = complete.mock.calls[2]![0].messages.at(-1)?.content ?? '';
+      expect(reminder).toContain('the report on unit ef56ab12 from Owen awaits your verdict');
+      expect(reminder).toContain('tasks__close');
+      expect(reminder).toContain('follows');
+      expect(statusHandle.appendTrace).toHaveBeenCalledWith({
+        kind: 'note',
+        text: 'ended with no reply; unit ef56ab12 still awaits my verdict'
+      });
+      expect(sends).toHaveLength(1);
+    });
+
+    it('should post a creator’s second reply to nobody and name the report it leaves unjudged (recheck-2 issue 6)', async () => {
+      conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen', 'unit'));
+      tasksService.findReportsAwaitingVerdict.mockResolvedValue([unit({})]);
+      toolRegistry.isGranted.mockReturnValue(true);
+      complete.mockResolvedValueOnce(Result.ok(text('noted')));
+      complete.mockResolvedValueOnce(Result.ok(text('noted')));
+      await answering();
+      expect(sends.map((send) => send.text)).toStrictEqual(['noted']);
+      expect(statusHandle.appendTrace).toHaveBeenCalledWith({
+        kind: 'note',
+        text: 'ended with a reply; unit ef56ab12 still awaits my verdict'
+      });
+    });
+
+    it('should offer a creator no continuation or mention where the turn addressed another colleague (recheck-2 issue 2)', async () => {
+      conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen', 'unit'));
+      tasksService.findReportsAwaitingVerdict.mockResolvedValue([unit({ assigneeUsername: 'tess' })]);
+      toolRegistry.isGranted.mockReturnValue(true);
+      handingOff('', '');
+      await answering();
+      const reminder = complete.mock.calls[2]![0].messages.at(-1)?.content ?? '';
+      expect(reminder).toContain('close it with tasks__close.');
+      expect(reminder).not.toContain('follows');
+    });
+
+    it('should close at its ceiling after a hand-off that owes nothing, and end exhausted where a verdict is owed (RC2)', async () => {
+      conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen', 'unit'));
+      handingOff();
+      complete.mockResolvedValueOnce(
+        Result.err({ kind: 'context-overflow' } satisfies InferenceFailure.ContextOverflow)
+      );
+      expect((await answering()).status).toBe('completed');
+      expect(statusHandle.appendTrace).toHaveBeenCalledWith({
+        kind: 'note',
+        text: 'ended at its ceiling after its hand-off'
+      });
+      expect(sends).toHaveLength(1);
+      tasksService.findReportsAwaitingVerdict.mockResolvedValue([unit({})]);
+      handingOff();
+      complete.mockResolvedValueOnce(
+        Result.err({ kind: 'context-overflow' } satisfies InferenceFailure.ContextOverflow)
+      );
+      expect((await answering()).status).toBe('context_exhausted');
+      expect(sends.at(-1)?.text).toContain('ef56ab12');
+    });
   });
 });

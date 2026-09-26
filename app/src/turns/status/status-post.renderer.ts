@@ -74,6 +74,27 @@ function renderApproximateTokens(tokens: number): string {
   return COUNT_FORMAT.format(Math.round(tokens / step) * step);
 }
 
+function renderExhaustionCause(input: {
+  readonly cause: ContextExhaustionCause;
+  readonly ceilingTokens: number;
+  readonly largest: readonly { readonly label: string; readonly tokens: number }[];
+  readonly promptTokens: number;
+}): string {
+  const held = `about ${renderApproximateTokens(input.promptTokens)} tokens`;
+  const ceiling = COUNT_FORMAT.format(input.ceilingTokens);
+  return match(input.cause)
+    .with('accumulated', () => {
+      const parts = input.largest
+        .map(({ label, tokens }) => `${label}, about ${renderApproximateTokens(tokens)}`)
+        .join('; ');
+      return `I ran out of room in my context part-way through this turn and stopped: it held ${held} against my ceiling of ${ceiling}, with every result I had read reduced to its line. The largest parts: ${parts}. What I did so far is in the trace.`;
+    })
+    .with('initial', () => {
+      return `My starting context does not fit my turn ceiling: ${held} against ${ceiling}. This is a configuration problem — my context budget against my turn ceiling — not something I can work around.`;
+    })
+    .exhaustive();
+}
+
 /**
  * §8.1 — what the status post traces: a call the turn made, or a note the framework wrote beside
  * the calls. A call is held as its parts rather than as a rendered line, because whether its effect
@@ -248,24 +269,18 @@ export function renderOverranNotice(limitMs: number, overruns: number): string {
  * since no single result can now be the cause, the largest things in it, which are where to look first
  */
 export function renderContextExhaustedNotice(input: {
+  /** §3.15 — the reports this turn answered and did not judge, which are not queued again (§7.1) */
+  readonly awaitingVerdict: readonly { readonly assigneeDisplayName: string; readonly reference: string }[];
   readonly cause: ContextExhaustionCause;
   readonly ceilingTokens: number;
   readonly largest: readonly { readonly label: string; readonly tokens: number }[];
   readonly promptTokens: number;
 }): string {
-  const held = `about ${renderApproximateTokens(input.promptTokens)} tokens`;
-  const ceiling = COUNT_FORMAT.format(input.ceilingTokens);
-  return match(input.cause)
-    .with('accumulated', () => {
-      const parts = input.largest
-        .map(({ label, tokens }) => `${label}, about ${renderApproximateTokens(tokens)}`)
-        .join('; ');
-      return `I ran out of room in my context part-way through this turn and stopped: it held ${held} against my ceiling of ${ceiling}, with every result I had read reduced to its line. The largest parts: ${parts}. What I did so far is in the trace.`;
-    })
-    .with('initial', () => {
-      return `My starting context does not fit my turn ceiling: ${held} against ${ceiling}. This is a configuration problem — my context budget against my turn ceiling — not something I can work around.`;
-    })
-    .exhaustive();
+  const verdicts = input.awaitingVerdict.map(
+    ({ assigneeDisplayName, reference }) =>
+      ` The report on unit ${reference} from ${assigneeDisplayName} still awaits my verdict; it is not queued again.`
+  );
+  return `${renderExhaustionCause(input)}${verdicts.join('')}`;
 }
 
 /**
@@ -283,17 +298,44 @@ export function withViewMark(
   return mark === undefined ? { ran: true, text: shown } : { ran: mark.ran, text: `${mark.text} · ${shown}` };
 }
 
-/** §7.1 — the agent asks how to proceed, naming who denied what and the unit left assigned to it, whose creator an @ would wake (§3.15) */
+/** §7.1 — the agent asks how to proceed, naming who denied what and each unit left assigned to it, whose creator an @ would wake (§3.15) */
 export function renderDenialNotice(input: {
   byUsername: string;
   toolName: string;
-  unit: undefined | { creatorDisplayName: string; reference: string };
+  units: readonly { creatorDisplayName: string; reference: string }[];
 }): string {
-  const unit =
-    input.unit === undefined
-      ? ''
-      : ` Work unit \`${input.unit.reference}\` from ${input.unit.creatorDisplayName} is still assigned to me.`;
-  return `@${input.byUsername} denied \`${input.toolName}\`, so I stopped.${unit} How would you like me to proceed?`;
+  const units = input.units
+    .map((unit) => ` Work unit \`${unit.reference}\` from ${unit.creatorDisplayName} is still assigned to me.`)
+    .join('');
+  return `@${input.byUsername} denied \`${input.toolName}\`, so I stopped.${units} How would you like me to proceed?`;
+}
+
+/**
+ * §3.15, §8.1 — how a completed turn ended where it handed work on or leaves a unit open: with no
+ * reply after its hand-off, at its ceiling or a second overrun after it, or with a reply; and each
+ * unit it owes a move on that stays open, which nothing queues again
+ */
+export function renderEndingLine(input: {
+  readonly ending: 'at-ceiling' | 'no-reply' | 'overran' | 'reply';
+  readonly leftOpen: readonly string[];
+}): string {
+  const ended = {
+    'at-ceiling': 'ended at its ceiling after its hand-off',
+    'no-reply': 'ended with no reply',
+    overran: 'ended after its hand-off',
+    reply: undefined
+  }[input.ending];
+  return [...(ended === undefined ? ['ended with a reply'] : [ended]), ...input.leftOpen].join('; ');
+}
+
+/** §3.15 — a unit a completed turn leaves open, as its status line and trace name it */
+export function renderUnitLeftOpen(unit: {
+  readonly awaits: 'report' | 'verdict';
+  readonly reference: string;
+}): string {
+  return unit.awaits === 'verdict'
+    ? `unit ${unit.reference} still awaits my verdict`
+    : `unit ${unit.reference} is still assigned to me`;
 }
 
 export function renderProviderOutageNotice(failure: InferenceFailure.Transport): string {

@@ -147,7 +147,7 @@ import { readReportedDuration, readTraceHeader, TRACE_TOOL_CALL_PATTERN } from '
  * @property {string} [url]
  */
 
-const TOOL_VERSION = '2.3.0';
+const TOOL_VERSION = '2.4.0';
 
 /**
  * The head line of a status post up to its closing underscore, which a closing line's additions
@@ -717,6 +717,7 @@ async function runExport(options) {
       drainedFromPostId: header?.drainedFromPostId,
       model: header?.model,
       outcome: header?.outcome,
+      owesReply: header?.owesReply,
       promptTokens: header?.promptTokens,
       reasoningTokens: header?.reasoningTokens,
       startedAt: header?.startedAt,

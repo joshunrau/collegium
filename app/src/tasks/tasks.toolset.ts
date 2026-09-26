@@ -77,13 +77,14 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
           return refused(prepared.error, wording);
         }
         const { addressee, prepared: unit, text } = prepared.value;
-        const assigned = `unit ${renderReference(unit.id)} assigned to ${wording.nameOf(addressee)}, whose turn starts when this turn ends`;
+        // F65 — bookkeeping after a hand-off is what the colleague waits on
+        const assigned = `unit ${renderReference(unit.id)} assigned to ${wording.nameOf(addressee)}, whose turn starts when this turn ends or waits on a person, so anything more you do first delays it`;
         return Result.ok({
           post: { addressee, onPublished: (postId) => context.tasks.commitAssign(unit, postId), text },
           text:
             unit.follows === null
-              ? `${assigned}; the assignment is posted, so your reply need not repeat it`
-              : `unit ${renderReference(unit.follows.id)} ${unit.follows.closes ? 'closed as done and ' : ''}continued as ${assigned}; the post is in the channel, so your reply need not repeat it`
+              ? `${assigned}; the assignment is posted`
+              : `unit ${renderReference(unit.follows.id)} ${unit.follows.closes ? 'closed as done and ' : ''}continued as ${assigned}; the post is in the channel`
         });
       },
       parameters: z.object({
@@ -134,7 +135,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
           return refused(prepared.error, wording);
         }
         const { leavesNoneOpen, prepared: transition, text } = prepared.value;
-        const closed = `unit ${args.reference} closed as ${args.state}; the close is posted, so your reply need not repeat it`;
+        const closed = `unit ${args.reference} closed as ${args.state}; the close is posted, and your reply ends the turn`;
         return Result.ok({
           post: { onPublished: (postId) => context.tasks.commitTransition(transition, postId), text },
           text: leavesNoneOpen ? `${closed}. No turn of yours starts here until a post addresses you` : closed
@@ -182,7 +183,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
     },
     report: {
       description:
-        'Report on a unit handed to you: review when the result is ready for its creator to judge, blocked when something nobody in this channel can answer stops you. The framework posts the report mentioning the creator, which starts their turn once yours ends, so your reply need not mention them or repeat the report. Until you report, a post of yours starts their turn only if it mentions them. You cannot close a unit yourself, and one in review takes no further report: it is with its creator.',
+        'Report on a unit handed to you: review when the result is ready for its creator to judge, blocked when something nobody in this channel can answer stops you. The framework posts the report mentioning the creator, which starts their turn once yours ends or waits on a person, so anything more you do first delays it; a turn that owes no one a reply may then end with no text. Until you report, a post of yours starts their turn only if it mentions them. You cannot close a unit yourself, and one in review takes no further report: it is with its creator.',
       execute: async (args, context) => {
         const wording = wordingFor(context);
         const prepared = await context.tasks.prepareReport({
@@ -198,7 +199,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         const { addressee, prepared: transition, text } = prepared.value;
         return Result.ok({
           post: { addressee, onPublished: (postId) => context.tasks.commitTransition(transition, postId), text },
-          text: `unit ${args.reference} reported ${args.state}; the report is posted to ${wording.nameOf(addressee)}, whose turn starts when this turn ends, so your reply need not repeat it`
+          text: `unit ${args.reference} reported ${args.state}; the report is posted to ${wording.nameOf(addressee)}, whose turn starts when this turn ends or waits on a person, so anything more you do first delays it`
         });
       },
       parameters: z.object({

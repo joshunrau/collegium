@@ -521,4 +521,14 @@ describe('OpenAICompatibleClient', () => {
 
     await expectFailure({ kind: 'malformed', message: 'completion returned empty content' });
   });
+
+  it('returns empty text where the caller accepts it and the provider stopped, else classifies it as malformed (§3.3)', async () => {
+    fetchMock.mockResolvedValueOnce(completionResponse({ content: '' }));
+    const accepted = await client.complete(completionRequest, { acceptsEmptyText: true });
+    expect(accepted.success && accepted.value).toMatchObject({ content: '', kind: 'text' });
+
+    fetchMock.mockResolvedValueOnce(completionResponse({ content: '' }, undefined, 'tool_calls'));
+    const refused = await client.complete(completionRequest, { acceptsEmptyText: true });
+    expect(refused.error).toStrictEqual({ kind: 'malformed', message: 'completion returned empty content' });
+  });
 });

@@ -65,7 +65,9 @@ export class ChatEmitter extends NotificationsEmitter {
     const creator = this.agentRegistry.displayNameOf(unit.creatorUsername);
     const channel = this.rosterService.nameOf(unit.channelId, unit.assigneeUsername);
     const where = channel === undefined ? '' : ` in ${channel}`;
-    return `- Unit \`${unit.reference}\`${where}, from ${creator} to ${assignee}, stays assigned: ${assignee}'s turn on it had effects and was abandoned.`;
+    return unit.side === 'creator'
+      ? `- Unit \`${unit.reference}\`${where} awaits ${creator}'s verdict on ${assignee}'s report; the turn judging it was cut off by the restart.`
+      : `- Unit \`${unit.reference}\`${where}, from ${creator} to ${assignee}, stays assigned: ${assignee}'s turn on it had effects and was abandoned.`;
   }
 
   private renderSystemEvent(event: SystemEvent): string {

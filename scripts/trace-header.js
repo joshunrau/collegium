@@ -29,6 +29,8 @@
  * @property {string | undefined} drainedFromPostId the earliest queued post a drain began from
  * @property {string} model
  * @property {string} outcome
+ * @property {boolean | undefined} owesReply whether a turn that handed work on owed a reply (§3.15); undefined
+ *   for any other turn, and on a trace from before the framework said
  * @property {number | undefined} promptTokens
  * @property {number | undefined} reasoningTokens
  * @property {boolean | undefined} steered whether a person steered the turn; undefined as answeringPostIds is
@@ -76,8 +78,11 @@ const TRACE_HEADER_PATTERN =
 const TRACE_STARTED_PATTERN =
   /^Started: (?<date>.*?)(?:, by (?<activation>[a-z]+) \([^)]*\))?(?:, answering post `[^`]+`)?(?:, drained from post `(?<drained>[^`]+)`)?\.$/m;
 
-/** `Answering: \`{id}\`, \`{id}\`; steered.` — the posts the turn answers (§5.2), and whether a person steered it */
-const TRACE_ANSWERING_PATTERN = /^Answering: (?<posts>.*?)(?<steered>; steered)?\.$/m;
+/**
+ * `Answering: \`{id}\`, \`{id}\`; steered; owed a reply.` — the posts the turn answers (§5.2), whether a
+ * person steered it, and, for a turn that handed work on, whether it owed a reply (§3.15)
+ */
+const TRACE_ANSWERING_PATTERN = /^Answering: (?<posts>.*?)(?<steered>; steered)?(?:; owed (?<owed>a|no) reply)?\.$/m;
 
 /** `Ran: {duration}, {n} actions.`, `Ran: {duration}, until the process restarted.`, or `Running: {duration} so far.` */
 const TRACE_RAN_PATTERN = /^(?:Ran|Running): (?<duration>(?:\d+m )?\d+s)(?:, (?<actions>[\d,]+) actions?\.)?/m;
@@ -210,6 +215,7 @@ export function readTraceHeader(trace) {
     drainedFromPostId: started?.drained,
     model: groups.model,
     outcome: groups.outcome,
+    owesReply: answering?.owed === undefined ? undefined : answering.owed === 'a',
     promptTokens: readCount(usage?.prompt),
     reasoningTokens: readCount(usage?.reasoning),
     startedAt: readStartedAt(started?.date),

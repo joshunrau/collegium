@@ -95,10 +95,12 @@ describe('BootService', () => {
       return Promise.resolve();
     });
     tasksService = MockFactory.createMock(TasksService);
-    tasksService.findWorkedUnit.mockResolvedValue(undefined);
+    tasksService.findReportsAwaitingVerdict.mockResolvedValue([]);
+    tasksService.findWorkedUnits.mockResolvedValue([]);
     toolRegistry = MockFactory.createMock(ToolRegistry);
     toolRegistry.listUngrantedIn.mockReturnValue([]);
     turnsService = MockFactory.createMock(TurnsService);
+    turnsService.listAnsweringPostIds.mockResolvedValue(['post-2']);
     turnsService.abandonRunning.mockImplementation(() => {
       calls.push('abandon');
       return Promise.resolve({
@@ -195,17 +197,31 @@ describe('BootService', () => {
     expect(activationService.consumeWithEffects).toHaveBeenCalledExactlyOnceWith([WITH_EFFECTS]);
   });
 
-  it('should report the unit each abandoned turn with effects was working, for the boot notice to name (§7.3)', async () => {
-    tasksService.findWorkedUnit.mockResolvedValue({
-      assigneeUsername: 'mira',
-      channelId: 'channel-1',
-      creatorUsername: 'owen',
-      id: 'ab12cd34ef56'
-    } as WorkUnit);
+  it('should report each unit an abandoned turn with effects left open, on either side, for the boot notice (§7.3, RC8)', async () => {
+    const unit = (id: string, assigneeUsername: string, creatorUsername: string) => {
+      return { assigneeUsername, channelId: 'channel-1', creatorUsername, id } as WorkUnit;
+    };
+    tasksService.findWorkedUnits.mockResolvedValue([unit('ab12cd34ef56', 'mira', 'owen')]);
+    tasksService.findReportsAwaitingVerdict.mockResolvedValue([unit('cd34ef56ab12', 'tess', 'mira')]);
     const report = await bootService.run();
-    expect(tasksService.findWorkedUnit).toHaveBeenCalledExactlyOnceWith(WITH_EFFECTS);
+    const query = { agentUsername: 'mira', answeringPostIds: ['post-2'], channelId: 'channel-1' };
+    expect(tasksService.findWorkedUnits).toHaveBeenCalledExactlyOnceWith({ ...query, turnId: 'turn-5' });
+    expect(tasksService.findReportsAwaitingVerdict).toHaveBeenCalledExactlyOnceWith(query);
     expect(report.strandedUnits).toStrictEqual([
-      { assigneeUsername: 'mira', channelId: 'channel-1', creatorUsername: 'owen', reference: 'ab12cd34' }
+      {
+        assigneeUsername: 'mira',
+        channelId: 'channel-1',
+        creatorUsername: 'owen',
+        reference: 'ab12cd34',
+        side: 'assignee'
+      },
+      {
+        assigneeUsername: 'tess',
+        channelId: 'channel-1',
+        creatorUsername: 'mira',
+        reference: 'cd34ef56',
+        side: 'creator'
+      }
     ]);
   });
 

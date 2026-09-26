@@ -161,12 +161,28 @@ describe('ChatEmitter', () => {
       requeuedHandoffs: 0,
       requeuedTurns: 0,
       strandedUnits: [
-        { assigneeUsername: 'owen', channelId: 'channel-1', creatorUsername: 'mira', reference: 'ab12cd34' }
+        {
+          assigneeUsername: 'owen',
+          channelId: 'channel-1',
+          creatorUsername: 'mira',
+          reference: 'ab12cd34',
+          side: 'assignee'
+        },
+        {
+          assigneeUsername: 'owen',
+          channelId: 'channel-1',
+          creatorUsername: 'mira',
+          reference: 'cd34ef56',
+          side: 'creator'
+        }
       ],
       unannouncedTriggerIds: []
     });
     expect(chatGateway.postAsSystem.mock.calls[0]?.[0].split('\n')[1]).toBe(
       "- Unit `ab12cd34` in Research, from Mira to Owen, stays assigned: Owen's turn on it had effects and was abandoned."
+    );
+    expect(chatGateway.postAsSystem.mock.calls[0]?.[0].split('\n')[2]).toBe(
+      "- Unit `cd34ef56` in Research awaits Mira's verdict on Owen's report; the turn judging it was cut off by the restart."
     );
   });
 

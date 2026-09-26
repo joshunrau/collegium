@@ -18,6 +18,7 @@ function answeredCallIdOf(entry: WindowEntry): string | undefined {
     case 'tool_result':
       return payload.callId;
     case 'assistant_message':
+    case 'ending_noted':
     case 'output_rejected':
     case 'posts_taken':
     case 'record_written':

@@ -89,14 +89,28 @@ export class BootService {
     }
   }
 
-  /** §7.3 — the unit each abandoned turn with effects was working, named in the boot notice; nothing reports it or wakes its creator (§3.15) */
+  /**
+   * §7.3, RC8 — the units each abandoned turn with effects left open, named in the boot notice: each
+   * still assigned to it that it did not hand on, and each report it answered that awaits its
+   * verdict. Nothing reports them, re-runs the turn, or wakes their other party (§3.15).
+   */
   private async findStrandedUnits(withEffects: readonly TurnWithEffects[]): Promise<StrandedUnit[]> {
     const stranded: StrandedUnit[] = [];
     for (const turn of withEffects) {
-      const unit = await this.tasksService.findWorkedUnit(turn);
-      if (unit) {
-        const { assigneeUsername, channelId, creatorUsername } = unit;
-        stranded.push({ assigneeUsername, channelId, creatorUsername, reference: renderReference(unit.id) });
+      const query = {
+        agentUsername: turn.agentUsername,
+        answeringPostIds: await this.turnsService.listAnsweringPostIds(turn.turnId),
+        channelId: turn.channelId
+      };
+      const worked = await this.tasksService.findWorkedUnits({ ...query, turnId: turn.turnId });
+      const awaiting = await this.tasksService.findReportsAwaitingVerdict(query);
+      for (const [side, units] of [
+        ['assignee', worked],
+        ['creator', awaiting]
+      ] as const) {
+        for (const { assigneeUsername, channelId, creatorUsername, id } of units) {
+          stranded.push({ assigneeUsername, channelId, creatorUsername, reference: renderReference(id), side });
+        }
       }
     }
     return stranded;
