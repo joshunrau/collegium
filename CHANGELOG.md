@@ -1,3 +1,14 @@
+## [0.0.1-beta.29](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.28...v0.0.1-beta.29) (2026-09-26)
+
+### Features
+
+- **activation:** queue each post a turn answers, and fold a person's repeated mention into it ([77b6073](https://github.com/joshunrau/collegium/commit/77b607344373cd0498f392e513a06a1b67248d02))
+- **conversations:** record work-unit posts as a kind of their own, which search finds ([2199e35](https://github.com/joshunrau/collegium/commit/2199e358049695da182628219e89be9f89590a1e))
+- **runtime:** run again the turns a restart cut off before they had any effect ([762ece0](https://github.com/joshunrau/collegium/commit/762ece0fea93234e08a603798bc8843ebbdaae6e))
+- **tasks:** let done mean not abandoned, close a blocked unit done, and follow a unit closed done ([8d3446c](https://github.com/joshunrau/collegium/commit/8d3446cea9c8dbcc359c34220c18149330b0c301))
+- **turns:** let a hand-off end with no reply where none is owed, and remind a creator of a verdict ([3fca99c](https://github.com/joshunrau/collegium/commit/3fca99cca8a0e7de422a00a042da4ed22234e9e6))
+- **turns:** tell each turn the posts it answers, its channel, and where its last turn ended ([8595229](https://github.com/joshunrau/collegium/commit/859522927eccab98c957696e07f868f583bc0335))
+
 ## [0.0.1-beta.28](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.27...v0.0.1-beta.28) (2026-09-25)
 
 ### ⚠ BREAKING CHANGES
