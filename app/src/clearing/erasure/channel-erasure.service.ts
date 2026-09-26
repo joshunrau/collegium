@@ -53,13 +53,19 @@ export class ChannelErasure {
       async (transaction) => {
         await this.conversationsService.record(input.notice, undefined, transaction);
         const tally = input.selectMemories ? await this.selectMemories(channelId, transaction) : [];
+        const erasedQueued = await this.conversationsService.listErasedAmong(
+          await this.queueService.listPostIdsIn(channelId, transaction),
+          channelId,
+          boundary,
+          transaction
+        );
         await this.conversationsService.eraseBefore(channelId, boundary, transaction);
         await this.episodesService.eraseBefore(channelId, boundary, transaction);
         await this.episodesService.recordClear(channelId, boundary, transaction);
         await this.turnsService.eraseContentBefore(channelId, boundary, transaction);
         await this.approvalsService.eraseBefore(channelId, boundary, transaction);
         await this.asksService.eraseBefore(channelId, boundary, transaction);
-        await this.queueService.eraseBefore(channelId, boundary, input.notice.id, transaction);
+        await this.queueService.deletePosts(erasedQueued, transaction);
         await this.tasksService.eraseBefore(channelId, boundary, transaction);
         await this.triggersService.eraseDeliveredBefore(channelId, boundary, transaction);
         return tally;

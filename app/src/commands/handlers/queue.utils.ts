@@ -7,10 +7,9 @@ function renderBacklog(backlog: QueueBacklog | undefined): string {
   if (backlog === undefined) {
     return 'Queue: empty.';
   }
-  const { earliestUnprocessedPostId, summary } = backlog;
-  const depth = summary === undefined ? 'an unknown number of' : summary.pendingCount;
-  const snippet = summary === undefined ? '' : ` — "${summary.message.slice(0, SNIPPET_LIMIT_CHARS)}"`;
-  return `Queue: ${depth} post(s) pending; oldest unprocessed is \`${earliestUnprocessedPostId}\`${snippet}`;
+  const { depth, oldest } = backlog;
+  const snippet = oldest.message === undefined ? '' : ` — "${oldest.message.slice(0, SNIPPET_LIMIT_CHARS)}"`;
+  return `Queue: ${depth} post(s) pending; oldest unprocessed is \`${oldest.postId}\`${snippet}`;
 }
 
 /** §8.4 — what a parked turn waits on, in the words the listing uses */
@@ -57,13 +56,13 @@ export type LaneHold = {
   readonly turn: Pick<Turn, 'statusPostId' | 'triggeringPostId'> | undefined;
 };
 
-/** the standing queue entry, and the backlog behind its pointer where the store still holds that post */
+/** the posts queued in the lane and not taken by a running turn, and the oldest of them, with its text where the store still holds it */
 export type QueueBacklog = {
-  readonly earliestUnprocessedPostId: string;
-  readonly summary: undefined | { message: string; pendingCount: number };
+  readonly depth: number;
+  readonly oldest: { readonly message: string | undefined; readonly postId: string };
 };
 
-/** one agent's lane in a channel: the turn holding it, if any, and the standing entry behind it */
+/** one agent's lane in a channel: the turn holding it, if any, and the posts queued behind it */
 export type LaneReport = {
   readonly backlog: QueueBacklog | undefined;
   readonly hold: LaneHold | undefined;

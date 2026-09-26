@@ -12,6 +12,8 @@ const QUEUE_MIGRATION = '20260918040000_queue_last_enqueued';
 
 const UNIT_KIND_MIGRATION = '20260926120000_post_kind_unit';
 
+const QUEUE_ROWS_MIGRATION = '20260926130000_queue_rows';
+
 const migrations = () => {
   return fs
     .readdirSync(MIGRATIONS_DIR)
@@ -50,8 +52,30 @@ describe('the checked-in migrations', () => {
     const database = migrateSeeding({
       [QUEUE_MIGRATION]: `INSERT INTO "QueueEntry" ("id", "agentUsername", "channelId", "createdAt", "earliestUnprocessedPostId") VALUES ('q1', 'mira', 'channel-1', '2026-01-02 03:04:05', 'post-1')`
     });
-    expect(database.prepare('SELECT "createdAt", "lastEnqueuedAt" FROM "QueueEntry"').all()).toEqual([
-      { createdAt: '2026-01-02 03:04:05', lastEnqueuedAt: '2026-01-02 03:04:05' }
+    expect(database.prepare('SELECT "enqueuedAt", "postId" FROM "QueueEntry"').all()).toEqual([
+      { enqueuedAt: '2026-01-02 03:04:05', postId: 'post-1' }
+    ]);
+  });
+
+  it('should turn each standing pointer into one untaken row for the post it named (§5.2)', () => {
+    const database = migrateSeeding({
+      [QUEUE_ROWS_MIGRATION]: `INSERT INTO "QueueEntry" ("id", "agentUsername", "channelId", "createdAt", "earliestUnprocessedPostId", "lastEnqueuedAt") VALUES ('q1', 'mira', 'channel-1', '2026-01-02 03:04:05', 'post-1', '2026-01-02 04:05:06')`
+    });
+    expect(
+      database
+        .prepare(
+          'SELECT "agentUsername", "channelId", "enqueuedAt", "postId", "returnedOnce", "takenByTurnId" FROM "QueueEntry"'
+        )
+        .all()
+    ).toEqual([
+      {
+        agentUsername: 'mira',
+        channelId: 'channel-1',
+        enqueuedAt: '2026-01-02 04:05:06',
+        postId: 'post-1',
+        returnedOnce: 0,
+        takenByTurnId: null
+      }
     ]);
   });
 

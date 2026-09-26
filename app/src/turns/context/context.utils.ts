@@ -113,6 +113,8 @@ function renderEvent(event: ModelRow<'TurnEvent'>, results: ReadonlyMap<string, 
       .with({ kind: 'assistant_message' }, (payload) => renderAssistantEvent(payload, results))
       // §8.3 — the model was told why and answered again; the trace alone keeps what was refused
       .with({ kind: 'output_rejected' }, (): CompletionMessage[] => [])
+      // §5.2 — what a turn took from its queue is its trace's; the posts themselves are in the window
+      .with({ kind: 'posts_taken' }, (): CompletionMessage[] => [])
       .with({ kind: 'record_written' }, (payload): CompletionMessage[] => [
         { content: renderRecordLine(payload), role: 'user' }
       ])

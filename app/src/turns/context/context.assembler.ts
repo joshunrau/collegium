@@ -14,6 +14,11 @@ import type { WindowReader } from './context.utils.ts';
 type AssembleInput = {
   readonly channelId: string;
   readonly profile: AgentProfile;
+  /**
+   * §5.2 — takes what was queued for the turn at or before the bound and returns those posts; absent
+   * where nothing is taken, as for a trigger's turn and for /collegium inspect
+   */
+  readonly takeQueued?: (enqueuedBefore: Date) => Promise<readonly string[]>;
 };
 
 export type AssembledContext = {
@@ -22,6 +27,8 @@ export type AssembledContext = {
   /** §5.2 — how far back the window reached, for the line a draining turn owes when that fell short; absent for an empty window */
   readonly reachesBackTo: Date | undefined;
   readonly request: CompletionRequest;
+  /** §5.2 — the posts this assembly took from the turn's queue, oldest first */
+  readonly takenPostIds: readonly string[];
   /** §8.3 — what the window's budget charged for the window as built (§3.8) */
   readonly windowEstimatedTokens: number;
   /** which posts the window reached — how a draining turn learns its context fell short (§5.2) */
@@ -57,6 +64,7 @@ export class ContextAssembler {
       channelId,
       costOf: (candidates) => estimateWindowTokens(candidates, reader)
     });
+    const takenPostIds = (await input.takeQueued?.(assembledAt)) ?? [];
     const { stable, tail } = await this.promptRenderer.renderParts({
       channelId,
       profile,
@@ -73,6 +81,7 @@ export class ContextAssembler {
         systemPrompt: stable,
         tools: this.toolRegistry.describeFor(profile)
       },
+      takenPostIds,
       windowEstimatedTokens: estimateWindowTokens(entries, reader),
       windowPostIds: new Set(entries.flatMap((entry) => (entry.kind === 'post' ? [entry.post.id] : [])))
     };

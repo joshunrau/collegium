@@ -17,14 +17,15 @@ import { QueueHandler } from '../queue.handler.ts';
 
 const MIRA = buildAgentProfile();
 
-const ENTRY = {
+const entry = (postId: string) => ({
   agentUsername: 'mira',
   channelId: 'channel-1',
-  createdAt: new Date(0),
-  earliestUnprocessedPostId: 'post-1',
-  id: 'entry-1',
-  lastEnqueuedAt: new Date(0)
-};
+  enqueuedAt: new Date(0),
+  id: `entry-${postId}`,
+  postId,
+  returnedOnce: false,
+  takenByTurnId: null
+});
 
 describe('QueueHandler', () => {
   let channelLockService: MockedInstance<ChannelLockService>;
@@ -44,10 +45,14 @@ describe('QueueHandler', () => {
     channelLockService = MockFactory.createMock(ChannelLockService);
     channelLockService.heldSince.mockReturnValue(undefined);
     const conversationsService = MockFactory.createMock(ConversationsService);
-    conversationsService.summarizeBacklog.mockResolvedValue({ message: 'scrape dal.ca', pendingCount: 2 });
+    conversationsService.findUnforgotten.mockResolvedValue({
+      createdAt: new Date(0),
+      id: 'post-1',
+      message: 'scrape dal.ca'
+    });
     queueService = MockFactory.createMock(QueueService);
-    queueService.peek.mockResolvedValue(ENTRY);
-    queueService.discard.mockResolvedValue(ENTRY);
+    queueService.listUntaken.mockResolvedValue([entry('post-1'), entry('post-2')]);
+    queueService.discard.mockResolvedValue(2);
     turnsService = MockFactory.createMock(TurnsService);
     pendingDecisionsService = MockFactory.createMock(PendingDecisionsService);
     pendingDecisionsService.listPending.mockResolvedValue([]);
@@ -69,10 +74,10 @@ describe('QueueHandler', () => {
     queueHandler = moduleRef.get(QueueHandler);
   });
 
-  it('should report pending depth to the caller alone', async () => {
+  it('should report the count of queued posts and the oldest to the caller alone (§8.4)', async () => {
     const response = await handle('mira');
     expect(response.audience).toBe('invoker');
-    expect(response.text).toContain('2 post(s) pending');
+    expect(response.text).toContain('Queue: 2 post(s) pending; oldest unprocessed is `post-1` — "scrape dal.ca"');
   });
 
   it('should name the running turn, the post that started it, and that it has shown nothing yet (§8.4)', async () => {
@@ -110,21 +115,21 @@ describe('QueueHandler', () => {
   });
 
   it('should report an idle lane and an empty queue', async () => {
-    queueService.peek.mockResolvedValue(undefined);
+    queueService.listUntaken.mockResolvedValue([]);
     expect((await handle('mira')).text).toBe('mira in this channel: no turn running.\nQueue: empty.');
     expect(turnsService.findRunningIn).not.toHaveBeenCalled();
   });
 
-  it('should discard the standing entry and say so in the channel', async () => {
+  it('should discard what waits in the queue and say so in the channel', async () => {
     expect(await handle('mira clear')).toStrictEqual({
       audience: 'channel',
       text: '🗑️ Queued work discarded: Mira will not run what was waiting here.'
     });
-    expect(queueService.discard).toHaveBeenCalledWith('mira', 'channel-1');
+    expect(queueService.discard).toHaveBeenCalledWith({ agentUsername: 'mira', channelId: 'channel-1' });
   });
 
   it('should tell the caller when a clear found nothing to discard', async () => {
-    queueService.discard.mockResolvedValue(undefined);
+    queueService.discard.mockResolvedValue(0);
     const response = await handle('mira clear');
     expect(response.audience).toBe('invoker');
     expect(response.text).toContain('Nothing discarded.');

@@ -39,7 +39,8 @@ by itself, so an agent that writes "next I will…" waits for you. Post again to
 **Read the lane before you nudge.** A quiet channel is not an idle agent: a turn that has called no
 tool yet has no status post, and can run for minutes that way. A mention of an agent whose turn is
 still running starts nothing. It queues behind that turn, the agent reacts 👀 to it, and the next
-turn reads everything that queued, so a second nudge adds nothing to the first. Before you post
+turn takes everything that queued before it began, so a second nudge adds nothing to the first.
+What queues after a turn began drains into the turn after it. Before you post
 again, run `/collegium queue {agent}` for every agent in the channel (see
 [Inspect a turn](#inspect-a-turn)). It says whether a turn is running for the agent in this channel,
 since when, and which post started it, then what waits. A turn waiting on a person reads as parked,
@@ -70,6 +71,10 @@ steer replays in that agent's later windows as your words, so do not repeat it a
 
 Post the instruction instead only when the steer's answer says no turn is running, when the turn
 ended without the `↩ _steered by @you_` line on its status post, or when new work must start.
+
+A post of yours that names the agent while a turn you started is still on its first model call
+folds into that turn: the turn discards that call and starts again with your post, and no second
+turn runs, so it carries no 👀. Once the turn has called a tool or posted, steer it instead.
 
 A turn parked on a person is redirected by denying with a reason, or by answering. `/collegium stop`
 is for when no agent may make another call. Follow it with a post that says what happens next.
@@ -194,7 +199,7 @@ Three cheap commands answer most questions without a trace:
 
 - `/collegium memory {agent} show {reference}` reads one memory body.
 - `/collegium queue {agent}` shows whether a turn is running for the agent or parked on a person,
-  and the posts that wait for it.
+  and the posts that wait for it. The depth is a count of queued posts that no turn has taken yet.
 - `/collegium units {agent}` lists the agent's open work units in this channel, whose move each
   waits on, and what waits on a person.
 
@@ -264,9 +269,10 @@ write matches the waiting heads or asks `/collegium approvals`; see
 [Poll for the three states](#poll-for-the-three-states).
 
 **A turn that recorded no events.** `/collegium trace` answers "recorded no events" when the model
-provider refused the first request. The post that started the turn can be consumed. Check
-`/collegium queue {agent}` in the same minute. An empty queue and no events together mean the
-instruction is gone, and the agent never read it.
+provider refused the first request. A turn that failed returns what it took to the queue and queues
+the post that started it, so its instruction stands and `/collegium queue {agent}` shows it. A turn
+that ended any other way (completed, stopped, killed, denied, out of budget or out of room) consumed
+what it took.
 
 **A `⚠️ _stopped — a call timed out with its effect unconfirmed_` turn.** The events already
 written survive. The messages the turn held in memory do not. The agent must re-read the records its

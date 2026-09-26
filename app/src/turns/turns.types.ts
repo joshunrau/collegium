@@ -32,6 +32,8 @@ export type UnactedTurn = {
   readonly agentUsername: string;
   readonly channelId: string;
   readonly triggeringPostId: string;
+  /** whose stamp marks the queue rows it took (§5.2) */
+  readonly turnId: string;
 };
 
 /** an abandoned turn that had acted, which nothing queues again, and the post that started it where one did (§7.3) */
@@ -39,6 +41,8 @@ export type ActedTurn = {
   readonly agentUsername: string;
   readonly channelId: string;
   readonly triggeringPostId: string | undefined;
+  /** whose stamp marks the queue rows it took (§5.2) */
+  readonly turnId: string;
 };
 
 /** a turn a restart abandoned, whatever it had done (§7.3) */
@@ -57,10 +61,10 @@ export type AbandonedTurns = {
   readonly unacted: readonly UnactedTurn[];
 };
 
-/** §5.2 — the colleague a turn's posts addressed, and the earliest of them since the turn last stopped acting */
-export type HeldActivation = {
+/** §5.2 — the colleague a turn's posts addressed, and each of those posts since the turn last stopped acting */
+export type DeferredHandoff = {
   readonly addresseeUsername: string;
-  readonly postId: string;
+  readonly postIds: readonly string[];
 };
 
 /** an amount some providers leave out, summed over the turns that reported it */
@@ -109,14 +113,11 @@ export type AssembledWindowRecord = {
   readonly oldestAt: Date | undefined;
 };
 
-/** what activation branches on when a turn ends: drain the queue, leave it standing (§7.1), or consume it (§5.2) */
+/** what activation branches on when a turn ends: consume what it took from the queue, or return it (§5.2, §7.1) */
 export type TurnOutcome = {
-  /** when the assembly the turn last used began reading the store */
-  readonly contextAssembledAt: Date;
   readonly status: Exclude<TurnStatus, 'running'>;
+  /** whose stamp marks the queue rows the turn took (§5.2) */
   readonly turnId: string;
-  /** the posts in the window the turn last assembled its context from */
-  readonly windowPostIds: ReadonlySet<string>;
 };
 
 /** the payload union is the source of truth; `appendEvent` derives the `kind` column from it */

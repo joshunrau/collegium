@@ -49,7 +49,7 @@ import { TurnRunner } from '../turns.runner.ts';
 import { TurnsService } from '../turns.service.ts';
 import { TypingIndicatorService } from '../typing/typing-indicator.service.ts';
 
-import type { HeldActivation, Turn } from '../turns.types.ts';
+import type { DeferredHandoff, Turn } from '../turns.types.ts';
 
 const PROFILE = {
   actionBudget: 10,
@@ -94,7 +94,7 @@ describe('TurnRunner', () => {
   let contextAssembler: MockedInstance<ContextAssembler>;
   let conversationsService: MockedInstance<ConversationsService>;
   let multiMentionPolicy: MockedInstance<MultiMentionPolicy>;
-  let releaseHeldActivation: Mock<(held: HeldActivation) => void>;
+  let releaseDeferredHandoff: Mock<(deferred: DeferredHandoff) => void>;
   let sends: { channelId: string; text: string }[];
   let statusHandle: {
     appendTrace: any;
@@ -142,7 +142,7 @@ describe('TurnRunner', () => {
       unpark: vi.fn()
     };
     contextAssembler = MockFactory.createMock(ContextAssembler);
-    contextAssembler.assemble.mockResolvedValue({
+    contextAssembler.assemble.mockImplementation(async (input) => ({
       assembledAt: new Date(0),
       reachesBackTo: new Date('2026-09-21T12:00:00Z'),
       request: {
@@ -152,9 +152,10 @@ describe('TurnRunner', () => {
         systemPrompt: 'sys',
         tools: []
       },
+      takenPostIds: (await input.takeQueued?.(new Date(0))) ?? [],
       windowEstimatedTokens: 10,
       windowPostIds: new Set(['post-0'])
-    });
+    }));
     const inferenceRegistry = MockFactory.createMock(InferenceRegistry);
     inferenceRegistry.getClientForModel.mockReturnValue({ complete });
     tasksService = MockFactory.createMock(TasksService);
@@ -168,7 +169,7 @@ describe('TurnRunner', () => {
     multiMentionPolicy.refusesSecondAddressee.mockReturnValue(false);
     multiMentionPolicy.stripAgentMentionsExcept.mockImplementation(({ text }: { text: string }) => text);
     multiMentionPolicy.stripAgentMentions.mockImplementation((content) => content);
-    releaseHeldActivation = vi.fn<(held: HeldActivation) => void>();
+    releaseDeferredHandoff = vi.fn<(deferred: DeferredHandoff) => void>();
     const statusPostService = MockFactory.createMock(StatusPostService);
     statusPostService.open.mockReturnValue(statusHandle);
     toolExecutor = MockFactory.createMock(ToolExecutor);
@@ -244,7 +245,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 0,
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-0'
     });
     return outcome.unwrap();
@@ -258,7 +259,7 @@ describe('TurnRunner', () => {
       depth: 0,
       foldAuthorUsername: 'casey',
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-0'
     });
     return outcome.unwrap();
@@ -341,7 +342,7 @@ describe('TurnRunner', () => {
       depth: 0,
       foldAuthorUsername: 'casey',
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-1',
       triggeringPostId: 'post-1'
     });
@@ -364,6 +365,35 @@ describe('TurnRunner', () => {
     expect(complete).toHaveBeenCalledTimes(2);
   });
 
+  it('should record what each assembly took, the first beside the fragments the debounce batched in (§5.2)', async () => {
+    const takeQueued = vi
+      .fn<(turnId: string, enqueuedBefore: Date) => Promise<readonly string[]>>()
+      .mockResolvedValueOnce(['post-5'])
+      .mockResolvedValueOnce(['post-2']);
+    complete.mockImplementationOnce(() => {
+      offerFragment('post-2');
+      return Promise.resolve(Result.ok(text('half')));
+    });
+    complete.mockResolvedValueOnce(Result.ok(text('all of it')));
+    await turnRunner.run({
+      activationKind: 'addressed',
+      batchedFragmentIds: ['post-6'],
+      chainLength: 1,
+      channelId: 'channel-1',
+      depth: 0,
+      foldAuthorUsername: 'casey',
+      profile: PROFILE,
+      releaseDeferredHandoff,
+      rootPostId: 'post-0',
+      takeQueued
+    });
+    expect(takeQueued).toHaveBeenCalledWith('turn-1', new Date(0));
+    expect(turnsService.appendEvent.mock.calls.filter(([, event]) => event.kind === 'posts_taken')).toStrictEqual([
+      ['turn-1', { batchedFragmentIds: ['post-6'], kind: 'posts_taken', postIds: ['post-5'] }],
+      ['turn-1', { foldedPostIds: ['post-2'], kind: 'posts_taken', postIds: ['post-2'] }]
+    ]);
+  });
+
   it('should fold nothing into a turn no human started', async () => {
     complete.mockImplementationOnce(() => {
       expect(offerFragment('post-2')).toBe(false);
@@ -383,7 +413,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 10,
         profile: PROFILE,
-        releaseHeldActivation,
+        releaseDeferredHandoff,
         rootPostId: 'post-0'
       })
     ).unwrap();
@@ -405,7 +435,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 1,
         profile: PROFILE,
-        releaseHeldActivation,
+        releaseDeferredHandoff,
         rootPostId: 'post-0'
       })
     ).unwrap();
@@ -426,7 +456,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 10,
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-0'
     });
     expect(sends[0]?.text).toContain('this chain has reached its limit');
@@ -442,7 +472,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 0,
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-0'
     });
     expect(outcome.success).toBe(false);
@@ -460,7 +490,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 0,
         profile: { ...PROFILE, actionBudget: 3 },
-        releaseHeldActivation,
+        releaseDeferredHandoff,
         rootPostId: 'post-0'
       })
     ).unwrap();
@@ -481,7 +511,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 0,
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-1',
       triggeringPostId: 'post-1'
     });
@@ -513,7 +543,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 1,
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'announcement-1',
       triggeringPostId: 'announcement-1'
     });
@@ -537,7 +567,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 1,
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-1',
       triggeringPostId: 'post-2'
     });
@@ -577,7 +607,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 1,
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-1',
       triggeringPostId: 'post-2'
     });
@@ -602,7 +632,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 1,
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-1',
       triggeringPostId: 'post-2'
     });
@@ -722,7 +752,7 @@ describe('TurnRunner', () => {
       depth: 0,
       drainedFromPostId: 'post-0',
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-0',
       triggeringPostId: 'post-0'
     });
@@ -1168,7 +1198,7 @@ describe('TurnRunner', () => {
           channelId: 'channel-1',
           depth: 0,
           profile: { ...PROFILE, actionBudget: 0 },
-          releaseHeldActivation,
+          releaseDeferredHandoff,
           rootPostId: 'post-0'
         })
       ).unwrap();
@@ -1258,7 +1288,7 @@ describe('TurnRunner', () => {
           channelId: 'channel-1',
           depth: 0,
           profile: { ...PROFILE, actionBudget: 1 },
-          releaseHeldActivation,
+          releaseDeferredHandoff,
           rootPostId: 'post-0'
         })
       ).unwrap();
@@ -1357,7 +1387,7 @@ describe('TurnRunner', () => {
       depth: 0,
       drainedFromPostId: 'post-far-back',
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-0'
     });
     expect(statusHandle.appendTrace).toHaveBeenCalledWith({
@@ -1375,7 +1405,7 @@ describe('TurnRunner', () => {
       depth: 0,
       drainedFromPostId: 'post-0',
       profile: PROFILE,
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-0'
     });
     expect(statusHandle.appendTrace).not.toHaveBeenCalled();
@@ -1458,7 +1488,7 @@ describe('TurnRunner', () => {
         depth: 1,
         drainedFromPostId: REPORT_ID,
         profile: PROFILE,
-        releaseHeldActivation,
+        releaseDeferredHandoff,
         rootPostId: 'post-ask',
         triggeringPostId: REPORT_ID
       });
@@ -1550,23 +1580,13 @@ describe('TurnRunner', () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     statusHandle.close.mockRejectedValueOnce(new Error('the status post is gone'));
     turnsService.close.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
-    expect(await run()).toStrictEqual({
-      contextAssembledAt: new Date(0),
-      status: 'completed',
-      turnId: 'turn-1',
-      windowPostIds: new Set(['post-0'])
-    });
+    expect(await run()).toStrictEqual({ status: 'completed', turnId: 'turn-1' });
   });
 
   it('should log, not throw, when disposing the browsing session fails', async () => {
     complete.mockResolvedValueOnce(Result.ok(text('done')));
     webService.endTurn.mockRejectedValueOnce(new Error('the browser is wedged'));
-    expect(await run()).toStrictEqual({
-      contextAssembledAt: new Date(0),
-      status: 'completed',
-      turnId: 'turn-1',
-      windowPostIds: new Set(['post-0'])
-    });
+    expect(await run()).toStrictEqual({ status: 'completed', turnId: 'turn-1' });
     expect(loggingService.error).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'failed to dispose the browsing session' })
     );
@@ -1704,16 +1724,19 @@ describe('TurnRunner', () => {
       });
     });
 
-    it('should hold the colleague it addressed until the turn ends, then release the earliest post once (§5.2)', async () => {
+    it('should defer the colleague it addressed until the turn ends, then release every post it addressed once (§5.2)', async () => {
       multiMentionPolicy.findAddressee.mockReturnValue('owen');
       complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__assign'])));
       toolExecutor.execute.mockResolvedValueOnce(post(() => Promise.resolve()));
       complete.mockImplementationOnce(() => {
-        expect(releaseHeldActivation).not.toHaveBeenCalled();
+        expect(releaseDeferredHandoff).not.toHaveBeenCalled();
         return Promise.resolve(Result.ok(text('@owen one more thing')));
       });
       await run();
-      expect(releaseHeldActivation).toHaveBeenCalledExactlyOnceWith({ addresseeUsername: 'owen', postId: 'post-1' });
+      expect(releaseDeferredHandoff).toHaveBeenCalledExactlyOnceWith({
+        addresseeUsername: 'owen',
+        postIds: ['post-1', 'post-2']
+      });
     });
 
     it('should release the colleague when the turn parks on a person, and not again when it ends (§5.2)', async () => {
@@ -1722,19 +1745,22 @@ describe('TurnRunner', () => {
       toolExecutor.execute.mockResolvedValueOnce(post(() => Promise.resolve()));
       complete.mockResolvedValueOnce(Result.ok(toolUse(['workspace__write'])));
       toolExecutor.execute.mockImplementationOnce(async ({ appendEvent }) => {
-        expect(releaseHeldActivation).not.toHaveBeenCalled();
+        expect(releaseDeferredHandoff).not.toHaveBeenCalled();
         await appendEvent({
           approvalId: 'approval-1',
           kind: 'approval_requested',
           payloadText: 'x',
           toolName: 'write'
         });
-        expect(releaseHeldActivation).toHaveBeenCalledExactlyOnceWith({ addresseeUsername: 'owen', postId: 'post-1' });
+        expect(releaseDeferredHandoff).toHaveBeenCalledExactlyOnceWith({
+          addresseeUsername: 'owen',
+          postIds: ['post-1']
+        });
         return { kind: 'continue', output: 'written' };
       });
       complete.mockResolvedValueOnce(Result.ok(text('done')));
       await run();
-      expect(releaseHeldActivation).toHaveBeenCalledOnce();
+      expect(releaseDeferredHandoff).toHaveBeenCalledOnce();
     });
 
     it('should end the turn as a delivery failure when the post cannot be sent, writing nothing', async () => {
@@ -2020,7 +2046,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 0,
         profile: LIMITED,
-        releaseHeldActivation,
+        releaseDeferredHandoff,
         rootPostId: 'post-0'
       });
       for (let advance = 0; advance < advances; advance++) {
@@ -2114,6 +2140,35 @@ describe('TurnRunner', () => {
         role: 'user'
       });
     });
+
+    it('should abort a completion when a fold lands, reassembling without waiting and estimating what streamed (§4.4)', async () => {
+      complete.mockImplementationOnce((request, options) => {
+        const pending = settlesOnAbort(ABORTED, 400)(request, options);
+        offerFragment('post-2');
+        return pending;
+      });
+      complete.mockResolvedValueOnce(Result.ok(text('all of it')));
+      const running = turnRunner.run({
+        activationKind: 'addressed',
+        chainLength: 1,
+        channelId: 'channel-1',
+        depth: 0,
+        foldAuthorUsername: 'casey',
+        profile: LIMITED,
+        releaseDeferredHandoff,
+        rootPostId: 'post-0'
+      });
+      const outcome = (await running).unwrap();
+      expect(outcome.status).toBe('completed');
+      expect(contextAssembler.assemble).toHaveBeenCalledTimes(2);
+      expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
+        foldedPostIds: ['post-2'],
+        kind: 'posts_taken',
+        postIds: [],
+        usage: { completionTokens: 0, estimated: true, reasoningTokens: 100 }
+      });
+      expect(sends.map((send) => send.text)).toStrictEqual(['all of it']);
+    });
   });
 
   it('should end the turn after two consecutive rejected posts, saying so under its own name (§4.5)', async () => {
@@ -2194,7 +2249,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 0,
         profile: { ...PROFILE, actionBudget: 1 },
-        releaseHeldActivation,
+        releaseDeferredHandoff,
         rootPostId: 'post-0'
       })
     ).unwrap();
@@ -2270,6 +2325,7 @@ describe('TurnRunner', () => {
       systemPrompt: 'sys',
       tools: []
     },
+    takenPostIds: [],
     windowEstimatedTokens: 10,
     windowPostIds: new Set(['post-0'])
   });
@@ -2282,7 +2338,7 @@ describe('TurnRunner', () => {
       channelId: 'channel-1',
       depth: 0,
       profile: { ...PROFILE, turnContextCeilingTokens, ...overrides },
-      releaseHeldActivation,
+      releaseDeferredHandoff,
       rootPostId: 'post-0'
     });
     return outcome.unwrap();
@@ -2516,7 +2572,7 @@ describe('TurnRunner', () => {
         channelId: 'channel-1',
         depth: 10,
         profile: PROFILE,
-        releaseHeldActivation,
+        releaseDeferredHandoff,
         rootPostId: 'post-0'
       })
     ).unwrap();

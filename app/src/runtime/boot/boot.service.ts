@@ -57,13 +57,14 @@ export class BootService {
     await this.closeAbandonedStatusPosts(abandoned.statusPosts);
     const strandedUnits = await this.findStrandedUnits(abandoned.acted);
     const requeuedTurns = await this.activationService.requeueUnacted(abandoned.unacted);
+    await this.activationService.consumeActed(abandoned.acted);
     await this.pendingDecisionsService.invalidateAll('restart');
     await this.backfillService.run();
     const reconciled = await this.rosterService.reconcile();
     if (!reconciled.success) {
       throw new Error(`failed to reconcile channel membership: ${reconciled.error.message}`);
     }
-    const requeuedHandoffs = await this.activationService.requeueHeld(abandoned.turns);
+    const requeuedHandoffs = await this.activationService.requeueDeferred(abandoned.turns);
     void this.activationService.sweep();
     return { abandonedTurns: abandoned.turns.length, downtime, requeuedHandoffs, requeuedTurns, strandedUnits };
   }

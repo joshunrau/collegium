@@ -30,15 +30,19 @@ export class LaneReportService {
     return { backlog, hold };
   }
 
+  /** §5.2 — the posts waiting in the lane, which a running turn has not taken: the depth is a count of posts */
   private async readBacklog(agentUsername: string, channelId: string): Promise<QueueBacklog | undefined> {
-    const entry = await this.queueService.peek(agentUsername, channelId);
-    if (!entry) {
+    const standing = await this.queueService.listUntaken({ agentUsername, channelId });
+    const [oldest] = standing;
+    if (oldest === undefined) {
       return undefined;
     }
-    const { earliestUnprocessedPostId } = entry;
     return {
-      earliestUnprocessedPostId,
-      summary: await this.conversationsService.summarizeBacklog(channelId, earliestUnprocessedPostId)
+      depth: standing.length,
+      oldest: {
+        message: (await this.conversationsService.findUnforgotten(oldest.postId))?.message,
+        postId: oldest.postId
+      }
     };
   }
 

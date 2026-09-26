@@ -12,8 +12,8 @@ type ModelTableOptions<TRow> = {
   defaults?: (sequence: number) => Partial<TRow>;
   /** what `include: { name: true }` attaches to a returned row */
   relations?: { [name: string]: (row: TRow) => unknown };
-  /** fields whose duplication on create raises the real P2002, as the engine would */
-  uniqueFields?: readonly (keyof TRow & string)[];
+  /** fields, or sets of fields together, whose duplication on create raises the real P2002, as the engine would */
+  uniqueFields?: readonly ((keyof TRow & string) | readonly (keyof TRow & string)[])[];
 };
 
 const foldAsciiCase = (value: string): string => value.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
@@ -187,8 +187,12 @@ export function createModelTable<TRow extends object>(options: ModelTableOptions
     create: ({ data }) => {
       const provided = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
       const row = { ...options.defaults?.(sequence++), ...provided } as TRow;
-      for (const field of options.uniqueFields ?? []) {
-        if (rows.some((existing) => matchesCondition(resolveField(existing, field), resolveField(row, field)))) {
+      for (const key of options.uniqueFields ?? []) {
+        const fields = [key].flat();
+        const duplicates = (existing: TRow) => {
+          return fields.every((field) => matchesCondition(resolveField(existing, field), resolveField(row, field)));
+        };
+        if (rows.some(duplicates)) {
           return Promise.reject(
             new Prisma.PrismaClientKnownRequestError('unique constraint violation', {
               clientVersion: '0',

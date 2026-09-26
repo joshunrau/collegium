@@ -2,77 +2,27 @@ import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getModelToken } from '@/prisma/prisma.utils.ts';
+import { createModelTable } from '@/testing/factories/model-table.factory.ts';
+import type { ModelTable } from '@/testing/factories/model-table.factory.ts';
 
 import { QueueService } from '../queue.service.ts';
 
-type EntryRow = {
-  agentUsername: string;
-  channelId: string;
-  earliestUnprocessedPostId: string;
-  id: string;
-  lastEnqueuedAt: Date;
-};
+import type { QueueEntry } from '../queue.utils.ts';
+
+const LANE = { agentUsername: 'mira', channelId: 'channel-1' };
 
 describe('QueueService', () => {
+  let entries: ModelTable<QueueEntry>;
   let queueService: QueueService;
-  let rows: EntryRow[];
-  let sequence: number;
 
   beforeEach(async () => {
-    vi.useFakeTimers({ now: 0, toFake: ['Date'] });
-    rows = [];
-    sequence = 0;
-    const matches = (row: EntryRow, where: any) => {
-      return Object.entries(where).every(([field, value]) => {
-        const actual = row[field as keyof EntryRow];
-        return value instanceof Date
-          ? actual instanceof Date && actual.getTime() === value.getTime()
-          : actual === value;
-      });
-    };
-    const findByKey = (where: any) => rows.find((row) => matches(row, where.agentUsername_channelId));
+    vi.useFakeTimers({ now: 1_000, toFake: ['Date'] });
+    entries = createModelTable<QueueEntry>({
+      defaults: (sequence) => ({ id: `entry-${sequence}`, returnedOnce: false, takenByTurnId: null }),
+      uniqueFields: [['agentUsername', 'channelId', 'postId']]
+    });
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        QueueService,
-        {
-          provide: getModelToken('QueueEntry'),
-          useValue: {
-            delete: ({ where }: any) => {
-              rows.splice(
-                rows.findIndex((row) => row.id === where.id),
-                1
-              );
-              return Promise.resolve();
-            },
-            deleteMany: ({ where }: any) => {
-              const doomed = rows.filter((row) => matches(row, where));
-              rows = rows.filter((row) => !doomed.includes(row));
-              return Promise.resolve({ count: doomed.length });
-            },
-            findMany: () => Promise.resolve([...rows]),
-            findUnique: ({ where }: any) => {
-              const found = findByKey(where);
-              return Promise.resolve(found ? { ...found } : null);
-            },
-            updateMany: ({ data, where }: any) => {
-              const matching = rows.filter((row) => matches(row, where));
-              for (const row of matching) {
-                Object.assign(row, data);
-              }
-              return Promise.resolve({ count: matching.length });
-            },
-            upsert: ({ create, update, where }: any) => {
-              const standing = findByKey(where);
-              if (standing) {
-                return Promise.resolve(Object.assign(standing, update));
-              }
-              const row = { id: `entry-${sequence++}`, ...create };
-              rows.push(row);
-              return Promise.resolve(row);
-            }
-          }
-        }
-      ]
+      providers: [QueueService, { provide: getModelToken('QueueEntry'), useValue: entries }]
     }).compile();
     queueService = moduleRef.get(QueueService);
   });
@@ -81,81 +31,64 @@ describe('QueueService', () => {
     vi.useRealTimers();
   });
 
-  it('should store one row per agent and channel, holding the earliest unprocessed post id', async () => {
-    await queueService.enqueue('mira', 'channel-1', 'post-1');
-    await queueService.enqueue('mira', 'channel-1', 'post-2');
-    await queueService.enqueue('mira', 'channel-2', 'post-3');
-    expect(rows).toHaveLength(2);
-    expect((await queueService.peek('mira', 'channel-1'))?.earliestUnprocessedPostId).toBe('post-1');
-  });
+  const queueAt = async (ms: number, postId: string, lane = LANE) => {
+    vi.setSystemTime(ms);
+    await queueService.insert(lane, postId);
+  };
 
-  it('should clear the flag on drain without storing post content', async () => {
-    await queueService.enqueue('mira', 'channel-1', 'post-1');
-    const drained = await queueService.drain('mira', 'channel-1');
-    expect(drained?.earliestUnprocessedPostId).toBe('post-1');
-    expect(rows).toHaveLength(0);
-    expect(await queueService.drain('mira', 'channel-1')).toBeUndefined();
-  });
-
-  it('should throw the standing entry away on discard, leaving nothing for the next drain', async () => {
-    await queueService.enqueue('mira', 'channel-1', 'post-1');
-    expect((await queueService.discard('mira', 'channel-1'))?.earliestUnprocessedPostId).toBe('post-1');
-    expect(rows).toHaveLength(0);
-    expect(await queueService.drain('mira', 'channel-1')).toBeUndefined();
-  });
-
-  it("should leave another channel's entry standing when one is discarded", async () => {
-    await queueService.enqueue('mira', 'channel-1', 'post-1');
-    await queueService.enqueue('mira', 'channel-2', 'post-2');
-    await queueService.discard('mira', 'channel-1');
-    expect((await queueService.peek('mira', 'channel-2'))?.earliestUnprocessedPostId).toBe('post-2');
-  });
-
-  it('should stamp the entry on every enqueue while keeping the earliest pointer', async () => {
-    await queueService.enqueue('mira', 'channel-1', 'post-1');
-    vi.setSystemTime(5);
-    await queueService.enqueue('mira', 'channel-1', 'post-2');
-    expect(rows).toStrictEqual([
-      expect.objectContaining({ earliestUnprocessedPostId: 'post-1', lastEnqueuedAt: new Date(5) })
+  it('should hold one row per queued post and ignore a repeat insert (§5.2)', async () => {
+    await queueAt(1_000, 'post-1');
+    await queueAt(2_000, 'post-1');
+    await queueAt(2_000, 'post-1', { ...LANE, channelId: 'channel-2' });
+    expect(entries.rows.map((entry) => [entry.channelId, entry.postId, entry.enqueuedAt.getTime()])).toStrictEqual([
+      ['channel-1', 'post-1', 1_000],
+      ['channel-2', 'post-1', 2_000]
     ]);
   });
 
-  it('should consume the entry only while it stands as it was read (§5.2)', async () => {
-    await queueService.enqueue('mira', 'channel-1', 'post-1');
-    const read = (await queueService.peek('mira', 'channel-1'))!;
-    vi.setSystemTime(5);
-    await queueService.enqueue('mira', 'channel-1', 'post-2');
-    expect(await queueService.consumeIfUnchanged(read)).toBe(false);
-    expect(await queueService.consumeIfUnchanged((await queueService.peek('mira', 'channel-1'))!)).toBe(true);
-    expect(rows).toHaveLength(0);
+  it('should take only the untaken rows of the lane queued at or before the bound (§5.2)', async () => {
+    await queueAt(1_000, 'post-1');
+    await queueAt(2_000, 'post-2');
+    await queueAt(3_000, 'post-3');
+    await queueAt(1_000, 'post-9', { ...LANE, agentUsername: 'owen' });
+    expect(await queueService.take('turn-1', LANE, new Date(2_000))).toStrictEqual(['post-1', 'post-2']);
+    expect(await queueService.take('turn-2', LANE, new Date(3_000))).toStrictEqual(['post-3']);
+    expect((await queueService.listUntaken(LANE)).map((entry) => entry.postId)).toStrictEqual([]);
   });
 
-  it('should list every standing entry for the sweep to walk', async () => {
-    await queueService.enqueue('mira', 'channel-1', 'post-1');
-    await queueService.enqueue('owen', 'channel-2', 'post-2');
-    expect((await queueService.listAll()).map((entry) => entry.agentUsername)).toStrictEqual(['mira', 'owen']);
+  it('should return what a turn took to the queue, and consume what another took (§7.1)', async () => {
+    await queueAt(1_000, 'post-1');
+    await queueService.take('turn-1', LANE, new Date(1_000));
+    await queueAt(2_000, 'post-2');
+    await queueService.take('turn-2', LANE, new Date(2_000));
+    expect(await queueService.returnTaken('turn-1')).toStrictEqual(['post-1']);
+    await queueService.consume('turn-2');
+    expect(entries.rows.map((entry) => [entry.postId, entry.takenByTurnId])).toStrictEqual([['post-1', null]]);
   });
 
-  it('should move a standing pointer to the post the caller names, stamping the entry', async () => {
-    await queueService.enqueue('mira', 'channel-1', 'post-9');
-    vi.setSystemTime(5);
-    await queueService.pointAt('mira', 'channel-1', 'post-1');
-    expect(rows).toStrictEqual([
-      expect.objectContaining({ earliestUnprocessedPostId: 'post-1', lastEnqueuedAt: new Date(5) })
-    ]);
+  it('should discard what waits in the lane and leave what a running turn took (§8.4)', async () => {
+    await queueAt(1_000, 'post-1');
+    await queueService.take('turn-1', LANE, new Date(1_000));
+    await queueAt(2_000, 'post-2');
+    await queueAt(3_000, 'post-3');
+    expect(await queueService.discard(LANE)).toBe(2);
+    expect(entries.rows.map((entry) => entry.postId)).toStrictEqual(['post-1']);
   });
 
-  it('should hold pointers alone, rebuilding from a fresh enqueue after a drain', async () => {
-    await queueService.enqueue('mira', 'channel-1', 'post-1');
-    expect(Object.keys(rows[0]!).toSorted()).toStrictEqual([
-      'agentUsername',
-      'channelId',
-      'earliestUnprocessedPostId',
-      'id',
-      'lastEnqueuedAt'
-    ]);
-    await queueService.drain('mira', 'channel-1');
-    await queueService.enqueue('mira', 'channel-1', 'post-9');
-    expect((await queueService.peek('mira', 'channel-1'))?.earliestUnprocessedPostId).toBe('post-9');
+  it("should delete a forgotten post's rows in every lane, taken or not (§8.4)", async () => {
+    await queueAt(1_000, 'post-1');
+    await queueAt(1_000, 'post-1', { ...LANE, agentUsername: 'owen' });
+    await queueService.take('turn-1', LANE, new Date(1_000));
+    await queueAt(2_000, 'post-2');
+    await queueService.deletePosts(['post-1']);
+    expect(entries.rows.map((entry) => entry.postId)).toStrictEqual(['post-2']);
+  });
+
+  it('should list the standing rows oldest first, leaving out what a turn took', async () => {
+    await queueAt(3_000, 'post-3');
+    await queueAt(1_000, 'post-1', { ...LANE, agentUsername: 'owen' });
+    await queueAt(2_000, 'post-2');
+    await queueService.take('turn-1', LANE, new Date(2_000));
+    expect((await queueService.listStanding()).map((entry) => entry.postId)).toStrictEqual(['post-1', 'post-3']);
   });
 });

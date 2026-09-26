@@ -240,23 +240,6 @@ describe('ConversationsService', () => {
     });
   });
 
-  describe('hasPostsObservedSince', () => {
-    const since = { agentUsername: 'mira', channelId: 'channel-1', since: new Date(1) };
-
-    it("should count nothing but others' posts observed at or after the instant (§5.2)", async () => {
-      await conversationsService.record(post({ id: 'post-0' }));
-      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'mira', id: 'post-1' }));
-      await conversationsService.record(post({ authorKind: 'system', authorUsername: 'collegium', id: 'post-2' }));
-      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'owen', id: 'post-3' }), {
-        kind: 'status',
-        turnId: 'turn-1'
-      });
-      expect(await conversationsService.hasPostsObservedSince(since)).toBe(false);
-      await conversationsService.record(post({ id: 'post-4' }));
-      expect(await conversationsService.hasPostsObservedSince(since)).toBe(true);
-    });
-  });
-
   describe('latestPostIdIn', () => {
     it('should return the newest recorded post id for the channel', async () => {
       await conversationsService.record(post({ createdAt: new Date(1000), id: 'post-1' }));
@@ -287,52 +270,15 @@ describe('ConversationsService', () => {
     });
   });
 
-  describe('listPersonPostsFrom', () => {
-    const at = (milliseconds: number) => new Date(milliseconds);
-
-    it("should list people's live posts here from the queued post onward, taken since the instant, newest first (§5.2)", async () => {
-      const owen = { authorKind: 'agent', authorUsername: 'owen' } as const;
-      await conversationsService.record(post({ createdAt: at(3000), id: 'post-0' }));
-      await conversationsService.record(post({ ...owen, createdAt: at(2000), id: 'post-1' }));
-      await conversationsService.record(post({ createdAt: at(1000), id: 'post-2' }));
-      await conversationsService.record(post({ createdAt: at(4000), id: 'post-3' }));
-      await conversationsService.record(post({ ...owen, createdAt: at(5000), id: 'post-4' }));
-      await conversationsService.record(post({ channelId: 'channel-2', createdAt: at(5000), id: 'post-5' }));
-      await conversationsService.record(post({ createdAt: at(7000), id: 'post-6' }));
-      await conversationsService.record(post({ createdAt: at(6000), id: 'post-7' }));
-      table.rows.find((row) => row.id === 'post-6')!.isForgotten = true;
-      const listed = await conversationsService.listPersonPostsFrom({
-        channelId: 'channel-1',
-        fromPostId: 'post-1',
-        observedSince: at(1)
-      });
-      expect(listed.map(({ id }) => id)).toStrictEqual(['post-7', 'post-3']);
-    });
-
-    it('should list nothing from a queued post the store never recorded', async () => {
-      await conversationsService.record(post());
-      const listed = await conversationsService.listPersonPostsFrom({
-        channelId: 'channel-1',
-        fromPostId: 'post-9',
-        observedSince: undefined
-      });
-      expect(listed).toStrictEqual([]);
-    });
-  });
-
-  describe('summarizeBacklog', () => {
-    it('should return the pointer post beside the count of live posts from it forward', async () => {
-      await conversationsService.record(post({ createdAt: new Date(1000), id: 'post-1', message: 'older' }));
-      await conversationsService.record(post({ createdAt: new Date(2000), id: 'post-2', message: 'pointer' }));
-      await conversationsService.record(post({ createdAt: new Date(3000), id: 'post-3', message: 'newer' }));
-      expect(await conversationsService.summarizeBacklog('channel-1', 'post-2')).toStrictEqual({
-        message: 'pointer',
-        pendingCount: 2
-      });
-    });
-
-    it('should return undefined when the pointer post is not recorded', async () => {
-      expect(await conversationsService.summarizeBacklog('channel-1', 'post-9')).toBeUndefined();
+  describe('describeQueued', () => {
+    it('should say who wrote each queued post the store holds, and when (§5.2)', async () => {
+      await conversationsService.record(post({ createdAt: new Date(1000), id: 'post-1' }));
+      await conversationsService.record(post({ authorKind: 'agent', authorUsername: 'owen', id: 'post-2' }));
+      const described = await conversationsService.describeQueued(['post-1', 'post-2', 'post-9']);
+      expect(described.map(({ authorKind, id }) => [id, authorKind])).toStrictEqual([
+        ['post-1', 'human'],
+        ['post-2', 'agent']
+      ]);
     });
   });
 
@@ -341,17 +287,6 @@ describe('ConversationsService', () => {
       await conversationsService.record(post({ message: 'thinking…' }));
       await conversationsService.updateAuthoredMessage('post-1', 'done');
       expect(table.rows[0]?.message).toBe('done');
-    });
-  });
-
-  describe('earliestOf', () => {
-    it('should name the post the channel saw first among those given, ignoring unknown ids', async () => {
-      await conversationsService.record(post({ createdAt: new Date(2000), id: 'post-later' }));
-      await conversationsService.record(post({ createdAt: new Date(1000), id: 'post-earlier' }));
-      expect(await conversationsService.earliestOf(['post-later', 'post-missing', 'post-earlier'])).toBe(
-        'post-earlier'
-      );
-      expect(await conversationsService.earliestOf(['post-missing'])).toBeUndefined();
     });
   });
 });

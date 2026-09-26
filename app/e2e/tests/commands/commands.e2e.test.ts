@@ -75,7 +75,9 @@ describe('Ephemeral commands', () => {
   it('/collegium queue reports the running turn, pending depth and the oldest unprocessed post (§8.4)', async () => {
     const { agents, channels, inference } = harness();
     const drained = `drained-${randomUUID()}`;
-    const blocked = inference.willBlock({ agent: 'mira', contains: 'hold the line' }, textResponse('holding done'));
+    // §4.4 — the turn acts first, so the next post queues rather than folding into it
+    inference.willReply({ agent: 'mira', contains: 'hold the line' }, toolCallResponse('builtins__now', {}));
+    const blocked = inference.willBlock({ agent: 'mira' }, textResponse('holding done'));
 
     const running = await channels.main.mention('mira', 'hold the line');
     await blocked.arrived;
@@ -83,8 +85,8 @@ describe('Ephemeral commands', () => {
     await channels.main.awaitReaction(queued, QUEUED_ACKNOWLEDGEMENT_EMOJI);
     await channels.main.runCommand(`/collegium queue ${agents.mira.username}`);
     const report = await channels.main.awaitEphemeral({ contains: 'oldest unprocessed' });
-    expect(report.message).toContain(`started by post \`${running.id}\`; no status post yet`);
-    expect(report.message).toContain(queued.id);
+    expect(report.message).toContain(`started by post \`${running.id}\`; status post`);
+    expect(report.message).toContain(`Queue: 1 post(s) pending; oldest unprocessed is \`${queued.id}\``);
 
     inference.willReply({ agent: 'mira' }, textResponse(drained));
     blocked.release();
@@ -339,7 +341,8 @@ describe('Intervention scope', () => {
     const { channels, inference } = harness();
     const queuedWork = `queued work ${randomUUID()}`;
     const reply = `drained-${randomUUID()}`;
-    const blocked = inference.willBlock({ agent: 'mira', contains: 'busy now' }, textResponse('busy output'));
+    inference.willReply({ agent: 'mira', contains: 'busy now' }, toolCallResponse('builtins__now', {}));
+    const blocked = inference.willBlock({ agent: 'mira' }, textResponse('busy output'));
 
     await channels.main.mention('mira', 'busy now');
     await blocked.arrived;

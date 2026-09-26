@@ -10,10 +10,22 @@ type BatchKey = {
 };
 
 type PendingBatch = {
+  readonly addressedPostIds: string[];
   ceilingTimer: NodeJS.Timeout;
   channelId: string;
-  onMature: () => void;
+  readonly fragmentIds: string[];
+  onMature: (batch: DebouncedBatch) => void;
   windowTimer: NodeJS.Timeout;
+};
+
+/**
+ * §4.4 — what a batch absorbed besides the post that opened it: the posts that named the agent again,
+ * which activation queues before the turn starts, and the fragments naming nobody, which are not
+ * queued and reach the turn's trace alone.
+ */
+export type DebouncedBatch = {
+  readonly addressedPostIds: readonly string[];
+  readonly fragmentIds: readonly string[];
 };
 
 /**
@@ -54,15 +66,19 @@ export class DebounceService implements OnApplicationShutdown {
     this.pending.clear();
   }
 
-  /** folds repeated posts into one maturation; the first call's continuation is the one that runs */
-  schedule(key: BatchKey, onMature: () => void): void {
+  /** folds repeated posts into one maturation; the first call's continuation is the one that runs, told what the batch absorbed */
+  schedule(key: BatchKey, postId: string, onMature: (batch: DebouncedBatch) => void): void {
     const id = this.toId(key);
-    if (this.reset(id)) {
+    const existing = this.reset(id);
+    if (existing) {
+      existing.addressedPostIds.push(postId);
       return;
     }
     this.pending.set(id, {
+      addressedPostIds: [],
       ceilingTimer: setTimeout(() => this.fire(id), this.ceilingMs),
       channelId: key.channelId,
+      fragmentIds: [],
       onMature,
       windowTimer: setTimeout(() => this.fire(id), this.windowMs)
     });
@@ -71,10 +87,15 @@ export class DebounceService implements OnApplicationShutdown {
   /**
    * §4.4 folds on every further message from the same human, addressed or not — a fragment rarely
    * repeats the mention. Resets a pending batch's window and reports having done so; never creates
-   * one, so an unaddressed post in a quiet channel stays inert.
+   * one, so an unaddressed post in a quiet channel stays inert. A fragment naming nobody is
+   * remembered for the turn's trace; one naming a colleague only holds the window open.
    */
-  touch(key: BatchKey): boolean {
-    return this.reset(this.toId(key));
+  touch(key: BatchKey, fragmentId?: string): boolean {
+    const existing = this.reset(this.toId(key));
+    if (existing && fragmentId !== undefined) {
+      existing.fragmentIds.push(fragmentId);
+    }
+    return existing !== undefined;
   }
 
   private fire(id: string): void {
@@ -85,17 +106,17 @@ export class DebounceService implements OnApplicationShutdown {
     clearTimeout(batch.ceilingTimer);
     clearTimeout(batch.windowTimer);
     this.pending.delete(id);
-    batch.onMature();
+    batch.onMature({ addressedPostIds: batch.addressedPostIds, fragmentIds: batch.fragmentIds });
   }
 
-  private reset(id: string): boolean {
+  private reset(id: string): PendingBatch | undefined {
     const existing = this.pending.get(id);
     if (!existing) {
-      return false;
+      return undefined;
     }
     clearTimeout(existing.windowTimer);
     existing.windowTimer = setTimeout(() => this.fire(id), this.windowMs);
-    return true;
+    return existing;
   }
 
   private toId(key: BatchKey): string {

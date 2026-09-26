@@ -102,7 +102,7 @@ describe('TurnsService abandonment against the store (§7.3)', () => {
     const steered = await open('post-1');
     await turnsService.appendEvent(steered.id, { byUsername: 'ada', kind: 'steering_received', text: 'and this' });
     expect((await turnsService.abandonRunning()).unacted).toStrictEqual([
-      { agentUsername: 'mira', channelId: 'channel-1', triggeringPostId: 'post-1' }
+      { agentUsername: 'mira', channelId: 'channel-1', triggeringPostId: 'post-1', turnId: steered.id }
     ]);
   });
 
@@ -116,7 +116,7 @@ describe('TurnsService abandonment against the store (§7.3)', () => {
     const abandoned = await turnsService.abandonRunning();
     expect(abandoned.unacted).toStrictEqual([]);
     expect(abandoned.acted).toStrictEqual([
-      { agentUsername: 'mira', channelId: 'channel-1', triggeringPostId: 'post-2' }
+      { agentUsername: 'mira', channelId: 'channel-1', triggeringPostId: 'post-2', turnId: parked.id }
     ]);
   });
 });

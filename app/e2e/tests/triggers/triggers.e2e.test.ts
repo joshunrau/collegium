@@ -230,6 +230,9 @@ describe('Trigger lifecycle', () => {
     expect((await channels.main.posts()).some((post) => post.text.includes(subject))).toBe(false);
 
     inference.willReply({ agent: 'mira', contains: subject }, textResponse(reply));
+    // §7.3 — the unacted turn's post is queued again, and its re-run may take the lane before the
+    // trigger flushes; its latest input is then the offline notice, so it is matched by agent alone
+    inference.willReply({ agent: 'mira' }, textResponse(`re-run-${randomUUID()}`));
     await app.restart();
     await channels.main.awaitPost({
       description: 'the surviving trigger announced after the restart sweep',

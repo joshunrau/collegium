@@ -1,9 +1,9 @@
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TurnFoldRegistry } from '../turn-fold.registry.ts';
 
-const TURN = { agentUsername: 'mira', authorUsername: 'casey', channelId: 'channel-1' };
+const TURN = { agentUsername: 'mira', authorUsername: 'casey', channelId: 'channel-1', onOffered: () => undefined };
 
 describe('TurnFoldRegistry', () => {
   let registry: TurnFoldRegistry;
@@ -17,6 +17,15 @@ describe('TurnFoldRegistry', () => {
     const fold = registry.register(TURN);
     expect(registry.offer({ ...TURN, postId: 'post-2' })).toBe(true);
     expect(fold.takeOffered()).toStrictEqual(['post-2']);
+  });
+
+  it('should interrupt the turn as it accepts a post, never as it refuses one (§4.4)', () => {
+    const onOffered = vi.fn();
+    registry.register({ ...TURN, onOffered });
+    registry.offer({ ...TURN, authorUsername: 'owen', postId: 'post-2' });
+    expect(onOffered).not.toHaveBeenCalled();
+    registry.offer({ ...TURN, postId: 'post-3' });
+    expect(onOffered).toHaveBeenCalledTimes(1);
   });
 
   it('should clear the buffer once taken', () => {

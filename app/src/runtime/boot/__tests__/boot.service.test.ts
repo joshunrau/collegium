@@ -22,9 +22,19 @@ import { BootService } from '../boot.service.ts';
 
 const STATUS_POST: AbandonedStatusPost = { agentUsername: 'mira', channelId: 'channel-1', postId: 'status-1' };
 
-const UNACTED: UnactedTurn = { agentUsername: 'owen', channelId: 'channel-2', triggeringPostId: 'post-1' };
+const UNACTED: UnactedTurn = {
+  agentUsername: 'owen',
+  channelId: 'channel-2',
+  triggeringPostId: 'post-1',
+  turnId: 'turn-4'
+};
 
-const ACTED: ActedTurn = { agentUsername: 'mira', channelId: 'channel-1', triggeringPostId: 'post-2' };
+const ACTED: ActedTurn = {
+  agentUsername: 'mira',
+  channelId: 'channel-1',
+  triggeringPostId: 'post-2',
+  turnId: 'turn-5'
+};
 
 const ABANDONED: AbandonedTurn[] = ['turn-1', 'turn-2', 'turn-3'].map((turnId) => ({
   agentUsername: 'mira',
@@ -51,7 +61,7 @@ describe('BootService', () => {
       calls.push('requeue');
       return Promise.resolve(1);
     });
-    activationService.requeueHeld.mockImplementation(() => {
+    activationService.requeueDeferred.mockImplementation(() => {
       calls.push('requeue-held');
       return Promise.resolve(2);
     });
@@ -152,9 +162,14 @@ describe('BootService', () => {
     expect(activationService.requeueUnacted).toHaveBeenCalledExactlyOnceWith([UNACTED]);
   });
 
-  it('should hand activation every abandoned turn, whose held posts it queues once the roster reconciles (§5.2, §7.3)', async () => {
+  it('should hand activation every abandoned turn, whose deferred posts it queues once the roster reconciles (§5.2, §7.3)', async () => {
     await bootService.run();
-    expect(activationService.requeueHeld).toHaveBeenCalledExactlyOnceWith(ABANDONED);
+    expect(activationService.requeueDeferred).toHaveBeenCalledExactlyOnceWith(ABANDONED);
+  });
+
+  it('should hand activation the abandoned turns that had acted, whose queue rows it consumes (§5.2, §7.3)', async () => {
+    await bootService.run();
+    expect(activationService.consumeActed).toHaveBeenCalledExactlyOnceWith([ACTED]);
   });
 
   it('should report the unit each acted abandoned turn was working, for the boot notice to name (§7.3)', async () => {

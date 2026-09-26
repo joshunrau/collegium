@@ -70,7 +70,7 @@ describe('renderUsageResponse', () => {
       { completions: 2, tokens: 24_310 }
     );
     expect(text).toBe(
-      'Usage — turns ended in the last 24 hours: none recorded.\n\n2 completions cut at the time limit or by a steer, about 24,310 tokens not reported by the provider.'
+      'Usage — turns ended in the last 24 hours: none recorded.\n\n2 completions cut at the time limit, by a steer or by a fold, about 24,310 tokens not reported by the provider.'
     );
   });
 });

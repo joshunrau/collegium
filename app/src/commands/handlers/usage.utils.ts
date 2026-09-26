@@ -38,7 +38,7 @@ function renderEstimates({ completions, tokens }: EstimatedSpend): string[] {
   if (completions === 0) {
     return [];
   }
-  const cut = `${COUNT_FORMAT.format(completions)} completion${completions === 1 ? '' : 's'} cut at the time limit or by a steer`;
+  const cut = `${COUNT_FORMAT.format(completions)} completion${completions === 1 ? '' : 's'} cut at the time limit, by a steer or by a fold`;
   return ['', `${cut}, about ${COUNT_FORMAT.format(tokens)} tokens not reported by the provider.`];
 }
 

@@ -94,8 +94,21 @@ describe('ChannelErasure', () => {
     ]) {
       expect(participant).toHaveBeenCalledExactlyOnceWith('channel-1', BOUNDARY, TRANSACTION);
     }
-    expect(queueService.eraseBefore).toHaveBeenCalledExactlyOnceWith('channel-1', BOUNDARY, 'notice-1', TRANSACTION);
     expect(turnsService.listTriggeringPostIdsIn).not.toHaveBeenCalled();
+  });
+
+  it('should delete the queue rows of the posts it erases, read before the posts go (§8.5)', async () => {
+    queueService.listPostIdsIn.mockResolvedValue(['post-1', 'post-9']);
+    conversationsService.listErasedAmong.mockResolvedValue(['post-1']);
+    await channelErasure.erase({ boundary: BOUNDARY, channelId: 'channel-1', notice: NOTICE, selectMemories: false });
+    expect(conversationsService.listErasedAmong).toHaveBeenCalledExactlyOnceWith(
+      ['post-1', 'post-9'],
+      'channel-1',
+      BOUNDARY,
+      TRANSACTION
+    );
+    expect(conversationsService.listErasedAmong).toHaveBeenCalledBefore(conversationsService.eraseBefore);
+    expect(queueService.deletePosts).toHaveBeenCalledExactlyOnceWith(['post-1'], TRANSACTION);
   });
 
   it('should name the memories written from turns here, per agent, before the pointers go', async () => {

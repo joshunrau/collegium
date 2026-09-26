@@ -78,7 +78,8 @@ export class TurnsService {
         {
           agentUsername: turn.agentUsername,
           channelId: turn.channelId,
-          triggeringPostId: turn.triggeringPostId ?? undefined
+          triggeringPostId: turn.triggeringPostId ?? undefined,
+          turnId: turn.id
         }
       ];
     });
@@ -87,7 +88,12 @@ export class TurnsService {
         return [];
       }
       return [
-        { agentUsername: turn.agentUsername, channelId: turn.channelId, triggeringPostId: turn.triggeringPostId }
+        {
+          agentUsername: turn.agentUsername,
+          channelId: turn.channelId,
+          triggeringPostId: turn.triggeringPostId,
+          turnId: turn.id
+        }
       ];
     });
     const turns = running.map((turn) => ({
@@ -288,17 +294,20 @@ export class TurnsService {
   }
 
   /**
-   * §8.2 — the completions cut at their time limit or by a steer strictly after a moment, which the
-   * provider reported nothing of: how many, and the tokens their events estimate. Never in a total.
+   * §8.2 — the completions cut at their time limit, by a steer or by a fold strictly after a moment,
+   * which the provider reported nothing of: how many, and the tokens their events estimate. Never in
+   * a total.
    */
   async summarizeEstimatesAfter(moment: Date): Promise<EstimatedSpend> {
     const events = await this.events.findMany({
       select: { payload: true },
-      where: { createdAt: { gt: moment }, kind: { in: ['output_rejected', 'steering_received'] } }
+      where: { createdAt: { gt: moment }, kind: { in: ['output_rejected', 'posts_taken', 'steering_received'] } }
     });
     const estimates = events.flatMap(({ payload }) => {
       const usage =
-        payload.kind === 'output_rejected' || payload.kind === 'steering_received' ? payload.usage : undefined;
+        payload.kind === 'output_rejected' || payload.kind === 'posts_taken' || payload.kind === 'steering_received'
+          ? payload.usage
+          : undefined;
       return usage !== undefined && 'estimated' in usage ? [usage.completionTokens + usage.reasoningTokens] : [];
     });
     return { completions: estimates.length, tokens: estimates.reduce((sum, tokens) => sum + tokens, 0) };

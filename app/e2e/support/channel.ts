@@ -260,6 +260,11 @@ class Channel<AgentName extends string> {
     await this.client.addReaction(me.id, post.id, emojiName);
   }
 
+  /** the emoji names reacted on a post, as the server holds them now */
+  async reactionsOn(post: Channel.Post): Promise<string[]> {
+    return ((await this.client.getReactionsForPost(post.id)) ?? []).map((reaction) => reaction.emoji_name);
+  }
+
   async runCommand(command: string): Promise<void> {
     await this.client.executeCommand(command, { channel_id: this.id, team_id: this.teamId });
   }

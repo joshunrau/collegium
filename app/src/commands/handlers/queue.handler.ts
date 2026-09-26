@@ -45,8 +45,8 @@ export class QueueHandler extends CommandHandler {
 
   /** §3.2 — discarding work is attributable, so the channel hears it from the system bot */
   private async clear(agentUsername: string, channelId: string): Promise<CommandResponse> {
-    const discarded = await this.queueService.discard(agentUsername, channelId);
-    if (!discarded) {
+    const discarded = await this.queueService.discard({ agentUsername, channelId });
+    if (discarded === 0) {
       return { audience: 'invoker', text: `Queue for ${agentUsername} in this channel: empty. Nothing discarded.` };
     }
     return {

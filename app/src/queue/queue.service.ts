@@ -1,110 +1,96 @@
 import { Injectable } from '@nestjs/common';
 
-import type { EpisodeBoundary } from '@/conversations/conversations.types.ts';
 import { InjectModel } from '@/prisma/prisma.decorators.ts';
-import type { Model, ModelRow, TransactionClient } from '@/prisma/prisma.types.ts';
+import type { Model, TransactionClient } from '@/prisma/prisma.types.ts';
+import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
-export type QueueEntry = ModelRow<'QueueEntry'>;
+import { selectTakable } from './queue.utils.ts';
+
+import type { QueueEntry, QueueLane } from './queue.utils.ts';
 
 /**
- * §5.2 — the queue holds pointers, never content: one row per (agent, channel) saying unprocessed
- * work exists and where it starts. Content arrives through the channel window, which is why
- * deleting the queue rebuilds from posts and why it does not violate A1. Every write stamps
- * `lastEnqueuedAt`, which is how a consume learns the row changed after it was read.
+ * §5.2 — the queue holds posts, never content: one row per post queued for an agent in a channel.
+ * Content arrives through the channel window, which is why deleting the queue rebuilds from posts
+ * and why it does not violate A1. A turn stamps the rows it takes; its exit either consumes them or
+ * returns them to the queue, never "releases" them, which stays the deferred hand-off's word.
  */
 @Injectable()
 export class QueueService {
   constructor(@InjectModel('QueueEntry') private readonly entries: Model<'QueueEntry'>) {}
 
-  /**
-   * §5.2 — deletes the entry a finished turn read, but only if it still stands exactly as read: an
-   * enqueue or a pointer move since has stamped it again and keeps it standing. Returns whether it
-   * deleted.
-   */
-  async consumeIfUnchanged(entry: QueueEntry): Promise<boolean> {
-    const deleted = await this.entries.deleteMany({
-      where: {
-        earliestUnprocessedPostId: entry.earliestUnprocessedPostId,
-        id: entry.id,
-        lastEnqueuedAt: entry.lastEnqueuedAt
-      }
-    });
-    return deleted.count > 0;
+  /** §5.2 — an exit that allows progress: the turn answered every post it took (§7.1) */
+  async consume(turnId: string): Promise<void> {
+    await this.entries.deleteMany({ where: { takenByTurnId: turnId } });
   }
 
-  /**
-   * §8.4 — the standing entry thrown away rather than consumed, for work a configuration change
-   * made stale. The posts stay where they are; only the pointer saying they are unprocessed goes,
-   * so nothing runs them and the channel still reads as it did.
-   */
-  discard(agentUsername: string, channelId: string): Promise<QueueEntry | undefined> {
-    return this.take(agentUsername, channelId);
-  }
-
-  /** drain, not pop — the whole backlog becomes one turn (§5.2) */
-  drain(agentUsername: string, channelId: string): Promise<QueueEntry | undefined> {
-    return this.take(agentUsername, channelId);
-  }
-
-  /** keeps the earliest unprocessed post id — a later fragment never advances the pointer, only the stamp */
-  async enqueue(agentUsername: string, channelId: string, postId: string): Promise<void> {
-    const now = new Date();
-    await this.entries.upsert({
-      create: { agentUsername, channelId, earliestUnprocessedPostId: postId, lastEnqueuedAt: now },
-      update: { lastEnqueuedAt: now },
-      where: { agentUsername_channelId: { agentUsername, channelId } }
-    });
-  }
-
-  /** every standing entry — what the boot and /resume sweep walks (§7.3, §7.4) */
-  /**
-   * §8.5 — an entry nothing reached during the clear goes with the posts it pointed at. One enqueued
-   * meanwhile stays, pointed at the notice: `enqueue` keeps the earliest post, which is now gone, and
-   * a drain from the notice reads everything that arrived after it.
-   */
-  async eraseBefore(
-    channelId: string,
-    boundary: EpisodeBoundary,
-    replacementPostId: string,
-    transaction: TransactionClient
-  ): Promise<void> {
-    await transaction.queueEntry.deleteMany({ where: { channelId, lastEnqueuedAt: { lt: boundary.eventsAfter } } });
-    await transaction.queueEntry.updateMany({
-      data: { earliestUnprocessedPostId: replacementPostId },
-      where: { channelId }
-    });
-  }
-
-  listAll(): Promise<QueueEntry[]> {
-    return this.entries.findMany({});
-  }
-
-  async peek(agentUsername: string, channelId: string): Promise<QueueEntry | undefined> {
-    return this.find(agentUsername, channelId);
-  }
-
-  /** moves a standing pointer; the caller has established the post is earlier than the one it names now (§7.1) */
-  async pointAt(agentUsername: string, channelId: string, postId: string): Promise<void> {
-    await this.entries.updateMany({
-      data: { earliestUnprocessedPostId: postId, lastEnqueuedAt: new Date() },
-      where: { agentUsername, channelId }
-    });
-  }
-
-  private async find(agentUsername: string, channelId: string): Promise<QueueEntry | undefined> {
-    const entry = await this.entries.findUnique({
-      where: { agentUsername_channelId: { agentUsername, channelId } }
-    });
-    return entry ?? undefined;
-  }
-
-  /** reading and deleting the pointer in one step — what both a drain and a discard do to the row */
-  private async take(agentUsername: string, channelId: string): Promise<QueueEntry | undefined> {
-    const entry = await this.find(agentUsername, channelId);
-    if (!entry) {
-      return undefined;
+  /** §8.4, §8.5 — a forgotten or erased post is not to be acted on, whether a turn took it or not */
+  async deletePosts(postIds: readonly string[], transaction?: TransactionClient): Promise<void> {
+    if (postIds.length === 0) {
+      return;
     }
-    await this.entries.delete({ where: { id: entry.id } });
-    return entry;
+    await (transaction?.queueEntry ?? this.entries).deleteMany({ where: { postId: { in: [...postIds] } } });
+  }
+
+  /**
+   * §8.4 — what waits in the lane thrown away rather than answered, for work a configuration change
+   * made stale. The posts stay where they are, so the channel still reads as it did; a running turn
+   * keeps what it took. Returns how many posts were discarded.
+   */
+  async discard(lane: QueueLane): Promise<number> {
+    const { count } = await this.entries.deleteMany({ where: { ...lane, takenByTurnId: null } });
+    return count;
+  }
+
+  /** §5.2 — a repeat insert is ignored, so a post waits in a lane at most once, taken or not */
+  async insert(lane: QueueLane, postId: string): Promise<void> {
+    try {
+      await this.entries.create({ data: { ...lane, enqueuedAt: new Date(), postId } });
+    } catch (error) {
+      if (!isUniqueConstraintViolation(error)) {
+        throw error;
+      }
+    }
+  }
+
+  /** §8.5 — the posts queued in a channel, taken or not, which a clear checks against what it erases */
+  async listPostIdsIn(channelId: string, transaction: TransactionClient): Promise<string[]> {
+    const entries = await transaction.queueEntry.findMany({ select: { postId: true }, where: { channelId } });
+    return entries.map((entry) => entry.postId);
+  }
+
+  /** every untaken row, oldest first — what the boot and /resume sweep and the stall sweep walk (§7.3, §7.6) */
+  listStanding(): Promise<QueueEntry[]> {
+    return this.entries.findMany({ orderBy: [{ enqueuedAt: 'asc' }, { id: 'asc' }], where: { takenByTurnId: null } });
+  }
+
+  /** the lane's untaken rows, oldest first: what waits behind any turn holding it (§8.4) */
+  listUntaken(lane: QueueLane): Promise<QueueEntry[]> {
+    return this.entries.findMany({
+      orderBy: [{ enqueuedAt: 'asc' }, { id: 'asc' }],
+      where: { ...lane, takenByTurnId: null }
+    });
+  }
+
+  /** §7.1 — an exit that does not allow progress: every row the turn took stands again. Returns their posts */
+  async returnTaken(turnId: string): Promise<string[]> {
+    const taken = await this.entries.findMany({ select: { postId: true }, where: { takenByTurnId: turnId } });
+    await this.entries.updateMany({ data: { takenByTurnId: null }, where: { takenByTurnId: turnId } });
+    return taken.map((entry) => entry.postId);
+  }
+
+  /**
+   * §5.2 — stamps with the turn every untaken row of the lane queued at or before the bound, and
+   * returns their posts, oldest first. What was queued after it waits for the next turn.
+   */
+  async take(turnId: string, lane: QueueLane, enqueuedBefore: Date): Promise<string[]> {
+    const takable = selectTakable(await this.listUntaken(lane), enqueuedBefore);
+    if (takable.length === 0) {
+      return [];
+    }
+    await this.entries.updateMany({
+      data: { takenByTurnId: turnId },
+      where: { id: { in: takable.map((entry) => entry.id) }, takenByTurnId: null }
+    });
+    return takable.map((entry) => entry.postId);
   }
 }

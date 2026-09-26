@@ -116,7 +116,7 @@ import type { TurnFoldHandle } from './folding/turn-fold.registry.ts';
 import type { StatusPostHandle, TraceLineHandle } from './status/status-post.service.ts';
 import type {
   ContextExhaustionCause,
-  HeldActivation,
+  DeferredHandoff,
   Steering,
   Turn,
   TurnEventInput,
@@ -203,6 +203,8 @@ type TurnLimits = {
 type RunInput = {
   /** §8.3 — what started the turn, recorded on its row */
   activationKind: ActivationKind;
+  /** §4.4 — the fragments naming nobody that the debounce folded into this turn, for its trace alone */
+  batchedFragmentIds?: readonly string[];
   chainLength: number;
   channelId: string;
   depth: number;
@@ -212,9 +214,14 @@ type RunInput = {
   foldAuthorUsername?: string;
   profile: AgentProfile;
   /** §5.2 — handed the colleague this turn's posts addressed once the turn ends or parks; must not wait on that colleague's turn */
-  releaseHeldActivation: (held: HeldActivation) => void;
+  releaseDeferredHandoff: (deferred: DeferredHandoff) => void;
   /** §7.4 — the human or trigger post this turn's chain descends from */
   rootPostId: string;
+  /**
+   * §5.2 — stamps with the turn what was queued for it at or before the bound, at each assembly, and
+   * returns those posts; absent for a turn a trigger started, which takes nothing
+   */
+  takeQueued?: (turnId: string, enqueuedBefore: Date) => Promise<readonly string[]>;
   triggeringPostId?: string;
 };
 
@@ -258,10 +265,14 @@ type IdentifiedCall = RunnableCall | UnparsedCall;
 type UnparsedCallDisposition = { kind: 'dispatched'; outcome: TurnOutcome | undefined } | { kind: 'forgiven' };
 
 /**
- * A completion the runner cut short: at the agent's time limit (§7.1), or by a steer (§7.5), which
- * would discard it anyway. The stream reported no usage, so it carries an estimate of what it spent.
+ * A completion the runner cut short: at the agent's time limit (§7.1), or by a steer (§7.5) or a
+ * fold (§4.4), which would discard it anyway. The stream reported no usage, so it carries an
+ * estimate of what it spent.
  */
-type CutCompletion = { readonly cutBy: 'deadline' | 'steer'; readonly usage: EstimatedCompletionUsage };
+type CutCompletion = { readonly cutBy: 'deadline' | 'interrupt'; readonly usage: EstimatedCompletionUsage };
+
+/** §5.2, §4.4 — what an assembly's `posts_taken` event says beside the rows it took */
+type TakenAlongside = Omit<Extract<TurnEventInput, { kind: 'posts_taken' }>, 'kind' | 'postIds'>;
 
 /** §7.1 — a completion cut at its time limit, as the no-tool-call branch takes it: nothing of it is kept */
 type OverranCompletion = { readonly content: ''; readonly kind: 'overran'; readonly usage: EstimatedCompletionUsage };
@@ -293,12 +304,10 @@ type TurnState = {
   readonly callTally: Map<string, number>;
   /** §4.5 — rejected posts and unknown tool names (§7.2) since the last call that ran */
   consecutiveRejections: number;
-  /** §5.2 — when the context was last assembled, and the posts its window held */
-  contextAssembledAt: Date;
   readonly control: TurnControlHandle;
-  readonly fold: TurnFoldHandle;
   /** §5.2 — the colleague this turn has addressed since it last stopped acting, not yet started */
-  heldActivation: HeldActivation | undefined;
+  deferredHandoff: DeferredHandoff | undefined;
+  readonly fold: TurnFoldHandle;
   /** §5.3 — the agent's most recent interim text, quoted on the extension prompt as its own last words */
   lastInterimText: string | undefined;
   readonly messages: CompletionMessage[];
@@ -342,7 +351,6 @@ type TurnState = {
   /** §3.15 — whether a reply was already sent back for leaving the unit the turn works unreported, which happens once */
   unreportedUnitRejected: boolean;
   usage: CompletionUsage | undefined;
-  windowPostIds: ReadonlySet<string>;
   /** §3.14 — the unit this turn serves as its assignee, resolved once at setup so a report mid-turn does not unname it */
   readonly workUnit: ToolTurnScope['workUnit'];
 };
@@ -433,25 +441,26 @@ export class TurnRunner {
     );
     const status = this.statusPostService.open({ agentUsername: profile.username, channelId, turnId: turn.id });
     const workUnit = await this.resolveServedUnit(input);
+    const control = this.turnControlRegistry.register({
+      agentUsername: profile.username,
+      channelId,
+      onSurface: () => status.surface(),
+      turnId: turn.id
+    });
     const state: TurnState = {
       addressedPeer: undefined,
       assembledMessages: 0,
       budget: new ActionBudget(profile.actionBudget),
       callTally: new Map(),
       consecutiveRejections: 0,
-      contextAssembledAt: new Date(),
-      control: this.turnControlRegistry.register({
-        agentUsername: profile.username,
-        channelId,
-        onSurface: () => status.surface(),
-        turnId: turn.id
-      }),
+      control,
+      deferredHandoff: undefined,
       fold: this.turnFoldRegistry.register({
         agentUsername: profile.username,
         authorUsername: input.foldAuthorUsername,
-        channelId
+        channelId,
+        onOffered: () => control.interrupt()
       }),
-      heldActivation: undefined,
       lastInterimText: undefined,
       messages: [],
       newestOutputs: new Map(),
@@ -476,7 +485,6 @@ export class TurnRunner {
       unreadFrom: 0,
       unreportedUnitRejected: false,
       usage: undefined,
-      windowPostIds: new Set(),
       workUnit
     };
     try {
@@ -503,7 +511,7 @@ export class TurnRunner {
       this.tasksService.forgetPostsReadBy(turn.id);
       state.control.release();
       state.fold.release();
-      this.releaseHeldActivation(input, state);
+      this.releaseDeferredHandoff(input, state);
     }
   }
 
@@ -680,14 +688,14 @@ export class TurnRunner {
         return;
       case 'approval_requested':
         state.status.park(event.approvalId, 'approval');
-        this.releaseHeldActivation(input, state);
+        this.releaseDeferredHandoff(input, state);
         return;
       case 'ask_answered':
         state.status.unpark(event.askId);
         return;
       case 'ask_requested':
         state.status.park(event.askId, 'ask');
-        this.releaseHeldActivation(input, state);
+        this.releaseDeferredHandoff(input, state);
         return;
       default:
         return;
@@ -721,6 +729,26 @@ export class TurnRunner {
       }),
       requestedBy: state.requestedBy
     };
+  }
+
+  /**
+   * §5.2 — assembles the context, taking what was queued for the turn before it began, and records
+   * what it took beside what else the turn absorbed; a turn a trigger started takes nothing.
+   */
+  private async assembleContext(
+    input: RunInput,
+    state: TurnState,
+    alongside: TakenAlongside
+  ): Promise<AssembledContext> {
+    const { takeQueued } = input;
+    const assembled = await this.contextAssembler.assemble({
+      channelId: input.channelId,
+      profile: input.profile,
+      ...(takeQueued && { takeQueued: (enqueuedBefore: Date) => takeQueued(state.turn.id, enqueuedBefore) })
+    });
+    await this.loadAssembledContext(state, assembled);
+    await this.recordPostsTaken(state, assembled.takenPostIds, alongside);
+    return assembled;
   }
 
   /**
@@ -940,7 +968,7 @@ export class TurnRunner {
       channelId: input.channelId
     });
     const deadline = createDeadlineAbort(input.profile.completionTimeLimitMs);
-    const steer = state.control.abortOnSteer();
+    const interrupt = state.control.abortOnInterrupt();
     let streamed: StreamedChars = { completionChars: 0, reasoningChars: 0 };
     try {
       const settled = await Promise.race([
@@ -950,7 +978,7 @@ export class TurnRunner {
             onStreamed: (sofar) => {
               streamed = sofar;
             },
-            signal: AbortSignal.any([state.control.killSignal, deadline.signal, steer])
+            signal: AbortSignal.any([state.control.killSignal, deadline.signal, interrupt])
           }
         ),
         state.control.killed
@@ -961,7 +989,7 @@ export class TurnRunner {
       if (deadline.signal.aborted) {
         return { cutBy: 'deadline', usage: estimateStreamedUsage(streamed) };
       }
-      return steer.aborted ? { cutBy: 'steer', usage: estimateStreamedUsage(streamed) } : settled;
+      return interrupt.aborted ? { cutBy: 'interrupt', usage: estimateStreamedUsage(streamed) } : settled;
     } finally {
       deadline.clear();
       typing.stop();
@@ -1260,6 +1288,23 @@ export class TurnRunner {
   }
 
   /**
+   * §4.4 — the posts the running turn absorbs: what it had from the model is discarded, the request
+   * it quotes is read again from the newest post, and the context is assembled afresh, which takes
+   * the row of a folded post that named the agent, queued before it was offered.
+   */
+  private async foldIn(
+    input: RunInput,
+    state: TurnState,
+    folded: readonly string[],
+    usage: EstimatedCompletionUsage | undefined
+  ): Promise<AssembledContext> {
+    // §3.7 — the newest post is the request the prompt should quote, not the one the turn began on
+    state.requestedBy = await this.resolveRequester(folded.at(-1), state.workUnit);
+    state.status.appendTrace({ kind: 'note', text: renderFoldLine() });
+    return this.assembleContext(input, state, { foldedPostIds: folded, usage });
+  }
+
+  /**
    * §7.2 — a granted tool's arguments that never parsed are answered once, spending an attempt like
    * any invocation, without the tool ever seeing them; the second in a turn ends the turn as the
    * semantic error it always was. A call naming no tool the agent holds is answered as its name.
@@ -1458,8 +1503,6 @@ export class TurnRunner {
     state.promptTokens = estimateRequestTokens({ ...assembled.request, messages: state.messages });
     state.startTokens = state.promptTokens;
     state.assembledMessages = state.messages.length;
-    state.contextAssembledAt = assembled.assembledAt;
-    state.windowPostIds = assembled.windowPostIds;
     this.tasksService.recordPostsRead(state.turn.id, assembled.windowPostIds);
     await this.turnsService.recordAssembledWindow(state.turn.id, {
       assembledAt: assembled.assembledAt,
@@ -1529,7 +1572,11 @@ export class TurnRunner {
     });
     if (addressee !== undefined) {
       state.addressedPeer = addressee;
-      state.heldActivation ??= { addresseeUsername: addressee, postId: sent.value.postId };
+      // §4.5 — a turn addresses one colleague, so every post it defers goes to the same one
+      state.deferredHandoff = {
+        addresseeUsername: addressee,
+        postIds: [...(state.deferredHandoff?.postIds ?? []), sent.value.postId]
+      };
     }
     await this.conversationsService.record(
       {
@@ -1703,6 +1750,24 @@ export class TurnRunner {
     };
   }
 
+  /** §5.2, §8.3 — what one assembly took, beside what else the turn absorbed; one that took and absorbed nothing leaves no event */
+  private async recordPostsTaken(
+    state: TurnState,
+    postIds: readonly string[],
+    { batchedFragmentIds = [], foldedPostIds = [], usage }: TakenAlongside
+  ): Promise<void> {
+    if (postIds.length === 0 && batchedFragmentIds.length === 0 && foldedPostIds.length === 0) {
+      return;
+    }
+    await this.turnsService.appendEvent(state.turn.id, {
+      kind: 'posts_taken',
+      postIds,
+      ...(batchedFragmentIds.length > 0 && { batchedFragmentIds }),
+      ...(foldedPostIds.length > 0 && { foldedPostIds }),
+      ...(usage !== undefined && { usage })
+    });
+  }
+
   /** §8.3 — how the model came to read a result, on the result's own event; a message carrying no recorded result has none */
   private async recordPresentation(
     state: TurnState,
@@ -1813,12 +1878,12 @@ export class TurnRunner {
     });
   }
 
-  /** §5.2 — takes the hold, so a colleague a park released is not released again when the turn ends */
-  private releaseHeldActivation(input: RunInput, state: TurnState): void {
-    const held = state.heldActivation;
-    state.heldActivation = undefined;
-    if (held !== undefined) {
-      input.releaseHeldActivation(held);
+  /** §5.2 — takes the deferred hand-off, so a colleague a park released is not released again when the turn ends */
+  private releaseDeferredHandoff(input: RunInput, state: TurnState): void {
+    const deferred = state.deferredHandoff;
+    state.deferredHandoff = undefined;
+    if (deferred !== undefined) {
+      input.releaseDeferredHandoff(deferred);
     }
   }
 
@@ -1913,9 +1978,8 @@ export class TurnRunner {
 
   /** everything here may throw; run() owns the boundary so no exit can leave the turn 'running' */
   private async runLoop(input: RunInput, state: TurnState): Promise<TurnOutcome> {
-    const { channelId, profile } = input;
-    let assembled = await this.contextAssembler.assemble({ channelId, profile });
-    await this.loadAssembledContext(state, assembled);
+    const { profile } = input;
+    let assembled = await this.assembleContext(input, state, { batchedFragmentIds: input.batchedFragmentIds });
     if (this.exceedsCeiling(input, state)) {
       return this.closeOnContextExhausted(input, state, 'initial');
     }
@@ -1926,11 +1990,28 @@ export class TurnRunner {
     }
     const client = this.inferenceRegistry.getClientForModel(profile.model);
     let folds = 0;
+    // §7.5, §4.4 — what the completion a steer or a fold cut had streamed, for whichever of them it answers
+    let interrupted: EstimatedCompletionUsage | undefined;
     for (;;) {
-      const steered = await this.absorbSteering(input, state, state.control.takeSteering());
-      if (steered) {
-        return steered;
+      const steering = state.control.takeSteering();
+      if (steering.length > 0) {
+        const steered = await this.absorbSteering(input, state, steering, interrupted);
+        interrupted = undefined;
+        if (steered) {
+          return steered;
+        }
       }
+      const waiting = this.takeFurtherFragments(state, folds, 'discarded');
+      if (waiting.length > 0) {
+        folds += 1;
+        assembled = await this.foldIn(input, state, waiting, interrupted);
+        interrupted = undefined;
+        if (this.exceedsCeiling(input, state)) {
+          return this.closeOnContextExhausted(input, state, 'initial');
+        }
+        continue;
+      }
+      interrupted = undefined;
       // §3.8 — the ceiling is checked before each completion, so every call the last one made has run
       if ((await this.fitContext(input, state)) === 'exhausted') {
         return this.closeOnContextExhausted(input, state, 'accumulated');
@@ -1952,26 +2033,27 @@ export class TurnRunner {
         return this.close(state, aborted.kind);
       }
       if ('cutBy' in completion) {
-        const outcome =
-          completion.cutBy === 'steer'
-            ? await this.absorbSteering(input, state, state.control.takeSteering(), completion.usage)
-            : await this.concludeOrRetry(input, state, { content: '', kind: 'overran', usage: completion.usage });
-        if (outcome) {
-          return outcome;
+        if (completion.cutBy === 'interrupt') {
+          interrupted = completion.usage;
+          continue;
+        }
+        const overran = await this.concludeOrRetry(input, state, {
+          content: '',
+          kind: 'overran',
+          usage: completion.usage
+        });
+        if (overran) {
+          return overran;
         }
         continue;
       }
       if (!completion.success) {
         return this.closeOnInferenceFailure(input, state, completion.error);
       }
-      const folded = this.takeFurtherFragments(state, folds);
+      const folded = this.takeFurtherFragments(state, folds, 'stands');
       if (folded.length > 0) {
         folds += 1;
-        // §3.7 — the newest fragment is the request the prompt should quote, not the one it began on
-        state.requestedBy = await this.resolveRequester(folded.at(-1), state.workUnit);
-        state.status.appendTrace({ kind: 'note', text: renderFoldLine() });
-        assembled = await this.contextAssembler.assemble({ channelId, profile });
-        await this.loadAssembledContext(state, assembled);
+        assembled = await this.foldIn(input, state, folded, undefined);
         if (this.exceedsCeiling(input, state)) {
           return this.closeOnContextExhausted(input, state, 'initial');
         }
@@ -2030,16 +2112,20 @@ export class TurnRunner {
 
   /**
    * §4.4 — consumes whatever activation handed this turn while the model was generating, and
-   * returns the posts the completion just received is discarded for, none where it stands. Sitting
+   * returns the posts the latest completion is discarded for, none where it stands. Sitting
    * between the completion and every branch that acts on one is what makes "folding only before
    * the first action" structural: past this point a tool has run or a post exists, and
-   * re-assembling would throw away work.
+   * re-assembling would throw away work. Before a completion starts, and after one a steer or a
+   * fold cut, nothing stands to be acted on, so a post offered then folds without costing one.
    *
    * Absorption closes the moment this turn declines to fold or reaches the last one it will take,
-   * so a later fragment finds the §5.2 queue rather than a buffer nothing will read again.
+   * so a later post finds the §5.2 queue rather than a buffer nothing will read again.
    */
-  private takeFurtherFragments(state: TurnState, folds: number): readonly string[] {
+  private takeFurtherFragments(state: TurnState, folds: number, completion: 'discarded' | 'stands'): readonly string[] {
     const offered = state.fold.takeOffered();
+    if (offered.length === 0 && completion === 'discarded') {
+      return [];
+    }
     const takes = offered.length > 0 && folds < this.limits.foldLimit;
     if (!takes || folds + 1 >= this.limits.foldLimit) {
       state.fold.stopAbsorbing();
@@ -2077,11 +2163,6 @@ export class TurnRunner {
     } catch (error) {
       this.loggingService.error(new Error(`failed to close turn ${state.turn.id} as ${status}`, { cause: error }));
     }
-    return {
-      contextAssembledAt: state.contextAssembledAt,
-      status,
-      turnId: state.turn.id,
-      windowPostIds: state.windowPostIds
-    };
+    return { status, turnId: state.turn.id };
   }
 }

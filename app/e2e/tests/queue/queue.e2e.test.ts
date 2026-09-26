@@ -47,7 +47,9 @@ describe('Queue', () => {
     const { agents, channels, inference } = harness();
     const longReply = `long-done-${randomUUID()}`;
     const drainReply = `drain-done-${randomUUID()}`;
-    const blocked = inference.willBlock({ agent: 'mira', contains: 'long task' }, textResponse(longReply));
+    // §4.4 — the turn acts first, so a further post queues rather than folding into it
+    inference.willReply({ agent: 'mira', contains: 'long task' }, toolCallResponse('builtins__now', {}));
+    const blocked = inference.willBlock({ agent: 'mira' }, textResponse(longReply));
 
     await channels.main.mention('mira', 'long task');
     await blocked.arrived;
@@ -69,7 +71,8 @@ describe('Queue', () => {
     const longReply = `slow-done-${randomUUID()}`;
     const drainReply = `caught-up-${randomUUID()}`;
     const fragments = [`frag-one-${randomUUID()}`, `frag-two-${randomUUID()}`, `frag-three-${randomUUID()}`];
-    const blocked = inference.willBlock({ agent: 'mira', contains: 'slow work' }, textResponse(longReply));
+    inference.willReply({ agent: 'mira', contains: 'slow work' }, toolCallResponse('builtins__now', {}));
+    const blocked = inference.willBlock({ agent: 'mira' }, textResponse(longReply));
 
     await channels.main.mention('mira', 'slow work');
     await blocked.arrived;
@@ -82,11 +85,30 @@ describe('Queue', () => {
     blocked.release();
     await channels.main.awaitReplyFrom('mira', { text: drainReply });
 
-    expect(inference.requestsFor('mira')).toHaveLength(2);
+    expect(inference.requestsFor('mira')).toHaveLength(3);
     const drainRequest = inference.requestsFor('mira').at(-1);
     for (const fragment of fragments) {
       expect(drainRequest?.messages.some((message) => message.content?.includes(fragment))).toBe(true);
     }
+  });
+
+  it('answers a post naming the agent during its first model call in that turn, aborting the call (§4.4, §5.2)', async () => {
+    const { channels, inference } = harness();
+    inference.forgetRequests();
+    const reply = `whole-request-${randomUUID()}`;
+    const blocked = inference.willBlock({ agent: 'mira', contains: 'first half' }, textResponse('only half'));
+    inference.willReply({ agent: 'mira', contains: 'second half' }, textResponse(reply));
+
+    await channels.main.mention('mira', 'first half');
+    await blocked.arrived;
+    const followUp = await channels.main.mention('mira', 'and the second half');
+
+    // the held completion is never released: the turn answers only because the fold aborted it
+    await channels.main.awaitReplyFrom('mira', { text: reply });
+    await sleep(2000);
+    expect(inference.requestsFor('mira')).toHaveLength(2);
+    expect(await channels.main.reactionsOn(followUp)).toStrictEqual([]);
+    blocked.release();
   });
 
   it('queues nothing posted by the system bot (§5.2)', async () => {
@@ -115,7 +137,8 @@ describe('Standing queue', () => {
 
   it('answers a human post that arrived during a failing turn as soon as that turn ends (§5.2, §7.1)', async () => {
     const { channels, inference } = harness();
-    const blocked = inference.willBlock({ agent: 'mira', contains: 'hold here' }, failureResponse(503));
+    inference.willReply({ agent: 'mira', contains: 'hold here' }, toolCallResponse('builtins__now', {}));
+    const blocked = inference.willBlock({ agent: 'mira' }, failureResponse(503));
 
     await channels.main.mention('mira', 'hold here');
     await blocked.arrived;
@@ -164,13 +187,14 @@ describe('Channel concurrency', () => {
     inference.forgetRequests();
     const firstReply = `first-done-${randomUUID()}`;
     const drainReply = `second-done-${randomUUID()}`;
-    const blocked = inference.willBlock({ agent: 'mira', contains: 'first job' }, textResponse(firstReply));
+    inference.willReply({ agent: 'mira', contains: 'first job' }, toolCallResponse('builtins__now', {}));
+    const blocked = inference.willBlock({ agent: 'mira' }, textResponse(firstReply));
 
     await channels.main.mention('mira', 'first job');
     await blocked.arrived;
     const second = await channels.main.mention('mira', 'second job');
     await channels.main.awaitReaction(second, QUEUED_ACKNOWLEDGEMENT_EMOJI);
-    expect(inference.requestsFor('mira')).toHaveLength(1);
+    expect(inference.requestsFor('mira')).toHaveLength(2);
 
     inference.willReply({ agent: 'mira' }, textResponse(drainReply));
     blocked.release();
@@ -232,7 +256,8 @@ describe('Drain lineage', () => {
     const request = `please file the minutes ${randomUUID()}`;
     const marker = `minutes-${randomUUID()}`;
     const handOff = `over to you ${randomUUID()}`;
-    const blocked = inference.willBlock({ agent: 'mira', contains: 'long task' }, textResponse(`done-${randomUUID()}`));
+    inference.willReply({ agent: 'mira', contains: 'long task' }, toolCallResponse('builtins__now', {}));
+    const blocked = inference.willBlock({ agent: 'mira' }, textResponse(`done-${randomUUID()}`));
     inference.willReply({ agent: 'owen' }, textResponse(`@${agents.mira.username} ${handOff}`));
 
     await channels.main.mention('mira', 'long task');

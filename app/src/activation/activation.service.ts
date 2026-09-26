@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { uniqBy } from 'es-toolkit';
 
 import { AgentRegistry } from '@/agents/agents.registry.ts';
 import type { AgentProfile } from '@/agents/agents.types.ts';
@@ -6,21 +7,28 @@ import { ChannelsService } from '@/channels/channels.service.ts';
 import type { LockHandle } from '@/channels/channels.types.ts';
 import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
 import { MultiMentionPolicy } from '@/channels/refusals/multi-mention.policy.ts';
-import { RosterService } from '@/channels/roster/roster.service.ts';
 import { TransportRegistry } from '@/chat/transports/transport.registry.ts';
 import { ConversationsService } from '@/conversations/conversations.service.ts';
 import type { ObservedPost } from '@/conversations/conversations.types.ts';
-import { restoreObservedPost } from '@/conversations/conversations.utils.ts';
 import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
 import type { ActivationKind, TurnStatus } from '@/prisma/prisma.types.ts';
 import { QueueService } from '@/queue/queue.service.ts';
+import { chooseDrainTrigger, findEarliestQueued } from '@/queue/queue.utils.ts';
+import type { QueueLane } from '@/queue/queue.utils.ts';
 import { TriggersService } from '@/triggers/triggers.service.ts';
 import { TurnFoldRegistry } from '@/turns/folding/turn-fold.registry.ts';
 import { TurnRunner } from '@/turns/turns.runner.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
-import type { AbandonedTurn, HeldActivation, TurnOpenFailure, TurnOutcome, UnactedTurn } from '@/turns/turns.types.ts';
+import type {
+  AbandonedTurn,
+  ActedTurn,
+  DeferredHandoff,
+  TurnOpenFailure,
+  TurnOutcome,
+  UnactedTurn
+} from '@/turns/turns.types.ts';
 
 import { QUEUE_REASONS, QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
 import {
@@ -32,24 +40,37 @@ import {
 } from './activation.utils.ts';
 import { DebounceService } from './debounce/debounce.service.ts';
 
+import type { DebouncedBatch } from './debounce/debounce.service.ts';
+
 /** the activations that start a turn from the queue rather than from the post that arrived (§5.2) */
 type DrainKind = Extract<ActivationKind, 'drain' | 'handoff' | 'resync' | 'sweep'>;
 
-/** what a turn about to run was activated by and on (§8.3), and the lane it holds */
+/** what a turn about to run was activated by and on (§8.3), the lane it holds, and what else it absorbed */
 type TurnStart = {
   readonly activationKind: ActivationKind;
+  /** §4.4 — the fragments naming nobody the debounce folded in, for the turn's trace */
+  readonly batchedFragmentIds?: readonly string[];
   readonly channelId: string;
   readonly drainedFromPostId?: string;
+  /** §5.2 — the bound of a drain's first take: the moment it chose its trigger, not the assembly's start */
+  readonly firstTakeBefore?: Date;
   readonly lock: LockHandle;
   readonly triggeringPostId: string;
 };
 
+/** §5.2 — the take a turn's assemblies call, and the turn it stamped rows with, which a runner that threw never reports */
+type QueueTaker = {
+  readonly take: (turnId: string, enqueuedBefore: Date) => Promise<readonly string[]>;
+  readonly takenBy: () => string | undefined;
+};
+
 /**
- * §7.1 — the queue drains only into a turn that can plausibly make progress. After a provider
- * outage or rejection, semantic error, side-effect ambiguity, or delivery failure it is left
- * standing: a drain would start a turn that inherits the same failure, looping until the hourly
- * ceiling halts everything. Context exhaustion is not inherited: what overflowed was one turn's own
- * results, and the window a fresh turn assembles is bounded by its budget.
+ * §7.1 — the exits that allow progress: a completion, a person's act (a stop, a kill, a denial, the
+ * denial that exhausts a budget), or an exhaustion, which is never retried. Each consumes what the
+ * turn took and lets the queue drain. After a provider outage or rejection, semantic error,
+ * side-effect ambiguity, or delivery failure what the turn took is returned to the queue: a drain
+ * would start a turn that inherits the same failure, looping until the hourly ceiling halts
+ * everything.
  */
 const PROGRESS_EXITS: ReadonlySet<TurnStatus> = new Set<TurnStatus>([
   'budget_exhausted',
@@ -60,10 +81,12 @@ const PROGRESS_EXITS: ReadonlySet<TurnStatus> = new Set<TurnStatus>([
   'stopped'
 ]);
 
+const laneKey = (lane: QueueLane): string => `${lane.agentUsername}\n${lane.channelId}`;
+
 /**
  * The single ingestion path: record → classify → address → debounce → lock → run. This is the only
  * module that both starts turns and reacts to their ending, which is what keeps the graph acyclic —
- * when a turn ends, activation releases the lock and drains the queue.
+ * when a turn ends, activation settles what it took from the queue, releases the lock and drains.
  */
 @Injectable()
 export class ActivationService {
@@ -78,13 +101,23 @@ export class ActivationService {
     private readonly multiMentionPolicy: MultiMentionPolicy,
     private readonly notificationsService: NotificationsService,
     private readonly queueService: QueueService,
-    private readonly rosterService: RosterService,
     private readonly transportRegistry: TransportRegistry,
     private readonly triggersService: TriggersService,
     private readonly turnFoldRegistry: TurnFoldRegistry,
     private readonly turnRunner: TurnRunner,
     private readonly turnsService: TurnsService
   ) {}
+
+  /**
+   * §7.3 — the rows an abandoned turn that had acted took are consumed, as at any exit that allows
+   * progress: a fresh turn could not see what it called. Each unit it leaves open is named in the
+   * boot notice instead.
+   */
+  async consumeActed(turns: readonly ActedTurn[]): Promise<void> {
+    for (const turn of turns) {
+      await this.queueService.consume(turn.turnId);
+    }
+  }
 
   /**
    * The full §4.2 idle predicate lives here, because only this module sees the lock, pending
@@ -158,14 +191,15 @@ export class ActivationService {
       channelId: post.channelId
     };
     if (!this.agentRegistry.isAddressedBy(profile, post, mode)) {
-      // §4.4 — a fragment rarely repeats the mention, so a post addressing nobody is the only one
-      // that continues a sentence rather than starting a request; one addressing a peer is a
-      // request being made. Whichever of the two is live takes it; neither creates itself, so an
-      // unaddressed post in a quiet channel stays inert.
-      if (this.multiMentionPolicy.addresseesOf(post).length === 0) {
+      // §4.4 — a fragment rarely repeats the mention, so a post addressing nobody continues a
+      // sentence rather than starting a request; one addressing a peer is a request being made.
+      // Whichever of the two is live takes a fragment; neither creates itself, so an unaddressed
+      // post in a quiet channel stays inert.
+      const namesNobody = this.multiMentionPolicy.addresseesOf(post).length === 0;
+      if (namesNobody) {
         this.offerToLiveTurn(profile, post);
       }
-      if (this.debounceService.touch(batch)) {
+      if (this.debounceService.touch(batch, namesNobody ? post.id : undefined)) {
         this.signalTyping(profile, post.channelId);
       }
       return;
@@ -178,15 +212,15 @@ export class ActivationService {
       return;
     }
     this.signalTyping(profile, post.channelId);
-    this.debounceService.schedule(batch, () => this.activate(profile, post));
+    this.debounceService.schedule(batch, post.id, (debounced) => void this.activate(profile, post, debounced));
   }
 
   /**
    * §5.2 — posts a reconnect recovered. They are queued rather than activated: a gap holds an
    * unknown number of posts, and ten missed mentions must become one turn rather than ten, which is
    * what the queue is for. Draining happens once per affected channel, after everything is in, so
-   * the turn that answers assembles a window containing all of it. Unaddressed posts are recorded
-   * and reach the next turn as ordinary history.
+   * the turn that answers takes all of it. Unaddressed posts are recorded and reach the next turn as
+   * ordinary history.
    */
   async onResynced(profile: AgentProfile, posts: readonly ObservedPost[]): Promise<void> {
     const queuedChannelIds = new Set<string>();
@@ -201,53 +235,62 @@ export class ActivationService {
   }
 
   /**
-   * §7.3 — a hold lives only in the turn holding it (§5.2), so for each turn a restart abandoned it
-   * is recomputed from the store: the colleague the turn's posts addressed goes into the queue at
-   * the earliest of them that no turn of that colleague in the channel has started since, for the
+   * §7.3 — a deferred hand-off lives only in the turn deferring it (§5.2), so for each turn a restart
+   * abandoned it is recomputed from the store: each post the turn addressed to its colleague that no
+   * turn of that colleague in the channel has started since goes into the colleague's queue, for the
    * boot sweep to drain. Who a post addressed is read against the roster (§4.5), so this runs only
-   * once the roster has reconciled. Returns how many went into the queue.
+   * once the roster has reconciled. Returns how many colleagues were queued.
    */
-  async requeueHeld(turns: readonly AbandonedTurn[]): Promise<number> {
+  async requeueDeferred(turns: readonly AbandonedTurn[]): Promise<number> {
     let requeued = 0;
     for (const turn of turns) {
-      const held = await this.findUnreleasedHold(turn);
-      if (held === undefined) {
+      const deferred = await this.findUnreleasedHandoff(turn);
+      if (deferred === undefined) {
         continue;
       }
-      await this.putBackInQueue(held.addresseeUsername, turn.channelId, held.postId);
+      const lane = { agentUsername: deferred.addresseeUsername, channelId: turn.channelId };
+      for (const postId of deferred.postIds) {
+        await this.queueService.insert(lane, postId);
+      }
       requeued += 1;
     }
     return requeued;
   }
 
   /**
-   * §7.3 — puts back in the queue the post each unacted abandoned turn started from, for the boot
-   * sweep to drain, and returns how many went back. A system bot post stays out (§5.2), and so does
-   * one the store does not hold, whose author is unknown.
+   * §7.3 — puts back in the queue what each unacted abandoned turn took, and the post it started
+   * from, for the boot sweep to drain, and returns how many went back. A system bot post stays out
+   * (§5.2), and so does one the store does not hold, whose author is unknown.
    */
   async requeueUnacted(turns: readonly UnactedTurn[]): Promise<number> {
     let requeued = 0;
     for (const turn of turns) {
+      const returned = await this.queueService.returnTaken(turn.turnId);
       const source = await this.conversationsService.findActivationSource(turn.triggeringPostId);
-      if (source === undefined || source.authorKind === 'system') {
-        continue;
+      const triggerQueues = source !== undefined && source.authorKind !== 'system';
+      if (triggerQueues) {
+        await this.queueService.insert(
+          { agentUsername: turn.agentUsername, channelId: turn.channelId },
+          turn.triggeringPostId
+        );
       }
-      await this.putBackInQueue(turn.agentUsername, turn.channelId, turn.triggeringPostId);
-      requeued += 1;
+      if (triggerQueues || returned.length > 0) {
+        requeued += 1;
+      }
     }
     return requeued;
   }
 
   /** the boot and /resume sweep: standing queues drain and held triggers flush (§7.3, §7.4) */
   async sweep(): Promise<void> {
-    const entries = await this.queueService.listAll();
-    for (const entry of entries) {
-      const profile = this.agentRegistry.get(entry.agentUsername);
+    const lanes = uniqBy(await this.queueService.listStanding(), laneKey);
+    for (const lane of lanes) {
+      const profile = this.agentRegistry.get(lane.agentUsername);
       if (!profile) {
-        this.loggingService.warn(`dropping a queue entry for unknown agent "${entry.agentUsername}"`);
+        this.loggingService.warn(`dropping a queue entry for unknown agent "${lane.agentUsername}"`);
         continue;
       }
-      void this.drainQueue(profile, entry.channelId, 'sweep');
+      void this.drainQueue(profile, lane.channelId, 'sweep');
     }
     for (const channelId of await this.triggersService.listPendingChannelIds()) {
       await this.flushTriggersIfIdle(channelId);
@@ -266,114 +309,186 @@ export class ActivationService {
     }
   }
 
-  /** during a halt the post is queued rather than lost — it simply starts no turn (§7.4) */
-  private activate(profile: AgentProfile, post: ObservedPost): void {
+  /**
+   * §4.4 — a post the debounce absorbed that names the agent is queued before the turn starts, so
+   * the turn's first take takes it and a failure returns it; during a halt the post that opened the
+   * batch is queued too, and simply starts no turn (§7.4).
+   */
+  private async activate(profile: AgentProfile, post: ObservedPost, debounced: DebouncedBatch): Promise<void> {
+    if (post.authorKind !== 'system') {
+      for (const postId of debounced.addressedPostIds) {
+        await this.queueService.insert({ agentUsername: profile.username, channelId: post.channelId }, postId);
+      }
+    }
     if (this.haltService.isHalted()) {
-      void this.enqueueBusy(profile, post, 'halted');
+      await this.enqueueBusy(profile, post, 'halted');
       return;
     }
     const lock = this.channelLockService.acquire(profile.username, post.channelId);
     if (!lock) {
-      void this.enqueueBusy(profile, post, 'busy');
+      await this.enqueueBusy(profile, post, 'busy');
       return;
     }
-    void this.admitAndRun(profile, post, lock);
+    await this.admitAndRun(profile, post, lock, debounced);
   }
 
   /**
-   * §5.2 — the colleague an agent's turn addressed, started once that turn ends or parks. The held
-   * post joins the colleague's queue first, so a halt, the ceiling or a busy colleague leaves it
-   * standing rather than lost, and the drain runs §7.4 admission on it as on any other. Nothing
-   * awaits this: the turn that released it must not wait on its colleague's.
+   * §5.2 — the colleague an agent's turn addressed, started once that turn ends or parks. Each
+   * deferred post joins the colleague's queue first, so a halt, the ceiling or a busy colleague
+   * leaves it standing rather than lost, and the drain runs §7.4 admission on it as on any other.
+   * Nothing awaits this: the turn that released it must not wait on its colleague's.
    */
-  private async activateHeld(channelId: string, held: HeldActivation): Promise<void> {
-    const profile = this.agentRegistry.get(held.addresseeUsername);
+  private async activateDeferred(channelId: string, deferred: DeferredHandoff): Promise<void> {
+    const profile = this.agentRegistry.get(deferred.addresseeUsername);
     if (!profile) {
-      this.loggingService.warn(`dropping a held activation for unknown agent "${held.addresseeUsername}"`);
+      this.loggingService.warn(`dropping a deferred hand-off for unknown agent "${deferred.addresseeUsername}"`);
       return;
     }
     try {
-      await this.putBackInQueue(profile.username, channelId, held.postId);
+      for (const postId of deferred.postIds) {
+        await this.queueService.insert({ agentUsername: profile.username, channelId }, postId);
+      }
       if (this.channelLockService.isBusy(profile.username, channelId)) {
-        this.logQueued(profile, channelId, held.postId, 'handoff');
-        await this.acknowledgeQueued(profile.username, held.postId);
+        for (const postId of deferred.postIds) {
+          this.logQueued(profile, channelId, postId, 'handoff');
+          await this.acknowledgeQueued(profile.username, postId);
+        }
         return;
       }
       await this.drainQueue(profile, channelId, 'handoff');
     } catch (error) {
       this.loggingService.error(
-        new Error(`failed to start "${profile.username}" in ${channelId} from a held post`, { cause: error })
+        new Error(`failed to start "${profile.username}" in ${channelId} from a deferred hand-off`, { cause: error })
       );
     }
   }
 
   /** the ceiling-refused post takes the queue path, where enqueueBusy already enforces §5.2 */
-  private async admitAndRun(profile: AgentProfile, post: ObservedPost, lock: LockHandle): Promise<void> {
+  private async admitAndRun(
+    profile: AgentProfile,
+    post: ObservedPost,
+    lock: LockHandle,
+    debounced: DebouncedBatch
+  ): Promise<void> {
     if (!(await this.haltService.admitTurnStart())) {
       lock.release();
       await this.enqueueBusy(profile, post, 'ceiling');
       return;
     }
-    // §5.2 — this turn's window already covers whatever a non-progress exit left standing, so it
-    // absorbs the row. Leaving it would drain the same window into a second turn once this one ends.
-    const standing = await this.queueService.drain(profile.username, post.channelId);
+    // §5.2 — the turn's first take absorbs whatever a failed exit left standing, which a drain would
+    // otherwise answer again once this turn ends; the earliest such post is on its record
+    const batched = new Set(debounced.addressedPostIds);
+    const standing = await this.queueService.listUntaken({
+      agentUsername: profile.username,
+      channelId: post.channelId
+    });
     await this.runTurn(profile, {
       activationKind: 'addressed',
+      batchedFragmentIds: debounced.fragmentIds,
       channelId: post.channelId,
-      drainedFromPostId: standing?.earliestUnprocessedPostId,
+      drainedFromPostId: standing.find((entry) => !batched.has(entry.postId))?.postId,
       lock,
       triggeringPostId: post.id
     });
   }
 
   /**
-   * §5.2 — a turn that completed owes no second turn for an entry it read whole: the earliest queued
-   * post is in its window, which runs unbroken from there to the newest post, and nothing that could
-   * be queued reached the store after the assembly began. A failure is logged, not thrown, and the
-   * queue then drains as before.
+   * §5.2 — under the lock, the queue's newest post a person wrote, else its earliest, and the moment
+   * it was chosen, which bounds the drain's first take. A failure to read the posts falls back to
+   * the earliest row rather than throws, since the lock is held.
    */
-  private async consumeWhatTheTurnRead(profile: AgentProfile, channelId: string, ended: TurnOutcome): Promise<boolean> {
+  private async chooseDrainStart(
+    profile: AgentProfile,
+    lane: QueueLane
+  ): Promise<undefined | { chosenAt: Date; earliestPostId: string; triggeringPostId: string }> {
+    const standing = await this.queueService.listUntaken(lane);
+    const chosenAt = new Date();
+    const [first] = standing;
+    if (first === undefined) {
+      return undefined;
+    }
     try {
-      const entry = await this.queueService.peek(profile.username, channelId);
-      if (entry === undefined || !ended.windowPostIds.has(entry.earliestUnprocessedPostId)) {
-        return false;
-      }
-      const arrivedSince = await this.conversationsService.hasPostsObservedSince({
-        agentUsername: profile.username,
-        channelId,
-        since: ended.contextAssembledAt
-      });
-      if (arrivedSince || !(await this.queueService.consumeIfUnchanged(entry))) {
-        return false;
-      }
-      this.loggingService.log(
-        `consumed the queue for "${profile.username}" in ${channelId}: the turn that completed had read every post in it`
-      );
-      return true;
+      const posts = await this.conversationsService.describeQueued(standing.map((entry) => entry.postId));
+      return {
+        chosenAt,
+        earliestPostId: findEarliestQueued(posts)?.id ?? first.postId,
+        triggeringPostId: chooseDrainTrigger(posts)?.id ?? first.postId
+      };
     } catch (error) {
       this.loggingService.error(
-        new Error(`failed to consume the queue for "${profile.username}" in ${channelId}`, { cause: error })
+        new Error(`failed to find the newest person's post to "${profile.username}" in ${lane.channelId}`, {
+          cause: error
+        })
+      );
+      return { chosenAt, earliestPostId: first.postId, triggeringPostId: first.postId };
+    }
+  }
+
+  /**
+   * §7.4 — a lane holding only colleagues' posts is cleared once the chain limit refuses a turn
+   * from it, since each would be refused again at every sweep. A person's post keeps the lane
+   * standing, and the caller drains it, since a person's post starts a fresh chain. Logged rather
+   * than thrown: the lock must be released whatever happens.
+   */
+  private async clearRefusedLane(profile: AgentProfile, channelId: string): Promise<boolean> {
+    const lane = { agentUsername: profile.username, channelId };
+    try {
+      const standing = await this.queueService.listUntaken(lane);
+      if (standing.length === 0) {
+        return false;
+      }
+      const posts = await this.conversationsService.describeQueued(standing.map((entry) => entry.postId));
+      if (posts.some((queued) => queued.authorKind === 'human')) {
+        return true;
+      }
+      await this.queueService.discard(lane);
+      this.loggingService.warn(
+        `dropped the queue for "${profile.username}" in ${channelId}: the chain limit refused the colleagues' posts it held`
+      );
+      return false;
+    } catch (error) {
+      this.loggingService.error(
+        new Error(`failed to settle the queue for "${profile.username}" in ${channelId}`, { cause: error })
       );
       return false;
     }
   }
 
   /**
+   * §5.2 — the take each assembly of the turn calls: every untaken row of the lane queued at or
+   * before the bound, except that a drain's first take is bounded by when it chose its trigger, so
+   * a person's post queued after that choice waits for a turn of its own rather than being answered
+   * under a colleague's authority. It remembers the turn it stamped rows with.
+   */
+  private createQueueTaker(lane: QueueLane, firstTakeBefore: Date | undefined): QueueTaker {
+    let firstBound = firstTakeBefore;
+    let takenBy: string | undefined;
+    return {
+      take: (turnId, enqueuedBefore) => {
+        const bound = firstBound ?? enqueuedBefore;
+        firstBound = undefined;
+        takenBy = turnId;
+        return this.queueService.take(turnId, lane, bound);
+      },
+      takenBy: () => takenBy
+    };
+  }
+
+  /**
    * Halt-gated: a drain during a halt would start a turn no human has sanctioned (§7.4). Admission
-   * is checked before the row is drained, so a refusal leaves the pointer untouched rather than
-   * deleting and re-inserting it around a window where a later fragment could replace it.
+   * is checked before the trigger is chosen, so a refusal leaves every row standing as it was.
    */
   private async drainQueue(profile: AgentProfile, channelId: string, activationKind: DrainKind): Promise<void> {
     if (this.haltService.isHalted()) {
       return;
     }
-    const pending = await this.queueService.peek(profile.username, channelId);
-    if (!pending) {
+    const lane = { agentUsername: profile.username, channelId };
+    if ((await this.queueService.listUntaken(lane)).length === 0) {
       return;
     }
     const lock = this.channelLockService.acquire(profile.username, channelId);
     if (!lock) {
-      // A4: never give up silently — the entry stands until whoever holds the lock finishes and drains
+      // A4: never give up silently — the rows stand until whoever holds the lock finishes and drains
       this.loggingService.warn(
         `left the queue for "${profile.username}" in ${channelId} standing: another turn holds the lock`
       );
@@ -386,8 +501,8 @@ export class ActivationService {
       lock.release();
       return;
     }
-    const entry = await this.queueService.drain(profile.username, channelId);
-    if (!entry) {
+    const start = await this.chooseDrainStart(profile, lane);
+    if (!start) {
       this.loggingService.warn(
         `found the queue for "${profile.username}" in ${channelId} already drained by a concurrent activation`
       );
@@ -397,13 +512,19 @@ export class ActivationService {
     await this.runTurn(profile, {
       activationKind,
       channelId,
-      drainedFromPostId: entry.earliestUnprocessedPostId,
+      drainedFromPostId: start.earliestPostId,
+      firstTakeBefore: start.chosenAt,
       lock,
-      triggeringPostId: await this.findDrainTriggeringPost(profile, channelId, entry.earliestUnprocessedPostId)
+      triggeringPostId: start.triggeringPostId
     });
   }
 
-  /** §4.4 — fragments arriving while the agent is busy skip debounce and land in the queue */
+  /**
+   * §4.4, §5.2 — a post that is work for an agent that cannot start a turn now is queued and
+   * acknowledged. Behind a busy lane it is offered to the running turn too, after its row exists,
+   * so the turn that absorbs it takes the row when it reassembles and a failure returns it; a post
+   * absorbed that way carries no 👀, since the turn answering it is the acknowledgement.
+   */
   private async enqueueBusy(
     profile: AgentProfile,
     post: ObservedPost,
@@ -415,42 +536,19 @@ export class ActivationService {
       );
       return;
     }
-    await this.queueService.enqueue(profile.username, post.channelId, post.id);
+    await this.queueService.insert({ agentUsername: profile.username, channelId: post.channelId }, post.id);
+    if (reason === 'busy' && this.offerToLiveTurn(profile, post)) {
+      this.loggingService.log(
+        `folded post ${post.id} into the turn of "${profile.username}" in ${post.channelId} that its author started (§4.4)`
+      );
+      return;
+    }
     this.logQueued(profile, post.channelId, post.id, reason);
     await this.acknowledgeQueued(profile.username, post.id);
   }
 
-  /**
-   * §5.2 — the newest post a person addressed to the agent among what a drain covers, else the
-   * earliest queued. Only posts since the agent's previous turn here began count: a colleague's post
-   * is queued once its author stops acting, so a drain from it can reach back past the person's post
-   * that started the previous turn, which that turn answered. A failure falls back rather than
-   * throws, since the lock is held and the entry already drained.
-   */
-  private async findDrainTriggeringPost(
-    profile: AgentProfile,
-    channelId: string,
-    earliestPostId: string
-  ): Promise<string> {
-    try {
-      const posts = await this.conversationsService.listPersonPostsFrom({
-        channelId,
-        fromPostId: earliestPostId,
-        observedSince: await this.turnsService.findLatestStartIn(profile.username, channelId)
-      });
-      const isDirectMessage = this.rosterService.isDirectMessage(channelId);
-      const newest = posts.find((post) => this.isWorkFor(profile, restoreObservedPost(post, isDirectMessage)));
-      return newest?.id ?? earliestPostId;
-    } catch (error) {
-      this.loggingService.error(
-        new Error(`failed to find the newest person's post to "${profile.username}" in ${channelId}`, { cause: error })
-      );
-      return earliestPostId;
-    }
-  }
-
-  /** §7.3 — the earliest post of the turn addressing its one colleague (§4.5) that no turn of that colleague here started after */
-  private async findUnreleasedHold(turn: AbandonedTurn): Promise<HeldActivation | undefined> {
+  /** §7.3 — each post of the turn addressing its one colleague (§4.5) that no turn of that colleague here started after */
+  private async findUnreleasedHandoff(turn: AbandonedTurn): Promise<DeferredHandoff | undefined> {
     const spoken = await this.conversationsService.listSpokenBy(turn.turnId);
     const addressing = spoken.flatMap((post) => {
       const addresseeUsername = this.multiMentionPolicy.findAddressee({
@@ -465,10 +563,12 @@ export class ActivationService {
       return undefined;
     }
     const since = await this.turnsService.findLatestStartIn(first.addresseeUsername, turn.channelId);
-    const pending = addressing.find(({ addresseeUsername, post }) => {
+    const pending = addressing.filter(({ addresseeUsername, post }) => {
       return addresseeUsername === first.addresseeUsername && (since === undefined || post.observedAt > since);
     });
-    return pending && { addresseeUsername: pending.addresseeUsername, postId: pending.post.id };
+    return pending.length === 0
+      ? undefined
+      : { addresseeUsername: first.addresseeUsername, postIds: pending.map(({ post }) => post.id) };
   }
 
   private isWorkFor(profile: AgentProfile, post: ObservedPost): boolean {
@@ -480,33 +580,6 @@ export class ActivationService {
       isDirectMessage: post.isDirectMessage
     });
     return this.agentRegistry.isAddressedBy(profile, post, mode);
-  }
-
-  /**
-   * §7.1 — a failed exit leaves the queue standing, and the row was consumed when this turn
-   * started, so the post it started from is pointed at again. Still under the lock, because a post
-   * arriving during the turn went through enqueueBusy and may hold the row already. A failure here
-   * is logged, not thrown: the lock must be released whatever happens.
-   *
-   * Returns whether the post that claimed the row is a human's. Such a post is the "next human
-   * post" a standing queue drains at, already arrived and already 👀-acknowledged (§5.2), so the
-   * caller drains at once rather than waiting for a post that may never come. A peer's mention is
-   * not: it waits for a human like any other standing entry.
-   */
-  private async leaveStanding(profile: AgentProfile, channelId: string, postId: string): Promise<boolean> {
-    try {
-      const claimed = await this.putBackInQueue(profile.username, channelId, postId);
-      if (claimed === undefined) {
-        return false;
-      }
-      const source = await this.conversationsService.findActivationSource(claimed);
-      return source?.authorKind === 'human';
-    } catch (error) {
-      this.loggingService.error(
-        new Error(`failed to leave the queue for "${profile.username}" in ${channelId} standing`, { cause: error })
-      );
-      return false;
-    }
   }
 
   /** the activation decision that starts no turn yet, one log line each */
@@ -522,14 +595,9 @@ export class ActivationService {
   }
 
   /**
-   * §4.4 — a fragment that missed the window folds into the turn already answering that human,
-   * which has not yet acted on its first completion. The reply is the acknowledgement, so an
-   * absorbed fragment gets neither a queue entry nor a 👀 (§5.2).
-   *
-   * Only ever reached for an unaddressed post. A human who repeats the mention is making a new
-   * request, not finishing a sentence, and the model call this turn is inside may run for as long
-   * as the inference timeout — long enough that swallowing addressed posts would silently drop
-   * work the §5.2 acknowledgement promised to keep.
+   * §4.4 — a post that missed the window folds into the turn already answering its author, which
+   * has not yet acted on its first completion. A post naming nobody is only offered, and queues
+   * nothing; a post naming the agent is queued first (enqueueBusy), so absorbing it survives a failure.
    */
   private offerToLiveTurn(profile: AgentProfile, post: ObservedPost): boolean {
     return this.turnFoldRegistry.offer({
@@ -540,26 +608,7 @@ export class ActivationService {
     });
   }
 
-  /**
-   * Points the queue at a post again. Another post may already hold the row, and a duplicate insert
-   * is ignored by design, so the pointer is then moved back to whichever of the two is earlier.
-   * Returns the post that had claimed the row, where one had.
-   */
-  private async putBackInQueue(agentUsername: string, channelId: string, postId: string): Promise<string | undefined> {
-    await this.queueService.enqueue(agentUsername, channelId, postId);
-    const standing = await this.queueService.peek(agentUsername, channelId);
-    if (!standing || standing.earliestUnprocessedPostId === postId) {
-      return undefined;
-    }
-    const claimed = standing.earliestUnprocessedPostId;
-    const earliest = await this.conversationsService.earliestOf([claimed, postId]);
-    if (earliest === postId) {
-      await this.queueService.pointAt(agentUsername, channelId, postId);
-    }
-    return claimed;
-  }
-
-  /** whether this post is work for the agent, and if so, the queue entry that says so (§5.2) */
+  /** whether this post is work for the agent, and if so, the row that says so (§5.2) */
   private async queueIfAddressed(profile: AgentProfile, post: ObservedPost): Promise<boolean> {
     if (!this.isWorkFor(profile, post)) {
       return false;
@@ -569,11 +618,8 @@ export class ActivationService {
   }
 
   /**
-   * §7.4 — an activation the chain limit refuses is refused, not deferred: the mention post starts
-   * nothing and is queued nowhere, and the system bot says so under it. A standing row this
-   * activation had already drained is put back only where a person wrote it, since the 👀 on it
-   * promised a read and a person's post starts a fresh chain; a peer's mention put back would be
-   * refused again at every sweep.
+   * §7.4 — an activation the chain limit refuses is refused, not deferred: it took nothing, and the
+   * system bot says so under its post. A lane of colleagues' posts is cleared (clearRefusedLane).
    */
   private async refuseChainTurn(
     profile: AgentProfile,
@@ -583,18 +629,9 @@ export class ActivationService {
     this.loggingService.log(
       `refused a turn for "${profile.username}" in ${input.channelId} from post ${input.triggeringPostId}: its chain already holds ${refusal.count} of ${refusal.limit} turns (§7.4)`
     );
-    let humanWaiting = false;
+    let personWaiting = false;
     try {
-      if (input.drainedFromPostId !== undefined) {
-        const drained = await this.conversationsService.findActivationSource(input.drainedFromPostId);
-        if (drained?.authorKind === 'human') {
-          humanWaiting = await this.leaveStanding(profile, input.channelId, input.drainedFromPostId);
-        } else {
-          this.loggingService.warn(
-            `dropped the queue entry for "${profile.username}" in ${input.channelId}: the chain limit refused the peer mention it pointed at`
-          );
-        }
-      }
+      personWaiting = await this.clearRefusedLane(profile, input.channelId);
     } finally {
       input.lock.release();
     }
@@ -604,25 +641,31 @@ export class ActivationService {
       kind: 'chain-limit-refusal',
       limit: refusal.limit
     });
-    if (humanWaiting) {
+    if (personWaiting) {
       await this.drainQueue(profile, input.channelId, 'drain');
     }
   }
 
   private async runTurn(profile: AgentProfile, input: TurnStart): Promise<void> {
+    const lane = { agentUsername: profile.username, channelId: input.channelId };
+    const startedAt = new Date();
+    // §5.2, RC6 — a turn a trigger started takes nothing: rows standing in an idle channel wait for a person
+    const taker = input.activationKind === 'trigger' ? undefined : this.createQueueTaker(lane, input.firstTakeBefore);
     let ended: TurnOutcome | undefined;
     try {
       const source = await this.conversationsService.findActivationSource(input.triggeringPostId);
       const outcome = await this.turnRunner.run({
         activationKind: input.activationKind,
+        batchedFragmentIds: input.batchedFragmentIds,
         chainLength: toActivationChainLength(source),
         channelId: input.channelId,
         depth: toActivationDepth(source, profile.username),
         drainedFromPostId: input.drainedFromPostId,
         foldAuthorUsername: toFoldAuthorUsername(source),
         profile,
-        releaseHeldActivation: (held) => void this.activateHeld(input.channelId, held),
+        releaseDeferredHandoff: (deferred) => void this.activateDeferred(input.channelId, deferred),
         rootPostId: toActivationRootPostId(source, input.triggeringPostId),
+        takeQueued: taker?.take,
         triggeringPostId: input.triggeringPostId
       });
       if (!outcome.success) {
@@ -638,26 +681,64 @@ export class ActivationService {
       );
     }
     const progressed = ended !== undefined && PROGRESS_EXITS.has(ended.status);
-    let humanWaiting = false;
-    let consumed = false;
+    let personWaiting = false;
     try {
-      if (!progressed) {
-        humanWaiting = await this.leaveStanding(
-          profile,
-          input.channelId,
-          input.drainedFromPostId ?? input.triggeringPostId
-        );
-      } else if (ended?.status === 'completed') {
-        consumed = await this.consumeWhatTheTurnRead(profile, input.channelId, ended);
-      }
+      personWaiting = await this.settleTaken(profile, input, {
+        progressed,
+        since: startedAt,
+        turnId: ended?.turnId ?? taker?.takenBy()
+      });
     } finally {
       input.lock.release();
     }
-    if ((progressed && !consumed) || humanWaiting) {
+    if (progressed || personWaiting) {
       await this.drainQueue(profile, input.channelId, 'drain');
     }
     if (progressed) {
       await this.flushTriggersIfIdle(input.channelId);
+    }
+  }
+
+  /**
+   * §5.2, §7.1 — under the lock, what the turn took from the queue: an exit that allows progress
+   * consumes it, folded posts included; any other returns it and queues the post the turn started
+   * from, unless the system bot wrote it (§5.2). Returns whether a person's post was queued while
+   * the failed turn ran: the 👀 on it promised a read and the person has already spoken, so it drains
+   * at once, where a colleague's waits for a person like any other standing row. Logged rather than
+   * thrown: the lock must be released whatever happens.
+   */
+  private async settleTaken(
+    profile: AgentProfile,
+    input: TurnStart,
+    exit: { progressed: boolean; since: Date; turnId: string | undefined }
+  ): Promise<boolean> {
+    const lane = { agentUsername: profile.username, channelId: input.channelId };
+    try {
+      if (exit.progressed) {
+        if (exit.turnId !== undefined) {
+          await this.queueService.consume(exit.turnId);
+        }
+        return false;
+      }
+      const returned = new Set(exit.turnId === undefined ? [] : await this.queueService.returnTaken(exit.turnId));
+      const source = await this.conversationsService.findActivationSource(input.triggeringPostId);
+      if (source !== undefined && source.authorKind !== 'system') {
+        await this.queueService.insert(lane, input.triggeringPostId);
+      }
+      // what the failed turn took is what it failed on, so only a post it never took is a next post
+      const arrived = (await this.queueService.listUntaken(lane)).filter((entry) => {
+        return entry.enqueuedAt >= exit.since && !returned.has(entry.postId) && entry.postId !== input.triggeringPostId;
+      });
+      if (arrived.length === 0) {
+        return false;
+      }
+      const posts = await this.conversationsService.describeQueued(arrived.map((entry) => entry.postId));
+      return posts.some((queued) => queued.authorKind === 'human');
+    } catch (error) {
+      this.loggingService.error(
+        new Error(`failed to settle the queue for "${profile.username}" in ${input.channelId}`, { cause: error })
+      );
+      return false;
     }
   }
 

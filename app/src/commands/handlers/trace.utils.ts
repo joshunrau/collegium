@@ -160,12 +160,23 @@ function renderEventLine(payload: PrismaJson.TurnEventPayload, sequence: number)
       { kind: 'output_rejected' },
       (event) => `rejected output (${event.reason}): ${event.content}${renderCompletionSuffix(event)}`
     )
+    .with({ kind: 'posts_taken' }, (event) => `${renderPostsTaken(event)}${renderCompletionSuffix(event)}`)
     .with(
       { kind: 'steering_received' },
       (event) => `steered by ${event.byUsername}: ${event.text}${renderCompletionSuffix(event)}`
     )
     .with({ kind: 'tool_result' }, (event) => renderResultLine(event, sequence))
     .exhaustive();
+}
+
+/** §5.2, §4.4 — what one assembly took from the queue, and what else the turn absorbed there, by post id */
+function renderPostsTaken(event: Extract<PrismaJson.TurnEventPayload, { kind: 'posts_taken' }>): string {
+  const ids = (postIds: readonly string[]) => postIds.map((postId) => `\`${postId}\``).join(', ');
+  return [
+    event.postIds.length === 0 ? 'took no queued post' : `took queued posts ${ids(event.postIds)}`,
+    ...(event.foldedPostIds === undefined ? [] : [`folded in ${ids(event.foldedPostIds)}`]),
+    ...(event.batchedFragmentIds === undefined ? [] : [`with the fragments ${ids(event.batchedFragmentIds)}`])
+  ].join('; ');
 }
 
 /** §8.3 — when a moment fell, from the turn's own start */

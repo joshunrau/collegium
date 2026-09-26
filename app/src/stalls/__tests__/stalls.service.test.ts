@@ -8,7 +8,7 @@ import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
 import { QueueService } from '@/queue/queue.service.ts';
-import type { QueueEntry } from '@/queue/queue.service.ts';
+import type { QueueEntry } from '@/queue/queue.utils.ts';
 import { createConfigServiceMock } from '@/testing/factories/config-service.factory.ts';
 import { MockFactory } from '@/testing/factories/mock.factory.ts';
 import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
@@ -25,10 +25,11 @@ const at = (minutes: number): Date => new Date(STARTED_AT.getTime() + minutes * 
 const entry = (id: string): QueueEntry => ({
   agentUsername: 'mira',
   channelId: 'channel-1',
-  createdAt: STARTED_AT,
-  earliestUnprocessedPostId: 'post-1',
+  enqueuedAt: STARTED_AT,
   id,
-  lastEnqueuedAt: STARTED_AT
+  postId: `post-of-${id}`,
+  returnedOnce: false,
+  takenByTurnId: null
 });
 
 const HELD = { acquiredAt: STARTED_AT, agentUsername: 'mira', channelId: 'channel-1' };
@@ -53,7 +54,7 @@ describe('StallsService', () => {
     pendingDecisionsService = MockFactory.createMock(PendingDecisionsService);
     pendingDecisionsService.isWaitingOnPerson.mockResolvedValue(false);
     queueService = MockFactory.createMock(QueueService);
-    queueService.listAll.mockResolvedValue([]);
+    queueService.listStanding.mockResolvedValue([]);
     turnControlRegistry = MockFactory.createMock(TurnControlRegistry);
     turnControlRegistry.surfaceStatusPosts.mockResolvedValue(false);
     const moduleRef = await Test.createTestingModule({
@@ -73,7 +74,7 @@ describe('StallsService', () => {
   });
 
   it('should announce a standing queue once, after it has stood for the threshold (§7.6)', async () => {
-    queueService.listAll.mockResolvedValue([entry('entry-1')]);
+    queueService.listStanding.mockResolvedValue([entry('entry-1')]);
     for (const minutes of [0, 9, 10, 20]) {
       await stallsService.sweep(at(minutes));
     }
@@ -82,13 +83,20 @@ describe('StallsService', () => {
     ]);
   });
 
-  it('should re-arm the standing-queue notice once the entry drains (§7.6)', async () => {
-    queueService.listAll.mockResolvedValue([entry('entry-1')]);
+  it('should announce a lane of several queued posts once (§5.2, §7.6)', async () => {
+    queueService.listStanding.mockResolvedValue([entry('entry-1'), entry('entry-2')]);
     await stallsService.sweep(at(0));
     await stallsService.sweep(at(10));
-    queueService.listAll.mockResolvedValue([]);
+    expect(notificationsService.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it('should re-arm the standing-queue notice once the entry drains (§7.6)', async () => {
+    queueService.listStanding.mockResolvedValue([entry('entry-1')]);
+    await stallsService.sweep(at(0));
+    await stallsService.sweep(at(10));
+    queueService.listStanding.mockResolvedValue([]);
     await stallsService.sweep(at(11));
-    queueService.listAll.mockResolvedValue([entry('entry-2')]);
+    queueService.listStanding.mockResolvedValue([entry('entry-2')]);
     await stallsService.sweep(at(12));
     await stallsService.sweep(at(22));
     expect(notificationsService.notify).toHaveBeenCalledTimes(2);
@@ -118,7 +126,7 @@ describe('StallsService', () => {
     channelLockService.listHeld.mockReturnValue([HELD]);
     channelLockService.isBusy.mockReturnValue(true);
     await stallsService.sweep(at(31));
-    queueService.listAll.mockResolvedValue([entry('entry-1')]);
+    queueService.listStanding.mockResolvedValue([entry('entry-1')]);
     await stallsService.sweep(at(40));
     await stallsService.sweep(at(41));
     expect(notificationsService.notify.mock.calls).toStrictEqual([
@@ -141,7 +149,7 @@ describe('StallsService', () => {
   it('should announce nothing while a global halt stands (§7.6)', async () => {
     haltService.isHalted.mockReturnValue(true);
     channelLockService.listHeld.mockReturnValue([HELD]);
-    queueService.listAll.mockResolvedValue([entry('entry-1')]);
+    queueService.listStanding.mockResolvedValue([entry('entry-1')]);
     await stallsService.sweep(at(0));
     await stallsService.sweep(at(60));
     expect(notificationsService.notify).not.toHaveBeenCalled();

@@ -1,6 +1,7 @@
 import type { $StallThresholds } from '@collegium/config';
 import { Injectable } from '@nestjs/common';
 import type { OnApplicationShutdown } from '@nestjs/common';
+import { uniqBy } from 'es-toolkit';
 
 import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { ChannelLockService } from '@/channels/locks/channel-lock.service.ts';
@@ -9,7 +10,7 @@ import { HaltService } from '@/halt/halt.service.ts';
 import { LoggingService } from '@/logging/logging.service.ts';
 import { NotificationsService } from '@/notifications/notifications.service.ts';
 import { QueueService } from '@/queue/queue.service.ts';
-import type { QueueEntry } from '@/queue/queue.service.ts';
+import type { QueueEntry } from '@/queue/queue.utils.ts';
 import { TurnControlRegistry } from '@/turns/control/turn-control.registry.ts';
 
 import { STALL_SWEEP_MS } from './stalls.constants.ts';
@@ -72,7 +73,11 @@ export class StallsService implements OnApplicationShutdown {
       return;
     }
     try {
-      const queued = await this.queueService.listAll();
+      // §5.2 — one standing row per lane: its oldest, which names the episode until it is taken
+      const queued = uniqBy(
+        await this.queueService.listStanding(),
+        (entry) => `${entry.agentUsername}\n${entry.channelId}`
+      );
       await this.sweepLongTurns(now, queued);
       await this.sweepStandingQueues(now, queued);
     } catch (error) {

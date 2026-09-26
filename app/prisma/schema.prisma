@@ -77,6 +77,7 @@ enum TurnEventKind {
   assistant_message
   output_rejected
   record_written
+  posts_taken
   steering_received
   tool_result
 }
@@ -324,15 +325,21 @@ model MailCursor {
   updatedAt     DateTime @updatedAt
 }
 
+/// §5.2 — one row per post queued for an agent in a channel, holding the post's id and never its text,
+/// so the queue still rebuilds from posts (A1). A turn stamps the rows it takes at each assembly; an exit
+/// that allows progress deletes them, and one that does not clears the stamp.
 model QueueEntry {
-  id                        String   @id @default(cuid(2))
-  agentUsername             String
-  channelId                 String
-  createdAt                 DateTime @default(now())
-  earliestUnprocessedPostId String
-  lastEnqueuedAt            DateTime
+  id            String   @id @default(cuid(2))
+  agentUsername String
+  channelId     String
+  /// on this host's clock, which a take's bound is read on too
+  enqueuedAt    DateTime
+  postId        String
+  /// §7.3 — returned to the queue after an abandoned turn that made a completion, after an unclean stop
+  returnedOnce  Boolean  @default(false)
+  takenByTurnId String?
 
-  @@unique([agentUsername, channelId])
+  @@unique([agentUsername, channelId, postId])
 }
 
 model ToolsetRecord {

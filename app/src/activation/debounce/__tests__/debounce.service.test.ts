@@ -6,6 +6,8 @@ import { MockFactory } from '@/testing/factories/mock.factory.ts';
 
 import { DebounceService } from '../debounce.service.ts';
 
+import type { DebouncedBatch } from '../debounce.service.ts';
+
 const KEY = { agentUsername: 'mira', authorUsername: 'casey', channelId: 'channel-1' };
 
 describe('DebounceService', () => {
@@ -28,16 +30,16 @@ describe('DebounceService', () => {
   });
 
   it('should fold messages from the same human in the same channel into one maturation', () => {
-    debounceService.schedule(KEY, () => matured.push('first'));
-    debounceService.schedule(KEY, () => matured.push('second'));
+    debounceService.schedule(KEY, 'post-x', () => matured.push('first'));
+    debounceService.schedule(KEY, 'post-x', () => matured.push('second'));
     vi.advanceTimersByTime(3000);
     expect(matured).toStrictEqual(['first']);
   });
 
   it('should reset the window on each further message', () => {
-    debounceService.schedule(KEY, () => matured.push('first'));
+    debounceService.schedule(KEY, 'post-x', () => matured.push('first'));
     vi.advanceTimersByTime(2000);
-    debounceService.schedule(KEY, () => matured.push('second'));
+    debounceService.schedule(KEY, 'post-x', () => matured.push('second'));
     vi.advanceTimersByTime(2000);
     expect(matured).toStrictEqual([]);
     vi.advanceTimersByTime(1000);
@@ -45,10 +47,10 @@ describe('DebounceService', () => {
   });
 
   it('should mature at the ceiling however much the human keeps typing', () => {
-    debounceService.schedule(KEY, () => matured.push('first'));
+    debounceService.schedule(KEY, 'post-x', () => matured.push('first'));
     for (let elapsed = 2000; elapsed <= 14_000; elapsed += 2000) {
       vi.advanceTimersByTime(2000);
-      debounceService.schedule(KEY, () => matured.push('later'));
+      debounceService.schedule(KEY, 'post-x', () => matured.push('later'));
     }
     expect(matured).toStrictEqual([]);
     vi.advanceTimersByTime(1000);
@@ -56,20 +58,20 @@ describe('DebounceService', () => {
   });
 
   it('should hold batches in memory only, empty again once matured', () => {
-    debounceService.schedule(KEY, () => matured.push('first'));
+    debounceService.schedule(KEY, 'post-x', () => matured.push('first'));
     expect(debounceService.isDebouncing('channel-1')).toBe(true);
     vi.advanceTimersByTime(3000);
     expect(debounceService.isDebouncing('channel-1')).toBe(false);
   });
 
   it('should report a channel quiet while only another channel is mid-batch', () => {
-    debounceService.schedule({ ...KEY, channelId: 'channel-2' }, () => matured.push('first'));
+    debounceService.schedule({ ...KEY, channelId: 'channel-2' }, 'post-x', () => matured.push('first'));
     expect(debounceService.isDebouncing('channel-1')).toBe(false);
     expect(debounceService.isDebouncing('channel-2')).toBe(true);
   });
 
   it('should drop every pending batch on shutdown rather than maturing it', () => {
-    debounceService.schedule(KEY, () => matured.push('first'));
+    debounceService.schedule(KEY, 'post-x', () => matured.push('first'));
     debounceService.onApplicationShutdown();
     vi.advanceTimersByTime(15_000);
     expect(matured).toStrictEqual([]);
@@ -80,7 +82,7 @@ describe('DebounceService', () => {
     expect(debounceService.touch(KEY)).toBe(false);
     vi.advanceTimersByTime(15_000);
     expect(matured).toStrictEqual([]);
-    debounceService.schedule(KEY, () => matured.push('first'));
+    debounceService.schedule(KEY, 'post-x', () => matured.push('first'));
     vi.advanceTimersByTime(2000);
     expect(debounceService.touch(KEY)).toBe(true);
     vi.advanceTimersByTime(2000);
@@ -89,10 +91,20 @@ describe('DebounceService', () => {
     expect(matured).toStrictEqual(['first']);
   });
 
+  it('should hand the continuation the posts naming the agent and the fragments naming nobody it absorbed (§4.4)', () => {
+    const batches: DebouncedBatch[] = [];
+    debounceService.schedule(KEY, 'post-1', (batch) => batches.push(batch));
+    debounceService.touch(KEY, 'post-2');
+    debounceService.touch(KEY);
+    debounceService.schedule(KEY, 'post-3', () => undefined);
+    vi.advanceTimersByTime(3000);
+    expect(batches).toStrictEqual([{ addressedPostIds: ['post-3'], fragmentIds: ['post-2'] }]);
+  });
+
   it('should debounce different humans independently', () => {
-    debounceService.schedule(KEY, () => matured.push('casey'));
+    debounceService.schedule(KEY, 'post-x', () => matured.push('casey'));
     vi.advanceTimersByTime(2000);
-    debounceService.schedule({ ...KEY, authorUsername: 'ana' }, () => matured.push('ana'));
+    debounceService.schedule({ ...KEY, authorUsername: 'ana' }, 'post-x', () => matured.push('ana'));
     vi.advanceTimersByTime(1000);
     expect(matured).toStrictEqual(['casey']);
     vi.advanceTimersByTime(2000);

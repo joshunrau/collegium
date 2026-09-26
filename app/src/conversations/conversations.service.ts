@@ -21,14 +21,12 @@ import type {
 export class ConversationsService {
   constructor(@InjectModel('Post') private readonly posts: Model<'Post'>) {}
 
-  /** which of the named posts the channel saw first, on Mattermost's clock; undefined when none is stored */
-  async earliestOf(postIds: readonly string[]): Promise<string | undefined> {
-    const earliest = await this.posts.findFirst({
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      select: { id: true },
+  /** §5.2 — who wrote each queued post and when, as a drain chooses among them; a post the store does not hold is left out */
+  describeQueued(postIds: readonly string[]): Promise<Pick<ModelRow<'Post'>, 'authorKind' | 'createdAt' | 'id'>[]> {
+    return this.posts.findMany({
+      select: { authorKind: true, createdAt: true, id: true },
       where: { id: { in: [...postIds] } }
     });
-    return earliest?.id;
   }
 
   /** §8.5 — every post older than the boundary, on Mattermost's clock; the boundary post itself stays */
@@ -114,24 +112,6 @@ export class ConversationsService {
     return post ?? undefined;
   }
 
-  /**
-   * §5.2 — whether the channel's store took, at or after `since`, a post a finished turn could owe
-   * an answer to. The agent's own posts, the system bot's and status posts are never such a post.
-   */
-  async hasPostsObservedSince(input: { agentUsername: string; channelId: string; since: Date }): Promise<boolean> {
-    const observed = await this.posts.findFirst({
-      select: { id: true },
-      where: {
-        authorKind: { not: 'system' },
-        authorUsername: { not: input.agentUsername },
-        channelId: input.channelId,
-        kind: { not: 'status' },
-        observedAt: { gte: input.since }
-      }
-    });
-    return observed !== null;
-  }
-
   async latestPostIdIn(channelId: string): Promise<string | undefined> {
     const latest = await this.posts.findFirst({
       orderBy: { createdAt: 'desc' },
@@ -141,30 +121,21 @@ export class ConversationsService {
     return latest?.id;
   }
 
-  /**
-   * §5.2 — what people posted in the channel from a queued post onward, on Mattermost's clock, that
-   * the store took at or after `observedSince`, newest first; a forgotten post is not among them,
-   * and nothing is where the queued post was never recorded
-   */
-  async listPersonPostsFrom(input: {
-    channelId: string;
-    fromPostId: string;
-    observedSince: Date | undefined;
-  }): Promise<ModelRow<'Post'>[]> {
-    const from = await this.posts.findUnique({ select: { createdAt: true }, where: { id: input.fromPostId } });
-    if (!from) {
+  /** §8.5 — which of these posts of the channel a clear at the boundary erases, read before it does */
+  async listErasedAmong(
+    postIds: readonly string[],
+    channelId: string,
+    boundary: EpisodeBoundary,
+    transaction: TransactionClient
+  ): Promise<string[]> {
+    if (postIds.length === 0) {
       return [];
     }
-    return this.posts.findMany({
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      where: {
-        authorKind: 'human',
-        channelId: input.channelId,
-        createdAt: { gte: from.createdAt },
-        isForgotten: false,
-        ...(input.observedSince !== undefined && { observedAt: { gte: input.observedSince } })
-      }
+    const erased = await transaction.post.findMany({
+      select: { id: true },
+      where: { channelId, createdAt: { lt: boundary.postsAfter }, id: { in: [...postIds] } }
     });
+    return erased.map((post) => post.id);
   }
 
   /** what one turn said, earliest first: the posts that may address a colleague, never its status post or prompts (§7.3) */
@@ -212,21 +183,6 @@ export class ConversationsService {
       }
       return false;
     }
-  }
-
-  /** what /queue reports: how far behind the pointer post the channel has moved (§8.4) */
-  async summarizeBacklog(
-    channelId: string,
-    postId: string
-  ): Promise<undefined | { message: string; pendingCount: number }> {
-    const pointer = await this.posts.findUnique({ where: { id: postId } });
-    if (!pointer) {
-      return undefined;
-    }
-    const pendingCount = await this.posts.count({
-      where: { channelId, createdAt: { gte: pointer.createdAt }, isForgotten: false }
-    });
-    return { message: pointer.message, pendingCount };
   }
 
   /** keeps the stored copy of a framework-authored post current as it is edited in place (§8.1) */

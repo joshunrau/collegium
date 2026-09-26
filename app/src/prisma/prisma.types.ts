@@ -70,6 +70,18 @@ type TurnEventPayloadByKind = {
     /** §8.2 — what the provider reported; a completion cut at its time limit reports none, so this estimates what it had streamed (§7.1) */
     usage?: CompletionUsage | EstimatedCompletionUsage;
   };
+  /**
+   * §5.2 — the posts one assembly took from the turn's queue. The first also names the fragments
+   * naming nobody that the debounce folded into the turn, and a fold's the posts it folded in (§4.4):
+   * neither kind is a row, so these fields are for the trace alone.
+   */
+  posts_taken: {
+    batchedFragmentIds?: readonly string[];
+    foldedPostIds?: readonly string[];
+    postIds: readonly string[];
+    /** §4.4 — where the fold aborted a completion in flight, which reports no usage, an estimate of what it had streamed */
+    usage?: EstimatedCompletionUsage;
+  };
   record_written: {
     body: string;
     description: string;
