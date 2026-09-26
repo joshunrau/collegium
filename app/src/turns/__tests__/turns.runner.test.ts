@@ -2649,9 +2649,9 @@ describe('TurnRunner', () => {
     };
 
     const handingOff = (...endings: string[]) => {
-      multiMentionPolicy.findAddressee.mockImplementation(({ message }) =>
-        message.includes('@owen') ? 'owen' : undefined
-      );
+      multiMentionPolicy.findAddressee.mockImplementation(({ message }) => {
+        return message.includes('@owen') ? 'owen' : undefined;
+      });
       complete.mockResolvedValueOnce(Result.ok(toolUse(['tasks__report'])));
       toolExecutor.execute.mockResolvedValueOnce(REPORT);
       for (const ending of endings) {

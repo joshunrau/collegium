@@ -1724,9 +1724,9 @@ export class TurnRunner {
   ): Promise<void> {
     const owed = await this.findUnitsOwed(input, state);
     const leftOpen = [
-      ...owed.awaitingVerdict.map((unit) =>
-        renderUnitLeftOpen({ awaits: 'verdict', reference: renderReference(unit.id) })
-      ),
+      ...owed.awaitingVerdict.map((unit) => {
+        return renderUnitLeftOpen({ awaits: 'verdict', reference: renderReference(unit.id) });
+      }),
       ...owed.stillAssigned.map((unit) => renderUnitLeftOpen({ awaits: 'report', reference: renderReference(unit.id) }))
     ];
     if (state.addressedPeer === undefined && leftOpen.length === 0) {
