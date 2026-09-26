@@ -34,15 +34,17 @@ export declare namespace SystemEvent {
     kind: 'offline';
     reason: 'crash' | 'shutdown';
   };
-  /** the one §7.3 boot notice: the downtime window, that in-flight work was abandoned, how much was queued again, and the units left assigned */
+  /** the one §7.3 boot notice: the downtime window, that in-flight work was abandoned, how much was queued again and what was not, and the units left assigned */
   type Online = {
     abandonedTurns: number;
     agentUsernames: string[];
     downtime: Downtime | undefined;
     kind: 'online';
+    notQueuedPostIds: readonly string[];
     requeuedHandoffs: number;
     requeuedTurns: number;
     strandedUnits: readonly StrandedUnit[];
+    unannouncedTriggerIds: readonly string[];
   };
   /** §7.6 — a queue entry with no turn of the agent's own running in its channel */
   type StandingQueue = {

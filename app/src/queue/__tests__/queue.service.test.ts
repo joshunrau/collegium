@@ -66,6 +66,16 @@ describe('QueueService', () => {
     expect(entries.rows.map((entry) => [entry.postId, entry.takenByTurnId])).toStrictEqual([['post-1', null]]);
   });
 
+  it('should return a crashed turn’s rows once, marked, and delete a row it had returned already (§7.3)', async () => {
+    await queueAt(1_000, 'post-1');
+    await queueService.insert(LANE, 'post-2', { returnedOnce: true });
+    await queueService.take('turn-1', LANE, new Date(2_000));
+    expect(await queueService.returnTakenOnce('turn-1')).toStrictEqual({ dropped: ['post-2'], returned: ['post-1'] });
+    expect(entries.rows.map((entry) => [entry.postId, entry.returnedOnce, entry.takenByTurnId])).toStrictEqual([
+      ['post-1', true, null]
+    ]);
+  });
+
   it('should discard what waits in the lane and leave what a running turn took (§8.4)', async () => {
     await queueAt(1_000, 'post-1');
     await queueService.take('turn-1', LANE, new Date(1_000));

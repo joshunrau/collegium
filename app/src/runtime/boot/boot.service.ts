@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { chunk } from 'es-toolkit';
 
 import { ActivationService } from '@/activation/activation.service.ts';
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { BackfillService } from '@/conversations/backfill/backfill.service.ts';
@@ -12,7 +13,7 @@ import { TasksService } from '@/tasks/tasks.service.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { StatusPostService } from '@/turns/status/status-post.service.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
-import type { AbandonedStatusPost, ActedTurn } from '@/turns/turns.types.ts';
+import type { AbandonedStatusPost, TurnWithEffects } from '@/turns/turns.types.ts';
 import { renderReference } from '@/utils/reference.utils.ts';
 
 import { LivenessService } from '../liveness/liveness.service.ts';
@@ -36,6 +37,7 @@ const ABANDONED_CLOSE_CONCURRENCY = 8;
 export class BootService {
   constructor(
     private readonly activationService: ActivationService,
+    private readonly agentRegistry: AgentRegistry,
     private readonly backfillService: BackfillService,
     private readonly livenessService: LivenessService,
     private readonly loggingService: LoggingService,
@@ -53,11 +55,17 @@ export class BootService {
     // the last life's record is read before the stamp that overwrites it
     const downtime = await this.livenessService.readDowntime();
     await this.livenessService.startStamping();
-    const abandoned = await this.turnsService.abandonRunning();
+    const abandoned = await this.turnsService.abandonRunning((agentUsername, toolId) => {
+      const profile = this.agentRegistry.get(agentUsername);
+      return profile !== undefined && this.toolRegistry.isRetryable(profile, toolId);
+    });
     await this.closeAbandonedStatusPosts(abandoned.statusPosts);
-    const strandedUnits = await this.findStrandedUnits(abandoned.acted);
-    const requeuedTurns = await this.activationService.requeueUnacted(abandoned.unacted);
-    await this.activationService.consumeActed(abandoned.acted);
+    const strandedUnits = await this.findStrandedUnits(abandoned.withEffects);
+    // §7.3 — a stop the process did not record may have been a turn's crash, which bounds what runs again
+    const requeue = await this.activationService.requeueWithoutEffects(abandoned.withoutEffects, {
+      unclean: downtime?.kind !== 'clean'
+    });
+    await this.activationService.consumeWithEffects(abandoned.withEffects);
     await this.pendingDecisionsService.invalidateAll('restart');
     await this.backfillService.run();
     const reconciled = await this.rosterService.reconcile();
@@ -66,7 +74,7 @@ export class BootService {
     }
     const requeuedHandoffs = await this.activationService.requeueDeferred(abandoned.turns);
     void this.activationService.sweep();
-    return { abandonedTurns: abandoned.turns.length, downtime, requeuedHandoffs, requeuedTurns, strandedUnits };
+    return { abandonedTurns: abandoned.turns.length, downtime, requeuedHandoffs, ...requeue, strandedUnits };
   }
 
   private async closeAbandonedStatusPosts(posts: readonly AbandonedStatusPost[]): Promise<void> {
@@ -81,10 +89,10 @@ export class BootService {
     }
   }
 
-  /** §7.3 — the unit each acted turn was working, named in the boot notice; nothing reports it or wakes its creator (§3.15) */
-  private async findStrandedUnits(acted: readonly ActedTurn[]): Promise<StrandedUnit[]> {
+  /** §7.3 — the unit each abandoned turn with effects was working, named in the boot notice; nothing reports it or wakes its creator (§3.15) */
+  private async findStrandedUnits(withEffects: readonly TurnWithEffects[]): Promise<StrandedUnit[]> {
     const stranded: StrandedUnit[] = [];
-    for (const turn of acted) {
+    for (const turn of withEffects) {
       const unit = await this.tasksService.findWorkedUnit(turn);
       if (unit) {
         const { assigneeUsername, channelId, creatorUsername } = unit;

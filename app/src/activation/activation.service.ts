@@ -23,11 +23,11 @@ import { TurnRunner } from '@/turns/turns.runner.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
 import type {
   AbandonedTurn,
-  ActedTurn,
   DeferredHandoff,
   TurnOpenFailure,
   TurnOutcome,
-  UnactedTurn
+  TurnWithEffects,
+  TurnWithoutEffects
 } from '@/turns/turns.types.ts';
 
 import { QUEUE_REASONS, QUEUED_ACKNOWLEDGEMENT_EMOJI } from './activation.constants.ts';
@@ -40,6 +40,7 @@ import {
 } from './activation.utils.ts';
 import { DebounceService } from './debounce/debounce.service.ts';
 
+import type { RestartRequeue } from './activation.types.ts';
 import type { DebouncedBatch } from './debounce/debounce.service.ts';
 
 /** the activations that start a turn from the queue rather than from the post that arrived (§5.2) */
@@ -109,11 +110,11 @@ export class ActivationService {
   ) {}
 
   /**
-   * §7.3 — the rows an abandoned turn that had acted took are consumed, as at any exit that allows
+   * §7.3 — the rows an abandoned turn that had effects took are consumed, as at any exit that allows
    * progress: a fresh turn could not see what it called. Each unit it leaves open is named in the
    * boot notice instead.
    */
-  async consumeActed(turns: readonly ActedTurn[]): Promise<void> {
+  async consumeWithEffects(turns: readonly TurnWithEffects[]): Promise<void> {
     for (const turn of turns) {
       await this.queueService.consume(turn.turnId);
     }
@@ -258,27 +259,46 @@ export class ActivationService {
   }
 
   /**
-   * §7.3 — puts back in the queue what each unacted abandoned turn took, and the post it started
-   * from, for the boot sweep to drain, and returns how many went back. A system bot post stays out
-   * (§5.2), and so does one the store does not hold, whose author is unknown.
+   * §7.3 — each abandoned turn that had no effects runs again: what it took goes back to the queue
+   * and the post that started it is queued, or the trigger it was announced by goes back to be
+   * announced, for the boot sweep to answer. After an unclean stop, a turn that made a completion
+   * may be what took the process down, so each of its posts goes back at most once: one already
+   * returned is left out, and named. A post the store does not hold, whose author is unknown, stays out.
    */
-  async requeueUnacted(turns: readonly UnactedTurn[]): Promise<number> {
-    let requeued = 0;
+  async requeueWithoutEffects(
+    turns: readonly TurnWithoutEffects[],
+    { unclean }: { readonly unclean: boolean }
+  ): Promise<RestartRequeue> {
+    const notQueuedPostIds: string[] = [];
+    const unannouncedTriggerIds: string[] = [];
+    let requeuedTurns = 0;
     for (const turn of turns) {
-      const returned = await this.queueService.returnTaken(turn.turnId);
-      const source = await this.conversationsService.findActivationSource(turn.triggeringPostId);
-      const triggerQueues = source !== undefined && source.authorKind !== 'system';
-      if (triggerQueues) {
-        await this.queueService.insert(
-          { agentUsername: turn.agentUsername, channelId: turn.channelId },
-          turn.triggeringPostId
-        );
+      const bounded = unclean && turn.madeCompletion;
+      const { dropped, returned } = bounded
+        ? await this.queueService.returnTakenOnce(turn.turnId)
+        : { dropped: [], returned: await this.queueService.returnTaken(turn.turnId) };
+      notQueuedPostIds.push(...dropped);
+      const trigger = turn.triggeringPostId;
+      let queuedTrigger = false;
+      if (trigger !== undefined && !dropped.includes(trigger)) {
+        const source = await this.conversationsService.findActivationSource(trigger);
+        if (source?.authorKind === 'system') {
+          const reannounced = await this.triggersService.reannounceAfterRestart(trigger, { bounded });
+          queuedTrigger = reannounced?.kind === 'released';
+          if (reannounced?.kind === 'spent') {
+            unannouncedTriggerIds.push(reannounced.triggerId);
+          }
+        } else if (source !== undefined) {
+          const lane = { agentUsername: turn.agentUsername, channelId: turn.channelId };
+          await this.queueService.insert(lane, trigger, { returnedOnce: bounded });
+          queuedTrigger = true;
+        }
       }
-      if (triggerQueues || returned.length > 0) {
-        requeued += 1;
+      if (queuedTrigger || returned.length > 0) {
+        requeuedTurns += 1;
       }
     }
-    return requeued;
+    return { notQueuedPostIds, requeuedTurns, unannouncedTriggerIds };
   }
 
   /** the boot and /resume sweep: standing queues drain and held triggers flush (§7.3, §7.4) */

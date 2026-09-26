@@ -172,6 +172,13 @@ export class ToolRegistry {
     return this.callableToolsFor(profile).get(ref)?.displayName === ref;
   }
 
+  /** §3.4, §7.3 — whether a call to the tool is safe to run again; a tool the agent no longer holds never is */
+  isRetryable(profile: AgentProfile, id: ToolId): boolean {
+    const ref = `${id[0]}::${id[1]}`;
+    const tool = this.callableToolsFor(profile).get(ref);
+    return tool?.displayName === ref && tool.definition.retryable === true;
+  }
+
   /** §3.8 — whether a later result with this call's content costs a line naming it; an unknown name never does */
   isSupersedable(profile: AgentProfile, name: string): boolean {
     return this.callableToolsFor(profile).get(name)?.definition.supersedable === true;

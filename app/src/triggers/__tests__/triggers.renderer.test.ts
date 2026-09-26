@@ -12,6 +12,7 @@ const trigger = (reference: PrismaJson.TriggerReference, source: Trigger['source
   id: 'trigger-1',
   postedAt: null,
   postId: null,
+  reannouncedAt: null,
   reference,
   resolvedAt: null,
   source,

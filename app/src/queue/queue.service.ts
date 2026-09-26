@@ -41,10 +41,17 @@ export class QueueService {
     return count;
   }
 
-  /** §5.2 — a repeat insert is ignored, so a post waits in a lane at most once, taken or not */
-  async insert(lane: QueueLane, postId: string): Promise<void> {
+  /**
+   * §5.2 — a repeat insert is ignored, so a post waits in a lane at most once, taken or not;
+   * `returnedOnce` marks a post a restart queued after a turn that may have crashed the process (§7.3)
+   */
+  async insert(
+    lane: QueueLane,
+    postId: string,
+    { returnedOnce = false }: { returnedOnce?: boolean } = {}
+  ): Promise<void> {
     try {
-      await this.entries.create({ data: { ...lane, enqueuedAt: new Date(), postId } });
+      await this.entries.create({ data: { ...lane, enqueuedAt: new Date(), postId, returnedOnce } });
     } catch (error) {
       if (!isUniqueConstraintViolation(error)) {
         throw error;
@@ -76,6 +83,25 @@ export class QueueService {
     const taken = await this.entries.findMany({ select: { postId: true }, where: { takenByTurnId: turnId } });
     await this.entries.updateMany({ data: { takenByTurnId: null }, where: { takenByTurnId: turnId } });
     return taken.map((entry) => entry.postId);
+  }
+
+  /**
+   * §7.3 — what an abandoned turn took, after an unclean stop that turn may have caused: a row
+   * returned once already is deleted rather than returned again, so a post whose turn takes the
+   * process down is not re-run at every boot; the rest stand again, marked. Returns both.
+   */
+  async returnTakenOnce(turnId: string): Promise<{ readonly dropped: string[]; readonly returned: string[] }> {
+    const taken = await this.entries.findMany({ where: { takenByTurnId: turnId } });
+    const dropped = taken.filter((entry) => entry.returnedOnce);
+    await this.entries.deleteMany({ where: { id: { in: dropped.map((entry) => entry.id) } } });
+    await this.entries.updateMany({
+      data: { returnedOnce: true, takenByTurnId: null },
+      where: { returnedOnce: false, takenByTurnId: turnId }
+    });
+    return {
+      dropped: dropped.map((entry) => entry.postId),
+      returned: taken.filter((entry) => !entry.returnedOnce).map((entry) => entry.postId)
+    };
   }
 
   /**

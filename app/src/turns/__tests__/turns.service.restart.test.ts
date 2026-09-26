@@ -55,12 +55,12 @@ describe('TurnsService abandonment against the store (§7.3)', () => {
     const done = await open();
     await turnsService.close(done.id, 'completed');
 
-    const abandoned = await turnsService.abandonRunning();
+    const abandoned = await turnsService.abandonRunning(() => false);
     expect(abandoned.statusPosts).toStrictEqual([
       { agentUsername: 'mira', channelId: 'channel-1', postId: 'status-1' }
     ]);
     expect(abandoned.turns.map(({ turnId }) => turnId).toSorted()).toStrictEqual([running.id, traceless.id].toSorted());
-    expect(abandoned.unacted).toStrictEqual([]);
+    expect(abandoned.withEffects).toStrictEqual([]);
     expect(await statusOf(running.id)).toBe('abandoned');
     expect(await statusOf(traceless.id)).toBe('abandoned');
     expect(await statusOf(done.id)).toBe('completed');
@@ -89,7 +89,7 @@ describe('TurnsService abandonment against the store (§7.3)', () => {
     await turnsService.recordUsage(turn.id, usage(100));
     await turnsService.recordUsage(turn.id, usage(250));
 
-    await turnsService.abandonRunning();
+    await turnsService.abandonRunning(() => false);
     const report = await turnsService.summarizeUsageEndedAfter(since);
     expect(report.rows.find((row) => row.agentUsername === 'owen')).toMatchObject({
       costUsd: { coverage: 'full', total: 0.01 },
@@ -98,25 +98,69 @@ describe('TurnsService abandonment against the store (§7.3)', () => {
     });
   });
 
-  it('should name a turn that recorded no completion as unacted, with the post that started it', async () => {
-    const steered = await open('post-1');
-    await turnsService.appendEvent(steered.id, { byUsername: 'ada', kind: 'steering_received', text: 'and this' });
-    expect((await turnsService.abandonRunning()).unacted).toStrictEqual([
-      { agentUsername: 'mira', channelId: 'channel-1', triggeringPostId: 'post-1', turnId: steered.id }
-    ]);
-  });
+  describe('which abandoned turns had effects (§7.3)', () => {
+    /** only reads, and `builtins::now`, are safe to run again here */
+    const isSafeToRepeat = (_agentUsername: string, [namespace, name]: readonly [string, string]) => {
+      return namespace === 'builtins' || name === 'read';
+    };
 
-  it('should name a turn that had dispatched a call as acted, though no result was recorded', async () => {
-    const parked = await open('post-2');
-    await turnsService.appendEvent(parked.id, {
-      content: '',
-      kind: 'assistant_message',
-      toolCalls: [{ args: { path: 'notes.md' }, callId: 'call-1', toolName: ['workspace', 'write'] }]
+    const called = (turnId: string, callId: string, toolName: readonly [string, string]) => {
+      return turnsService.appendEvent(turnId, {
+        content: '',
+        kind: 'assistant_message',
+        toolCalls: [{ args: {}, callId, toolName: [...toolName] as [string, string] }]
+      });
+    };
+
+    const sorted = async () => {
+      const abandoned = await turnsService.abandonRunning(isSafeToRepeat);
+      return {
+        withEffects: abandoned.withEffects.map(({ turnId }) => turnId),
+        withoutEffects: abandoned.withoutEffects.map(({ madeCompletion, turnId }) => [turnId, madeCompletion])
+      };
+    };
+
+    it('should run again a turn that made no completion, or one whose every call is safe to repeat', async () => {
+      const steered = await open('post-1');
+      await turnsService.appendEvent(steered.id, { byUsername: 'ada', kind: 'steering_received', text: 'and this' });
+      const reading = await open('post-2');
+      await called(reading.id, 'call-1', ['workspace', 'read']);
+      await called(reading.id, 'call-2', ['builtins', 'now']);
+      expect(await sorted()).toStrictEqual({
+        withEffects: [],
+        withoutEffects: [
+          [reading.id, true],
+          [steered.id, false]
+        ]
+      });
     });
-    const abandoned = await turnsService.abandonRunning();
-    expect(abandoned.unacted).toStrictEqual([]);
-    expect(abandoned.acted).toStrictEqual([
-      { agentUsername: 'mira', channelId: 'channel-1', triggeringPostId: 'post-2', turnId: parked.id }
-    ]);
+
+    it('should count a final reply, a park on a person, and a call that may have run and is not safe to repeat', async () => {
+      const replied = await open('post-1');
+      await turnsService.appendEvent(replied.id, { content: 'done', kind: 'assistant_message', toolCalls: [] });
+      const parked = await open('post-2');
+      await turnsService.appendEvent(parked.id, {
+        approvalId: 'a-1',
+        kind: 'approval_requested',
+        payloadText: 'write notes.md',
+        toolName: ['workspace', 'write']
+      });
+      const writing = await open('post-3');
+      await called(writing.id, 'call-1', ['workspace', 'write']);
+      expect((await sorted()).withEffects.toSorted()).toStrictEqual([parked.id, replied.id, writing.id].toSorted());
+    });
+
+    it('should not count a call whose result says it never ran', async () => {
+      const refused = await open('post-1');
+      await called(refused.id, 'call-1', ['workspace', 'write']);
+      await turnsService.appendEvent(refused.id, {
+        callId: 'call-1',
+        kind: 'tool_result',
+        output: 'refused: path is required',
+        toolName: ['workspace', 'write'],
+        traceMark: { ran: false, text: '⚠️ arguments not valid' }
+      });
+      expect(await sorted()).toStrictEqual({ withEffects: [], withoutEffects: [[refused.id, true]] });
+    });
   });
 });

@@ -1,3 +1,4 @@
+import type { ToolId } from '@collegium/core/tools';
 import { Result } from '@collegium/core/utils';
 import { Injectable } from '@nestjs/common';
 
@@ -16,7 +17,7 @@ import type {
 } from '@/prisma/prisma.types.ts';
 import { isUniqueConstraintViolation } from '@/prisma/prisma.utils.ts';
 
-import { sumUsageTotals, toReportedTotal, toUsageColumns } from './turns.utils.ts';
+import { readAbandonment, sumUsageTotals, toReportedTotal, toUsageColumns } from './turns.utils.ts';
 
 import type {
   AbandonedTurns,
@@ -44,19 +45,21 @@ export class TurnsService {
   /**
    * §7.3 — nothing resumes; every turn left running by a crash is closed as abandoned. The status
    * posts are read before the update, since afterwards nothing names which turns this boot closed.
-   *
-   * A turn had not acted when it recorded no `assistant_message`: that event is written before any
-   * call in its completion is admitted, and before a final reply is posted. Neither the status post,
-   * which is best-effort, nor a `tool_result`, which a call parked on approval has not written yet,
-   * proves that nothing ran.
+   * Each turn is sorted by its events (readAbandonment): one that had no effects is run again, and
+   * whether a call was safe to repeat is the caller's to say, since it knows the agents' tools.
    */
-  async abandonRunning(): Promise<AbandonedTurns> {
+  async abandonRunning(isSafeToRepeat: (agentUsername: string, toolId: ToolId) => boolean): Promise<AbandonedTurns> {
     const running = await this.turns.findMany({
       orderBy: { startedAt: 'desc' },
       select: {
-        _count: { select: { events: { where: { kind: 'assistant_message' } } } },
         agentUsername: true,
         channelId: true,
+        events: {
+          select: { payload: true },
+          where: {
+            kind: { in: ['approval_requested', 'ask_requested', 'assistant_message', 'output_rejected', 'tool_result'] }
+          }
+        },
         id: true,
         statusPostId: true,
         triggeringPostId: true
@@ -70,38 +73,27 @@ export class TurnsService {
       }
       return [{ agentUsername: turn.agentUsername, channelId: turn.channelId, postId: turn.statusPostId }];
     });
-    const acted = running.flatMap((turn) => {
-      if (turn._count.events === 0) {
-        return [];
-      }
-      return [
-        {
-          agentUsername: turn.agentUsername,
-          channelId: turn.channelId,
-          triggeringPostId: turn.triggeringPostId ?? undefined,
-          turnId: turn.id
-        }
-      ];
+    const read = running.map((turn) => {
+      const { hadEffects, madeCompletion } = readAbandonment(
+        turn.events.map(({ payload }) => payload),
+        (toolId) => isSafeToRepeat(turn.agentUsername, toolId)
+      );
+      const abandoned = {
+        agentUsername: turn.agentUsername,
+        channelId: turn.channelId,
+        triggeringPostId: turn.triggeringPostId ?? undefined,
+        turnId: turn.id
+      };
+      return { abandoned, hadEffects, madeCompletion };
     });
-    const unacted = running.flatMap((turn) => {
-      if (turn._count.events > 0 || turn.triggeringPostId === null) {
-        return [];
-      }
-      return [
-        {
-          agentUsername: turn.agentUsername,
-          channelId: turn.channelId,
-          triggeringPostId: turn.triggeringPostId,
-          turnId: turn.id
-        }
-      ];
-    });
-    const turns = running.map((turn) => ({
-      agentUsername: turn.agentUsername,
-      channelId: turn.channelId,
-      turnId: turn.id
-    }));
-    return { acted, statusPosts, turns, unacted };
+    return {
+      statusPosts,
+      turns: running.map((turn) => ({ agentUsername: turn.agentUsername, channelId: turn.channelId, turnId: turn.id })),
+      withEffects: read.filter(({ hadEffects }) => hadEffects).map(({ abandoned }) => abandoned),
+      withoutEffects: read
+        .filter(({ hadEffects }) => !hadEffects)
+        .map(({ abandoned, madeCompletion }) => ({ ...abandoned, madeCompletion }))
+    };
   }
 
   /**

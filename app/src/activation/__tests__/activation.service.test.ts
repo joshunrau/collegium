@@ -779,26 +779,73 @@ describe('ActivationService', () => {
   });
 
   describe('turns a restart abandoned (§7.3)', () => {
-    const unacted = { agentUsername: 'mira', channelId: 'channel-1', triggeringPostId: 'post-3', turnId: 'turn-9' };
+    const noEffects = {
+      agentUsername: 'mira',
+      channelId: 'channel-1',
+      madeCompletion: true,
+      triggeringPostId: 'ask',
+      turnId: 'turn-9'
+    };
 
+    /** a drain of [colleague report, person's post], taken by the abandoned turn (R3) */
     beforeEach(async () => {
-      await queueService.insert(MIRA_LANE, 'post-2');
+      authors.set('report', { authorKind: 'agent', createdAt: 1 });
+      authors.set('ask', { authorKind: 'human', createdAt: 2 });
+      await queueService.insert(MIRA_LANE, 'report');
+      await queueService.insert(MIRA_LANE, 'ask');
       await queueService.take('turn-9', MIRA_LANE, new Date());
     });
 
-    it('should return what an unacted turn took and queue the post that started it', async () => {
-      expect(await activationService.requeueUnacted([unacted])).toBe(1);
-      expect(await standing()).toStrictEqual(['post-2', 'post-3']);
+    it('should return every row a turn with no effects took, and its re-run answers the same person (R3)', async () => {
+      const requeue = await activationService.requeueWithoutEffects([noEffects], { unclean: false });
+      expect(requeue).toStrictEqual({ notQueuedPostIds: [], requeuedTurns: 1, unannouncedTriggerIds: [] });
+      expect((await standing()).toSorted()).toStrictEqual(['ask', 'report']);
+      await activationService.sweep();
+      await settle();
+      expect(turnRunner.run).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ triggeringPostId: 'ask' }));
     });
 
-    it('should leave out a post the system bot wrote (§5.2), returning what the turn took', async () => {
-      authors.set('post-3', { authorKind: 'system', createdAt: 3 });
-      expect(await activationService.requeueUnacted([unacted])).toBe(1);
-      expect(await standing()).toStrictEqual(['post-2']);
+    it('should return a post once after an unclean stop, and name it when a second crash cuts its turn off', async () => {
+      await activationService.requeueWithoutEffects([noEffects], { unclean: true });
+      await queueService.take('turn-10', MIRA_LANE, new Date());
+      const second = await activationService.requeueWithoutEffects([{ ...noEffects, turnId: 'turn-10' }], {
+        unclean: true
+      });
+      expect(second).toStrictEqual({
+        notQueuedPostIds: ['report', 'ask'],
+        requeuedTurns: 0,
+        unannouncedTriggerIds: []
+      });
+      expect(entries.rows).toStrictEqual([]);
     });
 
-    it('should consume what an acted turn took', async () => {
-      await activationService.consumeActed([{ ...unacted, triggeringPostId: undefined }]);
+    it('should return a marked row again after a clean stop, and a turn with no completion however often', async () => {
+      await activationService.requeueWithoutEffects([noEffects], { unclean: true });
+      await queueService.take('turn-10', MIRA_LANE, new Date());
+      await activationService.requeueWithoutEffects([{ ...noEffects, turnId: 'turn-10' }], { unclean: false });
+      await queueService.take('turn-11', MIRA_LANE, new Date());
+      await activationService.requeueWithoutEffects([{ ...noEffects, madeCompletion: false, turnId: 'turn-11' }], {
+        unclean: true
+      });
+      expect((await standing()).toSorted()).toStrictEqual(['ask', 'report']);
+    });
+
+    it('should send a trigger turn’s trigger back to be announced, and not the announcement into the queue (§4.2)', async () => {
+      authors.set('announcement', { authorKind: 'system', createdAt: 3 });
+      triggersService.reannounceAfterRestart.mockResolvedValue({ kind: 'spent', triggerId: 'trigger-1' });
+      const requeue = await activationService.requeueWithoutEffects(
+        [{ ...noEffects, triggeringPostId: 'announcement' }],
+        {
+          unclean: true
+        }
+      );
+      expect(triggersService.reannounceAfterRestart).toHaveBeenCalledWith('announcement', { bounded: true });
+      expect(requeue.unannouncedTriggerIds).toStrictEqual(['trigger-1']);
+      expect(await standing()).not.toContain('announcement');
+    });
+
+    it('should consume what a turn with effects took', async () => {
+      await activationService.consumeWithEffects([{ ...noEffects, triggeringPostId: undefined }]);
       expect(entries.rows).toStrictEqual([]);
     });
   });

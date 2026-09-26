@@ -153,9 +153,11 @@ describe('RuntimeService', () => {
     bootService.run.mockResolvedValue({
       abandonedTurns: 2,
       downtime: { kind: 'clean', startedAt: new Date(2000), stoppedAt: new Date(1000) },
+      notQueuedPostIds: [],
       requeuedHandoffs: 0,
       requeuedTurns: 1,
-      strandedUnits: []
+      strandedUnits: [],
+      unannouncedTriggerIds: []
     });
     transport = MockFactory.createMock(ChatTransport);
     transport.listen.mockImplementation((onEvent) => {
@@ -279,9 +281,11 @@ describe('RuntimeService', () => {
       agentUsernames: ['mira'],
       downtime: { kind: 'clean', startedAt: new Date(2000), stoppedAt: new Date(1000) },
       kind: 'online',
+      notQueuedPostIds: [],
       requeuedHandoffs: 0,
       requeuedTurns: 1,
-      strandedUnits: []
+      strandedUnits: [],
+      unannouncedTriggerIds: []
     });
   });
 
@@ -333,7 +337,15 @@ describe('RuntimeService', () => {
     bootService.run.mockReturnValue(
       new Promise((resolve) => {
         finishBoot = () => {
-          resolve({ abandonedTurns: 0, downtime: undefined, requeuedHandoffs: 0, requeuedTurns: 0, strandedUnits: [] });
+          resolve({
+            abandonedTurns: 0,
+            downtime: undefined,
+            notQueuedPostIds: [],
+            requeuedHandoffs: 0,
+            requeuedTurns: 0,
+            strandedUnits: [],
+            unannouncedTriggerIds: []
+          });
         };
       })
     );

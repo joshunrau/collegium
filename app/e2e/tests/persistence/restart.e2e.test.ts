@@ -60,6 +60,31 @@ describe('Restart', () => {
     await channels.main.awaitReplyFrom('mira', { text: reply });
   });
 
+  it('runs again a turn a restart cut off before it had any effect, answering the same post (§7.3)', async () => {
+    const { app, channels, inference } = harness();
+    const reply = `answered-again-${randomUUID()}`;
+    inference.willReply(
+      { agent: 'mira', contains: 'read the notes' },
+      toolCallResponse('workspace__read', { path: 'notes.md' })
+    );
+    const cutOff = inference.willBlock({ agent: 'mira' }, textResponse('never posted'));
+
+    const asked = await channels.main.mention('mira', 'read the notes and summarize them');
+    await cutOff.arrived;
+    // its latest input after the restart is the offline notice, so the re-run is matched by agent
+    inference.willReply({ agent: 'mira' }, textResponse(reply));
+    await app.restart();
+
+    await channels.main.awaitPost({
+      description: 'the boot notice counting the turn as queued again',
+      match: (post) => post.text.includes('Online') && post.text.includes('1 that had no effects went back')
+    });
+    await channels.main.awaitReplyFrom('mira', { text: reply });
+    const rerun = inference.requestsFor('mira').at(-1);
+    expect(rerun?.tail).toContain(`post ${asked.id},`);
+    cutOff.release();
+  });
+
   it('keeps queue state across a restart so pending work drains once channels go idle (§7.3)', async () => {
     const { app, channels, inference } = harness();
     inference.forgetRequests();

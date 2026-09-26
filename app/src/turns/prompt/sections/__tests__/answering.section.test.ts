@@ -46,9 +46,9 @@ describe('AnsweringSection', () => {
     vi.useFakeTimers({ now: at(30), toFake: ['Date'] });
     posts = new Map();
     const agentRegistry = MockFactory.createMock(AgentRegistry);
-    agentRegistry.displayNameOf.mockImplementation((username) =>
-      username.replace(/^./u, (first) => first.toUpperCase())
-    );
+    agentRegistry.displayNameOf.mockImplementation((username) => {
+      return username.replace(/^./u, (first) => first.toUpperCase());
+    });
     const conversationsService = MockFactory.createMock(ConversationsService);
     conversationsService.findUnforgotten.mockImplementation((postId) => Promise.resolve(posts.get(postId)));
     tasksService = MockFactory.createMock(TasksService);

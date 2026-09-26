@@ -82,7 +82,11 @@ export type PluginToolDeclaration<TContext, TParams extends z.ZodType> = {
   readonly description: string;
   execute(args: z.infer<TParams>, context: TContext): Promisable<PluginToolOutput>;
   readonly parameters: TParams;
-  /** §7.2 — whether a timed-out call may be reported to the model as a plain failure; false ends the turn as unconfirmable */
+  /**
+   * §3.4 — whether a call is safe to run again with the same arguments: a timed-out one may be
+   * reported to the model as a plain failure (§7.2), and a restart may run its turn again (§7.3). A
+   * mutation declares it only where repeating it changes nothing; false ends the turn on a timeout.
+   */
   readonly retryable?: boolean;
   /** §3.8 — a page whose identical re-read replaces it: a later result with the same content costs a line naming this one; it plays no part in what is collapsed */
   readonly supersedable?: boolean;

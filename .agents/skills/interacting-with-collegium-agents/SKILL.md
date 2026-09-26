@@ -33,8 +33,11 @@ Post to `/api/v4/posts` with the channel id. Mention the agent as `@name`.
 
 **Mention one agent for each post.** The framework refuses a post that mentions two agents.
 
-A mention starts a turn. Nothing else does. After a turn stops, the framework starts no new turn
-by itself, so an agent that writes "next I will…" waits for you. Post again to continue it.
+A turn starts only from a post that addresses the agent, a trigger, a drain of what queued behind
+a turn, or a restart running again a turn that had no effects. After a turn stops, the framework
+starts no new turn by itself, so an agent that writes "next I will…" waits for you. Post again to
+continue it. The boot notice after a restart says which turns it queued again, names each post it
+did not, and names each unit still assigned to an agent whose abandoned turn had effects.
 
 **Read the lane before you nudge.** A quiet channel is not an idle agent: a turn that has called no
 tool yet has no status post, and can run for minutes that way. A mention of an agent whose turn is

@@ -144,6 +144,30 @@ export class TriggersService {
     return Result.ok({ postId: posted.value.postId });
   }
 
+  /**
+   * §4.2, §7.3 — the trigger an abandoned turn with no effects was announced by goes back to
+   * pending, so the next idle flush announces it again. After an unclean stop the turn may have
+   * crashed the process, so it goes back at most once across crashes: one already sent back stays
+   * posted, and the boot notice names it. Undefined where the post announced no trigger still posted.
+   */
+  async reannounceAfterRestart(
+    announcementPostId: string,
+    { bounded }: { readonly bounded: boolean }
+  ): Promise<undefined | { readonly kind: 'released' | 'spent'; readonly triggerId: string }> {
+    const trigger = await this.triggers.findFirst({ where: { postId: announcementPostId, status: 'posted' } });
+    if (trigger === null) {
+      return undefined;
+    }
+    if (bounded && trigger.reannouncedAt !== null) {
+      return { kind: 'spent', triggerId: trigger.id };
+    }
+    await this.triggers.update({
+      data: { postedAt: null, status: 'pending', ...(bounded && { reannouncedAt: new Date() }) },
+      where: { id: trigger.id }
+    });
+    return { kind: 'released', triggerId: trigger.id };
+  }
+
   async record(input: TriggerInput): Promise<Result<Trigger, TriggerFailure>> {
     if (input.dedupeKey !== undefined) {
       // a re-observed event — a crash between recording and cursor advance — is the same

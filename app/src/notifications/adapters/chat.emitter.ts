@@ -65,7 +65,7 @@ export class ChatEmitter extends NotificationsEmitter {
     const creator = this.agentRegistry.displayNameOf(unit.creatorUsername);
     const channel = this.rosterService.nameOf(unit.channelId, unit.assigneeUsername);
     const where = channel === undefined ? '' : ` in ${channel}`;
-    return `- Unit \`${unit.reference}\`${where}, from ${creator} to ${assignee}, stays assigned: ${assignee}'s turn on it was abandoned.`;
+    return `- Unit \`${unit.reference}\`${where}, from ${creator} to ${assignee}, stays assigned: ${assignee}'s turn on it had effects and was abandoned.`;
   }
 
   private renderSystemEvent(event: SystemEvent): string {
@@ -120,13 +120,23 @@ export class ChatEmitter extends NotificationsEmitter {
           const abandoned =
             event.abandonedTurns === 0 ? '' : ` ${event.abandonedTurns} in-flight turn(s) were abandoned.`;
           const requeued =
-            event.requeuedTurns === 0 ? '' : ` ${event.requeuedTurns} that had not yet acted went back into the queue.`;
+            event.requeuedTurns === 0
+              ? ''
+              : ` ${event.requeuedTurns} that had no effects went back to be answered again.`;
+          const notQueued =
+            event.notQueuedPostIds.length === 0
+              ? ''
+              : ` Not queued again, since their turns were cut off twice: ${event.notQueuedPostIds.map((postId) => `post \`${postId}\``).join(', ')}.`;
+          const unannounced =
+            event.unannouncedTriggerIds.length === 0
+              ? ''
+              : ` Not announced again, for the same reason: ${event.unannouncedTriggerIds.map((triggerId) => `trigger ⟨${triggerId}⟩`).join(', ')}.`;
           const handoffs =
             event.requeuedHandoffs === 0
               ? ''
               : ` ${event.requeuedHandoffs} hand-off(s) they had made to a colleague went back into the queue.`;
           return [
-            `🟢 **Online** — the orchestrator started with ${event.agentUsernames.length} agent(s): ${roster}.${downtime}${abandoned}${requeued}${handoffs}`,
+            `🟢 **Online** — the orchestrator started with ${event.agentUsernames.length} agent(s): ${roster}.${downtime}${abandoned}${requeued}${notQueued}${unannounced}${handoffs}`,
             ...event.strandedUnits.map((unit) => this.renderStrandedUnit(unit))
           ].join('\n');
         })

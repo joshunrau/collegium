@@ -56,6 +56,7 @@ describe('TriggersService', () => {
       defaults: (sequence) => ({
         createdAt: new Date(sequence),
         id: `trigger-${sequence}`,
+        reannouncedAt: null,
         reference: {},
         source: 'webhook'
       })
@@ -187,6 +188,27 @@ describe('TriggersService', () => {
     expect(await triggersService.wasAnnouncedBy('some-human-post')).toBe(false);
     expect(await triggersService.findAnnouncedBy('announcement-1')).toMatchObject({ id: recorded.value!.id });
     expect(await triggersService.findAnnouncedBy('some-human-post')).toBeUndefined();
+  });
+
+  it('should send an abandoned turn’s trigger back to be announced, once only after an unclean stop (§4.2, §7.3)', async () => {
+    const recorded = await record();
+    await triggersService.post(recorded.value!.id);
+    const triggerId = recorded.value!.id;
+    expect(await triggersService.reannounceAfterRestart('announcement-1', { bounded: true })).toStrictEqual({
+      kind: 'released',
+      triggerId
+    });
+    expect(rows[0]).toMatchObject({ postedAt: null, status: 'pending' });
+    await triggersService.post(triggerId);
+    expect(await triggersService.reannounceAfterRestart('announcement-1', { bounded: true })).toStrictEqual({
+      kind: 'spent',
+      triggerId
+    });
+    expect(rows[0]).toMatchObject({ status: 'posted' });
+    expect(await triggersService.reannounceAfterRestart('announcement-1', { bounded: false })).toMatchObject({
+      kind: 'released'
+    });
+    expect(await triggersService.reannounceAfterRestart('some-human-post', { bounded: false })).toBeUndefined();
   });
 
   it('should name every channel holding an unannounced trigger exactly once', async () => {

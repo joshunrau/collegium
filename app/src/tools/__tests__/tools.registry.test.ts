@@ -245,6 +245,14 @@ describe('ToolRegistry', () => {
     expect(registry.isSupersedable(profile, 'ghost')).toBe(false);
   });
 
+  it('answers whether a call is safe to run again from the tool’s own declaration, by its id (§3.4, §7.3)', () => {
+    const profile = buildAgentProfile({ tools: ['notes'] });
+    const registry = new ToolRegistry(LIBRARY, [profile]);
+    expect(registry.isRetryable(profile, ['skills', 'load'])).toBe(true);
+    expect(registry.isRetryable(profile, ['notes', 'list'])).toBe(false);
+    expect(registry.isRetryable(profile, ['ghost', 'tool'])).toBe(false);
+  });
+
   it('lists the exempt calls by wire name from the same flags (§5.3)', () => {
     const profile = buildAgentProfile();
     const registry = new ToolRegistry(LIBRARY, [profile]);

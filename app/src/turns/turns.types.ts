@@ -27,22 +27,19 @@ export type AbandonedStatusPost = {
   readonly postId: string;
 };
 
-/** an abandoned turn that had called no tool, and the post that started it (§7.3) */
-export type UnactedTurn = {
-  readonly agentUsername: string;
-  readonly channelId: string;
-  readonly triggeringPostId: string;
-  /** whose stamp marks the queue rows it took (§5.2) */
-  readonly turnId: string;
-};
-
-/** an abandoned turn that had acted, which nothing queues again, and the post that started it where one did (§7.3) */
-export type ActedTurn = {
+/** an abandoned turn that had effects, which nothing runs again, and the post that started it where one did (§7.3) */
+export type TurnWithEffects = {
   readonly agentUsername: string;
   readonly channelId: string;
   readonly triggeringPostId: string | undefined;
   /** whose stamp marks the queue rows it took (§5.2) */
   readonly turnId: string;
+};
+
+/** §7.3 — an abandoned turn that had no effects, which a restart runs again */
+export type TurnWithoutEffects = TurnWithEffects & {
+  /** whether a completion came back, the one way its calls could have taken the process down */
+  readonly madeCompletion: boolean;
 };
 
 /** a turn a restart abandoned, whatever it had done (§7.3) */
@@ -52,13 +49,13 @@ export type AbandonedTurn = {
   readonly turnId: string;
 };
 
-/** what a restart abandoned: every turn, the status posts among them left to close, and those that had acted and had not (§7.3) */
+/** what a restart abandoned: every turn, the status posts among them left to close, and those that had effects and had none (§7.3) */
 export type AbandonedTurns = {
-  readonly acted: readonly ActedTurn[];
   /** most recently started first */
   readonly statusPosts: readonly AbandonedStatusPost[];
   readonly turns: readonly AbandonedTurn[];
-  readonly unacted: readonly UnactedTurn[];
+  readonly withEffects: readonly TurnWithEffects[];
+  readonly withoutEffects: readonly TurnWithoutEffects[];
 };
 
 /** §5.2 — the colleague a turn's posts addressed, and each of those posts since the turn last stopped acting */

@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ActivationService } from '@/activation/activation.service.ts';
+import { AgentRegistry } from '@/agents/agents.registry.ts';
 import { PendingDecisionsService } from '@/approvals/decisions/pending-decisions.service.ts';
 import { RosterService } from '@/channels/roster/roster.service.ts';
 import { BackfillService } from '@/conversations/backfill/backfill.service.ts';
@@ -15,21 +16,22 @@ import type { MockedInstance } from '@/testing/factories/mock.factory.ts';
 import { ToolRegistry } from '@/tools/tools.registry.ts';
 import { StatusPostService } from '@/turns/status/status-post.service.ts';
 import { TurnsService } from '@/turns/turns.service.ts';
-import type { AbandonedStatusPost, AbandonedTurn, ActedTurn, UnactedTurn } from '@/turns/turns.types.ts';
+import type { AbandonedStatusPost, AbandonedTurn, TurnWithEffects, TurnWithoutEffects } from '@/turns/turns.types.ts';
 
 import { LivenessService } from '../../liveness/liveness.service.ts';
 import { BootService } from '../boot.service.ts';
 
 const STATUS_POST: AbandonedStatusPost = { agentUsername: 'mira', channelId: 'channel-1', postId: 'status-1' };
 
-const UNACTED: UnactedTurn = {
+const NO_EFFECTS: TurnWithoutEffects = {
   agentUsername: 'owen',
   channelId: 'channel-2',
+  madeCompletion: false,
   triggeringPostId: 'post-1',
   turnId: 'turn-4'
 };
 
-const ACTED: ActedTurn = {
+const WITH_EFFECTS: TurnWithEffects = {
   agentUsername: 'mira',
   channelId: 'channel-1',
   triggeringPostId: 'post-2',
@@ -57,9 +59,9 @@ describe('BootService', () => {
   beforeEach(async () => {
     calls = [];
     activationService = MockFactory.createMock(ActivationService);
-    activationService.requeueUnacted.mockImplementation(() => {
+    activationService.requeueWithoutEffects.mockImplementation(() => {
       calls.push('requeue');
-      return Promise.resolve(1);
+      return Promise.resolve({ notQueuedPostIds: ['post-7'], requeuedTurns: 1, unannouncedTriggerIds: ['trigger-1'] });
     });
     activationService.requeueDeferred.mockImplementation(() => {
       calls.push('requeue-held');
@@ -99,13 +101,19 @@ describe('BootService', () => {
     turnsService = MockFactory.createMock(TurnsService);
     turnsService.abandonRunning.mockImplementation(() => {
       calls.push('abandon');
-      return Promise.resolve({ acted: [ACTED], statusPosts: [STATUS_POST], turns: ABANDONED, unacted: [UNACTED] });
+      return Promise.resolve({
+        statusPosts: [STATUS_POST],
+        turns: ABANDONED,
+        withEffects: [WITH_EFFECTS],
+        withoutEffects: [NO_EFFECTS]
+      });
     });
     const moduleRef = await Test.createTestingModule({
       providers: [
         BootService,
         MockFactory.createForService(LoggingService),
         { provide: ActivationService, useValue: activationService },
+        { provide: AgentRegistry, useValue: MockFactory.createMock(AgentRegistry) },
         { provide: PendingDecisionsService, useValue: pendingDecisionsService },
         { provide: BackfillService, useValue: backfillService },
         { provide: LivenessService, useValue: livenessService },
@@ -136,7 +144,7 @@ describe('BootService', () => {
     expect(loggingService.warn).not.toHaveBeenCalled();
   });
 
-  it('should abandon turns, close their status posts, queue the unacted again, invalidate prompts, backfill, reconcile, and queue held posts — in that order', async () => {
+  it('should abandon turns, close their status posts, queue again those with no effects, invalidate prompts, backfill, reconcile, and queue deferred posts — in that order', async () => {
     const report = await bootService.run();
     expect(calls).toStrictEqual([
       'abandon',
@@ -151,15 +159,30 @@ describe('BootService', () => {
     expect(report).toStrictEqual({
       abandonedTurns: 3,
       downtime: undefined,
+      notQueuedPostIds: ['post-7'],
       requeuedHandoffs: 2,
       requeuedTurns: 1,
-      strandedUnits: []
+      strandedUnits: [],
+      unannouncedTriggerIds: ['trigger-1']
     });
   });
 
-  it('should hand activation the abandoned turns that had not acted (§7.3)', async () => {
+  it('should hand activation the abandoned turns that had no effects, bounded after a stop it did not record (§7.3)', async () => {
     await bootService.run();
-    expect(activationService.requeueUnacted).toHaveBeenCalledExactlyOnceWith([UNACTED]);
+    expect(activationService.requeueWithoutEffects).toHaveBeenCalledExactlyOnceWith([NO_EFFECTS], { unclean: true });
+    livenessService.readDowntime.mockResolvedValue({
+      kind: 'clean',
+      startedAt: new Date(2000),
+      stoppedAt: new Date(1000)
+    });
+    await bootService.run();
+    expect(activationService.requeueWithoutEffects).toHaveBeenLastCalledWith([NO_EFFECTS], { unclean: false });
+  });
+
+  it('should ask the registry whether each abandoned call was safe to repeat (§3.4, §7.3)', async () => {
+    await bootService.run();
+    const [isSafeToRepeat] = turnsService.abandonRunning.mock.calls[0]!;
+    expect(isSafeToRepeat('ghost', ['workspace', 'read'])).toBe(false);
   });
 
   it('should hand activation every abandoned turn, whose deferred posts it queues once the roster reconciles (§5.2, §7.3)', async () => {
@@ -167,12 +190,12 @@ describe('BootService', () => {
     expect(activationService.requeueDeferred).toHaveBeenCalledExactlyOnceWith(ABANDONED);
   });
 
-  it('should hand activation the abandoned turns that had acted, whose queue rows it consumes (§5.2, §7.3)', async () => {
+  it('should hand activation the abandoned turns that had effects, whose queue rows it consumes (§5.2, §7.3)', async () => {
     await bootService.run();
-    expect(activationService.consumeActed).toHaveBeenCalledExactlyOnceWith([ACTED]);
+    expect(activationService.consumeWithEffects).toHaveBeenCalledExactlyOnceWith([WITH_EFFECTS]);
   });
 
-  it('should report the unit each acted abandoned turn was working, for the boot notice to name (§7.3)', async () => {
+  it('should report the unit each abandoned turn with effects was working, for the boot notice to name (§7.3)', async () => {
     tasksService.findWorkedUnit.mockResolvedValue({
       assigneeUsername: 'mira',
       channelId: 'channel-1',
@@ -180,7 +203,7 @@ describe('BootService', () => {
       id: 'ab12cd34ef56'
     } as WorkUnit);
     const report = await bootService.run();
-    expect(tasksService.findWorkedUnit).toHaveBeenCalledExactlyOnceWith(ACTED);
+    expect(tasksService.findWorkedUnit).toHaveBeenCalledExactlyOnceWith(WITH_EFFECTS);
     expect(report.strandedUnits).toStrictEqual([
       { assigneeUsername: 'mira', channelId: 'channel-1', creatorUsername: 'owen', reference: 'ab12cd34' }
     ]);
@@ -208,7 +231,7 @@ describe('BootService', () => {
 
   it('should close at most the fifty most recently started abandoned status posts', async () => {
     const statusPosts = Array.from({ length: 60 }, (_, index) => ({ ...STATUS_POST, postId: `status-${index}` }));
-    turnsService.abandonRunning.mockResolvedValue({ acted: [], statusPosts, turns: [], unacted: [] });
+    turnsService.abandonRunning.mockResolvedValue({ statusPosts, turns: [], withEffects: [], withoutEffects: [] });
     await bootService.run();
     expect(statusPostService.closeAbandoned).toHaveBeenCalledTimes(50);
     expect(statusPostService.closeAbandoned).toHaveBeenLastCalledWith(statusPosts[49]);

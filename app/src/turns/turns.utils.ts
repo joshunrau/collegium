@@ -1,3 +1,5 @@
+import type { ToolId } from '@collegium/core/tools';
+
 import type { CompletionUsage } from '@/inference/inference.types.ts';
 
 import type { ReportedTotal, UsageTotals } from './turns.types.ts';
@@ -39,4 +41,35 @@ export function toUsageColumns(usage: CompletionUsage) {
     promptTokens: usage.promptTokens,
     reasoningTokens: usage.reasoningTokens ?? null
   };
+}
+
+/**
+ * §7.3 — what a restart reads off an abandoned turn's events. It had effects if it wrote a final
+ * reply, parked on a person, or issued a call that may have run and is not safe to repeat: a call
+ * whose result says it never ran does not count, and neither does a name that resolved to no tool.
+ * It made a completion if any came back, the one way a call could have taken the process down.
+ */
+export function readAbandonment(
+  events: readonly PrismaJson.TurnEventPayload[],
+  isSafeToRepeat: (toolId: ToolId) => boolean
+): { readonly hadEffects: boolean; readonly madeCompletion: boolean } {
+  const notRun = new Set(
+    events.flatMap((event) => (event.kind === 'tool_result' && event.traceMark?.ran === false ? [event.callId] : []))
+  );
+  const hadEffects = events.some((event) => {
+    if (event.kind === 'approval_requested' || event.kind === 'ask_requested') {
+      return true;
+    }
+    if (event.kind !== 'assistant_message') {
+      return false;
+    }
+    return (
+      event.toolCalls.length === 0 ||
+      event.toolCalls.some(({ callId, toolName }) => {
+        return typeof toolName !== 'string' && !notRun.has(callId) && !isSafeToRepeat(toolName);
+      })
+    );
+  });
+  const madeCompletion = events.some((event) => event.kind === 'assistant_message' || event.kind === 'output_rejected');
+  return { hadEffects, madeCompletion };
 }

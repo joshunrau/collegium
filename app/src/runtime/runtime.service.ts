@@ -110,9 +110,11 @@ export class RuntimeService implements OnApplicationBootstrap, OnApplicationShut
         agentUsernames: Array.from(this.running.keys()),
         downtime: boot.downtime,
         kind: 'online',
+        notQueuedPostIds: boot.notQueuedPostIds,
         requeuedHandoffs: boot.requeuedHandoffs,
         requeuedTurns: boot.requeuedTurns,
-        strandedUnits: boot.strandedUnits
+        strandedUnits: boot.strandedUnits,
+        unannouncedTriggerIds: boot.unannouncedTriggerIds
       } satisfies SystemEvent.Online);
     }
   }

@@ -147,7 +147,7 @@ export default defineTool({
 - `err` raises the two failures a tool may raise itself. `err.invalidArguments` feeds the message back to the model and the turn continues. `err.unresolved` ends the turn as an unconfirmed side effect. Any other throw ends the turn as an error.
 - `approval` is required, and every tool states its gate: a function, or `null`. Omitting the key refuses the plugin at boot, because an absent field cannot be told from a forgotten one.
 - A tool whose `approval` is a function blocks for a human decision on every call. The function returns the payload the human sees; include everything the action will do.
-- A tool declaring `approval: null` runs without a gate. Mark it `retryable` only if a timed-out call is safe to report as a failure. Never mark a mutation retryable.
+- A tool declaring `approval: null` runs without a gate. Mark it `retryable` only if the call is safe to run again with the same arguments: a timed-out call is then reported as a failure, and a restart may run its turn again. Never mark a mutation retryable unless repeating it changes nothing.
 - `traceDetail` is the one-line summary shown in the status post.
 
 ### Render the Stored Record

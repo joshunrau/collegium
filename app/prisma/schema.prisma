@@ -294,6 +294,8 @@ model Trigger {
   dedupeKey           String?       @unique
   postId              String?
   postedAt            DateTime?
+  /// §7.3 — when a restart after an unclean stop last sent it back to be announced again; set, it is not sent back again
+  reannouncedAt       DateTime?
   /// [TriggerReference]
   reference           Json
   resolvedAt          DateTime?
