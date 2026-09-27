@@ -113,9 +113,7 @@ function renderFormControls(elements: readonly FormElement[]): { readonly rest: 
   }
   const rest = lines.slice(shownCount);
   const more =
-    rest.length === 0
-      ? ''
-      : `\n${rest.length} more control${rest.length === 1 ? '' : 's'}, listed after the page; the rest by reference: results__read find`;
+    rest.length === 0 ? '' : `\n${rest.length} more control${rest.length === 1 ? '' : 's'}, listed after the page`;
   return {
     rest: rest.length === 0 ? '' : `\n\nForm controls, continued:\n${rest.join('\n')}`,
     shown: `Form controls:\n${lines.slice(0, shownCount).join('\n')}${more}\n\n`

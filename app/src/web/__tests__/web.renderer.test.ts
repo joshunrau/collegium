@@ -198,7 +198,7 @@ describe('renderWebSnapshot', () => {
     const { text, viewChars } = renderWebSnapshot({ ...SNAPSHOT, formElements });
     const block = text.slice(0, text.indexOf('# Faculty'));
     expect(block.length).toBeLessThan(FORM_CONTROLS_MAX_CHARS + 500);
-    expect(block).toMatch(/\d+ more controls, listed after the page; the rest by reference: results__read find\n\n$/u);
+    expect(block).toMatch(/\n\d+ more controls, listed after the page\n\n$/u);
     expect(text.slice(text.indexOf('# Faculty'))).toContain('Form controls, continued:\n- ⟨e');
     expect(viewChars).toBeLessThanOrEqual(FORM_CONTROLS_MAX_CHARS + 500 + SNAPSHOT_VIEW_CHARS);
   });
