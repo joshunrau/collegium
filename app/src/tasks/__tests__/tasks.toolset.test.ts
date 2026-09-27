@@ -151,7 +151,7 @@ describe('TASKS_TOOLSET', () => {
     expect(report.value?.post?.text).toMatch(/^@mira /);
     expect(report.value?.text).toContain('the report is posted to Mira, whose turn starts when this turn ends');
     expect(close.value?.post?.text).not.toContain('@');
-    expect(close.value?.text).toBe('unit unit-1 closed as done; the close is posted, and your reply ends the turn');
+    expect(close.value?.text).toBe('unit unit-1 closed as done; the close is posted');
   });
 
   it('should say a close leaves the agent nothing open here that would start its next turn (§3.15)', async () => {
@@ -168,6 +168,8 @@ describe('TASKS_TOOLSET', () => {
       context
     );
     expect(close.value?.text).toContain('. No turn of yours starts here until a post addresses you');
+    // §3.15 — how a turn ends is the runner's to say, never a tool's
+    expect(close.value?.text).not.toContain('reply');
   });
 
   it('should close for the calling turn, and refuse on a closed unit naming who closed it, when and the verdict (§3.15)', async () => {

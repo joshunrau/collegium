@@ -135,7 +135,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
           return refused(prepared.error, wording);
         }
         const { leavesNoneOpen, prepared: transition, text } = prepared.value;
-        const closed = `unit ${args.reference} closed as ${args.state}; the close is posted, and your reply ends the turn`;
+        const closed = `unit ${args.reference} closed as ${args.state}; the close is posted`;
         return Result.ok({
           post: { onPublished: (postId) => context.tasks.commitTransition(transition, postId), text },
           text: leavesNoneOpen ? `${closed}. No turn of yours starts here until a post addresses you` : closed
