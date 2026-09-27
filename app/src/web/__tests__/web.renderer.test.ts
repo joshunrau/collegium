@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { classifyActionError } from '../browser/browser.utils.ts';
 import { FORM_CONTROLS_MAX_CHARS, SELECT_OPTIONS_SHOWN, SNAPSHOT_VIEW_CHARS } from '../web.constants.ts';
 import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from '../web.renderer.ts';
 
@@ -92,15 +93,19 @@ describe('renderWebFailure', () => {
     expect(renderWebFailure({ kind: 'not-visible', ref: 'e12' })).toContain('web::hover');
   });
 
-  it("should report a failed action on a present element as the element's, naming web::select (§3.4)", () => {
-    const line = renderWebFailure({
-      kind: 'action-failed',
-      message: 'Element is not an <input>, <textarea> or [contenteditable] element',
-      ref: 'e359'
-    });
-    expect(line).toMatch(/^⟨e359⟩ is on the page, but the action on it failed: Element is not an <input>/u);
-    expect(line).toContain('web::select');
-    expect(line).not.toContain('could not be loaded');
+  it("should report a click that timed out as the element's failure, in the framework's words (§3.4)", () => {
+    const failure = classifyActionError('locator.click: Timeout 5000ms exceeded.\nCall log:\n  - waiting', 'e112');
+    expect(renderWebFailure(failure)).toBe(
+      '⟨e112⟩ is on the page, but the action on it failed: it did not become actionable within 5s: it may be ' +
+        'covered by another element, disabled, or still moving. The page itself loaded; check what the element is ' +
+        'in the latest snapshot'
+    );
+  });
+
+  it('should refuse a fill on a drop-down naming web::select (§3.4)', () => {
+    expect(renderWebFailure({ kind: 'fill-on-select', ref: 'e359' })).toBe(
+      '⟨e359⟩ is a drop-down, which takes no typed text, so nothing was filled — choose one of its options with web::select'
+    );
   });
 
   it('should say a busy browser frees only when a holding turn ends, and that fetch still works (§3.4)', () => {

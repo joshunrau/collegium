@@ -133,6 +133,11 @@ export declare namespace WebFailure {
     status: number;
     url: string;
   };
+  /** a fill aimed at a drop-down, which takes no typed text, refused before anything was tried (§3.4) */
+  type FillOnSelect = {
+    kind: 'fill-on-select';
+    ref: string;
+  };
   /** the server answered with an error status and nothing readable — an error, not a page left unrendered */
   type HttpError = {
     bodyChars: number;
@@ -216,6 +221,7 @@ export declare namespace WebFailure {
     | Busy
     | EmptyBody
     | EmptyRender
+    | FillOnSelect
     | HttpError
     | Navigation
     | NoSession

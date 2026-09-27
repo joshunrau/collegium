@@ -1,6 +1,6 @@
 import { camoufoxPath } from 'camoufox-js/dist/pkgman.js';
 
-import { NAVIGATION_TIMEOUT_MS } from '../web.constants.ts';
+import { ACTION_TIMEOUT_MS, NAVIGATION_TIMEOUT_MS } from '../web.constants.ts';
 
 import type { TlsReason, WebFailure } from '../web.types.ts';
 
@@ -37,6 +37,22 @@ const NETWORK_ERROR_CODE = /\bNS_ERROR_[A-Z_]+\b/u;
 /** Playwright's own framing of an action's error: the method that raised it, and the call log after the first line */
 const ACTION_ERROR_PREFIX = /^(?:locator\.\w+: )?(?:Error: )?/u;
 
+const ACTION_TIMEOUT = `Timeout ${ACTION_TIMEOUT_MS}ms exceeded`;
+
+/** the waits Playwright's actionability checks make, since its own timeout message names none of them */
+const ACTION_TIMEOUT_DESCRIPTION =
+  `it did not become actionable within ${ACTION_TIMEOUT_MS / 1000}s: it may be covered by another element, ` +
+  'disabled, or still moving';
+
+/** the rendering ends the message with its own period */
+const TRAILING_PUNCTUATION = /[.!?,;:]+$/u;
+
+function describeActionError(firstLine: string): string {
+  return firstLine.startsWith(ACTION_TIMEOUT)
+    ? ACTION_TIMEOUT_DESCRIPTION
+    : firstLine.replace(TRAILING_PUNCTUATION, '');
+}
+
 function describeNavigationError(message: string): string {
   const code = Object.keys(NAVIGATION_ERRORS).find((known) => message.includes(known));
   return code === undefined ? message : NAVIGATION_ERRORS[code]!;
@@ -57,7 +73,8 @@ export function classifyNavigationError(message: string): WebFailure.Navigation 
 
 /**
  * A failed action on an element that is there and visible, as what it is: the element refused the
- * action, unless what failed was a load the action started, which is the page's failure (§3.4).
+ * action, unless what failed was a load the action started, which is the page's failure (§3.4). A
+ * timeout is said in the app's words, as a navigation's is.
  */
 export function classifyActionError(
   message: string,
@@ -67,7 +84,7 @@ export function classifyActionError(
     return classifyNavigationError(message);
   }
   const firstLine = message.split('\n', 1)[0]!.replace(ACTION_ERROR_PREFIX, '').trim();
-  return { kind: 'action-failed', message: firstLine, ref };
+  return { kind: 'action-failed', message: describeActionError(firstLine), ref };
 }
 
 /**

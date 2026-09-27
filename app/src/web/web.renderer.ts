@@ -160,7 +160,7 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     .with({ kind: 'action-failed' }, ({ message, ref }) => {
       return (
         `⟨${ref}⟩ is on the page, but the action on it failed: ${message}. The page itself loaded; check what ` +
-        'the element is in the latest snapshot — a select takes web::select, not web::fill'
+        'the element is in the latest snapshot'
       );
     })
     .with({ kind: 'blocked' }, ({ retry, status, url }) => {
@@ -182,6 +182,9 @@ export function renderWebFailure(failure: Exclude<WebFailure, WebFailure.Unreach
     .with({ kind: 'empty-render' }, ({ status, url }) => {
       const rendered = `the page at ${url} answered HTTP ${status} and rendered no readable content`;
       return GONE_STATUSES.has(status) ? `${rendered}. ${BUILT_URL_CAVEAT}` : rendered;
+    })
+    .with({ kind: 'fill-on-select' }, ({ ref }) => {
+      return `⟨${ref}⟩ is a drop-down, which takes no typed text, so nothing was filled — choose one of its options with web::select`;
     })
     .with({ kind: 'http-error' }, ({ bodyChars, retry, status, url }) => {
       const answered = `${url} answered ${describeAnswer(status, retry)} with ${bodyChars} characters of body and nothing readable in it`;
@@ -238,6 +241,7 @@ export function describeWebFailureOutcome(failure: Exclude<WebFailure, WebFailur
     .with({ kind: 'busy' }, () => '⚠️ browser busy')
     .with({ kind: 'empty-body' }, () => '⚠️ empty body')
     .with({ kind: 'empty-render' }, () => '⚠️ nothing rendered')
+    .with({ kind: 'fill-on-select' }, () => '⚠️ fill on a select')
     .with({ kind: 'http-error' }, ({ status }) => `⚠️ HTTP ${status}`)
     .with({ kind: 'navigation' }, () => '⚠️ did not load')
     .with({ kind: 'no-session' }, () => '⚠️ no page open')

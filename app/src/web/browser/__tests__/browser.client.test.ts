@@ -203,6 +203,16 @@ const SERVER_FILTERED_DIRECTORY = `<!doctype html>
   </body>
 </html>`;
 
+/** the button is visible, but an overlay above it takes every pointer event, so no click can land */
+const COVERED_BUTTON = `<!doctype html>
+<html lang="en">
+  <head><title>Researchers — Northmoor Institute</title></head>
+  <body>
+    <button type="button">Filter</button>
+    <div style="position: fixed; inset: 0; background: white">Accept cookies to continue</div>
+  </body>
+</html>`;
+
 /** a bot check that clears itself: refused at first, then moved on by its own script to the page it guarded */
 const SELF_CLEARING_CHECK = `<!doctype html>
 <html lang="en">
@@ -219,6 +229,7 @@ const SELF_CLEARING_CHECK = `<!doctype html>
 const DOCUMENT_BY_ROUTE: { [key: string]: string } = {
   '/': SPA_MARKETING_SITE,
   '/cleared': MEMBER_DATABASE,
+  '/covered-button': COVERED_BUTTON,
   '/filtered-directory': FILTERED_DIRECTORY,
   '/gated-login': GATED_LOGIN,
   '/member-database': MEMBER_DATABASE,
@@ -509,10 +520,23 @@ describe('browsing the fixture sites', { timeout: 60_000 }, () => {
     expect((await session.select(ref, 'neuro')).error).toMatchObject({ similar: ['Neuroscience'] });
   });
 
-  it('should report a fill on a select as the action failing, not the page (§3.4)', async () => {
+  it('should refuse a fill on a select before trying it (§3.4)', async () => {
     const directory = (await session.navigate(`${baseUrl}/filtered-directory`)).unwrap();
     const ref = focusSelectRef(directory.formElements);
-    expect((await session.fill(ref, 'Neuroscience')).error).toMatchObject({ kind: 'action-failed', ref });
+    expect((await session.fill(ref, 'Neuroscience')).error).toStrictEqual({ kind: 'fill-on-select', ref });
+  });
+
+  it("should report a click on a covered button as the element's failure, in the framework's words (§3.4)", async () => {
+    const page = (await session.navigate(`${baseUrl}/covered-button`)).unwrap();
+    const button = page.formElements.find((element) => element.kind === 'button');
+    if (!button) {
+      throw new Error('the covered button was not captured');
+    }
+    expect((await session.click(button.ref)).error).toMatchObject({
+      kind: 'action-failed',
+      message: expect.stringMatching(/^it did not become actionable within 5s/u),
+      ref: button.ref
+    });
   });
 
   it('should stay on the page when a link opens a tab, reporting the address it was closed at', async () => {

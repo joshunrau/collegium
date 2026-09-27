@@ -26,7 +26,7 @@ import type { AddressPolicy, RenderedCapture, WebFailure } from '../web.types.ts
 type LoadFailure = WebFailure.Navigation | WebFailure.Tls | WebFailure.Unreachable | WebFailure.UrlRefused;
 
 /** what an action finds wrong with its element before it acts, so nothing was done */
-type ActionRefusal = WebFailure.ActionFailed | WebFailure.NoSuchOption;
+type ActionRefusal = WebFailure.ActionFailed | WebFailure.FillOnSelect | WebFailure.NoSuchOption;
 
 const MALFORMED_ANSWER = 'the browser answered a read of the page with something malformed';
 
@@ -100,10 +100,14 @@ export class BrowserSession {
 
   async fill(ref: string, text: string, pressEnter = false): Promise<Result<RenderedCapture, ActionFailure>> {
     return this.act(ref, async (locator) => {
+      if ((await locator.and(this.page.locator('select')).count()) > 0) {
+        return { kind: 'fill-on-select', ref };
+      }
       await locator.fill(text, { timeout: ACTION_TIMEOUT_MS });
       if (pressEnter) {
         await locator.press('Enter', { timeout: ACTION_TIMEOUT_MS });
       }
+      return undefined;
     });
   }
 

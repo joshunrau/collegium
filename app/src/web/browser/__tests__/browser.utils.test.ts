@@ -61,6 +61,22 @@ describe('classifyActionError', () => {
     });
   });
 
+  it("should say an action's timeout in the framework's words (§3.4)", () => {
+    const message = 'locator.click: Timeout 5000ms exceeded.\nCall log:\n  - waiting for locator';
+    expect(classifyActionError(message, 'e112')).toStrictEqual({
+      kind: 'action-failed',
+      message:
+        'it did not become actionable within 5s: it may be covered by another element, disabled, or still moving',
+      ref: 'e112'
+    });
+  });
+
+  it('should drop the closing punctuation of a message it passes through, since the rendering adds its own', () => {
+    expect(classifyActionError('locator.check: Error: Not a checkbox or radio button.', 'e7')).toMatchObject({
+      message: 'Not a checkbox or radio button'
+    });
+  });
+
   it('should report a load the action started as the page failing to load', () => {
     expect(classifyActionError('locator.click: NS_ERROR_NET_EMPTY_RESPONSE', 'e4')).toMatchObject({
       kind: 'navigation'
