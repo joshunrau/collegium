@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { FORM_CONTROLS_MAX_CHARS, SELECT_OPTIONS_SHOWN, SNAPSHOT_VIEW_CHARS } from '../web.constants.ts';
 import { describeWebFailureOutcome, renderWebFailure, renderWebPage, renderWebSnapshot } from '../web.renderer.ts';
 
+import type { FormElement } from '../snapshot/snapshot.types.ts';
 import type { WebFailure, WebSnapshot } from '../web.types.ts';
 
 describe('renderWebFailure', () => {
@@ -209,17 +210,44 @@ describe('renderWebSnapshot', () => {
     expect(text).toMatch(/^⟨e7⟩ is no longer on the page, so nothing was done; the page as it is now follows\n\n/u);
   });
 
-  it('should mark a hidden form control so its ref is not read as actionable', () => {
-    const snapshot: WebSnapshot = {
-      formElements: [{ isHidden: true, kind: 'input', label: 'Search', ref: 'e1', type: 'text', value: '' }],
-      markdown: '# Faculty',
-      openedUrls: [],
-      status: 200,
-      title: 'Faculty',
-      url: 'https://northmoor.example/'
+  it('should list hidden controls after the visible ones, under one heading, each marked (§3.4)', () => {
+    const formElements: FormElement[] = [
+      { isHidden: true, kind: 'input', label: 'Search', ref: 'e1', type: 'text', value: '' },
+      { isHidden: false, kind: 'button', label: 'Menu', ref: 'e2', value: '' }
+    ];
+    expect(renderWebSnapshot({ ...SNAPSHOT, formElements }).text).toContain(
+      'Form controls:\n- ⟨e2⟩ button "Menu"\nHidden until revealed — open the menu or control that shows them first:\n' +
+        '- ⟨e1⟩ input[type=text] "Search" (hidden)\n'
+    );
+  });
+
+  it('should keep every visible control before the page when hidden ones overflow the bound (§3.4)', () => {
+    const hidden = Array.from({ length: 1_000 }, (_, index) => ({
+      isHidden: true,
+      kind: 'button' as const,
+      label: `Filter ${index}`,
+      ref: `e${index}`,
+      value: ''
+    }));
+    const search: FormElement = {
+      isHidden: false,
+      kind: 'input',
+      label: 'Search',
+      ref: 'e1000',
+      type: 'search',
+      value: ''
     };
-    expect(renderWebSnapshot(snapshot).text).toContain(
-      '⟨e1⟩ input[type=text] "Search" (hidden — reveal it before acting)'
+    const { text } = renderWebSnapshot({ ...SNAPSHOT, formElements: [...hidden, search] });
+    expect(text.indexOf('⟨e1000⟩')).toBeLessThan(text.indexOf('⟨e0⟩'));
+    expect(text.slice(text.indexOf('# Faculty'))).toContain('Form controls, continued:\n- ⟨e');
+  });
+
+  it("should keep a hidden select's options (§3.4)", () => {
+    const formElements: FormElement[] = [
+      { isHidden: true, kind: 'select', label: 'Department', options: ['All', 'Oncology'], ref: 'e1', value: 'All' }
+    ];
+    expect(renderWebSnapshot({ ...SNAPSHOT, formElements }).text).toContain(
+      '- ⟨e1⟩ select "Department" = "All" (hidden); options: "All", "Oncology"'
     );
   });
 

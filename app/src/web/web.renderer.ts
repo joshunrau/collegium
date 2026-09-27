@@ -23,6 +23,8 @@ const SIMILAR_OPTIONS_NAMED = 20;
 const BUILT_URL_CAVEAT =
   "If you built this URL rather than read it off a page, this says nothing about the page you were after; use the site's index or search to find it.";
 
+const HIDDEN_CONTROLS_HEADING = 'Hidden until revealed — open the menu or control that shows them first:';
+
 const SITE_TLS_FAULT = "a fault in the site's TLS configuration, which retrying will not fix";
 
 const PDF_READ_SECONDS = `${PDF_READ_TIMEOUT_MS / 1000} seconds`;
@@ -76,20 +78,30 @@ function renderFormElement(element: FormElement): string {
   const kind = element.kind === 'input' ? `input[type=${element.type}]` : element.kind;
   const label = element.label ? ` "${element.label}"` : '';
   const state = element.value ? ` = "${element.value}"` : '';
-  const hidden = element.isHidden ? ' (hidden — reveal it before acting)' : '';
+  const hidden = element.isHidden ? ' (hidden)' : '';
   const options = element.kind === 'select' ? renderSelectOptions(element.options) : '';
   return `- ⟨${element.ref}⟩ ${kind}${label}${state}${hidden}${options}`;
 }
 
 /**
- * §3.4 — the controls in page order up to their bound, then a count of the rest, which follow the
- * page in the record rather than pushing it past the view.
+ * The visible controls, then the hidden under one heading, each group in page order. The heading is
+ * joined to the first hidden entry, so the bound never leaves it with no entry under it.
+ */
+function renderFormControlLines(elements: readonly FormElement[]): string[] {
+  const visible = elements.filter((element) => !element.isHidden).map(renderFormElement);
+  const hidden = elements.filter((element) => element.isHidden).map(renderFormElement);
+  return [...visible, ...hidden.map((line, index) => (index === 0 ? `${HIDDEN_CONTROLS_HEADING}\n${line}` : line))];
+}
+
+/**
+ * §3.4 — the controls up to their bound, visible ones first, then a count of the rest, which follow
+ * the page in the record rather than pushing it past the view.
  */
 function renderFormControls(elements: readonly FormElement[]): { readonly rest: string; readonly shown: string } {
   if (elements.length === 0) {
     return { rest: '', shown: '' };
   }
-  const lines = elements.map(renderFormElement);
+  const lines = renderFormControlLines(elements);
   let shownCount = 0;
   let shownChars = 0;
   for (const line of lines) {
