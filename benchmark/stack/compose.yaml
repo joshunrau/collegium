@@ -1,7 +1,7 @@
 # The benchmark stack: the app built from this checkout, a bundled Mattermost, and an nginx serving
 # benchmark/fixtures to the agents as http://fixtures/. Run it through benchmark/scripts/stack.sh,
-# which points compose at this directory and at bench.env; state lives under ./state and is wiped
-# between runs so every run starts from nothing (the assessing-collegium skill).
+# which points compose at this directory and at bench.env; state lives under ./state and in two
+# volumes, both wiped between runs so every run starts from nothing (the assessing-collegium skill).
 name: collegium-bench
 services:
   app:
@@ -33,8 +33,10 @@ services:
       - ../../plugins:/srv/plugins:ro
       - ./resources:/srv/resources:ro
       - ./state/app/data:/data
-      - ./state/app/home:/home
-      - ./state/app/workspaces:/workspaces
+      # volumes, not bind mounts: the shell confinement (§A2) chowns each workspace to its agent's OS
+      # user, which a macOS host's bind mount does not keep, and boot then refuses
+      - home:/home
+      - workspaces:/workspaces
   fixtures:
     image: nginx:1.27-alpine
     volumes:
@@ -83,3 +85,6 @@ services:
     image: postgres:17-alpine
     volumes:
       - ./state/postgres/data:/data
+volumes:
+  home:
+  workspaces:

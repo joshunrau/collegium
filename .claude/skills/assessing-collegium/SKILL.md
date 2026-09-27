@@ -19,6 +19,7 @@ provider keys and mailbox `render-config.js` names in its header, then:
 
 ```sh
 node benchmark/scripts/render-config.js
+benchmark/scripts/stack.sh down -v
 rm -rf benchmark/stack/state
 benchmark/scripts/stack.sh up -d --build
 ```
@@ -45,7 +46,7 @@ A task that stalls is recorded and left; you do not nudge, re-mention, or repair
 run=benchmark/results/$(date +%F)_$(node -p "require('./package.json').version")_$(git rev-parse --short HEAD)
 benchmark/scripts/snapshot-db.sh "$run/prod.db"
 node benchmark/scripts/extract.js --db "$run/prod.db" --run "$run/run.json" --out "$run"
-benchmark/scripts/stack.sh down
+benchmark/scripts/stack.sh down -v
 ```
 
 Done when `$run/tasks/<id>/summary.json` exists for every driven task.
