@@ -6,6 +6,11 @@ import type { TraceMark } from './tools.types.ts';
 
 const SIZE_FORMAT = new Intl.NumberFormat('en-US');
 
+/** §7.2 — a size bound as a parameter's description states it, in the figures a size refusal uses */
+export function renderStatedSizeBound(bound: number, unit: 'characters' | 'items'): string {
+  return `at most ${SIZE_FORMAT.format(bound)} ${unit}`;
+}
+
 /**
  * §7.2 — a size refusal states the size it received, so a model that resends a refused payload
  * learns by how much to cut it: zod's own "expected string to have <=2000 characters" names only
