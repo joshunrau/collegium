@@ -129,6 +129,35 @@ describe('WindowService', () => {
     expect(identify(entries)).toStrictEqual(['post-3']);
   });
 
+  it("should drop the agent's own events up to its reset, those after the channel's newest post included (§3.8)", async () => {
+    const mira = { agentUsername: 'mira', channelId: 'channel-1' };
+    const tables = createTables(
+      [post('post-1', 1000), post('post-2', 4000)],
+      [
+        event('event-1', 500, mira, reply('before the newest post')),
+        event('event-2', 2000, mira, reply('after the newest post')),
+        event('event-3', 3000, mira, reply('at the reset')),
+        event('event-4', 3500, mira, reply('after the reset'))
+      ]
+    );
+    const episodes = createModelTable<{ agentUsername: string; channelId: string; createdAt: Date; postId: string }>();
+    episodes.rows.push({ agentUsername: 'mira', channelId: 'channel-1', createdAt: new Date(3000), postId: 'post-1' });
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        EpisodesService,
+        WindowService,
+        { provide: getModelToken('ChannelClear'), useValue: createModelTable() },
+        { provide: getModelToken('Episode'), useValue: episodes },
+        { provide: getModelToken('Post'), useValue: tables.posts },
+        { provide: getModelToken('TurnEvent'), useValue: tables.events }
+      ]
+    }).compile();
+    const result = await moduleRef
+      .get(WindowService)
+      .build({ agentUsername: 'mira', budgetTokens: 1000, channelId: 'channel-1', costOf });
+    expect(identify(result)).toStrictEqual(['event-4', 'post-2']);
+  });
+
   it('should skip forgotten posts', async () => {
     const posts = [post('post-1', 1000), post('post-2', 2000, { isForgotten: true }), post('post-3', 3000)];
     const entries = await build(posts, []);

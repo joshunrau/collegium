@@ -36,13 +36,14 @@ export class EpisodesService {
 
   /**
    * Where the agent's context in this channel begins (§3.8), each side cut on its own clock:
-   * posts on Mattermost's, events on this host's. A boundary whose post is no longer stored
-   * bounds nothing.
+   * posts on Mattermost's at the boundary post, events on this host's at the later of that post's
+   * arrival and the reset itself, since the agent may have acted after the channel's newest post.
+   * A boundary whose post is no longer stored bounds nothing.
    */
   async latestBoundary(agentUsername: string, channelId: string): Promise<EpisodeBoundary | undefined> {
     const latest = await this.episodes.findFirst({
       orderBy: { createdAt: 'desc' },
-      select: { postId: true },
+      select: { createdAt: true, postId: true },
       where: { agentUsername, channelId }
     });
     if (latest === null) {
@@ -55,7 +56,10 @@ export class EpisodesService {
     if (!boundaryPost) {
       return undefined;
     }
-    return { eventsAfter: boundaryPost.observedAt, postsAfter: boundaryPost.createdAt };
+    return {
+      eventsAfter: new Date(Math.max(boundaryPost.observedAt.getTime(), latest.createdAt.getTime())),
+      postsAfter: boundaryPost.createdAt
+    };
   }
 
   /** a manual episode boundary (§3.8) — context never reaches back past the most recent one */
