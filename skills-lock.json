@@ -73,6 +73,12 @@
       "skillPath": "skills/productivity/writing-for-agents/SKILL.md",
       "computedHash": "95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
     },
+    "writing-reports": {
+      "source": "joshunrau/skills",
+      "sourceType": "github",
+      "skillPath": "skills/writing-reports/SKILL.md",
+      "computedHash": "4be59745e7e6706d04a322acd3f8f5f850083a2162b880e3c584c013d70fbf80"
+    },
     "writing-skills-for-agents": {
       "source": "joshunrau/skills",
       "sourceType": "github",
