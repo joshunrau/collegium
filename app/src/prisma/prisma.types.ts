@@ -211,5 +211,7 @@ export type {
   PostKind,
   TriggerSource,
   TurnStatus,
+  WorkUnitClosedFrom,
+  WorkUnitClosedVia,
   WorkUnitState
 } from './generated/enums.ts';

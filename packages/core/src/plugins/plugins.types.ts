@@ -7,9 +7,17 @@ import type { ServiceToken } from '../utils.ts';
 /** §3.15 — where a unit stands: open while `assigned`, `blocked` or `review`, closed once `done` or `cancelled` */
 export type WorkUnitState = 'assigned' | 'blocked' | 'cancelled' | 'done' | 'review';
 
+/** §3.15 — how a unit closed: the open state it closed from, and whether its creator's close, a continuation, or a person's cancellation closed it */
+export type WorkUnitClosure = {
+  readonly from: Exclude<WorkUnitState, 'cancelled' | 'done'>;
+  readonly via: 'cancellation' | 'close' | 'continuation';
+};
+
 /** §3.15 — a work unit as a plugin tool reads it (§3.14): what the record says, not how the store holds it */
 export type WorkUnitView = {
   readonly assigneeUsername: string;
+  /** how it closed; absent while it is open, and for a unit closed before the framework recorded it */
+  readonly closure?: WorkUnitClosure;
   /** what the assignee needs to know, as the creator wrote it */
   readonly context: string;
   /** the reference of the unit that follows this one, which carries its work on; a unit is followed once */

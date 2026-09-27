@@ -91,6 +91,20 @@ enum WorkUnitState {
   cancelled
 }
 
+/// §3.15 — the open state a unit left as it closed
+enum WorkUnitClosedFrom {
+  assigned
+  blocked
+  review
+}
+
+/// §3.15 — what closed a unit: its creator's close, a continuation's post, or a person's cancellation (§8.4)
+enum WorkUnitClosedVia {
+  cancellation
+  close
+  continuation
+}
+
 enum TurnStatus {
   abandoned
   budget_exhausted
@@ -198,6 +212,11 @@ model WorkUnit {
   /// §3.15 — who closed it: the creator, or a person cancelling on their own authority (§8.4); null
   /// while open, and on a unit closed before the column existed
   closedByUsername String?
+  /// §3.15 — the state it closed from, written in the write that closes it, with `closedVia`; null
+  /// while open, and on a unit closed before the column existed
+  closedFrom       WorkUnitClosedFrom?
+  /// §3.15 — what closed it, written with `closedFrom`; a later link to it changes neither
+  closedVia        WorkUnitClosedVia?
   context          String
   createdAt        DateTime      @default(now())
   creatorUsername  String

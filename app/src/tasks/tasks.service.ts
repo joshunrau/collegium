@@ -183,15 +183,16 @@ export class TasksService {
    * record of what was said (§3.15).
    */
   async commitTransition(prepared: PreparedTransition, postId: string): Promise<void> {
-    const closing =
+    const moved =
       prepared.to === 'cancelled' || prepared.to === 'done'
-        ? { closedAt: new Date(), closedByUsername: prepared.closedByUsername, verdict: prepared.verdict }
-        : {};
-    const moved = await this.units.updateMany({
-      data: { lastPostId: postId, state: prepared.to, ...closing },
-      where: { id: prepared.unitId, state: { in: statesThatMayReach(prepared.to) } }
-    });
-    if (moved.count === 0) {
+        ? await this.closeRecordingClosure(prepared, postId)
+        : (
+            await this.units.updateMany({
+              data: { lastPostId: postId, state: prepared.to },
+              where: { id: prepared.unitId, state: { in: statesThatMayReach(prepared.to) } }
+            })
+          ).count > 0;
+    if (!moved) {
       this.loggingService.warn(
         `unit ${renderReference(prepared.unitId)} moved before its transition to ${prepared.to} landed; the post stands, the row is unchanged`
       );
@@ -299,6 +300,8 @@ export class TasksService {
     }
     const {
       assigneeUsername,
+      closedFrom,
+      closedVia,
       context,
       createdAt,
       creatorUsername,
@@ -312,6 +315,7 @@ export class TasksService {
     const continuedBy = await this.findSuccessorReference(id);
     return {
       assigneeUsername,
+      ...(closedFrom !== null && closedVia !== null && { closure: { from: closedFrom, via: closedVia } }),
       context,
       ...(continuedBy !== undefined && { continuedBy }),
       createdAt,
@@ -420,7 +424,7 @@ export class TasksService {
       return Result.err(refused);
     }
     return Result.ok({
-      prepared: { closedByUsername: input.byUsername, to: 'cancelled', unitId: unit.value.id },
+      prepared: { closedByUsername: input.byUsername, to: 'cancelled', unitId: unit.value.id, via: 'cancellation' },
       text: renderHumanCancellationPost(
         { ...unit.value, outcome: this.multiMentionPolicy.stripAgentMentions(unit.value.outcome) },
         input.byUsername,
@@ -467,7 +471,13 @@ export class TasksService {
     });
     return Result.ok({
       leavesNoneOpen: othersOpen === 0,
-      prepared: { closedByUsername: input.actingAgentUsername, to: input.to, unitId: unit.id, verdict: input.verdict },
+      prepared: {
+        closedByUsername: input.actingAgentUsername,
+        to: input.to,
+        unitId: unit.id,
+        verdict: input.verdict,
+        via: 'close'
+      },
       text: renderClosePost(unit, input.to, input.verdict)
     });
   }
@@ -589,7 +599,10 @@ export class TasksService {
     return undefined;
   }
 
-  /** §3.15 — creates the continuation and closes the unit it follows as done, together or not at all */
+  /**
+   * §3.15 — creates the continuation and closes the unit it follows as done, together or not at all,
+   * and only from the state it was read in, which the close records
+   */
   private async closeFollowed(
     data: CreatedUnit,
     follows: Extract<FollowedUnit, { closes: true }>,
@@ -601,14 +614,45 @@ export class TasksService {
         data: {
           closedAt: new Date(),
           closedByUsername: data.creatorUsername,
+          closedFrom: follows.from,
+          closedVia: 'continuation',
           lastPostId: postId,
           state: 'done',
           verdict: renderContinuationVerdict(data.id, follows.stood)
         },
-        where: { id: follows.id, state: { in: [...ASSIGNEE_TARGETS] } }
+        where: { id: follows.id, state: follows.from }
       })
     ]);
     return closed.count > 0;
+  }
+
+  /**
+   * §3.15 — closes the unit from the state this read finds it in, guarded on that state, and records
+   * that state and what closed it in the same write
+   */
+  private closeRecordingClosure(
+    prepared: Extract<PreparedTransition, { to: 'cancelled' | 'done' }>,
+    postId: string
+  ): Promise<boolean> {
+    return this.prismaService.$transaction(async (transaction) => {
+      const unit = await transaction.workUnit.findUnique({ where: { id: prepared.unitId } });
+      if (unit === null || !isOpenUnit(unit) || !statesThatMayReach(prepared.to).includes(unit.state)) {
+        return false;
+      }
+      const closed = await transaction.workUnit.updateMany({
+        data: {
+          closedAt: new Date(),
+          closedByUsername: prepared.closedByUsername,
+          closedFrom: unit.state,
+          closedVia: prepared.via,
+          lastPostId: postId,
+          state: prepared.to,
+          verdict: prepared.verdict
+        },
+        where: { id: unit.id, state: unit.state }
+      });
+      return closed.count > 0;
+    });
   }
 
   /** §3.15 — where a reported unit stands as a continuation closes it: in review, or blocked, and by what */
@@ -678,7 +722,7 @@ export class TasksService {
     if (!this.postSightingsRegistry.hasSeen(input.turnId, unit.lastPostId)) {
       return Result.err({ kind: 'report-unread', reference: resolved });
     }
-    return Result.ok({ closes: true, id: unit.id, stood: await this.describeStanding(unit) });
+    return Result.ok({ closes: true, from: unit.state, id: unit.id, stood: await this.describeStanding(unit) });
   }
 
   /** §3.15 — the unit that follows this one, which holds the link; a unit is followed once */

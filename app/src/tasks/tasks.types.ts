@@ -1,14 +1,20 @@
-import type { ModelRow, WorkUnitState } from '@/prisma/prisma.types.ts';
+import type { ModelRow, WorkUnitClosedFrom, WorkUnitClosedVia, WorkUnitState } from '@/prisma/prisma.types.ts';
 
 export type WorkUnit = ModelRow<'WorkUnit'>;
 
 /**
  * §3.15 — the unit a continuation follows, and what its post does to it: closes one in review or
- * blocked as done, recording where it stood, or links one its creator had already closed as done
+ * blocked as done, only while it is still in the state it was read in, recording that state and
+ * where it stood, or links one its creator had already closed as done
  */
 export type FollowedUnit =
   | { readonly closes: false; readonly id: string }
-  | { readonly closes: true; readonly id: string; readonly stood: string };
+  | {
+      readonly closes: true;
+      readonly from: Extract<WorkUnitClosedFrom, 'blocked' | 'review'>;
+      readonly id: string;
+      readonly stood: string;
+    };
 
 /** §3.15 — an assignment validated and rendered but not yet written: everything the row will hold, minus the post it waits for */
 export type PreparedUnit = {
@@ -32,6 +38,7 @@ export type PreparedTransition =
       readonly to: Extract<WorkUnitState, 'cancelled' | 'done'>;
       readonly unitId: string;
       readonly verdict?: string;
+      readonly via: Exclude<WorkUnitClosedVia, 'continuation'>;
     }
   | { readonly to: Extract<WorkUnitState, 'blocked' | 'review'>; readonly unitId: string };
 

@@ -201,6 +201,13 @@ A work unit is the framework's record of work one agent handed another with `tas
 
 `workUnits.find(reference)` reads a unit's `reference`, `state`, `creatorUsername`, `assigneeUsername`, `outcome`, `criteria`, `context`, `createdAt`, and `updatedAt`. It reaches the units the acting agent created or was assigned in this channel, and returns `null` for any other reference.
 
+Three more fields appear only where they apply. `follows` names the unit this one carries on, and `continuedBy` names the unit that carries this one on. `closure` tells you how a closed unit closed:
+
+- `from` is the state it closed from: `assigned`, `review`, or `blocked`.
+- `via` is what closed it: `close` for its creator's `tasks::close`, `continuation` for a `tasks::assign` that follows it, or `cancellation` for a person's cancel.
+
+A unit closed before release 0.0.1-beta.30 has no `closure`.
+
 A plugin can't create, change, or close a unit. Store the reference on your own records and read the unit's state when you need it, rather than keeping a copy that can drift:
 
 ```ts

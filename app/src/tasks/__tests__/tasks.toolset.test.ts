@@ -32,6 +32,8 @@ const UNIT = {
   channelId: PREPARED.channelId,
   closedAt: null,
   closedByUsername: null,
+  closedFrom: null,
+  closedVia: null,
   context: PREPARED.context,
   createdAt: new Date('2026-09-22T18:40:00Z'),
   creatorUsername: PREPARED.creatorUsername,
@@ -77,7 +79,10 @@ describe('TASKS_TOOLSET', () => {
   });
 
   it('should pass the unit an assignment follows, and say the one post closed it and continued it (§3.15)', async () => {
-    const prepared = { ...PREPARED, follows: { closes: true, id: 'unit-xyzwvuts', stood: 'in review' } } as const;
+    const prepared = {
+      ...PREPARED,
+      follows: { closes: true, from: 'review', id: 'unit-xyzwvuts', stood: 'in review' }
+    } as const;
     tasksService.prepareAssign.mockResolvedValue(Result.ok({ addressee: 'owen', prepared, text: 'post' }));
     const result = await executeTool(TASKS_TOOLSET.tools.assign, { ...ASSIGN_ARGS, follows: 'unit-xyz' }, context);
     expect(tasksService.prepareAssign).toHaveBeenCalledWith(expect.objectContaining({ follows: 'unit-xyz' }));
@@ -129,7 +134,7 @@ describe('TASKS_TOOLSET', () => {
     tasksService.prepareClose.mockResolvedValue(
       Result.ok({
         leavesNoneOpen: false,
-        prepared: { closedByUsername: 'mira', to: 'done', unitId: 'unit-1' },
+        prepared: { closedByUsername: 'mira', to: 'done', unitId: 'unit-1', via: 'close' },
         text: 'Unit `unit-1` closed as done: good'
       })
     );
@@ -153,7 +158,7 @@ describe('TASKS_TOOLSET', () => {
     tasksService.prepareClose.mockResolvedValue(
       Result.ok({
         leavesNoneOpen: true,
-        prepared: { closedByUsername: 'mira', to: 'done', unitId: 'unit-1' },
+        prepared: { closedByUsername: 'mira', to: 'done', unitId: 'unit-1', via: 'close' },
         text: 'closed'
       })
     );
@@ -339,7 +344,7 @@ describe('TASKS_TOOLSET', () => {
     tasksService.prepareClose.mockResolvedValue(
       Result.ok({
         leavesNoneOpen: true,
-        prepared: { closedByUsername: 'mira', to: 'done', unitId: 'unit-1', verdict: 'ok' },
+        prepared: { closedByUsername: 'mira', to: 'done', unitId: 'unit-1', verdict: 'ok', via: 'close' },
         text: 'post'
       })
     );

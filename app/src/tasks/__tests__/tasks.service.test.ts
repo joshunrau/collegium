@@ -43,7 +43,13 @@ describe('TasksService', () => {
   beforeEach(async () => {
     turns = [{ depth: 0, id: 'turn-1', rootPostId: 'post-root' }];
     units = createModelTable<WorkUnit>({
-      defaults: (sequence) => ({ closedAt: null, createdAt: new Date(sequence), updatedAt: new Date(sequence) })
+      defaults: (sequence) => ({
+        closedAt: null,
+        closedFrom: null,
+        closedVia: null,
+        createdAt: new Date(sequence),
+        updatedAt: new Date(sequence)
+      })
     });
     agentRegistry = MockFactory.createMock(AgentRegistry);
     agentRegistry.get.mockImplementation((username) => {
@@ -420,7 +426,7 @@ describe('TasksService', () => {
     const unit = await assign();
     const reference = unit.id.slice(0, 8);
     await tasksService.commitTransition(
-      { closedByUsername: 'mira', to: 'cancelled', unitId: unit.id, verdict: 'no longer needed' },
+      { closedByUsername: 'mira', to: 'cancelled', unitId: unit.id, verdict: 'no longer needed', via: 'close' },
       'post-2'
     );
     const refused = await tasksService.prepareReport({
@@ -455,7 +461,10 @@ describe('TasksService', () => {
       { ...first, assigneeUsername: 'omar', creatorUsername: 'owen', id: 'unit-4' },
       'post-4'
     );
-    await tasksService.commitTransition({ closedByUsername: 'mira', to: 'cancelled', unitId: 'unit-2' }, 'post-5');
+    await tasksService.commitTransition(
+      { closedByUsername: 'mira', to: 'cancelled', unitId: 'unit-2', via: 'close' },
+      'post-5'
+    );
     const open = await tasksService.listOpenFor({ agentUsername: 'mira', channelId: 'channel-1' });
     expect(open.map((unit) => unit.reference)).toStrictEqual([first.id.slice(0, 8)]);
     expect(open[0]?.counterpart).toStrictEqual({ awaited: 'report', kind: 'no-turn' });
@@ -483,7 +492,7 @@ describe('TasksService', () => {
       const unit = await assign('post-1');
       await tasksService.commitTransition({ to: 'review', unitId: unit.id }, 'post-2');
       await tasksService.commitTransition(
-        { closedByUsername: 'mira', to: 'done', unitId: unit.id, verdict: 'the shortlist holds' },
+        { closedByUsername: 'mira', to: 'done', unitId: unit.id, verdict: 'the shortlist holds', via: 'close' },
         'post-close'
       );
       return unit.id.slice(0, 8);
@@ -558,7 +567,7 @@ describe('TasksService', () => {
     it('should still refuse to continue a cancelled unit (§3.15)', async () => {
       const unit = await assign('post-1');
       await tasksService.commitTransition(
-        { closedByUsername: 'mira', to: 'cancelled', unitId: unit.id, verdict: 'x' },
+        { closedByUsername: 'mira', to: 'cancelled', unitId: unit.id, verdict: 'x', via: 'close' },
         'p-2'
       );
       expect((await prepare({ follows: unit.id.slice(0, 8) })).error).toMatchObject({
@@ -616,13 +625,75 @@ describe('TasksService', () => {
       postSightingsRegistry.recordSeen('turn-1', ['post-2']);
       const next = (await prepare({ follows: followed })).unwrap();
       await tasksService.commitTransition(
-        { closedByUsername: 'casey', to: 'cancelled', unitId: units.rows[0]!.id },
+        { closedByUsername: 'casey', to: 'cancelled', unitId: units.rows[0]!.id, via: 'cancellation' },
         'p-9'
       );
       await tasksService.commitAssign(next.prepared, 'post-3');
       expect(units.rows[0]).toMatchObject({ closedByUsername: 'casey', state: 'cancelled' });
       expect(units.rows[1]).toMatchObject({ state: 'assigned' });
       expect(loggingService.warn).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('what a close records (§3.15)', () => {
+    const viewOf = (reference: string) => {
+      return tasksService.findWorkUnitView({ agentUsername: 'mira', channelId: 'channel-1', reference });
+    };
+
+    const inReview = async () => {
+      const unit = await assign('post-1');
+      await tasksService.commitTransition({ to: 'review', unitId: unit.id }, 'post-2');
+      postSightingsRegistry.recordSeen('turn-1', ['post-2']);
+      return unit.id.slice(0, 8);
+    };
+
+    const closeDone = async (reference: string, postId: string) => {
+      const close = await tasksService.prepareClose({
+        actingAgentUsername: 'mira',
+        channelId: 'channel-1',
+        reference,
+        to: 'done',
+        turnId: 'turn-1',
+        verdict: 'good'
+      });
+      await tasksService.commitTransition(close.unwrap().prepared, postId);
+    };
+
+    it('should record a close from review as its creator’s close', async () => {
+      const reference = await inReview();
+      await closeDone(reference, 'post-3');
+      expect((await viewOf(reference))?.closure).toStrictEqual({ from: 'review', via: 'close' });
+    });
+
+    it('should record a continuation that closes a unit in review', async () => {
+      const reference = await inReview();
+      await tasksService.commitAssign((await prepare({ follows: reference })).unwrap().prepared, 'post-3');
+      expect((await viewOf(reference))?.closure).toStrictEqual({ from: 'review', via: 'continuation' });
+    });
+
+    it('should record a person’s cancellation (§8.4)', async () => {
+      const reference = (await assign('post-1')).id.slice(0, 8);
+      const cancel = await tasksService.prepareCancelOnHumanAuthority({
+        agentUsername: 'mira',
+        byUsername: 'casey',
+        channelId: 'channel-1',
+        reference
+      });
+      await tasksService.commitTransition(cancel.unwrap().prepared, 'post-2');
+      expect((await viewOf(reference))?.closure).toStrictEqual({ from: 'assigned', via: 'cancellation' });
+    });
+
+    it('should leave what a close recorded unchanged when a continuation links the unit', async () => {
+      const reference = await inReview();
+      await closeDone(reference, 'post-3');
+      await tasksService.commitAssign((await prepare({ follows: reference })).unwrap().prepared, 'post-4');
+      expect(units.rows[0]).toMatchObject({ closedFrom: 'review', closedVia: 'close', lastPostId: 'post-3' });
+    });
+
+    it('should show a plugin no closure for a unit closed before closes were recorded', async () => {
+      const unit = await assign('post-1');
+      await units.updateMany({ data: { closedAt: new Date(), state: 'done', verdict: 'ok' }, where: { id: unit.id } });
+      expect(await viewOf(unit.id.slice(0, 8))).not.toHaveProperty('closure');
     });
   });
 
@@ -668,7 +739,7 @@ describe('TasksService', () => {
     it('should describe no counterpart for a closed unit', async () => {
       const unit = await assign();
       await tasksService.commitTransition(
-        { closedByUsername: 'mira', to: 'done', unitId: unit.id, verdict: 'ok' },
+        { closedByUsername: 'mira', to: 'done', unitId: unit.id, verdict: 'ok', via: 'close' },
         'p-2'
       );
       conversationsService.findUnforgotten.mockResolvedValue({
