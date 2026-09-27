@@ -1,0 +1,44 @@
+[
+  {
+    "id": "aiapswk84f838coq4doacy5nhw",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "ube6f9mdufrgiponut7e8ankqr",
+    "createdAt": "2026-09-27T00:29:49.504+00:00",
+    "isForgotten": 0,
+    "message": "@scribe I'm thinking out loud here: how could we structure a weekly summary for the team so people actually read it? Not asking you to write one.",
+    "observedAt": "2026-09-27T00:29:49.512+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "q663yx7jffncmen5jak6o781ie",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "ube6f9mdufrgiponut7e8ankqr",
+    "createdAt": "2026-09-27T00:29:57.764+00:00",
+    "isForgotten": 0,
+    "message": "✅ _done (11s)_\n→ `memory::write`",
+    "observedAt": "2026-09-27T00:29:57.770+00:00",
+    "authoringTurnId": "x9u6oq83emq2fv9v94g3i1f9",
+    "kind": "status",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "muujez3f7tnpug1eqhihoaajbc",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "ube6f9mdufrgiponut7e8ankqr",
+    "createdAt": "2026-09-27T00:30:01.288+00:00",
+    "isForgotten": 0,
+    "message": "The thing that gets a weekly summary read is that reading it changes something for the reader — a decision they now know about, a date that moved, something they're on the hook for. Activity logs get skimmed once and then filtered out. So structure it around consequence, not around coverage.\n\n**A skeleton that tends to work**\n\n1. One line at the very top: the single most important thing this week. Bold it. If someone reads nothing else, they read this.\n2. **Decided** — what's settled, one bullet each, with the decision stated first and the reason second.\n3. **Needs you** — anything where a specific person must act or reply, named, with a date. This is the section people come back to, so keep it clean: if it's done, it leaves.\n4. **Coming up** — what lands in the next week or two, dates only, no commentary.\n5. **In flight** — the longer horizon, a few lines, unchanged items compressed to one word if nothing moved.\n6. **Worth knowing** — context that isn't an action: a departure, a change in a policy, a new tool.\n\n**Discipline that matters more than the sections**\n\n- Same day, same time, same place, every week. A summary that slips once is dead. One named author, and if it rotates, a standing handover rather than an improvisation.\n- Cap the length at one screen. If it doesn't fit, that's the signal you're including things the reader doesn't need, not that the week was busy.\n- Write for someone who was in none of the meetings. No acronym invented that week, no \"as discussed\". Link the source rather than restating it.\n- Every item starts with its own headline in the first few words, so a 20-second scan gets the shape.\n- Sections with nothing get one word (\"nothing this week\") rather than padding, and a section nobody has acted on in a month gets cut. That cut is the honest measure of what people read.\n- Plain prose for decisions and context; a table only for a status list you expect to be scanned, not read.\n\nThe design test is: if this summary were the only thing a person read that week, what would they need in order not to be surprised and not to be blocked? That set is the whole summary. Everything else is an appendix, and appendices at the bottom are what teach people the top isn't worth reading.",
+    "observedAt": "2026-09-27T00:30:01.299+00:00",
+    "authoringTurnId": "x9u6oq83emq2fv9v94g3i1f9",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

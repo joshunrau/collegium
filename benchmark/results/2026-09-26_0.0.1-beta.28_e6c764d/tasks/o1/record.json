@@ -1,0 +1,75 @@
+{
+  "task": "o1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "scale",
+    "value": "5",
+    "reason": "One web::fetch of the static page and a reply naming the correct third theme, Computational models of perception."
+  },
+  "checks": [
+    {
+      "id": "o1-1",
+      "verdict": "pass",
+      "quote": "\"memoriesWritten\": 0,",
+      "note": "memories.json writtenHere is empty and events.json has no record_written event."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"replyPosts\": 1,",
+      "note": "One turn, one reply post (ojfanmj4pbrwmefimfux5f788e) answering the human's question, plus the status post."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "The third research theme is **Computational models of perception**.",
+      "note": "The only reasoningContent was 'Let me fetch the page.' on the tool-call message; the posted reply carries no deliberation or meta-commentary."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (3s)_\n→ `web::fetch http://fixtures/northmoor/static-page.html`",
+      "note": "turns.json status is completed and the status post reached its done marker."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "* Cognitive development across the lifespan\n* Clinical trials in _mood and anxiety_ disorders\n* Computational models of perception",
+      "note": "The theme, the count of three and the order all appear in the web::fetch result and match groundTruth.theme."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"actionCount\": 1,",
+      "note": "A single tool call that succeeded (HTTP 200), so nothing was retried."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "Research Themes — Northmoor University — http://fixtures/northmoor/static-page.html (HTTP 200)",
+      "note": "The reply reports only what the fetched page states, and the trace shows the page was read in full ('…end of page, 359 characters in all')."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 1,
+    "promptTokens": 22858,
+    "completionTokens": 137,
+    "reasoningTokens": 6,
+    "costUsd": 0,
+    "durationMs": 2999
+  },
+  "observations": [
+    "The model was deepseek-v4-flash. The turn took about 3 s from start to end, and the reply came after two model calls totalling 137 completion tokens.",
+    "costUsd is 0 in summary.json totals and null on the turn row, so cost was not recorded for this model rather than being actually zero.",
+    "The page was read in full on the first call: web::fetch was called with wholePage false and startChar 0, and the 359-character page fit in the view."
+  ]
+}

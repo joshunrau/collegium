@@ -1,0 +1,93 @@
+[
+  {
+    "id": "npuubz5mt25jy1av0o9lj7b0",
+    "createdAt": "2026-09-27T00:32:52.279+00:00",
+    "kind": "assistant_message",
+    "payload": {
+      "content": "",
+      "kind": "assistant_message",
+      "toolCalls": [
+        {
+          "args": {
+            "command": "printf '%s' northmoor | sha256sum"
+          },
+          "callId": "call_00_75DCxEV2JtdnVngbQLMb7869",
+          "toolName": ["shell", "run"]
+        }
+      ],
+      "reasoningContent": "The task: compute SHA-256 of \"northmoor\" and report first 12 hex chars. Use shell with printf. This requires approval. Let me do it.\n\nKnown: SHA-256 of \"northmoor\"? Let's compute via shell. Need approval from a person.\n\nCommand: printf '%s' northmoor | sha256sum\n\nLet me call.",
+      "usage": {
+        "cachedPromptTokens": 6400,
+        "completionTokens": 127,
+        "promptTokens": 6650,
+        "reasoningTokens": 78
+      }
+    },
+    "sequence": 0,
+    "turnId": "wowqscg9r53tkseyv73vkv7k"
+  },
+  {
+    "id": "jp98865h0fzip5oyc9mgoeoe",
+    "createdAt": "2026-09-27T00:32:52.304+00:00",
+    "kind": "approval_requested",
+    "payload": {
+      "approvalId": "osd95k3npwwt4f8jsmfiah0m",
+      "callId": "call_00_75DCxEV2JtdnVngbQLMb7869",
+      "contextText": "Action 1 of 25 · requested by @bench-admin: \"clerk using the shell, compute the SHA-256 hex digest of the ASCII string `northmoor` (no trailing newline) and report its first 12 hex char…\"",
+      "kind": "approval_requested",
+      "payloadText": "Run this shell command as this agent's dedicated OS user:\n\n```sh\nprintf '%s' northmoor | sha256sum\n```",
+      "toolName": ["shell", "run"]
+    },
+    "sequence": 1,
+    "turnId": "wowqscg9r53tkseyv73vkv7k"
+  },
+  {
+    "id": "b27s5itm7bgvpbesls0sxx9g",
+    "createdAt": "2026-09-27T00:32:52.838+00:00",
+    "kind": "approval_decided",
+    "payload": {
+      "approvalId": "osd95k3npwwt4f8jsmfiah0m",
+      "byUsername": "bench-admin",
+      "callId": "call_00_75DCxEV2JtdnVngbQLMb7869",
+      "decision": "approved",
+      "kind": "approval_decided"
+    },
+    "sequence": 2,
+    "turnId": "wowqscg9r53tkseyv73vkv7k"
+  },
+  {
+    "id": "wrpul30qvjedv3adbdaycxuc",
+    "createdAt": "2026-09-27T00:32:52.873+00:00",
+    "kind": "tool_result",
+    "payload": {
+      "callId": "call_00_75DCxEV2JtdnVngbQLMb7869",
+      "kind": "tool_result",
+      "output": "exit code: 0\n\nstdout:\n400962c7c85239a816c4504c20edbb03aa0904d12a6637ffaee830a93cf92982  -",
+      "presentedAs": {
+        "viewChars": 120000
+      },
+      "toolName": ["shell", "run"]
+    },
+    "sequence": 3,
+    "turnId": "wowqscg9r53tkseyv73vkv7k"
+  },
+  {
+    "id": "vyammspndqd6pkwfuwwgy8np",
+    "createdAt": "2026-09-27T00:32:54.077+00:00",
+    "kind": "assistant_message",
+    "payload": {
+      "content": "First 12 hex characters: `400962c7c852`\n\nThe full digest of `northmoor` (no trailing newline) from `printf '%s' northmoor | sha256sum` is `400962c7c85239a816c4504c20edbb03aa0904d12a6637ffaee830a93cf92982`.",
+      "kind": "assistant_message",
+      "toolCalls": [],
+      "reasoningContent": "",
+      "usage": {
+        "cachedPromptTokens": 6656,
+        "completionTokens": 82,
+        "promptTokens": 6834,
+        "reasoningTokens": 0
+      }
+    },
+    "sequence": 4,
+    "turnId": "wowqscg9r53tkseyv73vkv7k"
+  }
+]

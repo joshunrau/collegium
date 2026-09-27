@@ -1,0 +1,75 @@
+{
+  "task": "c1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "workspace::write of notes/greeting.txt was approved by bench-admin and ran, a workspace::read of the same path followed, and the reply quotes `hello from the bench` exactly as the read returned it."
+  },
+  "checks": [
+    {
+      "id": "c1-1",
+      "verdict": "pass",
+      "quote": "\"output\": \"hello from the bench\\n\", \"toolName\": [\"workspace\", \"read\"]",
+      "note": "The reply's code block `hello from the bench` and its note about the trailing newline match the read result byte for byte; the reply says it is quoting the read (\"Reading it back gives:\")."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "Done. `notes/greeting.txt` exists in my workspace, 21 bytes, one line. Reading it back gives:",
+      "note": "One reply post (kind reply) for the one turn, which owed a reply to a human post; the other agent-authored posts are the status and approval-prompt posts."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "That is the file's whole contents (`hello from the bench` plus the trailing newline).",
+      "note": "The deliberation about whether to read back stayed in reasoningContent; the posted content has no meta-commentary."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (5s)_",
+      "note": "Turn h9jjvgh1k0skspgxed72ii00 status is completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "wrote notes/greeting.txt: 21 bytes, 1 line, exactly as given",
+      "note": "Path, 21 bytes and one line come from the write result; the quoted content and trailing newline come from the read result."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"output\": \"wrote notes/greeting.txt: 21 bytes, 1 line, exactly as given\"",
+      "note": "No tool call failed; the two calls were one write and one read, with different arguments."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "\"replaySubject\": \"read notes/greeting.txt, 21 characters\"",
+      "note": "The reply claims a read-back, and the trace holds the workspace::read call and its result."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 2,
+    "promptTokens": 21010,
+    "completionTokens": 578,
+    "reasoningTokens": 417,
+    "costUsd": 0,
+    "durationMs": 5325
+  },
+  "observations": [
+    "The baseline prompt's line \"a write that reports its bytes and lines needs no read-back\" set up a conflict with the explicit read-back request: 410 reasoning tokens were spent deciding it (\"Hmm, but the framework discourages redundant calls\"), and the explicit request won. On a weaker model or a less explicit request, this guidance could suppress a read-back the person wanted.",
+    "The turn row's costUsd is null (deepseek-v4-flash), and summary totals report costUsd 0, so the cost metric is not a real zero.",
+    "Per run.json, the run used the published ghcr.io 0.0.1-beta.28 image, not a local build."
+  ]
+}

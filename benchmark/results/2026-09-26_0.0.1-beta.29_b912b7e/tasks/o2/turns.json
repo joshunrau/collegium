@@ -1,0 +1,27 @@
+[
+  {
+    "id": "x0qy69dxtav8psox2jrvcc0e",
+    "actionCount": 3,
+    "agentUsername": "thrift",
+    "channelId": "qcec9i8jqpgwt8ewm9wwsctpke",
+    "completionTokens": 678,
+    "depth": 0,
+    "endedAt": "2026-09-27T00:23:22.839+00:00",
+    "modelName": "deepseek-v4-flash",
+    "promptTokens": 23811,
+    "startedAt": "2026-09-27T00:23:17.750+00:00",
+    "status": "completed",
+    "statusPostId": "fxtbmreg9brsmbcwa9txcyn4hh",
+    "triggeringPostId": "4u3sn1k1n78sdc7z6p8ipqxfsa",
+    "cachedPromptTokens": 15104,
+    "reasoningTokens": 235,
+    "chainLength": 1,
+    "costUsd": null,
+    "rootPostId": "4u3sn1k1n78sdc7z6p8ipqxfsa",
+    "activationKind": "addressed",
+    "contextAssembledAt": "2026-09-27T00:23:17.754+00:00",
+    "drainedFromPostId": null,
+    "windowEstimatedTokens": 45,
+    "windowOldestAt": "2026-09-27T00:23:16.983+00:00"
+  }
+]

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "9noioif6wbdydqgowid7tg1uae",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "m48tq5djppfqzndh3nrizoun6a",
+    "createdAt": "2026-09-27T00:12:04.666+00:00",
+    "isForgotten": 0,
+    "message": "Please add me to teams and channels you want me to interact in. To do this, use the browser or Mattermost Desktop App.",
+    "observedAt": "2026-09-27T00:12:07.397+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "o3issriqqtfxbm85xaza8cs5io",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "m48tq5djppfqzndh3nrizoun6a",
+    "createdAt": "2026-09-27T00:25:09.246+00:00",
+    "isForgotten": 0,
+    "message": "Please draft a two-line note for a new student saying when and where our reading group meets: Thursdays at 10:00 in room B-204.",
+    "observedAt": "2026-09-27T00:25:09.269+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "1aoeftkdrtbednkct8z9b14s9o",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "m48tq5djppfqzndh3nrizoun6a",
+    "createdAt": "2026-09-27T00:25:10.128+00:00",
+    "isForgotten": 0,
+    "message": "Correction: from October the reading group meets in room C-110, same day and time.",
+    "observedAt": "2026-09-27T00:25:10.136+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "4zkjyjngjbgt9rwunpzou8bz1r",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "m48tq5djppfqzndh3nrizoun6a",
+    "createdAt": "2026-09-27T00:25:10.148+00:00",
+    "isForgotten": 0,
+    "message": "✅ _done (7s)_\n↺ _started over to read a further post_\n→ `memory::read qg5cc604`",
+    "observedAt": "2026-09-27T00:25:10.156+00:00",
+    "authoringTurnId": "hhx9a5minc5cxd9pc2it2mg4",
+    "kind": "status",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "s6uo13jnpi8n5xxc9wadzyjkrc",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "m48tq5djppfqzndh3nrizoun6a",
+    "createdAt": "2026-09-27T00:25:16.578+00:00",
+    "isForgotten": 0,
+    "message": "Draft note (two lines):\n\nReading group: Thursdays at 10:00, currently in room B-204.\nFrom 2026-10-01, still Thursdays at 10:00, in room C-110.\n\nI folded in your correction rather than the B-204-only version, and kept the team convention of ISO dates and no emoji. Say the word if the student joins after October — I'll drop the first line and send the room C-110 only.",
+    "observedAt": "2026-09-27T00:25:16.605+00:00",
+    "authoringTurnId": "hhx9a5minc5cxd9pc2it2mg4",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

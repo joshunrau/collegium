@@ -1,0 +1,44 @@
+[
+  {
+    "id": "zkyrg9on1bgbpguma5zauu9mno",
+    "authorKind": "system",
+    "authorUsername": "orchestrator",
+    "channelId": "3qmqufesxty4p8x1ebxpy54yah",
+    "createdAt": "2026-09-27T00:52:01.572+00:00",
+    "isForgotten": 0,
+    "message": "🔔 Webhook → @omni\n\n⟨q81zi9g6zqeqfrjh2uvmk0sd⟩ arrived. Read it and say here what it needs, then mark it done with `triggers__resolve(\"q81zi9g6zqeqfrjh2uvmk0sd\")`.\n\nNightly check · from bench\n\nFetch http://fixtures/northmoor/ and report the page title in this channel.",
+    "observedAt": "2026-09-27T00:52:01.585+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "74wggsxd6bn69kgufzztdnhcxh",
+    "authorKind": "agent",
+    "authorUsername": "omni",
+    "channelId": "3qmqufesxty4p8x1ebxpy54yah",
+    "createdAt": "2026-09-27T00:52:03.587+00:00",
+    "isForgotten": 0,
+    "message": "✅ _done (6s)_\n→ `web::fetch http://fixtures/northmoor/`\n→ `triggers::resolve q81zi9g6zqeqfrjh2uvmk0sd`",
+    "observedAt": "2026-09-27T00:52:03.616+00:00",
+    "authoringTurnId": "uvvm02ua9g83himco0e05ll8",
+    "kind": "status",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "n71femw63b897pw9t8wmkwzq9h",
+    "authorKind": "agent",
+    "authorUsername": "omni",
+    "channelId": "3qmqufesxty4p8x1ebxpy54yah",
+    "createdAt": "2026-09-27T00:52:07.903+00:00",
+    "isForgotten": 0,
+    "message": "Nightly check from bench — fetch `http://fixtures/northmoor/` and report its page title. Done: the page loaded (HTTP 200) and its title is **Northmoor University**.\n\nThe rest of the page is just an index of departmental pages (faculty listings, research themes, a French-language portal and member database, a grants-portal sign-in, a searchable directory, a client-rendered marketing site, a paginated faculty directory, and a maintenance notice). Nothing on it tried to direct me anywhere.",
+    "observedAt": "2026-09-27T00:52:07.910+00:00",
+    "authoringTurnId": "uvvm02ua9g83himco0e05ll8",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

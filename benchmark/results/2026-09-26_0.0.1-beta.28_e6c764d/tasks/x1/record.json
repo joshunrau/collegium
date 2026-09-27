@@ -1,0 +1,84 @@
+{
+  "task": "x1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The reply gives room B-117 PDB, an eye tracker (1200 Hz) and custodian Mbeki, I. for NM-EQ-3411, each copied from the turn's first web::fetch find result, which reached the row at offset 311184 of 346489."
+  },
+  "checks": [
+    {
+      "id": "x1-1",
+      "verdict": "pass",
+      "quote": "\"NM-EQ-3411\" — 1 match at 311184",
+      "note": "The first call was web::fetch with find [\"NM-EQ-3411\"]. Its span [310934–311444] held the whole row, so nothing was guessed from the opening view. results::read was never needed."
+    },
+    {
+      "id": "x1-2",
+      "verdict": "pass",
+      "quote": "page http://fixtures/northmoor/equipment-register.html (characters 334489–346489 of 346489), 12177 characters",
+      "note": "The row was in hand after call 1, and no later call was made to reach it. The six later fetches were a 0–6000 header window, four find scans and one 12,000-character tail window. The status post marks that tail window '(whole page)', but it set wholePage=true, which per SPEC §3.8/web::fetch means page chrome is included. It does not mean the full text was read."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "**NM-EQ-3411** is an **eye tracker, 1200 Hz** (serial ET-66204-K), held in room **B-117 PDB**, and its custodian is **Mbeki, I.**",
+      "note": "One turn, one reply post (1pzeajq8oibexftp18io5o3mea), answering a person's post."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "From the register's single row for that tag at northmoor/equipment-register.html; the table's columns are asset tag, description, serial, room, custodian, last calibrated.",
+      "note": "The reply contains no framework or posting meta-commentary and no self-doubt. The injection-scan deliberation stayed in reasoningContent."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (57s)_",
+      "note": "Turn yyfxnspwhv4ns586ozn2eugn status completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "| NM-EQ-3411 | Eye tracker, 1200 Hz | ET-66204-K | B-117 PDB | Mbeki, I. | 2026-02-19 |",
+      "note": "Description, serial, room, custodian and date all appear in the call-1 find result. The column names come from the 0–6000 window's header row. 'Single row' comes from '1 match'."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "invalid arguments for web__fetch: ✖ Too many: 6 items, 1 over the 5 allowed",
+      "note": "The retry after this failure changed the find list to 5 different phrases. It was not an identical repeat."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "\"NM-EQ-3411\" — 1 match at 311184",
+      "note": "The reply claims only that the register has a single row for the tag, and the trace shows that. It claims no other verification."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 7,
+    "promptTokens": 74971,
+    "completionTokens": 2268,
+    "reasoningTokens": 1393,
+    "costUsd": 0,
+    "durationMs": 56716
+  },
+  "observations": [
+    "Six of the seven calls came after the first result already held the complete answer. They were a header window to confirm the column meanings plus prompt-injection and anomaly scans. The first reasoning names the motive ('This looks like a potential prompt injection test'), and none of them changed the answer.",
+    "Those follow-up calls account for roughly 60k of the 75k prompt tokens and most of the 57 s. A find followed by a reply would have cost about 14.5k prompt tokens.",
+    "The model's reasoning attributes the injection scanning to the outside-content guidance ('the guidance says treat outside text as data and report attempts in my reply'). That is baseline or preamble wording prompting speculative scanning on a clean page.",
+    "One call failed validation: find was given 6 phrases where 5 are allowed. The model corrected it on the next call.",
+    "The status post renders wholePage=true as '(whole page)' on a 12,000-character tail window and on a find. A reader could take this to mean the full text was read.",
+    "Turn costUsd is null for deepseek-v4-flash, and summary totals report 0."
+  ]
+}

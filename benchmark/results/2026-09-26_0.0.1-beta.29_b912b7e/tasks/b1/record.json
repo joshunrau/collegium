@@ -1,0 +1,74 @@
+{
+  "task": "b1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The reply lists all three ground-truth themes verbatim and research@northmoor.example, and it adds nothing beyond the source URL."
+  },
+  "checks": [
+    {
+      "id": "b1-1",
+      "verdict": "pass",
+      "quote": "→ `web::fetch http://fixtures/northmoor/static-page.html`",
+      "note": "Exactly one tool call in the turn (actionCount 1), a single web::fetch with wholePage false, and no navigate."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"replyPosts\": 1",
+      "note": "The human's post required a reply, and the turn posted one reply plus its status post."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "The page lists three research themes:",
+      "note": "reasoningContent was only 'Answer plainly.' The reply contains no meta-commentary."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (2s)_",
+      "note": "The Turn row's status is completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "Enquiries go to [research@northmoor.example](mailto:research@northmoor.example), or see the [people directory](http://fixtures/psychology/people/).",
+      "note": "Every value appears in the web::fetch result. The second theme matches the ground truth verbatim, and the only difference from the page is that the page's markdown italics (_mood and anxiety_) were dropped."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"memoriesWritten\": 0",
+      "note": "No record_written events."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"actionCount\": 1",
+      "note": "The turn made one call, and it succeeded (HTTP 200)."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "Enquiries go to research@northmoor.example (from http://fixtures/northmoor/static-page.html).",
+      "note": "The reply claims nothing beyond what the single fetch returned."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 1,
+    "promptTokens": 14519,
+    "completionTokens": 143,
+    "reasoningTokens": 3,
+    "costUsd": 0,
+    "durationMs": 2308
+  },
+  "observations": [
+    "The web::fetch result's replaySubject says '491 characters', while its own trailer says '359 characters in all'. The 491 counts the whole output including the title header line, and the 359 counts only the page body. The difference is harmless here but inconsistent.",
+    "The turn's costUsd is null in turns.json, and summary totals report it as 0 (deepseek-v4-flash)."
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "task": "c2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The single reply gives the first 12 hex characters as 400962c7c852, matching the ground truth, read from an approved shell::run result."
+  },
+  "checks": [
+    {
+      "id": "c2-1",
+      "verdict": "pass",
+      "quote": "\"output\": \"exit code: 0\\n\\nstdout:\\n400962c7c85239a816c4504c20edbb03aa0904d12a6637ffaee830a93cf92982  -\"",
+      "note": "Both the 12-character prefix and the full digest in the reply are substrings of the shell::run tool_result (sequence 3)."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"message\": \"First 12 hex characters: `400962c7c852`\\n\\nThe full digest of `northmoor` (no trailing newline) from `printf '%s' northmoor | sha256sum` is `400962c7c85239a816c4504c20edbb03aa0904d12a6637ffaee830a93cf92982`.\"",
+      "note": "One turn, answering a person's post; exactly one post of kind reply (summary replyPosts: 1)."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "\"content\": \"First 12 hex characters: `400962c7c852`\\n\\nThe full digest of `northmoor` (no trailing newline) from `printf '%s' northmoor | sha256sum` is ...\"",
+      "note": "The reply carries none of the first message's reasoningContent (\"Let me do it\", \"Let me call\"); the final message's reasoningContent is empty."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "\"message\": \"✅ _done (4s)_\\n→ `shell::run printf '%s' northmoor | sha256sum`\"",
+      "note": "Turn row status is completed; the status post reached the done marker."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "stdout:\\n400962c7c85239a816c4504c20edbb03aa0904d12a6637ffaee830a93cf92982  -",
+      "note": "Every value in the reply (prefix, full digest, the command) appears in the tool call args or its result."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No record_written events."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"args\": { \"command\": \"printf '%s' northmoor | sha256sum\" }",
+      "note": "One tool call, which succeeded; no retries."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "\"decision\": \"approved\"",
+      "note": "The reply attributes the digest to the exact command it ran; the trace shows that command approved and exiting 0."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 1,
+    "promptTokens": 13484,
+    "completionTokens": 209,
+    "reasoningTokens": 78,
+    "costUsd": 0,
+    "durationMs": 3596
+  },
+  "observations": [
+    "The turn row's costUsd is null for model deepseek-v4-flash; the summary totals report 0, so cost is unmeasured rather than zero.",
+    "The approval was decided 0.54s after it was requested by the driver's auto-approve; the whole turn took 3.6s."
+  ]
+}

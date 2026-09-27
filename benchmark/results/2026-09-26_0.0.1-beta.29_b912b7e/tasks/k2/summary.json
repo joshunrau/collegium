@@ -1,0 +1,56 @@
+{
+  "agents": ["keeper"],
+  "approvals": [
+    {
+      "status": "approved",
+      "tool": ["bookmark", "save"]
+    },
+    {
+      "status": "approved",
+      "tool": ["bookmark", "delete"]
+    }
+  ],
+  "asks": 0,
+  "channels": {
+    "main": "q6fdcpfp6p8g7khf4kzmwmofpr"
+  },
+  "memoriesWritten": 0,
+  "replyPosts": 2,
+  "task": "k2",
+  "tier": "reference",
+  "totals": {
+    "actionCount": 4,
+    "completionTokens": 423,
+    "costUsd": 0,
+    "promptTokens": 43844,
+    "reasoningTokens": 90
+  },
+  "triggers": [],
+  "turns": [
+    {
+      "actionCount": 2,
+      "agent": "keeper",
+      "cachedPromptTokens": 23936,
+      "completionTokens": 314,
+      "costUsd": null,
+      "durationMs": 6139,
+      "id": "yqmu28sgwnlzpxr4i8d1f1uj",
+      "promptTokens": 24914,
+      "reasoningTokens": 79,
+      "status": "completed"
+    },
+    {
+      "actionCount": 2,
+      "agent": "keeper",
+      "cachedPromptTokens": 17792,
+      "completionTokens": 109,
+      "costUsd": null,
+      "durationMs": 3427,
+      "id": "h109uh2li6a9vbhmezi5ed6v",
+      "promptTokens": 18930,
+      "reasoningTokens": 11,
+      "status": "completed"
+    }
+  ],
+  "units": []
+}

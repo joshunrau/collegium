@@ -1,0 +1,19 @@
+[
+  {
+    "id": "g1u3c39nac3tyt4hhvf8bpdj",
+    "args": {
+      "content": "hello from the bench\n",
+      "path": "notes/greeting.txt"
+    },
+    "createdAt": "2026-09-27T00:32:34.413+00:00",
+    "decidedAt": "2026-09-27T00:32:34.843+00:00",
+    "decidedByUsername": "bench-admin",
+    "payloadText": "Write 21 bytes to `notes/greeting.txt` in this agent's workspace directory, ending in a newline:\n\n```\nhello from the bench\n```",
+    "promptPostId": "g5sbwjj75pd1jxtt8y74ogzjyr",
+    "reason": null,
+    "status": "approved",
+    "toolName": "write",
+    "toolNamespace": "workspace",
+    "turnId": "h9jjvgh1k0skspgxed72ii00"
+  }
+]

@@ -1,0 +1,83 @@
+{
+  "task": "x3",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "scribe's only (and so last) reply drafts the note as Thursdays at 10:00 in room C-110 from 2026-10-01, and gives B-204 only as the current room, never as the room from October."
+  },
+  "checks": [
+    {
+      "id": "x3-1",
+      "verdict": "pass",
+      "quote": "\"kind\": \"posts_taken\", \"postIds\": [\"1aoeftkdrtbednkct8z9b14s9o\"], \"foldedPostIds\": [\"1aoeftkdrtbednkct8z9b14s9o\"]",
+      "note": "The correction (observed 00:25:10.136, 117 ms after turn start) folded into turn hhx9a5minc5cxd9pc2it2mg4 during its first model call; the status post reads '↺ _started over to read a further post_'. One turn, one reply answered both posts (§5.2, §4.4)."
+    },
+    {
+      "id": "x3-2",
+      "verdict": "pass",
+      "quote": "Reading group: Thursdays at 10:00, currently in room B-204.\nFrom 2026-10-01, still Thursdays at 10:00, in room C-110.",
+      "note": "The only reply post names C-110 from October; no B-204-only draft was posted."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"replyPosts\": 1",
+      "note": "One turn, one reply post (s6uo13jnpi8n5xxc9wadzyjkrc) answering the person's two posts."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "I folded in your correction rather than the B-204-only version, and kept the team convention of ISO dates and no emoji.",
+      "note": "No deliberation markers in content; the reasoning's hesitation over whether the report convention applies stayed in reasoningContent. 'folded' is plain English here (the preamble never uses the word). The 'B-204-only version' was never shown to the person, a slightly odd reference but not leaked deliberation."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (7s)_",
+      "note": "Turn status completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "Correction: from October the reading group meets in room C-110, same day and time.",
+      "note": "Thursdays, 10:00, B-204 and C-110 come from the two posts; the ISO-date/no-emoji convention from the memory::read result; 2026-10-01 is 'from October' rendered with the year from the turn's date (the memory result shows 'September 27, 2026'), and it is a Thursday."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"memoriesWritten\": 0",
+      "note": "No writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"toolCalls\": [{\"args\": {\"reference\": \"qg5cc604\"}, \"callId\": \"call_00_8fR65gCntHlNb3NoBhvL9536\", \"toolName\": [\"memory\", \"read\"]}]",
+      "note": "One tool call, which succeeded; nothing repeated."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "Standing team convention (given by bench-admin, in t-s2-a, 2026-09-27, to apply across the whole team): written reports always use ISO dates in YYYY-MM-DD form and never contain emoji.",
+      "note": "The reply claims it applied the correction and the ISO-date/no-emoji convention; the trace shows the memory read and the draft carries an ISO date and no emoji."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 0,
+    "promptTokens": 12091,
+    "completionTokens": 1143,
+    "reasoningTokens": 996,
+    "costUsd": 0,
+    "durationMs": 6597
+  },
+  "observations": [
+    "The fold cut the first model call. The turn started at 00:25:10.019, the correction was observed at 00:25:10.136, and the posts_taken event carries an estimated usage of 0 completion tokens for the discarded completion, as §8.x describes for a completion cut by a fold.",
+    "A memory written in another task's channel (t-s2-a, a team rule for 'written reports') was read in this DM and applied to a student note, turning 'from October' into 'From 2026-10-01'. This is harmless here, but the run's memory store carries over between tasks.",
+    "The model hesitated over whether a 'written reports' rule covers a student note and applied it anyway. The draft splits the rooms by date (B-204 now, C-110 from 2026-10-01) where the person asked for the October room, which reads as a reasonable choice for a note sent four days before October.",
+    "The turn's costUsd is null (deepseek-v4-flash reported no cost); summary totals show 0.",
+    "actionCount is 0 because memory::read is budget-exempt (§5.3)."
+  ]
+}

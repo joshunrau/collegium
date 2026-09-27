@@ -1,0 +1,76 @@
+{
+  "task": "k2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The delete was called with only the identifier yet its approval prompt showed the stored address, the delete ran, the list afterwards held only research-themes, and the reply said so."
+  },
+  "checks": [
+    {
+      "id": "k2-1",
+      "verdict": "pass",
+      "quote": "\"payloadText\": \"delete bookmark \\\"faculty-directory\\\" → http://fixtures/northmoor/faculty/\"",
+      "note": "The delete call's args were only {\"id\": \"faculty-directory\"}, so the URL in the payload came from the plugin's async render reading storage (§3.7)."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "Deleted `faculty-directory`. One bookmark remains:",
+      "note": "Each of the two turns, both answering a person's post, posted exactly one reply (d91a1b8h..., tq7gkw3f...)."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "Saved: `faculty-directory` → http://fixtures/northmoor/faculty/",
+      "note": "Both replies are plain results; reasoning (\"A simple task: delete the bookmark, then list.\") stayed out of content."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (3s)_",
+      "note": "Both Turn rows are status completed; both status posts reached the done marker."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "1/100 bookmarks\\n- research-themes: http://fixtures/northmoor/static-page.html",
+      "note": "research-themes and its URL come from the bookmark::list result; faculty-directory and its URL come from the human post and ground truth."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"output\": \"bookmark faculty-directory deleted\"",
+      "note": "No tool call failed; no call repeated."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "\"output\": \"bookmark faculty-directory saved\"",
+      "note": "Both completion claims (Saved, Deleted) are backed by the corresponding tool results."
+    }
+  ],
+  "metrics": {
+    "turns": 2,
+    "actionCount": 4,
+    "promptTokens": 43844,
+    "completionTokens": 423,
+    "reasoningTokens": 90,
+    "costUsd": 0,
+    "durationMs": 9566
+  },
+  "observations": [
+    "durationMs is the sum of the two per-turn durationMs in summary.json (6139 + 3427); summary totals carry no duration.",
+    "The driver's note that no prompt appeared at step 3 refers to its own repeat rule from step 1 deciding the delete prompt, not a framework standing approval; the delete prompt post and approval_requested event both exist.",
+    "The save turn loaded bookmark::saving-bookmarks and its identifier-style reference and ran bookmark::find by address before saving, as the skill directs, even though the human supplied the identifier.",
+    "The list shows research-themes, a bookmark left from another task; the reply reports it accurately."
+  ]
+}

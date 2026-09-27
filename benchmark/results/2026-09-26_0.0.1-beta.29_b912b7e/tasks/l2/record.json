@@ -1,0 +1,76 @@
+{
+  "task": "l2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The two-agent post drew the orchestrator's correction 3 ms later and started no turn for lead or hand, and the single-mention follow-up got one reply from lead in a completed turn."
+  },
+  "checks": [
+    {
+      "id": "l2-1",
+      "verdict": "pass",
+      "quote": "\"triggeringPostId\": \"efcrocdjg3fr5jarxatat9wbzy\",",
+      "note": "turns.json holds one row, triggered and rooted at the second post; no row names 4ybumyabmffwimmeo9woaixi1h, and hand has no turn at all."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"message\": \"Here — @lead, present in t-l2 and ready for work.\",",
+      "note": "One turn, one reply post (summary replyPosts: 1); the turn answered a person's post, so it owed one."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "\"content\": \"Here — @lead, present in t-l2 and ready for work.\",",
+      "note": "The deliberation about the orchestrator's correction stayed in reasoningContent; the posted content has no meta-commentary."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "\"status\": \"completed\",",
+      "note": "statusPostId is null, which §8.1 expects of a turn that called no tool."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "\"message\": \"@lead just you then: confirm you're here.\",",
+      "note": "The only factual value, the channel name t-l2, is the handle render-config.js gives the task's main channel, supplied in the agent's context; nothing is invented."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"toolCalls\": [],",
+      "note": "No tool calls."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "\"content\": \"Here — @lead, present in t-l2 and ready for work.\",",
+      "note": "The reply claims only presence, which the turn itself demonstrates."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 0,
+    "promptTokens": 7090,
+    "completionTokens": 141,
+    "reasoningTokens": 125,
+    "costUsd": 0,
+    "durationMs": 1793
+  },
+  "observations": [
+    "The refusal text follows §4.5: \"Address one agent per message. To name an agent without addressing it, write its name without the @.\", posted by the system bot (authorKind system) 3 ms after the offending post.",
+    "lead's window reached back to the refused post (windowOldestAt 00:18:39.250), and its reasoning correctly read the correction as the framework's, not outside text.",
+    "The reply mentions its own handle (\"Here — @lead\"); harmless here, but a self-mention in a reply is an odd habit worth watching in tasks where mentions activate agents.",
+    "The turn's costUsd is null in turns.json and summary.json; totals report 0, so cost for this model is unreported rather than zero."
+  ]
+}

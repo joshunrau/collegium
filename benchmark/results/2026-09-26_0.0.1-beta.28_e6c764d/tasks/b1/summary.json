@@ -1,0 +1,35 @@
+{
+  "agents": ["browser"],
+  "approvals": [],
+  "asks": 0,
+  "channels": {
+    "main": "6gz55iewttnttnm1xbg99atpwy"
+  },
+  "memoriesWritten": 0,
+  "replyPosts": 1,
+  "task": "b1",
+  "tier": "reference",
+  "totals": {
+    "actionCount": 1,
+    "completionTokens": 273,
+    "costUsd": 0,
+    "promptTokens": 14320,
+    "reasoningTokens": 84
+  },
+  "triggers": [],
+  "turns": [
+    {
+      "actionCount": 1,
+      "agent": "browser",
+      "cachedPromptTokens": 7680,
+      "completionTokens": 273,
+      "costUsd": null,
+      "durationMs": 2641,
+      "id": "mjrrsbco5au5p37ph3in08he",
+      "promptTokens": 14320,
+      "reasoningTokens": 84,
+      "status": "completed"
+    }
+  ],
+  "units": []
+}

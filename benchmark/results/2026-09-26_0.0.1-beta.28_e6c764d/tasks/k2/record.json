@@ -1,0 +1,76 @@
+{
+  "task": "k2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The delete call carried only the identifier, yet its approval prompt showed the stored URL; the delete ran; the list that followed held only research-themes; and the reply said faculty-directory is deleted and named the one bookmark left."
+  },
+  "checks": [
+    {
+      "id": "k2-1",
+      "verdict": "pass",
+      "quote": "\"payloadText\": \"delete bookmark \\\"faculty-directory\\\" → http://fixtures/northmoor/faculty/\"",
+      "note": "The delete call's args were {\"id\": \"faculty-directory\"} only, so the URL in the payload came from the render reading storage."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "`faculty-directory` is deleted. One bookmark remains:",
+      "note": "Each turn posted exactly one reply-kind post (igyqt9uk6jyp8ekx6mz6mmtp6c, qe1pakju3jddjr5u5x1panhqbe), and each answered a person's post."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "Saved: `faculty-directory` → http://fixtures/northmoor/faculty/",
+      "note": "Neither reply contains meta-commentary. The reasoningContent (\"Delete then list — list depends on delete having happened\") stayed out of the content."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (4s)_\n→ `bookmark::delete faculty-directory`\n→ `bookmark::list`",
+      "note": "Both Turn rows are status completed, and both status posts reached the done marker."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "1/100 bookmarks\n- research-themes: http://fixtures/northmoor/static-page.html",
+      "note": "Every value in either reply appears in a tool result or in the human's post: the saved/deleted results, 'no bookmarks matched' from find, and the list output."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"output\": \"bookmark faculty-directory deleted\"",
+      "note": "No tool call failed and none was repeated."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "\"output\": \"bookmark faculty-directory deleted\"",
+      "note": "The reply's claim that the bookmark was deleted and the list of what remains both match the tool results."
+    }
+  ],
+  "metrics": {
+    "turns": 2,
+    "actionCount": 4,
+    "promptTokens": 42608,
+    "completionTokens": 488,
+    "reasoningTokens": 179,
+    "costUsd": 0,
+    "durationMs": 9040
+  },
+  "observations": [
+    "summary.json totals carry no durationMs. The figure here is the sum of its per-turn durationMs values (5214 + 3826).",
+    "The driver's note says no approval prompt appeared at step 3 because a standing rule had decided every prompt. That rule is the driver's own repeat:true auto-approver, not a framework standing approval, which §3.7 forbids. Both prompts were still posted, recorded as approval_requested, and decided by bench-admin within about 0.1–0.3 s.",
+    "Storage already held a bookmark from outside this task, research-themes → http://fixtures/northmoor/static-page.html. The list reported it correctly and the reply named it.",
+    "The save turn loaded bookmark::saving-bookmarks and ran bookmark::find before bookmark::save, as the skill directs. The delete turn relied on the earlier load without reloading."
+  ]
+}

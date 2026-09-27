@@ -1,0 +1,20 @@
+[
+  {
+    "id": "n72wzj5cb61xrp8jfurbyesy",
+    "createdAt": "2026-09-27T00:23:35.128+00:00",
+    "dedupeKey": null,
+    "postId": "isiecwow5jrqmydmbazga36n6y",
+    "postedAt": "2026-09-27T00:23:35.135+00:00",
+    "reference": {
+      "body": "Fetch http://fixtures/northmoor/ and report the page title in this channel.",
+      "sender": "bench",
+      "subject": "Nightly check"
+    },
+    "resolvedAt": "2026-09-27T00:23:44.523+00:00",
+    "source": "webhook",
+    "status": "resolved",
+    "targetAgentUsername": "omni",
+    "targetChannelId": "fw7zgcwn7f8smf9bxnwph39yjo",
+    "reannouncedAt": null
+  }
+]

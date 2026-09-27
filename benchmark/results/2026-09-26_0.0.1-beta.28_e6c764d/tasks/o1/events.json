@@ -1,0 +1,67 @@
+[
+  {
+    "id": "renct71r715evc43yg11w07v",
+    "createdAt": "2026-09-27T00:40:11.138+00:00",
+    "kind": "assistant_message",
+    "payload": {
+      "content": "",
+      "kind": "assistant_message",
+      "toolCalls": [
+        {
+          "args": {
+            "url": "http://fixtures/northmoor/static-page.html",
+            "startChar": 0,
+            "wholePage": false
+          },
+          "callId": "call_00_R3fXTkndiiqBONSN8JDl7690",
+          "toolName": ["web", "fetch"]
+        }
+      ],
+      "reasoningContent": "Let me fetch the page.",
+      "usage": {
+        "cachedPromptTokens": 768,
+        "completionTokens": 90,
+        "promptTokens": 11319,
+        "reasoningTokens": 6
+      }
+    },
+    "sequence": 0,
+    "turnId": "r8xzcvxt6trt8t1ef1hdaunm"
+  },
+  {
+    "id": "l4442w5kuafz1h3u106yzquj",
+    "createdAt": "2026-09-27T00:40:11.154+00:00",
+    "kind": "tool_result",
+    "payload": {
+      "callId": "call_00_R3fXTkndiiqBONSN8JDl7690",
+      "kind": "tool_result",
+      "output": "Research Themes — Northmoor University — http://fixtures/northmoor/static-page.html (HTTP 200)\n\n# Research Themes\n\nThe department groups its work into **three** broad themes.\n\n* Cognitive development across the lifespan\n* Clinical trials in _mood and anxiety_ disorders\n* Computational models of perception\n\nEnquiries go to [research@northmoor.example](mailto:research@northmoor.example), or see the [people directory](http://fixtures/psychology/people/).\n…end of page, 359 characters in all",
+      "presentedAs": {
+        "viewChars": 120000
+      },
+      "toolName": ["web", "fetch"],
+      "replaySubject": "page http://fixtures/northmoor/static-page.html, 491 characters"
+    },
+    "sequence": 1,
+    "turnId": "r8xzcvxt6trt8t1ef1hdaunm"
+  },
+  {
+    "id": "rv2ers25jpre98d8j3b7s6im",
+    "createdAt": "2026-09-27T00:40:12.279+00:00",
+    "kind": "assistant_message",
+    "payload": {
+      "content": "The third research theme is **Computational models of perception**.\n\nThe page groups the department's work into three themes, in this order: cognitive development across the lifespan; clinical trials in mood and anxiety disorders; computational models of perception.",
+      "kind": "assistant_message",
+      "toolCalls": [],
+      "reasoningContent": "",
+      "usage": {
+        "cachedPromptTokens": 11392,
+        "completionTokens": 47,
+        "promptTokens": 11539,
+        "reasoningTokens": 0
+      }
+    },
+    "sequence": 2,
+    "turnId": "r8xzcvxt6trt8t1ef1hdaunm"
+  }
+]

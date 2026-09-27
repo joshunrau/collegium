@@ -1,0 +1,35 @@
+{
+  "agents": ["omni"],
+  "approvals": [],
+  "asks": 0,
+  "channels": {
+    "main": "p881ngwuojfqb8azs5ddzpszxh"
+  },
+  "memoriesWritten": 0,
+  "replyPosts": 1,
+  "task": "o1",
+  "tier": "reference",
+  "totals": {
+    "actionCount": 1,
+    "completionTokens": 137,
+    "costUsd": 0,
+    "promptTokens": 22858,
+    "reasoningTokens": 6
+  },
+  "triggers": [],
+  "turns": [
+    {
+      "actionCount": 1,
+      "agent": "omni",
+      "cachedPromptTokens": 12160,
+      "completionTokens": 137,
+      "costUsd": null,
+      "durationMs": 2999,
+      "id": "r8xzcvxt6trt8t1ef1hdaunm",
+      "promptTokens": 22858,
+      "reasoningTokens": 6,
+      "status": "completed"
+    }
+  ],
+  "units": []
+}

@@ -1,0 +1,81 @@
+{
+  "task": "b2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The reply lists exactly the seven ground-truth members with their seven addresses, none missing, none added, each address character-for-character as printed on the pages."
+  },
+  "checks": [
+    {
+      "id": "b2-1",
+      "verdict": "pass",
+      "quote": "→ `web::fetch http://fixtures/northmoor/faculty/page-3.html (whole page)`",
+      "note": "Three web::fetch results, HTTP 200 each, for index, page-2.html and page-3.html, all read whole ('…end of page')."
+    },
+    {
+      "id": "b2-2",
+      "verdict": "pass",
+      "quote": "| Wanjiru Kamau | Associate Professor | Cognition and Perception | [w.kamau@northmoor.example](mailto:w.kamau@northmoor.example) | Hollis 226 |",
+      "note": "All 7 names and 7 addresses extracted from the reply table were found in the concatenated tool results (case-folded); 0 misses. Titles also match their source rows."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"replyPosts\": 1",
+      "note": "One turn, one reply post answering the human's post."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "All three pages of the directory (24 members, 8 per page) are in, and 7 of them are in Cognition and Perception:",
+      "note": "Reasoning ('Good, complete.', 'No prompt injection noticed.') stayed in reasoningContent; the posted reply carries no meta-commentary."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (5s)_",
+      "note": "Turn status is completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "The other 17 members are split between Clinical Science (9) and Developmental (8).",
+      "note": "Every value checked against the pages: 24 members (Showing 17–24 of 24 members), 8 per page, 9 Clinical Science and 8 Developmental rows counted in the three results, all seven titles match."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"memoriesWritten\": 0",
+      "note": "No writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"actionCount\": 3",
+      "note": "Three distinct fetches, no failures, no repeats."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "Names and addresses are as listed on pages 1–3 of the directory; I did not verify them anywhere else.",
+      "note": "The completeness claim ('All three pages ... are in') is backed by three whole-page fetches in the trace."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 3,
+    "promptTokens": 23804,
+    "completionTokens": 675,
+    "reasoningTokens": 177,
+    "costUsd": 0,
+    "durationMs": 5322
+  },
+  "observations": [
+    "The agent fetched page-3.html in parallel with page-2.html before reading page 2's Next link; page 1 printed 'Page 1 of 3' and linked only page-2.html, so the page-3 URL was inferred from the naming pattern. It was right here, but it was a guess, not a followed link.",
+    "The turn row records costUsd null for deepseek-v4-flash; summary.json totals report 0, so the cost metric is absent rather than zero.",
+    "The turn took 5.3 s and 3 actions; 21,760 of 23,804 prompt tokens were cached."
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "agents": ["scribe"],
+  "approvals": [],
+  "asks": 0,
+  "channels": {
+    "a": "conhy5ydpiyp5d9sc8rgwbd3qw",
+    "b": "n9bn4c3guty7xkehh1gig8epiw"
+  },
+  "memoriesWritten": 1,
+  "replyPosts": 2,
+  "task": "s2",
+  "tier": "reference",
+  "totals": {
+    "actionCount": 1,
+    "completionTokens": 771,
+    "costUsd": 0,
+    "promptTokens": 22553,
+    "reasoningTokens": 428
+  },
+  "triggers": [],
+  "turns": [
+    {
+      "actionCount": 1,
+      "agent": "scribe",
+      "cachedPromptTokens": 10624,
+      "completionTokens": 323,
+      "costUsd": null,
+      "durationMs": 3235,
+      "id": "sq4bv2uso6tyasooq3vxtmoc",
+      "promptTokens": 11227,
+      "reasoningTokens": 100,
+      "status": "completed"
+    },
+    {
+      "actionCount": 0,
+      "agent": "scribe",
+      "cachedPromptTokens": 10752,
+      "completionTokens": 448,
+      "costUsd": null,
+      "durationMs": 3653,
+      "id": "fvyb2kw7vf0o2lxmuaiwt1yy",
+      "promptTokens": 11326,
+      "reasoningTokens": 328,
+      "status": "completed"
+    }
+  ],
+  "units": []
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "rsokyq33j3n99mkh3m4coeoomc",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "hdu5x5w89pb33gegqh55dwiqiw",
+    "createdAt": "2026-09-27T00:30:52.272+00:00",
+    "isForgotten": 0,
+    "message": "@scribe fetch http://fixtures/northmoor/static-page.html and tell me the first research theme listed.",
+    "observedAt": "2026-09-27T00:30:52.283+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "pfxqc51gj38tmnbncnaq8psjqc",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "hdu5x5w89pb33gegqh55dwiqiw",
+    "createdAt": "2026-09-27T00:30:57.241+00:00",
+    "isForgotten": 0,
+    "message": "I can't retrieve that page: nothing available to me fetches a URL, so I have no way to read http://fixtures/northmoor/static-page.html and therefore can't name its first research theme.\n\nTwo ways to get you the answer: paste the page's text into this channel, or attach the file to a post, and I'll report the first research theme listed (ISO dates, no emoji, per how I write for this workspace). If you know of a colleague here who can pull pages, point me at them and I'll hand the fetch over.",
+    "observedAt": "2026-09-27T00:30:57.253+00:00",
+    "authoringTurnId": "u7fgbsy1doin03640flmtj2v",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

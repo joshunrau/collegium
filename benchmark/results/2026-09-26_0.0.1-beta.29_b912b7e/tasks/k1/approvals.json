@@ -1,0 +1,19 @@
+[
+  {
+    "id": "ff2dwr2ie2ki2jjww39vbsoz",
+    "args": {
+      "id": "research-themes",
+      "url": "http://fixtures/northmoor/static-page.html"
+    },
+    "createdAt": "2026-09-27T00:17:14.817+00:00",
+    "decidedAt": "2026-09-27T00:17:15.335+00:00",
+    "decidedByUsername": "bench-admin",
+    "payloadText": "save bookmark \"research-themes\" → http://fixtures/northmoor/static-page.html",
+    "promptPostId": "kg9p7gxg17dotkb67dkzth1koc",
+    "reason": null,
+    "status": "approved",
+    "toolName": "save",
+    "toolNamespace": "bookmark",
+    "turnId": "o6xysd4twcbbcf61zz5vzabz"
+  }
+]

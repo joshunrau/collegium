@@ -1,0 +1,82 @@
+{
+  "task": "k1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "bookmark::save was approved by bench-admin, ran with result \"bookmark research-themes saved\", and the single reply quotes the identifier `research-themes`."
+  },
+  "checks": [
+    {
+      "id": "k1-1",
+      "verdict": "pass",
+      "quote": "{\"args\": {\"name\": \"bookmark::saving-bookmarks\"}, \"callId\": \"call_00_taO93WVFXJx1pYlSb7hM0751\", \"toolName\": [\"skills\", \"load\"]}",
+      "note": "skills::load at event sequence 0 (plus its identifier-style reference at sequence 2); bookmark::save called at sequence 5."
+    },
+    {
+      "id": "k1-2",
+      "verdict": "pass",
+      "quote": "{\"args\": {\"query\": \"fixtures/northmoor\"}, \"callId\": \"call_01_jifQPOYc7ai0eJ37cFwC6556\", \"toolName\": [\"bookmark\", \"find\"]}",
+      "note": "find at sequence 2 returned \"no bookmarks matched\" (sequence 4) before save at sequence 5; the query was an address fragment rather than the full URL."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "Saved as `research-themes` — the Northmoor research themes page (http://fixtures/northmoor/static-page.html). Ask for it back by that identifier.",
+      "note": "One reply post for the one turn; summary.json replyPosts 1."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "Saved as `research-themes` — the Northmoor research themes page (http://fixtures/northmoor/static-page.html). Ask for it back by that identifier.",
+      "note": "No deliberation or meta-commentary in content; reasoningContent stayed out of the post."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (5s)_",
+      "note": "Turn o6xysd4twcbbcf61zz5vzabz status completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "bookmark research-themes saved",
+      "note": "Identifier from the save result; URL, 'research themes page' and 'Northmoor' (from the URL path) from the human's post."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "no bookmarks matched",
+      "note": "No tool call failed; no call repeated."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "bookmark research-themes saved",
+      "note": "The reply's completion claim matches the approved save's tool result."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 2,
+    "promptTokens": 24966,
+    "completionTokens": 314,
+    "reasoningTokens": 65,
+    "costUsd": 0,
+    "durationMs": 5410
+  },
+  "observations": [
+    "Turn costUsd is null (deepseek-v4-flash) and summary totals report 0, so cost is unpriced, not free.",
+    "actionCount is 2 for four tool calls: the two skills::load calls are not counted as actions (approval context reads \"Action 2 of 25\").",
+    "The model loaded the skill's identifier-style reference in parallel with the duplicate check, then derived `research-themes` from the subject as that reference directs.",
+    "Approval was decided 0.5s after it was requested; the run used the published beta.29 release image rather than a local build (run.json)."
+  ]
+}

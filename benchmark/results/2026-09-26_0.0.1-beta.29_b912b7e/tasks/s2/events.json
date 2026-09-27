@@ -1,0 +1,141 @@
+[
+  {
+    "id": "jrrchvckl0hx7h0brracd6x3",
+    "createdAt": "2026-09-27T00:14:25.443+00:00",
+    "kind": "assistant_message",
+    "payload": {
+      "content": "",
+      "kind": "assistant_message",
+      "toolCalls": [
+        {
+          "args": {
+            "reference": "qg5cc604"
+          },
+          "callId": "call_00_cWi7niBlQJ2FPz3lezMB1740",
+          "toolName": ["memory", "read"]
+        }
+      ],
+      "reasoningContent": "The question asks about the date format in written reports and anything else agreed about report style. I have a memory: \"Team-wide report format rule from bench-admin: ISO dates, no emoji\". Let me read it to get the details.\n\nNote: this channel is t-s2-b, and the memory is described as team-wide. Let me read it.\n\nAlso, I should check the channel for pinned posts? The framework message doesn't list pinned posts, so there are none apparently. Let me read the memory.",
+      "usage": {
+        "cachedPromptTokens": 5120,
+        "completionTokens": 148,
+        "promptTokens": 5535,
+        "reasoningTokens": 105
+      }
+    },
+    "sequence": 0,
+    "turnId": "fvyb2kw7vf0o2lxmuaiwt1yy"
+  },
+  {
+    "id": "vhke7g7ir58d5htgbuyuyxtg",
+    "createdAt": "2026-09-27T00:14:25.453+00:00",
+    "kind": "tool_result",
+    "payload": {
+      "callId": "call_00_cWi7niBlQJ2FPz3lezMB1740",
+      "kind": "tool_result",
+      "output": "written under a minute ago, on September 27, 2026 at 12:14:09 AM UTC\n\nStanding team convention (given by bench-admin, in t-s2-a, 2026-09-27, to apply across the whole team): written reports always use ISO dates in YYYY-MM-DD form and never contain emoji.\n\nApplies to any written report I produce or review, in any channel — not just t-s2-a.",
+      "presentedAs": {
+        "viewChars": 120000
+      },
+      "toolName": ["memory", "read"]
+    },
+    "sequence": 1,
+    "turnId": "fvyb2kw7vf0o2lxmuaiwt1yy"
+  },
+  {
+    "id": "u7kx0esvst1umwhsf1wktbls",
+    "createdAt": "2026-09-27T00:14:27.636+00:00",
+    "kind": "assistant_message",
+    "payload": {
+      "content": "Written reports use ISO dates in `YYYY-MM-DD` form.\n\nThe other rule from that same agreement: reports contain no emoji. Both come from bench-admin's standing convention for the whole team (given in t-s2-a), and they apply to anything I write or review, in any channel. Beyond those two points, my record holds nothing else about report style.",
+      "kind": "assistant_message",
+      "toolCalls": [],
+      "reasoningContent": "The memory holds the convention. Answer plainly: ISO dates YYYY-MM-DD, and no emoji in reports.\n\nNote that memory says it was written \"under a minute ago\" — i.e., this turn's context: I apparently learned it earlier. Actually \"written under a minute ago, on September 27, 2026 at 12:14:09 AM UTC\". Hmm, that's when it was written — presumably in an earlier turn that just happened (in t-s2-a). So the fact came from bench-admin in t-s2-a.\n\nThe question asks: \"what date format do we use in written reports, and is there anything else we agreed about report style?\" Answer: ISO YYYY-MM-DD; the other agreed rule is no emoji. Nothing beyond that in my record.\n\nShould I check whether there's anything else? My memory is the only record. I could check pins — the framework message shows no pinned posts section, so nothing pinned. I should say what I have and that my record holds only these two rules.\n\nKeep reply short.",
+      "usage": {
+        "cachedPromptTokens": 5632,
+        "completionTokens": 300,
+        "promptTokens": 5791,
+        "reasoningTokens": 223
+      }
+    },
+    "sequence": 2,
+    "turnId": "fvyb2kw7vf0o2lxmuaiwt1yy"
+  },
+  {
+    "id": "bciezznn2qvf3w69rcg9u5yn",
+    "createdAt": "2026-09-27T00:14:09.480+00:00",
+    "kind": "assistant_message",
+    "payload": {
+      "content": "",
+      "kind": "assistant_message",
+      "toolCalls": [
+        {
+          "args": {
+            "description": "Team-wide report format rule from bench-admin: ISO dates, no emoji",
+            "body": "Standing team convention (given by bench-admin, in t-s2-a, 2026-09-27, to apply across the whole team): written reports always use ISO dates in YYYY-MM-DD form and never contain emoji.\n\nApplies to any written report I produce or review, in any channel — not just t-s2-a."
+          },
+          "callId": "call_00_Xjbra4OkDcFm1FnsQ7ry8249",
+          "toolName": ["memory", "write"]
+        }
+      ],
+      "reasoningContent": "The person asks me to remember a team preference: written reports use ISO dates (YYYY-MM-DD) and never contain emoji. This is a preference to remember — write a memory.\n\nNote: there's a potential tension: my instructions say the framework's own notices carry emoji; my replies do not. So no emoji in replies anyway. And ISO dates — fine.\n\nWrite a memory. Description one short line stating when it matters.\n\nThen reply confirming.\n\nLet me write the memory.",
+      "usage": {
+        "cachedPromptTokens": 5120,
+        "completionTokens": 240,
+        "promptTokens": 5480,
+        "reasoningTokens": 100
+      }
+    },
+    "sequence": 0,
+    "turnId": "sq4bv2uso6tyasooq3vxtmoc"
+  },
+  {
+    "id": "jqnpa7ultcqjuox93yck0oes",
+    "createdAt": "2026-09-27T00:14:09.490+00:00",
+    "kind": "tool_result",
+    "payload": {
+      "callId": "call_00_Xjbra4OkDcFm1FnsQ7ry8249",
+      "kind": "tool_result",
+      "output": "memory qg5cc604 saved (270 of 16,000 characters)",
+      "presentedAs": {
+        "viewChars": 120000
+      },
+      "toolName": ["memory", "write"]
+    },
+    "sequence": 1,
+    "turnId": "sq4bv2uso6tyasooq3vxtmoc"
+  },
+  {
+    "id": "tgjtqaml4rj2fl2t5ee3hbe0",
+    "createdAt": "2026-09-27T00:14:09.492+00:00",
+    "kind": "record_written",
+    "payload": {
+      "body": "Standing team convention (given by bench-admin, in t-s2-a, 2026-09-27, to apply across the whole team): written reports always use ISO dates in YYYY-MM-DD form and never contain emoji.\n\nApplies to any written report I produce or review, in any channel — not just t-s2-a.",
+      "description": "Team-wide report format rule from bench-admin: ISO dates, no emoji",
+      "kind": "record_written",
+      "reference": "qg5cc604",
+      "supersededDescriptions": []
+    },
+    "sequence": 2,
+    "turnId": "sq4bv2uso6tyasooq3vxtmoc"
+  },
+  {
+    "id": "l6na8xnh1o0bnrhxzli5hxwh",
+    "createdAt": "2026-09-27T00:14:10.679+00:00",
+    "kind": "assistant_message",
+    "payload": {
+      "content": "Saved: written reports use ISO dates (YYYY-MM-DD) and carry no emoji, as a team-wide convention from you — I'll apply it to any report I write or review, in any channel.\n\nOne note in agreement: my own replies already avoid emoji, so this settles the other half — dates in anything report-shaped I produce will be YYYY-MM-DD from now on.",
+      "kind": "assistant_message",
+      "toolCalls": [],
+      "reasoningContent": "",
+      "usage": {
+        "cachedPromptTokens": 5504,
+        "completionTokens": 83,
+        "promptTokens": 5747,
+        "reasoningTokens": 0
+      }
+    },
+    "sequence": 3,
+    "turnId": "sq4bv2uso6tyasooq3vxtmoc"
+  }
+]

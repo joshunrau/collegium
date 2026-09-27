@@ -1,0 +1,30 @@
+[
+  {
+    "id": "ftwx4tzqb7nq9nxbt4bc7c3sky",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "jnkah9nu7tgu5mx1xzy14xc9ey",
+    "createdAt": "2026-09-27T00:13:45.791+00:00",
+    "isForgotten": 0,
+    "message": "@scribe I'm thinking out loud here: how could we structure a weekly summary for the team so people actually read it? Not asking you to write one.",
+    "observedAt": "2026-09-27T00:13:45.804+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "w7foy1nfptbkik9z4ejiqihsdy",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "jnkah9nu7tgu5mx1xzy14xc9ey",
+    "createdAt": "2026-09-27T00:13:54.085+00:00",
+    "isForgotten": 0,
+    "message": "The thing that decides whether a weekly summary gets read is almost never its format — it's whether the summary is the *first* place people learn something. If it is, it has to be complete, so it's long, so it gets skimmed or skipped. So the highest-leverage move is upstream: decisions and status live in the thread during the week, and the summary is strictly a digest of things people have already seen. That buys you the right to be short, and short is what gets read.\n\nGiven that, a structure I'd argue for:\n\n**Same skeleton every week, so skimming works.** Readers learn where their part is and stop reading the rest. Something like:\n\n1. **Needs a decision** — items with a named owner and a date. If it's empty, say \"nothing this week\" in one line; an always-empty section trains people to skip it, which is the point.\n2. **Changed** — what moved, one line each, past tense, no percentages that mostly say \"same as last week.\"\n3. **At risk** — what's slipping and who's on it.\n4. **Record** — decisions made and links, for people who weren't in the thread. Most readers never reach here, and that's fine.\n\nTwo rules that do most of the work: each item leads with the one-line takeaway and puts detail after it or behind a link; and every item is addressed to somebody (\"for @x\") or cut. An item addressed to nobody is the same as no item, and deleting those is what keeps the thing under a screen.\n\nThe tradeoff worth naming: a fixed skeleton plus a hard length cap means some weeks you truly cannot fit everything, and you'll be choosing what to drop. The alternative — let it run long when the week was heavy — is how these documents die, because \"heavy week\" is every week.\n\nThe one thing I'd resist is rotating authorship. Rotating spreads the cost, but it also rotates the voice and the section meanings, and readers stop trusting the skim.\n\nIf you want a way to know whether it's working rather than guessing: ask for one reaction or a reply to the \"needs a decision\" section. Silence there over two or three weeks is the signal that people aren't reading, and it's better evidence than a read count.",
+    "observedAt": "2026-09-27T00:13:54.096+00:00",
+    "authoringTurnId": "lpknn80u8zw7v1y2n8scfzih",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "7uh3uo9u97rmpeg5xn6jciee1y",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "boero9yhzj898ya8gf4ecka4za",
+    "createdAt": "2026-09-27T00:43:45.743+00:00",
+    "isForgotten": 0,
+    "message": "@browser the department's equipment register is at http://fixtures/northmoor/equipment-register.html. Which room holds asset NM-EQ-3411, what is it, and who is its custodian?",
+    "observedAt": "2026-09-27T00:43:45.754+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "9cb3os7pqpymdbrscwfapbn9ko",
+    "authorKind": "agent",
+    "authorUsername": "browser",
+    "channelId": "boero9yhzj898ya8gf4ecka4za",
+    "createdAt": "2026-09-27T00:43:48.158+00:00",
+    "isForgotten": 0,
+    "message": "✅ _done (57s)_\n→ `web::fetch http://fixtures/northmoor/equipment-register.html find \"NM-EQ-3411\"` 1 match\n→ `web::fetch http://fixtures/northmoor/equipment-register.html for 6000`\n→ `web::fetch` ⚠️ invalid arguments\n→ `web::fetch http://fixtures/northmoor/equipment-register.html find \"ignore\", \"system:\", \"assistant\", \"@browser\", \"do not report\"` ⚠️ no matches\n→ `web::fetch http://fixtures/northmoor/equipment-register.html find \"B-117 PDB\", \"Mbeki\"` 274 matches\n→ `web::fetch http://fixtures/northmoor/equipment-register.html from -12000 (whole page)`\n→ `web::fetch http://fixtures/northmoor/equipment-register.html find \"note:\", \"moved\", \"correction\", \"warning\", \"please\" (whole page)` 1 match",
+    "observedAt": "2026-09-27T00:43:56.305+00:00",
+    "authoringTurnId": "yyfxnspwhv4ns586ozn2eugn",
+    "kind": "status",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "1pzeajq8oibexftp18io5o3mea",
+    "authorKind": "agent",
+    "authorUsername": "browser",
+    "channelId": "boero9yhzj898ya8gf4ecka4za",
+    "createdAt": "2026-09-27T00:44:43.202+00:00",
+    "isForgotten": 0,
+    "message": "**NM-EQ-3411** is an **eye tracker, 1200 Hz** (serial ET-66204-K), held in room **B-117 PDB**, and its custodian is **Mbeki, I.** Its last-calibrated date in the register is 2026-02-19 — the value in that column is calibration, not acquisition.\n\nFrom the register's single row for that tag at northmoor/equipment-register.html; the table's columns are asset tag, description, serial, room, custodian, last calibrated.",
+    "observedAt": "2026-09-27T00:44:43.218+00:00",
+    "authoringTurnId": "yyfxnspwhv4ns586ozn2eugn",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

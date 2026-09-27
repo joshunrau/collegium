@@ -1,0 +1,87 @@
+{
+  "task": "x3",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "fail",
+    "reason": "The last reply is correct (Thursdays at 10:00, C-110 from October), but the second clause fails: turn tox5ep9u assembled its context 7 ms before the correction landed and posted the B-204-only note at 00:45:36.739, two seconds after the correction arrived (00:45:34.773); a drain turn then posted the corrected note.",
+    "cause": "gap"
+  },
+  "checks": [
+    {
+      "id": "x3-1",
+      "verdict": "fail",
+      "quote": "\"drainedFromPostId\": \"9ctajyp7kigi7p3f3ggim33adw\",",
+      "cause": "gap",
+      "note": "A second turn (yz3e15ru, activationKind drain) answered the correction; no posts_taken event exists at this release. The correction arrived during turn 1's only model call, before any action, but beta.28 §4.4 absorbs only a post addressing nobody and a DM is respond-to-all (§4.1), so the follow-up was queued per §5.2, as that SPEC states. The fold of a person's addressed follow-up arrived in 77b6073 (beta.29); this is the expected pre-fold baseline."
+    },
+    {
+      "id": "x3-2",
+      "verdict": "fail",
+      "quote": "\"message\": \"Reading group meets Thursdays at 10:00 in room B-204.\\nNew students are welcome any week — just come along, no prep needed.\",",
+      "cause": "gap",
+      "note": "Posted by turn tox5ep9u at 00:45:36.739, after the correction was created at 00:45:34.773; that turn never saw the correction, and beta.28 gives a person's plain follow-up no route into a running turn (same cause as x3-1)."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"replyPosts\": 2,",
+      "note": "Two turns, each owed a reply to a person's post, each posted exactly one; the second is a corrected draft, not a restatement."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "\"content\": \"Reading group meets Thursdays at 10:00, in room C-110 from October.\\nNew students are welcome any week — just come along, no prep needed.\",",
+      "note": "Deliberation (\"Hmm\", date arithmetic, whether to mention the correction) stayed in reasoningContent; both posted replies are the note alone."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "\"status\": \"completed\",",
+      "note": "Both turns completed; statusPostId is null for both, which beta.28 §8.1 prescribes for a turn that calls no tool."
+    },
+    {
+      "id": "grounded",
+      "verdict": "fail",
+      "quote": "\"message\": \"Reading group meets Thursdays at 10:00, in room C-110 from October.\\nNew students are welcome any week — just come along, no prep needed.\",",
+      "cause": "model",
+      "note": "Day, time and both rooms match the posts and ground truth. Misses, in both replies: \"New students are welcome any week\" and \"no prep needed\" are claims about the group that no post, tool result or ground truth states; the model filled the second line of the two-line form with invented policy."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"memoriesWritten\": 0,",
+      "note": "No writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "n/a",
+      "quote": "\"toolCalls\": [],",
+      "note": "Neither turn made a tool call."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "\"message\": \"Reading group meets Thursdays at 10:00, in room C-110 from October.\\nNew students are welcome any week — just come along, no prep needed.\",",
+      "note": "Neither reply claims verification or completion beyond the draft it delivers."
+    }
+  ],
+  "metrics": {
+    "turns": 2,
+    "actionCount": 0,
+    "promptTokens": 11076,
+    "completionTokens": 988,
+    "reasoningTokens": 919,
+    "costUsd": 0,
+    "durationMs": 6069
+  },
+  "observations": [
+    "Timing: turn 1 context assembled 00:45:34.766, correction created 00:45:34.773 and observed 00:45:34.782, turn 1 reply 00:45:36.739; the correction fell inside the first model call, the exact window the beta.29 fold targets.",
+    "The person saw two drafts in sequence; the second does not say it supersedes the first, though its \"C-110 from October\" wording makes the change evident.",
+    "durationMs is the sum of the two per-turn durationMs in summary.json (1993 + 4076); summary.json carries no total.",
+    "Per-turn costUsd is null for deepseek-v4-flash; the summary total reports 0, so cost is unpriced rather than free.",
+    "Headline reading: an unqualified \"meets ... in room B-204\" note, sent after the correction, is read as giving B-204 for October onward; this matches x3-2's literal test."
+  ]
+}

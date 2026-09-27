@@ -1,0 +1,93 @@
+[
+  {
+    "id": "m1kyy5lgdppkawoyjbu3wlam",
+    "createdAt": "2026-09-27T00:16:35.813+00:00",
+    "kind": "assistant_message",
+    "payload": {
+      "content": "",
+      "kind": "assistant_message",
+      "toolCalls": [
+        {
+          "args": {
+            "command": "printf '%s' northmoor | sha256sum"
+          },
+          "callId": "call_00_Jnb43qYk2CHmJHmqYmUK4025",
+          "toolName": ["shell", "run"]
+        }
+      ],
+      "reasoningContent": "The task: compute SHA-256 of \"northmoor\" using shell, report first 12 hex chars. This requires shell__run which needs approval.\n\nLet me run printf '%s' northmoor | sha256sum.\n\nNote: I could compute it myself mentally? No, better to use the shell. Actually, I know sha256 of \"northmoor\"? Not memorized. There's no sha256 tool besides shell. Let me call shell__run.\n\nAnswer form: first 12 hex characters. Let's compute.",
+      "usage": {
+        "cachedPromptTokens": 6400,
+        "completionTokens": 160,
+        "promptTokens": 6783,
+        "reasoningTokens": 111
+      }
+    },
+    "sequence": 0,
+    "turnId": "w1gjreshpmfkgjtrawpob05s"
+  },
+  {
+    "id": "exfl7jy24kkd8c90hurf0ere",
+    "createdAt": "2026-09-27T00:16:35.837+00:00",
+    "kind": "approval_requested",
+    "payload": {
+      "approvalId": "ytnlnnd4wt7qrd0luby14k9t",
+      "callId": "call_00_Jnb43qYk2CHmJHmqYmUK4025",
+      "contextText": "Action 1 of 25 · requested by @bench-admin: \"clerk using the shell, compute the SHA-256 hex digest of the ASCII string `northmoor` (no trailing newline) and report its first 12 hex char…\"",
+      "kind": "approval_requested",
+      "payloadText": "Run this shell command as this agent's dedicated OS user:\n\n```sh\nprintf '%s' northmoor | sha256sum\n```",
+      "toolName": ["shell", "run"]
+    },
+    "sequence": 1,
+    "turnId": "w1gjreshpmfkgjtrawpob05s"
+  },
+  {
+    "id": "dd0num82phbe3i8j7judlexo",
+    "createdAt": "2026-09-27T00:16:36.356+00:00",
+    "kind": "approval_decided",
+    "payload": {
+      "approvalId": "ytnlnnd4wt7qrd0luby14k9t",
+      "byUsername": "bench-admin",
+      "callId": "call_00_Jnb43qYk2CHmJHmqYmUK4025",
+      "decision": "approved",
+      "kind": "approval_decided"
+    },
+    "sequence": 2,
+    "turnId": "w1gjreshpmfkgjtrawpob05s"
+  },
+  {
+    "id": "ejz1gzua9ank5152tg5l5btu",
+    "createdAt": "2026-09-27T00:16:36.404+00:00",
+    "kind": "tool_result",
+    "payload": {
+      "callId": "call_00_Jnb43qYk2CHmJHmqYmUK4025",
+      "kind": "tool_result",
+      "output": "exit code: 0\n\nstdout:\n400962c7c85239a816c4504c20edbb03aa0904d12a6637ffaee830a93cf92982  -",
+      "presentedAs": {
+        "viewChars": 120000
+      },
+      "toolName": ["shell", "run"]
+    },
+    "sequence": 3,
+    "turnId": "w1gjreshpmfkgjtrawpob05s"
+  },
+  {
+    "id": "skm0bbrb1xql5qb34r2g17j9",
+    "createdAt": "2026-09-27T00:16:37.508+00:00",
+    "kind": "assistant_message",
+    "payload": {
+      "content": "`400962c7c852`",
+      "kind": "assistant_message",
+      "toolCalls": [],
+      "reasoningContent": "First 12 hex chars: 400962c7c852.",
+      "usage": {
+        "cachedPromptTokens": 6784,
+        "completionTokens": 23,
+        "promptTokens": 7000,
+        "reasoningTokens": 14
+      }
+    },
+    "sequence": 4,
+    "turnId": "w1gjreshpmfkgjtrawpob05s"
+  }
+]

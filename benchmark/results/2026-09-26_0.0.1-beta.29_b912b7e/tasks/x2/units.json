@@ -1,0 +1,20 @@
+[
+  {
+    "id": "b5vy4cx0qfjsihll9b44jxmz",
+    "assigneeUsername": "hand",
+    "channelId": "3ubhamfbr7ydzej8cbsx3g9aka",
+    "closedAt": "2026-09-27T00:24:54.409+00:00",
+    "context": "bench-admin asked me for the office and phone extension of C. Okonkwo in the Northmoor psychology directory at http://fixtures/northmoor/static-directory.html. Nothing has been tried yet on my side; you are the only one here who reads websites. The page is static, so what the source shows is the whole of it. Scope: the values only from that page — do not fill gaps from any other directory, search result or prior knowledge, and do not guess an office or extension that the page does not state. If the page is unreachable, or no C. Okonkwo is listed, come back and say so rather than settling for a near match; that is a finding, not a failure.",
+    "createdAt": "2026-09-27T00:24:37.529+00:00",
+    "creatorUsername": "lead",
+    "criteria": "The report gives an office and a phone extension for C. Okonkwo, each copied as it appears on http://fixtures/northmoor/static-directory.html, with the entry's own wording alongside so I can see which listing they came from. If the page has more than one Okonkwo, or initials that could be read more than one way, the report says which entry it took the values from and names the alternatives.",
+    "lastPostId": "xq5hu1rfebyqxg7uwehkhe5j1a",
+    "originPostId": "me3m7r4yrfyo9eqe6bmmbih8fr",
+    "outcome": "The office and the phone extension listed for C. Okonkwo in the Northmoor psychology directory, reported as the two values the page shows.",
+    "state": "done",
+    "updatedAt": "2026-09-27T00:24:54.409+00:00",
+    "closedByUsername": "lead",
+    "verdict": "Delivered the office and extension for C. Okonkwo with the source row quoted and the search for alternatives covered: one Okonkwo in the Full-Time Faculty table, none in the Emeriti list, no expanded first name on the page. I cannot read the page myself, so the values rest on that quoted row; they match the criteria asked for.",
+    "followsId": null
+  }
+]

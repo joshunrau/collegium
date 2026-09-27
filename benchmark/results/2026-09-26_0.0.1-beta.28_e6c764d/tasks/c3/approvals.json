@@ -1,0 +1,36 @@
+[
+  {
+    "id": "crcm7b1elcc8qrfq9avbpbgk",
+    "args": {
+      "content": "draft one",
+      "path": "report.txt"
+    },
+    "createdAt": "2026-09-27T00:33:08.766+00:00",
+    "decidedAt": "2026-09-27T00:33:09.168+00:00",
+    "decidedByUsername": "bench-admin",
+    "payloadText": "Write 9 bytes to `report.txt` in this agent's workspace directory:\n\n```\ndraft one\n```",
+    "promptPostId": "k8qzbxn5hjbfpem7rj8oibq1do",
+    "reason": "Use the name summary.txt instead of report.txt.",
+    "status": "denied_with_reason",
+    "toolName": "write",
+    "toolNamespace": "workspace",
+    "turnId": "yioy6zucnqiyttrrec7t80p6"
+  },
+  {
+    "id": "y2ugj310n7gyzfz0r1ki5xvi",
+    "args": {
+      "content": "draft one",
+      "path": "summary.txt"
+    },
+    "createdAt": "2026-09-27T00:33:11.600+00:00",
+    "decidedAt": "2026-09-27T00:33:11.759+00:00",
+    "decidedByUsername": "bench-admin",
+    "payloadText": "Write 9 bytes to `summary.txt` in this agent's workspace directory:\n\n```\ndraft one\n```",
+    "promptPostId": "1uwqcztm7bfwtcpkuspp13fxhh",
+    "reason": null,
+    "status": "approved",
+    "toolName": "write",
+    "toolNamespace": "workspace",
+    "turnId": "yioy6zucnqiyttrrec7t80p6"
+  }
+]

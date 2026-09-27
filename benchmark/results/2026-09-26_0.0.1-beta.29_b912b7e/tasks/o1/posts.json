@@ -1,0 +1,44 @@
+[
+  {
+    "id": "oshok1grcin59pmnqsnhaa4bua",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "feh5dxhcdb8xzpdorprdtfw48c",
+    "createdAt": "2026-09-27T00:23:00.892+00:00",
+    "isForgotten": 0,
+    "message": "@omni what is the third research theme listed at http://fixtures/northmoor/static-page.html?",
+    "observedAt": "2026-09-27T00:23:00.899+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "8agqc1scm3dx9kzjf6ce3rzqtr",
+    "authorKind": "agent",
+    "authorUsername": "omni",
+    "channelId": "feh5dxhcdb8xzpdorprdtfw48c",
+    "createdAt": "2026-09-27T00:23:03.279+00:00",
+    "isForgotten": 0,
+    "message": "✅ _done (3s)_\n→ `web::fetch http://fixtures/northmoor/static-page.html (whole page)`",
+    "observedAt": "2026-09-27T00:23:03.287+00:00",
+    "authoringTurnId": "ojxtdb8iodnn7djb2nx2n04w",
+    "kind": "status",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "m1t171h4kfg7uy1y7bhr7fns7c",
+    "authorKind": "agent",
+    "authorUsername": "omni",
+    "channelId": "feh5dxhcdb8xzpdorprdtfw48c",
+    "createdAt": "2026-09-27T00:23:04.598+00:00",
+    "isForgotten": 0,
+    "message": "The third research theme is **Computational models of perception**.\n\n(From http://fixtures/northmoor/static-page.html — the three listed are cognitive development across the lifespan; clinical trials in mood and anxiety disorders; computational models of perception.)",
+    "observedAt": "2026-09-27T00:23:04.609+00:00",
+    "authoringTurnId": "ojxtdb8iodnn7djb2nx2n04w",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

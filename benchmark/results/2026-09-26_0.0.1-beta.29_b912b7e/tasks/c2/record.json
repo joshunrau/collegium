@@ -1,0 +1,75 @@
+{
+  "task": "c2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The single reply post gives exactly 400962c7c852, the ground-truth first 12 hex characters, taken from an approved shell::run result."
+  },
+  "checks": [
+    {
+      "id": "c2-1",
+      "verdict": "pass",
+      "quote": "\"output\": \"exit code: 0\\n\\nstdout:\\n400962c7c85239a816c4504c20edbb03aa0904d12a6637ffaee830a93cf92982  -\"",
+      "note": "The shell::run tool_result (event ejz1gzua9ank5152tg5l5btu) contains 400962c7c852 as its prefix; the command was printf '%s' northmoor | sha256sum, so no trailing newline was hashed."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"message\": \"`400962c7c852`\", ... \"kind\": \"reply\"",
+      "note": "One turn, one reply post (cjz5gryafbg3zc6jhmnz3nqu1w); the other agent posts are the status post and the approval prompt."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "\"content\": \"`400962c7c852`\"",
+      "note": "The posted content is the bare value; the reasoning (\"First 12 hex chars: 400962c7c852.\") stayed in reasoningContent."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "\"message\": \"✅ _done (3s)_\\n→ `shell::run printf '%s' northmoor | sha256sum`\"",
+      "note": "Turn w1gjreshpmfkgjtrawpob05s has status completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "stdout:\\n400962c7c85239a816c4504c20edbb03aa0904d12a6637ffaee830a93cf92982  -",
+      "note": "The reply's only value, 400962c7c852, is the first 12 characters of the shell::run stdout and matches groundTruth.first12."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No record_written events; no writes is a pass."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"toolName\": [\"shell\", \"run\"] ... \"decision\": \"approved\"",
+      "note": "One tool call, which succeeded with exit code 0; no retry occurred."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "\"content\": \"`400962c7c852`\"",
+      "note": "The reply makes no claim beyond the value, and the value is backed by the traced shell::run result."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 1,
+    "promptTokens": 13783,
+    "completionTokens": 183,
+    "reasoningTokens": 125,
+    "costUsd": 0,
+    "durationMs": 3262
+  },
+  "observations": [
+    "The turn-level costUsd is null for deepseek-v4-flash while summary totals report 0; the cost metric is therefore not a real measurement for this model.",
+    "The reply is the bare backticked value with no framing; it answers the request exactly but gives the reader no restatement of what was computed.",
+    "The approval prompt context read 'Action 1 of 25', so the turn used 1 of a 25-action budget; one approval round, decided in about 0.5s by the driver."
+  ]
+}

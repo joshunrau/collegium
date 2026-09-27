@@ -1,0 +1,27 @@
+[
+  {
+    "id": "uvvm02ua9g83himco0e05ll8",
+    "actionCount": 2,
+    "agentUsername": "omni",
+    "channelId": "3qmqufesxty4p8x1ebxpy54yah",
+    "completionTokens": 679,
+    "depth": 1,
+    "endedAt": "2026-09-27T00:52:07.921+00:00",
+    "modelName": "deepseek-v4-flash",
+    "promptTokens": 35730,
+    "startedAt": "2026-09-27T00:52:01.590+00:00",
+    "status": "completed",
+    "statusPostId": "74wggsxd6bn69kgufzztdnhcxh",
+    "triggeringPostId": "zkyrg9on1bgbpguma5zauu9mno",
+    "cachedPromptTokens": 34688,
+    "reasoningTokens": 429,
+    "chainLength": 1,
+    "costUsd": null,
+    "rootPostId": "zkyrg9on1bgbpguma5zauu9mno",
+    "activationKind": "trigger",
+    "contextAssembledAt": "2026-09-27T00:52:01.592+00:00",
+    "drainedFromPostId": null,
+    "windowEstimatedTokens": 73,
+    "windowOldestAt": "2026-09-27T00:52:01.572+00:00"
+  }
+]

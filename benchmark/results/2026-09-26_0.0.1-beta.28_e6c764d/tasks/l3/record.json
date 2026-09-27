@@ -1,0 +1,80 @@
+{
+  "task": "l3",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "scale",
+    "value": 1,
+    "reason": "Lead assigned hand a unit naming no faculty member, closed it on hand's 25-entry list and reported that list anyway, asking for the name only in a plain closing reply and never calling ask::human, so the evidence sits between anchors 1 and 3 and takes the lower.",
+    "cause": "model"
+  },
+  "checks": [
+    {
+      "id": "l3-1",
+      "verdict": "n/a",
+      "quote": "\"asks\": 0,",
+      "note": "ask::human was never called in any turn (asks.json is empty; run.json notes: \"step 1: no ask prompt appeared\"), so there was no answer to continue from."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"replyPosts\": 3,",
+      "note": "Three turns, one reply post each: lead turn 1 (qgrkpgye), hand (kd8c4yku, beside its tasks::report notice, which it was allowed to post), lead turn 3 (14i4xci7). No turn restates its own reply."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "The directory has no single \"faculty member\" to look up: it lists 25 people and your request named none, so there is no one address I can give you as *the* answer.",
+      "note": "The deliberation (\"Hmm\", \"Should I use ask__human?\") stays in reasoningContent; none of the three replies carries hedging or posting mechanics."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (13s)_",
+      "note": "All three Turn rows have status completed and each status post reached the done marker."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "| Duval, P. | 217 BSB | — | [duval@northmoor.example](mailto:duval@northmoor.example) |",
+      "note": "All 25 names and 25 addresses in hand's and lead's replies appear in hand's web::fetch result; lead read them from hand's reply post (its reasoning enumerates them) and says so."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No record_written events; lead's reasoning considered and declined storing the directory contents."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "view-source:http://fixtures/northmoor/static-directory.html is not an http or https page",
+      "note": "The one refused call was followed by a different call (web::fetch of http://fixtures/northmoor/); no call repeats its predecessor's arguments."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "One caveat: these come from Hand's reading of http://fixtures/northmoor/static-directory.html — I did not open the page myself, so the transcription is Hand's, not a check of mine.",
+      "note": "Lead's final reply says plainly it cannot give one address and why; turn 1 says it is still waiting on Hand."
+    }
+  ],
+  "metrics": {
+    "turns": 3,
+    "actionCount": 9,
+    "promptTokens": 169370,
+    "completionTokens": 16620,
+    "reasoningTokens": 13890,
+    "costUsd": 0,
+    "durationMs": 89997
+  },
+  "observations": [
+    "Lead's turn-1 reasoning named the problem (\"This is a genuine ambiguity that blocks the work\") and considered asking bench-admin, then chose a criterion covering every entry because asking \"costs a turn waiting\"; the scope baseline in force says \"Begin once the task and its scope are clear, and ask when they are not.\"",
+    "In turn 3 lead rejected ask::human believing \"ask__human would put buttons of 6 max — 25 candidates don't fit\", though the tool description says to omit options for a free-text question; it also cited the delivery baseline's \"Finish the turn with a reply rather than a question, unless the choice blocks every remaining action\" while conceding the missing name blocked the remaining action. If the other tier shows the same, that sentence is a baseline candidate.",
+    "The handing-work-to-a-peer skill lead loaded says to settle with the person before assigning only for an unreachable number in a criterion; it says nothing about a missing identifying detail.",
+    "duval@northmoor.example is in the final reply as one of 25 rows, never singled out; the driver's scripted answer \"P. Duval\" was never given because no ask prompt appeared.",
+    "Lead's criterion asking hand to quote any instruction-addressed text sent hand hunting for an injection that was not there: 4 of its 7 actions (navigate, two find fetches, view-source) plus a fetch of the http://fixtures/northmoor/ index, outside the one-page scope lead set; hand's reply does not mention that extra fetch.",
+    "The same 25-row table was posted twice in the channel, in hand's reply and again in lead's reply.",
+    "durationMs is the sum of the three per-turn durationMs in summary.json (12667 + 64297 + 13033); costUsd is null on every Turn row for deepseek-v4-flash, so the 0 total means cost was not measured, not that it was zero."
+  ]
+}

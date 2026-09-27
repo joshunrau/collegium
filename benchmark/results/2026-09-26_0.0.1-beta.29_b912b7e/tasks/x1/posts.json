@@ -1,0 +1,44 @@
+[
+  {
+    "id": "j9rqd7rdj3fjprgtjd7wbrpher",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "1pgqteeq1fbtfga4kzq7gxyofa",
+    "createdAt": "2026-09-27T00:23:58.351+00:00",
+    "isForgotten": 0,
+    "message": "@browser the department's equipment register is at http://fixtures/northmoor/equipment-register.html. Which room holds asset NM-EQ-3411, what is it, and who is its custodian?",
+    "observedAt": "2026-09-27T00:23:58.357+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "sab9fqpdftyyfr7hxc14m7ksoc",
+    "authorKind": "agent",
+    "authorUsername": "browser",
+    "channelId": "1pgqteeq1fbtfga4kzq7gxyofa",
+    "createdAt": "2026-09-27T00:24:00.187+00:00",
+    "isForgotten": 0,
+    "message": "✅ _done (21s)_\n→ `web::fetch http://fixtures/northmoor/equipment-register.html`\n→ `web::fetch http://fixtures/northmoor/equipment-register.html find \"NM-EQ-3411\"` 1 match",
+    "observedAt": "2026-09-27T00:24:08.363+00:00",
+    "authoringTurnId": "rivkwxkz3gkn4c8thgm5y48f",
+    "kind": "status",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "r89tztb8rpgdxbqy88rgmbspoy",
+    "authorKind": "agent",
+    "authorUsername": "browser",
+    "channelId": "1pgqteeq1fbtfga4kzq7gxyofa",
+    "createdAt": "2026-09-27T00:24:19.759+00:00",
+    "isForgotten": 0,
+    "message": "**NM-EQ-3411** is an **Eye tracker, 1200 Hz** (serial ET-66204-K), held in **B-117 PDB**, with **Mbeki, I.** as custodian. Last calibrated 2026-02-19. Source: the equipment register at http://fixtures/northmoor/equipment-register.html.",
+    "observedAt": "2026-09-27T00:24:19.771+00:00",
+    "authoringTurnId": "rivkwxkz3gkn4c8thgm5y48f",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

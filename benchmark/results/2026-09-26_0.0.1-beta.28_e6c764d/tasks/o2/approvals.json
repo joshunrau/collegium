@@ -1,0 +1,19 @@
+[
+  {
+    "id": "npav4qkihlr5i9f78f4n0nod",
+    "args": {
+      "attemptsSoFar": 2,
+      "extensionNumber": 1
+    },
+    "createdAt": "2026-09-27T00:40:29.286+00:00",
+    "decidedAt": "2026-09-27T00:40:29.659+00:00",
+    "decidedByUsername": "bench-admin",
+    "payloadText": "I have used all my action attempts and would like to keep going. This would be extension 1; 2 attempts so far. Approving grants another 2.\nI have written nothing since I started.",
+    "promptPostId": "yxg7whphnb8gbx3yndh8diqdsy",
+    "reason": null,
+    "status": "approved",
+    "toolName": "extend_budget",
+    "toolNamespace": null,
+    "turnId": "tycbjndeev2h1ei5jai6by7e"
+  }
+]

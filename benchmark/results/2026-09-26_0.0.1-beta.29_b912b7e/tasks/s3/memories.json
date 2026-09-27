@@ -1,0 +1,16 @@
+{
+  "heldByAgents": [
+    {
+      "id": "qg5cc6040zbcx22s26kpbti7",
+      "agentUsername": "scribe",
+      "body": "Standing team convention (given by bench-admin, in t-s2-a, 2026-09-27, to apply across the whole team): written reports always use ISO dates in YYYY-MM-DD form and never contain emoji.\n\nApplies to any written report I produce or review, in any channel — not just t-s2-a.",
+      "createdAt": "2026-09-27T00:14:09.487+00:00",
+      "description": "Team-wide report format rule from bench-admin: ISO dates, no emoji",
+      "lastUsedAt": "2026-09-27T00:25:13.639+00:00",
+      "originPostId": "r9yu1ihuo3y4jnxeo1z8xpp7pr",
+      "revisedAt": null,
+      "revision": 0
+    }
+  ],
+  "writtenHere": []
+}

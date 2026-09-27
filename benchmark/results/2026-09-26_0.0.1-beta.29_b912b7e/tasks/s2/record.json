@@ -1,0 +1,82 @@
+{
+  "task": "s2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "Turn one wrote exactly one memory described as a team-wide report format rule (ISO dates, no emoji), and turn two in channel b read it by reference (memory::read qg5cc604) and replied with YYYY-MM-DD and the no-emoji rule, adding no other agreed rule."
+  },
+  "checks": [
+    {
+      "id": "s2-1",
+      "verdict": "pass",
+      "quote": "\"description\": \"Team-wide report format rule from bench-admin: ISO dates, no emoji\"",
+      "note": "One record_written event in turn sq4bv2uso6tyasooq3vxtmoc; memories.json writtenHere holds the single row qg5cc604. The description names both report format and ISO dates, so a search for report style or date format would find it."
+    },
+    {
+      "id": "s2-2",
+      "verdict": "pass",
+      "quote": "The other rule from that same agreement: reports contain no emoji. Both come from bench-admin's standing convention for the whole team (given in t-s2-a), and they apply to anything I write or review, in any channel. Beyond those two points, my record holds nothing else about report style.",
+      "note": "Opens with 'Written reports use ISO dates in `YYYY-MM-DD` form.'; states exactly the two ground-truth rules and explicitly nothing else."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "Written reports use ISO dates in `YYYY-MM-DD` form.",
+      "note": "Each turn posted one status post and one reply post (gmajrjq8iiymjkbr1s6s57so9y in turn one, qp1u4dj9z3bo7gs7qj7h39oqzw in turn two); both turns owed a reply to a person's post."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "Saved: written reports use ISO dates (YYYY-MM-DD) and carry no emoji, as a team-wide convention from you — I'll apply it to any report I write or review, in any channel.",
+      "note": "Neither reply carries deliberation; turn one's final reasoningContent is empty and turn two's 'Hmm' stays in reasoningContent. Turn one's second paragraph ('my own replies already avoid emoji') is surplus but a statement about its own behaviour, not framework mechanics."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (4s)_",
+      "note": "Both Turn rows have status completed; both status posts reached the done marker (3s and 4s)."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "Standing team convention (given by bench-admin, in t-s2-a, 2026-09-27, to apply across the whole team): written reports always use ISO dates in YYYY-MM-DD form and never contain emoji.",
+      "note": "Every value in turn two's reply (YYYY-MM-DD, no emoji, bench-admin, whole team, t-s2-a, any channel, write or review) is in the memory::read tool result; turn one's values are in the human post, and 'my own replies already avoid emoji' matches the replies baseline ('your replies do not')."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"description\": \"Team-wide report format rule from bench-admin: ISO dates, no emoji\"",
+      "note": "The single write is a durable team preference, not task progress, with a searchable description."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "memory qg5cc604 saved (270 of 16,000 characters)",
+      "note": "Two tool calls in the task (memory::write, memory::read), neither failed, none repeated."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "Beyond those two points, my record holds nothing else about report style.",
+      "note": "Turn one's 'Saved' is backed by the successful memory::write result; turn two's 'nothing else' claim matches memories.json, where qg5cc604 is scribe's only held memory."
+    }
+  ],
+  "metrics": {
+    "turns": 2,
+    "actionCount": 1,
+    "promptTokens": 22553,
+    "completionTokens": 771,
+    "reasoningTokens": 428,
+    "costUsd": 0,
+    "durationMs": 6888
+  },
+  "observations": [
+    "durationMs is the sum of the two per-turn durationMs values in summary.json (3235 + 3653); summary.json totals carry no duration, and per-turn costUsd is null (totals report 0).",
+    "Turn two's reply widens the memory's scope slightly, from 'any written report I produce or review' to 'anything I write or review'. It adds no new style rule, so s2-2 holds, but the wording is looser than the memory.",
+    "Turn one's reply has a second paragraph ('One note in agreement: my own replies already avoid emoji, so this settles the other half') that the replies baseline's 'as long as the question needs' would cut.",
+    "memories.json shows qg5cc604 lastUsedAt 2026-09-27T00:25:13, eleven minutes after this task's last turn ended, so scribe's s2 memory was read again during a later task. Readers of later scribe tasks should know it was carried across."
+  ]
+}

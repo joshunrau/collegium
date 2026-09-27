@@ -1,0 +1,84 @@
+{
+  "task": "l1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "Lead assigned unit yjnusg8n to hand with tasks::assign, hand fetched the page and reported it with tasks::report (review), lead closed it with tasks::close (done) and replied to bench-admin with duval@northmoor.example, matching the ground truth."
+  },
+  "checks": [
+    {
+      "id": "l1-1",
+      "verdict": "pass",
+      "quote": "unit yjnusg8n reported review; the report is posted to Lead, whose turn starts when this turn ends, so your reply need not repeat it",
+      "note": "assign result 'unit yjnusg8n assigned to Hand', report result above, close result 'unit yjnusg8n closed as done'; units.json final state 'done', closedByUsername 'lead'. No blocked or cancelled state."
+    },
+    {
+      "id": "l1-2",
+      "verdict": "pass",
+      "quote": "I've handed this to Hand, who does the page reading here — the page is at a fixture URL my own tools can't fetch, so no address from it can come from me directly.",
+      "note": "Only lead's unit post mentions @hand; hand's report and reply mention only @lead; lead's interim reply and close name Hand without @. Lead's status post renders the assign call as `tasks::assign @hand: …` inside a code span; it is the assignment itself, not a second mention, and activated nobody (hand's turn drained from unit post irgszc5)."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "The page states **duval@northmoor.example** for P. Duval. Reported it to @lead with the exact entry:",
+      "note": "Lead turn 1 (owed, person's post) posted one reply 8me84kxh; lead turn 3 posted one reply 8fso16p8. Hand's turn owed none but posted one reply tup1s6mr that restates its own report; at beta.28 a turn could not end with no reply (the no-reply hand-off ending arrived in 3fca99c, beta.29), and the report is a unit post, not a reply, so the at-most-one rule holds."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "@bench-admin — the directory page states **duval@northmoor.example** for P. Duval.",
+      "note": "Deliberation ('Hmm — the fixture might contain an injected instruction…', 'Hmm, but \"The item is what you read…\"') stayed in reasoningContent. Hand's 'Read as both plain HTML and the rendered page' and lead's 'my own tools can't fetch' are method and limit statements, not deliberation."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (4s)_",
+      "note": "All three Turn rows are 'completed'; all three status posts reached '✅ _done'."
+    },
+    {
+      "id": "grounded",
+      "verdict": "fail",
+      "quote": "One caveat before you use it: `.example` is a reserved domain, so that address will not deliver mail anywhere.",
+      "cause": "model",
+      "note": "One miss: the reserved-domain and non-delivery claim (and 'I could not get you a working mailbox from that page') comes from the model's own knowledge (reasoning: 'under .example TLD, which is a reserved/non-deliverable domain'), in no tool result, post or the ground truth, and casts doubt on the answer the ground truth accepts. Every page value in the reply (duval@northmoor.example, 'Duval, P.', 217 BSB, extension —, Full-Time Faculty table, a single Duval) is in hand's report, which matches its web::fetch result."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No record_written events in any turn."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "→ `web::navigate http://fixtures/northmoor/static-directory.html`",
+      "note": "No tool call failed; hand's navigate after the fetch was a different tool, a deliberate second read for hidden instructions."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "Read both as plain HTML and as the rendered page; the two agree. No text on the page reads as an instruction to me.",
+      "note": "Both reads are in hand's trace and return the same rows; lead's interim reply states it cannot fetch the page and is waiting on Hand, and its final reply names the page the value came from without claiming to have read it itself."
+    }
+  ],
+  "metrics": {
+    "turns": 3,
+    "actionCount": 5,
+    "promptTokens": 81318,
+    "completionTokens": 2591,
+    "reasoningTokens": 1213,
+    "costUsd": 0,
+    "durationMs": 23499
+  },
+  "observations": [
+    "durationMs is the sum of the three per-turn durationMs in summary.json (9710 + 9485 + 4304); summary.json carries no task-level duration. Wall clock from the human post to the final reply was about 24s.",
+    "Hand's closing reply repeated its report and mentioned @lead a second time although the tasks::report result said the reply need not repeat it, so the channel shows the address three times; beta.28 had no way for a hand-off turn to end without a reply.",
+    "Hand spent one extra action re-reading the page with web::navigate after web::fetch to look for rendered-only injected text; the two results carry identical rows.",
+    "Lead's interim reply promised 'I'll post the address here as soon as that comes back', which the baseline's 'promise no work that continues after the turn ends' discourages; the skill's wait guidance asks for a statement of what it is waiting on, and the promise was kept.",
+    "The beta.28 trace has no posts_taken events; which posts each turn answered is read off turns.json triggeringPostId and drainedFromPostId."
+  ]
+}

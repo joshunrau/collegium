@@ -1,0 +1,83 @@
+{
+  "task": "k1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "bookmark::save was approved by bench-admin and returned \"bookmark research-themes saved\", and the reply quotes `research-themes`."
+  },
+  "checks": [
+    {
+      "id": "k1-1",
+      "verdict": "pass",
+      "quote": "{\"args\": {\"name\": \"bookmark::saving-bookmarks\"}, \"callId\": \"call_00_W7JMnKPn77nue0i04x6C4006\", \"toolName\": [\"skills\", \"load\"]}",
+      "note": "Sequence 0 loaded the skill and sequence 2 loaded its identifier-style reference; the save came at sequence 5."
+    },
+    {
+      "id": "k1-2",
+      "verdict": "pass",
+      "quote": "{\"args\": {\"query\": \"northmoor\"}, \"callId\": \"call_01_2rHjLT9ti8m8Ax3H4Aae6970\", \"toolName\": [\"bookmark\", \"find\"]} -> \"no bookmarks matched\"",
+      "note": "find ran at sequence 2, before save at sequence 5. It matches on the address substring (find.ts: url contains query), so querying \"northmoor\" is a real address-based duplicate check, looser than the full URL."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"kind\": \"reply\", \"message\": \"Saved the Northmoor research themes page as `research-themes`.\"",
+      "note": "The one turn owed a reply to a human post and posted exactly one."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "Saved the Northmoor research themes page as `research-themes`.",
+      "note": "The reply has no meta-commentary. The deliberation stayed in reasoningContent."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "\"status\": \"completed\" / status post \"✅ _done (6s)_\""
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "\"output\": \"bookmark research-themes saved\"",
+      "note": "The identifier comes from the save result. \"Northmoor\" and \"research themes\" come from the human's post and its URL."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"output\": \"no bookmarks matched\"",
+      "note": "No tool call failed, and no call repeated."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "\"decision\": \"approved\" ... \"output\": \"bookmark research-themes saved\"",
+      "note": "The claim that the page was saved matches the approved save's result."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 2,
+    "promptTokens": 24597,
+    "completionTokens": 353,
+    "reasoningTokens": 129,
+    "costUsd": 0,
+    "durationMs": 5709
+  },
+  "observations": [
+    "The model loaded the skill's identifier-style reference unprompted and followed it: `research-themes` comes from the subject, is lowercase and joined by dashes.",
+    "The model ran the reference load and bookmark::find in parallel in one assistant message.",
+    "The status post lists four actions (two skills::load, find, save), but the turn's actionCount is 2. skills::load and find are evidently not counted as actions.",
+    "The approval context read \"Action 2 of 25\", so the save counted as the turn's second action against a budget of 25.",
+    "Per-turn costUsd is null (deepseek-v4-flash), so the 0 in totals means unpriced, not free.",
+    "The driver's notes for k1 are empty. The outcome was terminal and needed one approval, so the approval step's repeat did not come into play."
+  ]
+}

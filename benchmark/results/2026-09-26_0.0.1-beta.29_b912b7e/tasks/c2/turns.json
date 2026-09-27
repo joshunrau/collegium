@@ -1,0 +1,27 @@
+[
+  {
+    "id": "w1gjreshpmfkgjtrawpob05s",
+    "actionCount": 1,
+    "agentUsername": "clerk",
+    "channelId": "86u7rxoj53nj5pdugetjq31mya",
+    "completionTokens": 183,
+    "depth": 0,
+    "endedAt": "2026-09-27T00:16:37.531+00:00",
+    "modelName": "deepseek-v4-flash",
+    "promptTokens": 13783,
+    "startedAt": "2026-09-27T00:16:34.269+00:00",
+    "status": "completed",
+    "statusPostId": "hbugnf1hufgsfpq9afdocuewiw",
+    "triggeringPostId": "ksr1rbnh7i8dj8dh6iuju8mnyy",
+    "cachedPromptTokens": 13184,
+    "reasoningTokens": 125,
+    "chainLength": 1,
+    "costUsd": null,
+    "rootPostId": "ksr1rbnh7i8dj8dh6iuju8mnyy",
+    "activationKind": "addressed",
+    "contextAssembledAt": "2026-09-27T00:16:34.273+00:00",
+    "drainedFromPostId": null,
+    "windowEstimatedTokens": 43,
+    "windowOldestAt": "2026-09-27T00:16:33.508+00:00"
+  }
+]

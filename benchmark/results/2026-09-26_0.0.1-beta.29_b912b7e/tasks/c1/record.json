@@ -1,0 +1,76 @@
+{
+  "task": "c1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "workspace::write of notes/greeting.txt was approved by bench-admin and ran, a workspace::read of the same path followed, and the reply quotes `hello from the bench` exactly as the read returned it."
+  },
+  "checks": [
+    {
+      "id": "c1-1",
+      "verdict": "pass",
+      "quote": "\"kind\": \"tool_result\", \"output\": \"hello from the bench\\n\", \"toolName\": [\"workspace\", \"read\"]",
+      "note": "The reply's fenced block `hello from the bench` matches the read result; the only other values (21 bytes, one line) come from the write result, not from the intended content."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "Done. `notes/greeting.txt` (21 bytes, one line) reads back:",
+      "note": "One reply post for the one turn, which owed one to the human's post; summary.json replyPosts: 1."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "Done. `notes/greeting.txt` (21 bytes, one line) reads back:\n\n```\nhello from the bench\n```",
+      "note": "The deliberation about the trailing newline and read-back stayed in reasoningContent; content carries none of it."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (4s)_",
+      "note": "Turn row status is completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "wrote notes/greeting.txt: 21 bytes, 1 line, exactly as given",
+      "note": "Byte and line counts come from the write result; the quoted line comes from the read result."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"toolCalls\": [{\"args\": {\"path\": \"notes/greeting.txt\"}, \"toolName\": [\"workspace\", \"read\"]}]",
+      "note": "Two distinct calls (write, then read); no failure and no repeated call."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "→ `workspace::read notes/greeting.txt`",
+      "note": "The reply's claim that the file reads back is backed by the workspace::read tool_result in the trace."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 2,
+    "promptTokens": 20891,
+    "completionTokens": 322,
+    "reasoningTokens": 187,
+    "costUsd": 0,
+    "durationMs": 4132
+  },
+  "observations": [
+    "The model's reasoning cites the framework guidance that a write reporting its bytes and lines needs no read-back, and correctly overrode it because the person asked for the read explicitly.",
+    "The model wrote the line with a trailing newline (21 bytes); the approval payload stated this ('ending in a newline') and the human approved it, so the choice was visible at the approval.",
+    "The turn row's costUsd is null for deepseek-v4-flash; summary.json totals report 0, so the cost metric here is not a measured cost.",
+    "The approval context line reads 'Action 1 of 25', so the action budget was visible to the approver."
+  ]
+}

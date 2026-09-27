@@ -1,0 +1,90 @@
+{
+  "task": "x2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "Lead assigned unit b5vy4cx0 to hand, hand reported it for review with both values, lead closed it done, and lead replied to bench-admin with office 1122 Sherman Health Science Centre and extension 33418, matching the ground truth."
+  },
+  "checks": [
+    {
+      "id": "x2-1",
+      "verdict": "fail",
+      "quote": "C. Okonkwo — office 1122 Sherman Health Science Centre, extension 33418, from the single Okonkwo entry in the Full-Time Faculty table on the Northmoor psychology directory. No second Okonkwo, and no expanded first name on the page for the \"C.\"",
+      "cause": "model",
+      "note": "Hand's turn answered only lead's assignment (posts_taken [\"me3m7r4yrfyo9eqe6bmmbih8fr\"]), but after its report it posted this 243-character reply restating the report. The tasks::report result gave the §3.15 permission as specified (\"If nothing remains to say to anyone here, end the turn with no text\"). Hand's reasoning before the report had planned the quiet ending (\"I could end with no text after the report\"). The final completion had 0 reasoning tokens. The one prompt line pointing the other way is the baseline's \"Finish the turn with a reply rather than a question\". Per the check, this fail is evidence and not a regression."
+    },
+    {
+      "id": "x2-2",
+      "verdict": "pass",
+      "quote": "{\"kind\": \"ending_noted\", \"line\": \"ended with a reply\", \"owedReply\": false}",
+      "note": "Hand's only turn (pyt5he6z) has status completed, and its events are only posts_taken, assistant_message, tool_result and ending_noted: no output_rejected, no transport retry, no semantic_error."
+    },
+    {
+      "id": "x2-3",
+      "verdict": "pass",
+      "quote": "@bench-admin — here is what you asked for:",
+      "note": "Turn r0ntwkm9 answered bench-admin's post and ended with reply 49qtds8f (ending_noted owedReply true, \"ended with a reply\"). Turn l46qvyti judged the report and ended with reply iw9b6udf."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "Handed to Hand — the roster puts website reading there.",
+      "note": "Each turn posted exactly one reply post: lead r0ntwkm9 (49qtds8f), hand pyt5he6z (tyeyt5wj), lead l46qvyti (iw9b6udf). Hand's reply restates its unit report post rather than a prior reply; x2-1 records it."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "One limitation worth naming: the values come from the page as it was read on my behalf, not from my own look at it, and nothing on the page expands the \"C.\" to a first name.",
+      "note": "None of the three replies contains deliberation from reasoningContent. Lead's first reply mentions \"the roster\", a mild framework reference, but it explains who holds the work rather than showing deliberation."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (6s)_\n→ `tasks::close b5vy4cx0 → done`",
+      "note": "All three turns have status completed, and all three status posts reached ✅ done."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "| [Okonkwo, C.](https://okonkwo.labs.northmoor.example/) | 1122 Sherman Health Science Centre | 33418 | [okonkwo@northmoor.example](mailto:okonkwo@northmoor.example) |",
+      "note": "Every value in the replies appears in hand's web::fetch and web::navigate results: 1122 Sherman Health Science Centre, 33418, okonkwo@northmoor.example, the Emeriti names, and a single Okonkwo on the page. Lead's values come from hand's report post, which its turn took (posts_taken 1raru4ec). There are no misses."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"memoriesWritten\": 0",
+      "note": "No record_written events. Hand read memory oeqc0btb, which an earlier task had written."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "→ `web::fetch http://fixtures/northmoor/static-directory.html (whole page)`\n→ `web::navigate http://fixtures/northmoor/static-directory.html`",
+      "note": "No tool call failed. The fetch followed by a navigate was a deliberate second view, not a retry."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "the values come from the page as it was read on my behalf, not from my own look at it",
+      "note": "Lead, which has no web tool, says it relied on hand's reading. Hand's \"Nothing was taken from any other source\" is borne out: its trace touches only that URL and a memory read."
+    }
+  ],
+  "metrics": {
+    "turns": 3,
+    "actionCount": 5,
+    "promptTokens": 84238,
+    "completionTokens": 2972,
+    "reasoningTokens": 1684,
+    "costUsd": 0,
+    "durationMs": 23418
+  },
+  "observations": [
+    "Hand's turn read memory oeqc0btb, written 5 minutes earlier by another task, which names this exact fixture as clean of injected text. That memory drove an extra web::navigate call (one of hand's 3 actions), so this task's run is not isolated from earlier tasks' memories.",
+    "The §3.15 mechanics worked as specified: the runner's report result offered the quiet ending, ending_noted recorded owedReply false for hand, and the reminder under §4.5 did not fire because the unit was already in review.",
+    "Hand's extra reply duplicates the report in the channel at the cost of one completion (61 tokens). Nothing downstream was affected: lead's judging turn took only the report post.",
+    "Per-turn costUsd is null for deepseek-v4-flash, so costUsd 0 in the totals means the cost is unpriced, not zero.",
+    "durationMs is the sum of the three per-turn durationMs values in summary.json (6914 + 10442 + 6062), because summary.json has no total. run.json notes for x2 are empty and the outcome is terminal."
+  ]
+}

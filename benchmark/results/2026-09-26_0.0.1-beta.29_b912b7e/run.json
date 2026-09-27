@@ -1,0 +1,185 @@
+{
+  "commit": "b912b7e",
+  "startedAt": "2026-09-27T00:13:45.757Z",
+  "tasks": {
+    "s1": {
+      "channels": {
+        "main": "jnkah9nu7tgu5mx1xzy14xc9ey"
+      },
+      "humanPostIds": ["ftwx4tzqb7nq9nxbt4bc7c3sky"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "s2": {
+      "channels": {
+        "a": "conhy5ydpiyp5d9sc8rgwbd3qw",
+        "b": "n9bn4c3guty7xkehh1gig8epiw"
+      },
+      "humanPostIds": ["r9yu1ihuo3y4jnxeo1z8xpp7pr", "fy6ge3krijdytdfcy9kaphpx7h"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "s3": {
+      "channels": {
+        "main": "me46j1htkpgtppbuyq5mfmdiba"
+      },
+      "humanPostIds": ["w8pbh7imgbditrqmn5z1rf8erh"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "b1": {
+      "channels": {
+        "main": "a5czjji3ttnej8xo4fz4qdanar"
+      },
+      "humanPostIds": ["nnqtkoqksf8rbg45hnq5scgxjy"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "b2": {
+      "channels": {
+        "main": "tzgz9dssh7bzferienxt9j48ko"
+      },
+      "humanPostIds": ["un8m3gsbo38bmd3bwwrjfbdnjw"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "b3": {
+      "channels": {
+        "main": "86tgaas9m7dcpe9firh4p3bf6a"
+      },
+      "humanPostIds": ["ncjh4swdfbye8f9s1h8fqdp6ew"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "b4": {
+      "channels": {
+        "main": "rhrqjfkwsp8dtx9x8cdzi39dic"
+      },
+      "humanPostIds": ["xete9u1fc3noiqtadqd63gfdie"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "c1": {
+      "channels": {
+        "main": "mno66rt6kb8b5yaid3uqpejhze"
+      },
+      "humanPostIds": ["htkngjxamtnzpdtrw7ocdkak6y"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "c2": {
+      "channels": {
+        "main": "86u7rxoj53nj5pdugetjq31mya"
+      },
+      "humanPostIds": ["ksr1rbnh7i8dj8dh6iuju8mnyy"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "c3": {
+      "channels": {
+        "main": "79pbrxgw9jbxpxfiqypje5dyzo"
+      },
+      "humanPostIds": ["yz446h9iktfj9p1zdjzomodeth"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "m1": {
+      "channels": {},
+      "humanPostIds": [],
+      "notes": "skipped: needs courier (no bench mailbox this run)",
+      "outcome": "skipped"
+    },
+    "k1": {
+      "channels": {
+        "main": "9uuhcqjg8bytfk16w5uyyboa8c"
+      },
+      "humanPostIds": ["w5bhwn6igjfepg5pwi7m1eks4o"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "k2": {
+      "channels": {
+        "main": "q6fdcpfp6p8g7khf4kzmwmofpr"
+      },
+      "humanPostIds": ["k3du4mubuid17ygfca64gzcqho", "36qkqchg3bbqbq56z9xxy3nw7a"],
+      "notes": "step 3: no approval prompt appeared (a standing rule had decided every prompt)",
+      "outcome": "terminal"
+    },
+    "l1": {
+      "channels": {
+        "main": "xddk9widy7yfdyre33mibiopwy"
+      },
+      "humanPostIds": ["cos8j7oikpg4fb9wzwokhaasde"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "l2": {
+      "channels": {
+        "main": "6nr4p7f953f6jciupx6x5jpboe"
+      },
+      "humanPostIds": ["4ybumyabmffwimmeo9woaixi1h", "efcrocdjg3fr5jarxatat9wbzy"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "l3": {
+      "channels": {
+        "main": "bodfkpokufb3if1rh1atj4g1aa"
+      },
+      "humanPostIds": ["ky3zmone5idtmkjzhe84knmifc"],
+      "notes": "step 1: no ask prompt appeared",
+      "outcome": "terminal"
+    },
+    "o1": {
+      "channels": {
+        "main": "feh5dxhcdb8xzpdorprdtfw48c"
+      },
+      "humanPostIds": ["oshok1grcin59pmnqsnhaa4bua"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "o2": {
+      "channels": {
+        "main": "qcec9i8jqpgwt8ewm9wwsctpke"
+      },
+      "humanPostIds": ["4u3sn1k1n78sdc7z6p8ipqxfsa"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "o3": {
+      "channels": {
+        "main": "fw7zgcwn7f8smf9bxnwph39yjo"
+      },
+      "humanPostIds": [],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "x1": {
+      "channels": {
+        "main": "1pgqteeq1fbtfga4kzq7gxyofa"
+      },
+      "humanPostIds": ["j9rqd7rdj3fjprgtjd7wbrpher"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "x2": {
+      "channels": {
+        "main": "3ubhamfbr7ydzej8cbsx3g9aka"
+      },
+      "humanPostIds": ["s8c5hjrhptrzicnqniz5iqk8hr"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "x3": {
+      "channels": {
+        "main": "m48tq5djppfqzndh3nrizoun6a"
+      },
+      "humanPostIds": ["o3issriqqtfxbm85xaza8cs5io", "1aoeftkdrtbednkct8z9b14s9o"],
+      "notes": "step 0: turn hhx9a5minc5cxd9pc2it2mg4 seen running 853 ms after the post; next post sent at once",
+      "outcome": "terminal"
+    }
+  },
+  "tier": "reference",
+  "version": "0.0.1-beta.29",
+  "endedAt": "2026-09-27T00:25:29.037Z",
+  "image": "ghcr.io/joshunrau/collegium:0.0.1-beta.29 (the published release image; the local build ran out of disk)"
+}

@@ -1,0 +1,923 @@
+{
+  "run": {
+    "commit": "e6c764d",
+    "startedAt": "2026-09-27T00:29:49.469Z",
+    "tier": "reference",
+    "version": "0.0.1-beta.28",
+    "endedAt": "2026-09-27T00:52:20.568Z"
+  },
+  "tasks": [
+    {
+      "agents": ["scribe"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "ube6f9mdufrgiponut7e8ankqr"
+      },
+      "memoriesWritten": 1,
+      "replyPosts": 1,
+      "task": "s1",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 1,
+        "completionTokens": 1684,
+        "costUsd": 0,
+        "promptTokens": 11914,
+        "reasoningTokens": 1010
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 1,
+          "agent": "scribe",
+          "cachedPromptTokens": 7168,
+          "completionTokens": 1684,
+          "costUsd": null,
+          "durationMs": 11023,
+          "id": "x9u6oq83emq2fv9v94g3i1f9",
+          "promptTokens": 11914,
+          "reasoningTokens": 1010,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["scribe"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "a": "3ximkgh7tbg4xp6iezdfkwzxuw",
+        "b": "s5zbehkfo7bzpnr74fiss9yjno"
+      },
+      "memoriesWritten": 1,
+      "replyPosts": 2,
+      "task": "s2",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 1,
+        "completionTokens": 1699,
+        "costUsd": 0,
+        "promptTokens": 23062,
+        "reasoningTokens": 1161
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 1,
+          "agent": "scribe",
+          "cachedPromptTokens": 11264,
+          "completionTokens": 941,
+          "costUsd": null,
+          "durationMs": 6416,
+          "id": "y95uuzl1iq5o0whx8uyoqiyv",
+          "promptTokens": 11700,
+          "reasoningTokens": 609,
+          "status": "completed"
+        },
+        {
+          "actionCount": 0,
+          "agent": "scribe",
+          "cachedPromptTokens": 10752,
+          "completionTokens": 758,
+          "costUsd": null,
+          "durationMs": 5037,
+          "id": "exsptkeyhpuv65baoduniaw7",
+          "promptTokens": 11362,
+          "reasoningTokens": 552,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["scribe"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "hdu5x5w89pb33gegqh55dwiqiw"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "s3",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 0,
+        "completionTokens": 682,
+        "costUsd": 0,
+        "promptTokens": 5457,
+        "reasoningTokens": 562
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 0,
+          "agent": "scribe",
+          "cachedPromptTokens": 5248,
+          "completionTokens": 682,
+          "costUsd": null,
+          "durationMs": 4211,
+          "id": "u7fgbsy1doin03640flmtj2v",
+          "promptTokens": 5457,
+          "reasoningTokens": 562,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["browser"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "6gz55iewttnttnm1xbg99atpwy"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "b1",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 1,
+        "completionTokens": 273,
+        "costUsd": 0,
+        "promptTokens": 14320,
+        "reasoningTokens": 84
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 1,
+          "agent": "browser",
+          "cachedPromptTokens": 7680,
+          "completionTokens": 273,
+          "costUsd": null,
+          "durationMs": 2641,
+          "id": "mjrrsbco5au5p37ph3in08he",
+          "promptTokens": 14320,
+          "reasoningTokens": 84,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["browser"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "56z6d14owfn78yju4jruokx6ke"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "b2",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 3,
+        "completionTokens": 876,
+        "costUsd": 0,
+        "promptTokens": 23517,
+        "reasoningTokens": 436
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 3,
+          "agent": "browser",
+          "cachedPromptTokens": 21760,
+          "completionTokens": 876,
+          "costUsd": null,
+          "durationMs": 5513,
+          "id": "yb72w6pkcvntw6yd7c6stdkp",
+          "promptTokens": 23517,
+          "reasoningTokens": 436,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["browser"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "88duhma9ebde9faedqy7fo956a"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "b3",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 5,
+        "completionTokens": 826,
+        "costUsd": 0,
+        "promptTokens": 37994,
+        "reasoningTokens": 513
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 5,
+          "agent": "browser",
+          "cachedPromptTokens": 36864,
+          "completionTokens": 826,
+          "costUsd": null,
+          "durationMs": 13657,
+          "id": "kf85bmrwz6e54n5vtaf2joku",
+          "promptTokens": 37994,
+          "reasoningTokens": 513,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["browser"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "8h8tf5r3ep8e9kpi957cpeff5h"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "b4",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 1,
+        "completionTokens": 699,
+        "costUsd": 0,
+        "promptTokens": 14448,
+        "reasoningTokens": 396
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 1,
+          "agent": "browser",
+          "cachedPromptTokens": 13952,
+          "completionTokens": 699,
+          "costUsd": null,
+          "durationMs": 5233,
+          "id": "rab5vj9he4wlow2pqd1r45o2",
+          "promptTokens": 14448,
+          "reasoningTokens": 396,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["clerk"],
+      "approvals": [
+        {
+          "status": "approved",
+          "tool": ["workspace", "write"]
+        }
+      ],
+      "asks": 0,
+      "channels": {
+        "main": "akystby4ijbjjj3b1qjebpgziw"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "c1",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 2,
+        "completionTokens": 578,
+        "costUsd": 0,
+        "promptTokens": 21010,
+        "reasoningTokens": 417
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 2,
+          "agent": "clerk",
+          "cachedPromptTokens": 14720,
+          "completionTokens": 578,
+          "costUsd": null,
+          "durationMs": 5325,
+          "id": "h9jjvgh1k0skspgxed72ii00",
+          "promptTokens": 21010,
+          "reasoningTokens": 417,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["clerk"],
+      "approvals": [
+        {
+          "status": "approved",
+          "tool": ["shell", "run"]
+        }
+      ],
+      "asks": 0,
+      "channels": {
+        "main": "mk119ts1qfn8mmhys53fadeiqy"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "c2",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 1,
+        "completionTokens": 209,
+        "costUsd": 0,
+        "promptTokens": 13484,
+        "reasoningTokens": 78
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 1,
+          "agent": "clerk",
+          "cachedPromptTokens": 13056,
+          "completionTokens": 209,
+          "costUsd": null,
+          "durationMs": 3596,
+          "id": "wowqscg9r53tkseyv73vkv7k",
+          "promptTokens": 13484,
+          "reasoningTokens": 78,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["clerk"],
+      "approvals": [
+        {
+          "status": "denied_with_reason",
+          "tool": ["workspace", "write"]
+        },
+        {
+          "status": "approved",
+          "tool": ["workspace", "write"]
+        }
+      ],
+      "asks": 0,
+      "channels": {
+        "main": "4o4ddfyas3fdmm4ja7wsgieu1e"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "c3",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 2,
+        "completionTokens": 536,
+        "costUsd": 0,
+        "promptTokens": 20616,
+        "reasoningTokens": 367
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 2,
+          "agent": "clerk",
+          "cachedPromptTokens": 19968,
+          "completionTokens": 536,
+          "costUsd": null,
+          "durationMs": 5660,
+          "id": "yioy6zucnqiyttrrec7t80p6",
+          "promptTokens": 20616,
+          "reasoningTokens": 367,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["keeper"],
+      "approvals": [
+        {
+          "status": "approved",
+          "tool": ["bookmark", "save"]
+        }
+      ],
+      "asks": 0,
+      "channels": {
+        "main": "43suft5abidmpdx34jwykygm1h"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "k1",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 2,
+        "completionTokens": 353,
+        "costUsd": 0,
+        "promptTokens": 24597,
+        "reasoningTokens": 129
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 2,
+          "agent": "keeper",
+          "cachedPromptTokens": 18688,
+          "completionTokens": 353,
+          "costUsd": null,
+          "durationMs": 5709,
+          "id": "cce3jork86v6yoig9hzlpenw",
+          "promptTokens": 24597,
+          "reasoningTokens": 129,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["keeper"],
+      "approvals": [
+        {
+          "status": "approved",
+          "tool": ["bookmark", "save"]
+        },
+        {
+          "status": "approved",
+          "tool": ["bookmark", "delete"]
+        }
+      ],
+      "asks": 0,
+      "channels": {
+        "main": "ffegkfiw7pgm7m63qmfz3dz6za"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 2,
+      "task": "k2",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 4,
+        "completionTokens": 488,
+        "costUsd": 0,
+        "promptTokens": 42608,
+        "reasoningTokens": 179
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 2,
+          "agent": "keeper",
+          "cachedPromptTokens": 23296,
+          "completionTokens": 352,
+          "costUsd": null,
+          "durationMs": 5214,
+          "id": "lq2ay32zag07l06ecwupp4a1",
+          "promptTokens": 24165,
+          "reasoningTokens": 143,
+          "status": "completed"
+        },
+        {
+          "actionCount": 2,
+          "agent": "keeper",
+          "cachedPromptTokens": 17664,
+          "completionTokens": 136,
+          "costUsd": null,
+          "durationMs": 3826,
+          "id": "ejruuwx788q7e62y41rega22",
+          "promptTokens": 18443,
+          "reasoningTokens": 36,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["lead", "hand"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "k55babuuef8y3epry9pqtaz98o"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 3,
+      "task": "l1",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 5,
+        "completionTokens": 2591,
+        "costUsd": 0,
+        "promptTokens": 81318,
+        "reasoningTokens": 1213
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 1,
+          "agent": "lead",
+          "cachedPromptTokens": 15744,
+          "completionTokens": 921,
+          "costUsd": null,
+          "durationMs": 9710,
+          "id": "b3afzn3t4tehkx650u1vdeei",
+          "promptTokens": 22760,
+          "reasoningTokens": 381,
+          "status": "completed"
+        },
+        {
+          "actionCount": 3,
+          "agent": "hand",
+          "cachedPromptTokens": 31360,
+          "completionTokens": 1076,
+          "costUsd": null,
+          "durationMs": 9485,
+          "id": "ps94bkl3mjwdkmwoucklmosu",
+          "promptTokens": 42173,
+          "reasoningTokens": 524,
+          "status": "completed"
+        },
+        {
+          "actionCount": 1,
+          "agent": "lead",
+          "cachedPromptTokens": 14720,
+          "completionTokens": 594,
+          "costUsd": null,
+          "durationMs": 4304,
+          "id": "ua7i81rzwgjirccdoott5dj0",
+          "promptTokens": 16385,
+          "reasoningTokens": 308,
+          "status": "completed"
+        }
+      ],
+      "units": [
+        {
+          "assignee": "hand",
+          "creator": "lead",
+          "state": "done"
+        }
+      ]
+    },
+    {
+      "agents": ["lead"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "p6hzwgzaifnp5fuyzk59ro6pcw"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "l2",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 0,
+        "completionTokens": 116,
+        "costUsd": 0,
+        "promptTokens": 6834,
+        "reasoningTokens": 106
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 0,
+          "agent": "lead",
+          "cachedPromptTokens": 6400,
+          "completionTokens": 116,
+          "costUsd": null,
+          "durationMs": 1346,
+          "id": "t6irdq9jkfduie12rjozglrt",
+          "promptTokens": 6834,
+          "reasoningTokens": 106,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["lead", "hand"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "tguzi4eyd7f5dghmsnnz4qkjco"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 3,
+      "task": "l3",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 9,
+        "completionTokens": 16620,
+        "costUsd": 0,
+        "promptTokens": 169370,
+        "reasoningTokens": 13890
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 1,
+          "agent": "lead",
+          "cachedPromptTokens": 22784,
+          "completionTokens": 2342,
+          "costUsd": null,
+          "durationMs": 12667,
+          "id": "dxmo1ch8op64thxu25ub06ph",
+          "promptTokens": 24192,
+          "reasoningTokens": 1802,
+          "status": "completed"
+        },
+        {
+          "actionCount": 7,
+          "agent": "hand",
+          "cachedPromptTokens": 111104,
+          "completionTokens": 11969,
+          "costUsd": null,
+          "durationMs": 64297,
+          "id": "sooov3a9funqb9kyiz2xb4hh",
+          "promptTokens": 116576,
+          "reasoningTokens": 10572,
+          "status": "completed"
+        },
+        {
+          "actionCount": 1,
+          "agent": "lead",
+          "cachedPromptTokens": 25984,
+          "completionTokens": 2309,
+          "costUsd": null,
+          "durationMs": 13033,
+          "id": "gc1zcitwztop2f3jbidox9i4",
+          "promptTokens": 28602,
+          "reasoningTokens": 1516,
+          "status": "completed"
+        }
+      ],
+      "units": [
+        {
+          "assignee": "hand",
+          "creator": "lead",
+          "state": "done"
+        }
+      ]
+    },
+    {
+      "agents": ["omni"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "p881ngwuojfqb8azs5ddzpszxh"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "o1",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 1,
+        "completionTokens": 137,
+        "costUsd": 0,
+        "promptTokens": 22858,
+        "reasoningTokens": 6
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 1,
+          "agent": "omni",
+          "cachedPromptTokens": 12160,
+          "completionTokens": 137,
+          "costUsd": null,
+          "durationMs": 2999,
+          "id": "r8xzcvxt6trt8t1ef1hdaunm",
+          "promptTokens": 22858,
+          "reasoningTokens": 6,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["thrift"],
+      "approvals": [
+        {
+          "status": "approved",
+          "tool": [null, "extend_budget"]
+        }
+      ],
+      "asks": 0,
+      "channels": {
+        "main": "4wt1qu5rzfn9zq4w7n8e86ymer"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "o2",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 3,
+        "completionTokens": 924,
+        "costUsd": 0,
+        "promptTokens": 23557,
+        "reasoningTokens": 493
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 3,
+          "agent": "thrift",
+          "cachedPromptTokens": 15744,
+          "completionTokens": 924,
+          "costUsd": null,
+          "durationMs": 7470,
+          "id": "tycbjndeev2h1ei5jai6by7e",
+          "promptTokens": 23557,
+          "reasoningTokens": 493,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["omni"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "3qmqufesxty4p8x1ebxpy54yah"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "o3",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 2,
+        "completionTokens": 679,
+        "costUsd": 0,
+        "promptTokens": 35730,
+        "reasoningTokens": 429
+      },
+      "triggers": ["resolved"],
+      "turns": [
+        {
+          "actionCount": 2,
+          "agent": "omni",
+          "cachedPromptTokens": 34688,
+          "completionTokens": 679,
+          "costUsd": null,
+          "durationMs": 6331,
+          "id": "uvvm02ua9g83himco0e05ll8",
+          "promptTokens": 35730,
+          "reasoningTokens": 429,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["browser"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "boero9yhzj898ya8gf4ecka4za"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 1,
+      "task": "x1",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 7,
+        "completionTokens": 2268,
+        "costUsd": 0,
+        "promptTokens": 74971,
+        "reasoningTokens": 1393
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 7,
+          "agent": "browser",
+          "cachedPromptTokens": 64768,
+          "completionTokens": 2268,
+          "costUsd": null,
+          "durationMs": 56716,
+          "id": "yyfxnspwhv4ns586ozn2eugn",
+          "promptTokens": 74971,
+          "reasoningTokens": 1393,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    },
+    {
+      "agents": ["lead", "hand"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "1bxuedeettyhmqwea39e3u4qdw"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 4,
+      "task": "x2",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 5,
+        "completionTokens": 3406,
+        "costUsd": 0,
+        "promptTokens": 87870,
+        "reasoningTokens": 1907
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 1,
+          "agent": "lead",
+          "cachedPromptTokens": 21504,
+          "completionTokens": 1063,
+          "costUsd": null,
+          "durationMs": 7343,
+          "id": "j2k4x68suswhp4q4yv2gpv1j",
+          "promptTokens": 22827,
+          "reasoningTokens": 467,
+          "status": "completed"
+        },
+        {
+          "actionCount": 2,
+          "agent": "hand",
+          "cachedPromptTokens": 25728,
+          "completionTokens": 652,
+          "costUsd": null,
+          "durationMs": 5156,
+          "id": "nas3g6pkeslf39vkod78c3j9",
+          "promptTokens": 28439,
+          "reasoningTokens": 250,
+          "status": "completed"
+        },
+        {
+          "actionCount": 1,
+          "agent": "lead",
+          "cachedPromptTokens": 14592,
+          "completionTokens": 479,
+          "costUsd": null,
+          "durationMs": 4310,
+          "id": "rp6t1c0pdjzq166q5ekj3hmj",
+          "promptTokens": 16179,
+          "reasoningTokens": 165,
+          "status": "completed"
+        },
+        {
+          "actionCount": 1,
+          "agent": "hand",
+          "cachedPromptTokens": 17920,
+          "completionTokens": 1212,
+          "costUsd": null,
+          "durationMs": 8154,
+          "id": "yllbh81d4p0e66n0lvrq4vvi",
+          "promptTokens": 20425,
+          "reasoningTokens": 1025,
+          "status": "completed"
+        }
+      ],
+      "units": [
+        {
+          "assignee": "hand",
+          "creator": "lead",
+          "state": "done"
+        }
+      ]
+    },
+    {
+      "agents": ["scribe"],
+      "approvals": [],
+      "asks": 0,
+      "channels": {
+        "main": "usqkcjfc8tnsjmbzuxgxmy4feh"
+      },
+      "memoriesWritten": 0,
+      "replyPosts": 2,
+      "task": "x3",
+      "tier": "reference",
+      "totals": {
+        "actionCount": 0,
+        "completionTokens": 988,
+        "costUsd": 0,
+        "promptTokens": 11076,
+        "reasoningTokens": 919
+      },
+      "triggers": [],
+      "turns": [
+        {
+          "actionCount": 0,
+          "agent": "scribe",
+          "cachedPromptTokens": 5248,
+          "completionTokens": 286,
+          "costUsd": null,
+          "durationMs": 1993,
+          "id": "tox5ep9u6jxamlhp9c8wa2k9",
+          "promptTokens": 5498,
+          "reasoningTokens": 253,
+          "status": "completed"
+        },
+        {
+          "actionCount": 0,
+          "agent": "scribe",
+          "cachedPromptTokens": 5248,
+          "completionTokens": 702,
+          "costUsd": null,
+          "durationMs": 4076,
+          "id": "yz3e15rupoe2lewlgr6rext8",
+          "promptTokens": 5578,
+          "reasoningTokens": 666,
+          "status": "completed"
+        }
+      ],
+      "units": []
+    }
+  ]
+}

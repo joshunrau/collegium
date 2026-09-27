@@ -1,0 +1,92 @@
+{
+  "task": "x2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "Lead assigned unit lxx36b3y to hand, hand reported it to review, lead closed it done and replied to bench-admin with office 1122 Sherman Health Science Centre and extension 33418."
+  },
+  "checks": [
+    {
+      "id": "x2-1",
+      "verdict": "fail",
+      "quote": "That is the only entry on the page matching C. Okonkwo, so there is nothing to disambiguate. The report has gone to @lead.",
+      "cause": "gap",
+      "note": "Hand's reporting turn (nas3g6pk) answered only lead's assignment (triggeringPostId and drainedFromPostId both kgcuquaw, lead's unit post), then posted reply u4j9gk3y after its report: 587 characters, restating the report in full. At beta.28 no quiet ending existed: §3.3 makes text with no tool call the turn's final output, §4.5 rejects a reply with no prose, and the report result read \"so your reply need not repeat it\"; the no-reply ending arrived in beta.29 (3fca99c). Evidence, not a regression."
+    },
+    {
+      "id": "x2-2",
+      "verdict": "pass",
+      "quote": "✅ _done (5s)_",
+      "note": "Both hand turns (nas3g6pk, yllbh81d) are completed, and their events are only assistant_message and tool_result, with no output_rejected (the run's TurnEvent table agrees). Transport retries are not recorded as events at beta.28, so the retry clause rests on both turns completing normally with non-empty completions."
+    },
+    {
+      "id": "x2-3",
+      "verdict": "pass",
+      "quote": "@bench-admin — @hand's lookup is in:",
+      "note": "Lead's turn answering the person (j2k4x68s) ended with reply 38ssjzbx, and its turn judging the report (rp6t1c0p) ended with reply mb79aygj after tasks::close."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "Hand is looking that up now — I have no web access, so the directory lookup sits with hand's toolset.",
+      "note": "Each of the four turns posted exactly one reply (38ssjzbx, u4j9gk3y, mb79aygj, jzrzzrhe). The replies owed were posted: lead's two, plus hand's turn 4, which answered lead's plain post. Hand's turn-2 reply was not owed; x2-1 covers it."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "fail",
+      "quote": "Re-read the same page to check my earlier transcription against the live text, since my previous fetch was no longer in front of me: it stands unchanged.",
+      "cause": "model",
+      "note": "Hand's turn-4 reply narrates its context mechanics, echoing its reasoning that \"my prior turn's fetch result is unavailable in my context\". The beta.28 baseline already says to keep \"how a result reached you\" out of a reply. The other three replies carry no deliberation."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (8s)_",
+      "note": "All four Turn rows are completed, and each status post reached the done marker."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "| [Okonkwo, C.](https://okonkwo.labs.northmoor.example/) | 1122 Sherman Health Science Centre | 33418 | [okonkwo@northmoor.example](mailto:okonkwo@northmoor.example) |",
+      "note": "The office, extension, email and page title in every reply appear in hand's web::fetch result. Lead's relayed values come from hand's report post, which triggered its turn, and match the ground truth."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "→ `web::fetch http://fixtures/northmoor/static-directory.html (whole page)`",
+      "note": "Hand's turn-4 fetch repeats its turn-2 call with identical arguments, but in a later turn and after a success, not a failure."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "One caveat I should state: both values come from hand's reading of the page, not from a re-check of my own — I have no web access, so that reading is the sole source.",
+      "note": "Hand's claims that it transcribed exactly and read one page only match its single fetch. Its turn-4 claim that it re-read the page matches the second fetch. Lead's turn-1 promise to post the values was kept."
+    }
+  ],
+  "metrics": {
+    "turns": 4,
+    "actionCount": 5,
+    "promptTokens": 87870,
+    "completionTokens": 3406,
+    "reasoningTokens": 1907,
+    "costUsd": 0,
+    "durationMs": 24963
+  },
+  "observations": [
+    "Lead's closing reply wrote \"@hand's lookup is in\", which Mattermost reads as a mention of hand. That started a fourth, unneeded hand turn (yllbh81d, activationKind handoff, triggered by mb79aygj), which re-fetched the page and posted the answer again. The beta.28 colleagues baseline says to write @ only in the post that addresses a colleague, and lead's own turn-1 reasoning applied that rule (model).",
+    "In that fourth turn, hand's reasoning took its earlier fetch, replayed as a stub (\"from an earlier turn; its text is not shown\"), to mean it never saw the page in its reporting turn. It spent 987 reasoning tokens and a fetch re-verifying a closed unit.",
+    "The answer reached the channel four times: hand's report, hand's reply, lead's reply and hand's turn-4 reply.",
+    "Lead's turn-1 reply ran a method paragraph restating the assignment and promised a later post, contrary to the beta.28 replies baseline. The promise was kept.",
+    "Beta.28 records no posts_taken events, so which posts a turn answered was read from the Turn row's triggeringPostId and drainedFromPostId.",
+    "This reference release predates the quiet hand-off ending (3fca99c, beta.29), so x2-1's fail here is the expected baseline for comparison, not a defect of beta.28 against its own SPEC."
+  ]
+}

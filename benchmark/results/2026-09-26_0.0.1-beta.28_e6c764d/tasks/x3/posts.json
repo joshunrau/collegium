@@ -1,0 +1,72 @@
+[
+  {
+    "id": "8fx5he13mfrj7j6whx49d6p7so",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "usqkcjfc8tnsjmbzuxgxmy4feh",
+    "createdAt": "2026-09-27T00:28:49.225+00:00",
+    "isForgotten": 0,
+    "message": "Please add me to teams and channels you want me to interact in. To do this, use the browser or Mattermost Desktop App.",
+    "observedAt": "2026-09-27T00:28:53.431+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "8bs14twjqpgz9pwztbkfssqpoo",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "usqkcjfc8tnsjmbzuxgxmy4feh",
+    "createdAt": "2026-09-27T00:45:33.990+00:00",
+    "isForgotten": 0,
+    "message": "Please draft a two-line note for a new student saying when and where our reading group meets: Thursdays at 10:00 in room B-204.",
+    "observedAt": "2026-09-27T00:45:34.003+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "9ctajyp7kigi7p3f3ggim33adw",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "usqkcjfc8tnsjmbzuxgxmy4feh",
+    "createdAt": "2026-09-27T00:45:34.773+00:00",
+    "isForgotten": 0,
+    "message": "Correction: from October the reading group meets in room C-110, same day and time.",
+    "observedAt": "2026-09-27T00:45:34.782+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "eqaf1qy6sbg48ywoqiqtd664ty",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "usqkcjfc8tnsjmbzuxgxmy4feh",
+    "createdAt": "2026-09-27T00:45:36.739+00:00",
+    "isForgotten": 0,
+    "message": "Reading group meets Thursdays at 10:00 in room B-204.\nNew students are welcome any week — just come along, no prep needed.",
+    "observedAt": "2026-09-27T00:45:36.753+00:00",
+    "authoringTurnId": "tox5ep9u6jxamlhp9c8wa2k9",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "1chy7c8zr7nfddpm15foc3nmtc",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "usqkcjfc8tnsjmbzuxgxmy4feh",
+    "createdAt": "2026-09-27T00:45:40.826+00:00",
+    "isForgotten": 0,
+    "message": "Reading group meets Thursdays at 10:00, in room C-110 from October.\nNew students are welcome any week — just come along, no prep needed.",
+    "observedAt": "2026-09-27T00:45:40.836+00:00",
+    "authoringTurnId": "yz3e15rupoe2lewlgr6rext8",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

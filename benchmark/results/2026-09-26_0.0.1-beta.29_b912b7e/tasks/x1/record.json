@@ -1,0 +1,82 @@
+{
+  "task": "x1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The reply gives B-117 PDB, Eye tracker, 1200 Hz, and custodian Mbeki, I. for NM-EQ-3411, and each value is in the web::fetch find result the turn read."
+  },
+  "checks": [
+    {
+      "id": "x1-1",
+      "verdict": "pass",
+      "quote": "\"NM-EQ-3411\" — 1 match at 311184",
+      "note": "The first fetch returned characters 0–30000 of 346489 and ended 'read on with startChar=30000'. The second call was web::fetch with find [\"NM-EQ-3411\"], which reached the row at about 90% of the page. It did not guess from the first view."
+    },
+    {
+      "id": "x1-2",
+      "verdict": "pass",
+      "quote": "{\"url\": \"http://fixtures/northmoor/equipment-register.html\", \"startChar\": 0, \"wholePage\": false, \"find\": [\"NM-EQ-3411\"]}",
+      "note": "Only two calls ran: the first 30,000-character window and a find window. No call used wholePage and none opened the page in the browser."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "**NM-EQ-3411** is an **Eye tracker, 1200 Hz** (serial ET-66204-K), held in **B-117 PDB**, with **Mbeki, I.** as custodian.",
+      "note": "The person's post needed a reply, and the turn posted exactly one (summary replyPosts: 1)."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "**NM-EQ-3411** is an **Eye tracker, 1200 Hz** (serial ET-66204-K), held in **B-117 PDB**, with **Mbeki, I.** as custodian. Last calibrated 2026-02-19.",
+      "note": "The reply has no meta-commentary. The reasoning ('NM-EQ-3411: Eye tracker... Answer.') did not appear in the posted content."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (21s)_",
+      "note": "Turn status: completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "| NM-EQ-3411 | Eye tracker, 1200 Hz | ET-66204-K | B-117 PDB | Mbeki, I. | 2026-02-19 |",
+      "note": "All six values in the reply are in the second tool result: the tag, description, serial, room, custodian and calibration date."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"memoriesWritten\": 0",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"reasoningContent\": \"The page is long. I need NM-EQ-3411. Let me use find.\"",
+      "note": "No call failed. The second call added find, so its arguments differ from the first."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "Source: the equipment register at http://fixtures/northmoor/equipment-register.html.",
+      "note": "The reply claims only what the find window shows. It makes no claim of verification beyond that."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 2,
+    "promptTokens": 48461,
+    "completionTokens": 351,
+    "reasoningTokens": 76,
+    "costUsd": 0,
+    "durationMs": 20668
+  },
+  "observations": [
+    "The agent used web::fetch, not the browser, so the view it saw was the fetch window of 30,000 characters. The ground truth's 60,000-character snapshot view never came into play, and results::read was not needed.",
+    "The first result stayed under the 120,000-character view (presentedAs viewChars), so no results::read reference was offered. Reading on meant re-requesting the URL with a find or startChar, which is what the tool's tail line said to do.",
+    "The model's reasoning was one line per step: 'The page is long. I need NM-EQ-3411. Let me use find.'",
+    "The model was deepseek-v4-flash. The turn's costUsd is null; summary totals report 0."
+  ]
+}

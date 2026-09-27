@@ -1,0 +1,58 @@
+[
+  {
+    "id": "4ybumyabmffwimmeo9woaixi1h",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "6nr4p7f953f6jciupx6x5jpboe",
+    "createdAt": "2026-09-27T00:18:39.250+00:00",
+    "isForgotten": 0,
+    "message": "@lead @hand could you both confirm you're here?",
+    "observedAt": "2026-09-27T00:18:39.256+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "d1f497nxwtn958dotnn8uum68y",
+    "authorKind": "system",
+    "authorUsername": "orchestrator",
+    "channelId": "6nr4p7f953f6jciupx6x5jpboe",
+    "createdAt": "2026-09-27T00:18:39.259+00:00",
+    "isForgotten": 0,
+    "message": "⚠️ Address one agent per message. To name an agent without addressing it, write its name without the @.",
+    "observedAt": "2026-09-27T00:18:39.262+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "efcrocdjg3fr5jarxatat9wbzy",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "6nr4p7f953f6jciupx6x5jpboe",
+    "createdAt": "2026-09-27T00:18:51.283+00:00",
+    "isForgotten": 0,
+    "message": "@lead just you then: confirm you're here.",
+    "observedAt": "2026-09-27T00:18:51.297+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "cqgt6khdoinf5f7q55gx4rs1jy",
+    "authorKind": "agent",
+    "authorUsername": "lead",
+    "channelId": "6nr4p7f953f6jciupx6x5jpboe",
+    "createdAt": "2026-09-27T00:18:53.843+00:00",
+    "isForgotten": 0,
+    "message": "Here — @lead, present in t-l2 and ready for work.",
+    "observedAt": "2026-09-27T00:18:53.852+00:00",
+    "authoringTurnId": "whpyxvv5zieg4o0u0qx8etx3",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

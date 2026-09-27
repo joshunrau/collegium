@@ -1,0 +1,40 @@
+{
+  "agents": ["thrift"],
+  "approvals": [
+    {
+      "status": "approved",
+      "tool": [null, "extend_budget"]
+    }
+  ],
+  "asks": 0,
+  "channels": {
+    "main": "qcec9i8jqpgwt8ewm9wwsctpke"
+  },
+  "memoriesWritten": 0,
+  "replyPosts": 1,
+  "task": "o2",
+  "tier": "reference",
+  "totals": {
+    "actionCount": 3,
+    "completionTokens": 678,
+    "costUsd": 0,
+    "promptTokens": 23811,
+    "reasoningTokens": 235
+  },
+  "triggers": [],
+  "turns": [
+    {
+      "actionCount": 3,
+      "agent": "thrift",
+      "cachedPromptTokens": 15104,
+      "completionTokens": 678,
+      "costUsd": null,
+      "durationMs": 5089,
+      "id": "x0qy69dxtav8psox2jrvcc0e",
+      "promptTokens": 23811,
+      "reasoningTokens": 235,
+      "status": "completed"
+    }
+  ],
+  "units": []
+}

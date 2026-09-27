@@ -1,0 +1,35 @@
+[
+  {
+    "id": "y5xf3hikpqqcdvp7c7ys7vt9",
+    "args": {
+      "id": "faculty-directory",
+      "url": "http://fixtures/northmoor/faculty/"
+    },
+    "createdAt": "2026-09-27T00:17:34.433+00:00",
+    "decidedAt": "2026-09-27T00:17:34.956+00:00",
+    "decidedByUsername": "bench-admin",
+    "payloadText": "save bookmark \"faculty-directory\" → http://fixtures/northmoor/faculty/",
+    "promptPostId": "f3nqmqmy4jdw8gdx9t7ao8dtpc",
+    "reason": null,
+    "status": "approved",
+    "toolName": "save",
+    "toolNamespace": "bookmark",
+    "turnId": "yqmu28sgwnlzpxr4i8d1f1uj"
+  },
+  {
+    "id": "af1ho0tz4uiwbj6gwat8mrai",
+    "args": {
+      "id": "faculty-directory"
+    },
+    "createdAt": "2026-09-27T00:17:50.076+00:00",
+    "decidedAt": "2026-09-27T00:17:50.545+00:00",
+    "decidedByUsername": "bench-admin",
+    "payloadText": "delete bookmark \"faculty-directory\" → http://fixtures/northmoor/faculty/",
+    "promptPostId": "td3stcnd9prxppuiacw6kdap1e",
+    "reason": null,
+    "status": "approved",
+    "toolName": "delete",
+    "toolNamespace": "bookmark",
+    "turnId": "h109uh2li6a9vbhmezi5ed6v"
+  }
+]

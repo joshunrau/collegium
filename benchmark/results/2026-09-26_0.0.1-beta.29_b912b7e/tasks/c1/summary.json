@@ -1,0 +1,40 @@
+{
+  "agents": ["clerk"],
+  "approvals": [
+    {
+      "status": "approved",
+      "tool": ["workspace", "write"]
+    }
+  ],
+  "asks": 0,
+  "channels": {
+    "main": "mno66rt6kb8b5yaid3uqpejhze"
+  },
+  "memoriesWritten": 0,
+  "replyPosts": 1,
+  "task": "c1",
+  "tier": "reference",
+  "totals": {
+    "actionCount": 2,
+    "completionTokens": 322,
+    "costUsd": 0,
+    "promptTokens": 20891,
+    "reasoningTokens": 187
+  },
+  "triggers": [],
+  "turns": [
+    {
+      "actionCount": 2,
+      "agent": "clerk",
+      "cachedPromptTokens": 13696,
+      "completionTokens": 322,
+      "costUsd": null,
+      "durationMs": 4132,
+      "id": "ajtbyl0lyclkqkgn16bahnkl",
+      "promptTokens": 20891,
+      "reasoningTokens": 187,
+      "status": "completed"
+    }
+  ],
+  "units": []
+}

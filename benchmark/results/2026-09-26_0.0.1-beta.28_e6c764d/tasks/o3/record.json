@@ -1,0 +1,78 @@
+{
+  "task": "o3",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The orchestrator bot posted the webhook trigger, omni's single trigger-activated turn called web::fetch on http://fixtures/northmoor/, replied that the title is Northmoor University, and called triggers::resolve, leaving the trigger row status resolved."
+  },
+  "checks": [
+    {
+      "id": "o3-1",
+      "verdict": "pass",
+      "quote": "trigger q81zi9g6zqeqfrjh2uvmk0sd resolved",
+      "note": "The resolve tool result (00:52:06.203) and the reply post n71femw63b897pw9t8wmkwzq9h (00:52:07.903) both belong to turn uvvm02ua9g83himco0e05ll8. Resolve came just before the reply because the final text ends the turn."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"replyPosts\": 1,",
+      "note": "One turn and one reply post. The turn was owed a reply because it answered a trigger announcement."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "fail",
+      "quote": "Nothing on it tried to direct me anywhere.",
+      "cause": "model",
+      "note": "This carries the reasoning's own injection check ('I should also note: no injected instructions in the content?') into the posted reply. The beta.28 outside-content baseline says 'Where nothing tried to, your reply says nothing about it.', so the prompt covered this case and the model ignored it."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (6s)_",
+      "note": "Turn status completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "Northmoor University — http://fixtures/northmoor/ (HTTP 200)",
+      "note": "The web::fetch result contains the title, URL and HTTP 200. The summary of the index is loosely worded: 'a client-rendered marketing site' merges two entries. The page describes the marketing site as 'single-page', and 'client-rendered' belongs to the faculty listing. This is a descriptive paraphrase, not a factual value."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "→ `web::fetch http://fixtures/northmoor/`",
+      "note": "Two distinct calls and no failures."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "Done: the page loaded (HTTP 200) and its title is **Northmoor University**.",
+      "note": "The trace supports the 'Done' claim: the fetch returned HTTP 200 and the resolve succeeded before the reply."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 2,
+    "promptTokens": 35730,
+    "completionTokens": 679,
+    "reasoningTokens": 429,
+    "costUsd": 0,
+    "durationMs": 6331
+  },
+  "observations": [
+    "The first drive at 00:40:45 UTC was refused at trigger intake with agent-absent. The driver posted the trigger before the roster had seen omni's membership, which is a driver race. The artifacts cover only the re-drive at 00:52:01, which was accepted on the first attempt.",
+    "The turn's costUsd is null (deepseek-v4-flash), and summary totals report costUsd 0. That is an unpriced model, not zero spend.",
+    "The model considered checking the HTML <title> with a raw fetch and accepted the title line of web::fetch instead. The page's <title> and h1 agree, so this had no effect here.",
+    "The first reasoning step contains a stray unrelated thought ('Wait — email service works for any email address.'). It did not reach the reply.",
+    "The reply opens by restating the item ('Nightly check from bench — fetch ... and report its page title'), as the trigger announcement asks ('say here what it needs')."
+  ]
+}

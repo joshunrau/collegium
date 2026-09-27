@@ -1,0 +1,44 @@
+[
+  {
+    "id": "aruos73z9tfs5x7bzuukikzzzr",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "6gz55iewttnttnm1xbg99atpwy",
+    "createdAt": "2026-09-27T00:31:10.044+00:00",
+    "isForgotten": 0,
+    "message": "@browser read http://fixtures/northmoor/static-page.html and tell me the three research themes and the address enquiries go to.",
+    "observedAt": "2026-09-27T00:31:10.055+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "9pjytygtdfrgddff7777ftgbpe",
+    "authorKind": "agent",
+    "authorUsername": "browser",
+    "channelId": "6gz55iewttnttnm1xbg99atpwy",
+    "createdAt": "2026-09-27T00:31:11.893+00:00",
+    "isForgotten": 0,
+    "message": "✅ _done (3s)_\n→ `web::fetch http://fixtures/northmoor/static-page.html find \"research theme\", \"enquiries\", \"theme\" (whole page)` 4 matches",
+    "observedAt": "2026-09-27T00:31:11.918+00:00",
+    "authoringTurnId": "mjrrsbco5au5p37ph3in08he",
+    "kind": "status",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "w8d9ns6etin3igc67m7ud61w8r",
+    "authorKind": "agent",
+    "authorUsername": "browser",
+    "channelId": "6gz55iewttnttnm1xbg99atpwy",
+    "createdAt": "2026-09-27T00:31:13.437+00:00",
+    "isForgotten": 0,
+    "message": "The page at http://fixtures/northmoor/static-page.html lists three research themes:\n\n- Cognitive development across the lifespan\n- Clinical trials in mood and anxiety disorders\n- Computational models of perception\n\nEnquiries go to research@northmoor.example (the page also links a people directory at http://fixtures/psychology/people/, which I did not open).",
+    "observedAt": "2026-09-27T00:31:13.446+00:00",
+    "authoringTurnId": "mjrrsbco5au5p37ph3in08he",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

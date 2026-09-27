@@ -1,0 +1,44 @@
+[
+  {
+    "id": "c7nhqm7nsffmijx9gnxopn6bio",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "56z6d14owfn78yju4jruokx6ke",
+    "createdAt": "2026-09-27T00:31:26.295+00:00",
+    "isForgotten": 0,
+    "message": "@browser list every member of the Cognition and Perception research group in the faculty directory at http://fixtures/northmoor/faculty/ with their email addresses. The directory has more than one page.",
+    "observedAt": "2026-09-27T00:31:26.302+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "6hyu9cznq3ygbcrzx37gd34e5a",
+    "authorKind": "agent",
+    "authorUsername": "browser",
+    "channelId": "56z6d14owfn78yju4jruokx6ke",
+    "createdAt": "2026-09-27T00:31:28.290+00:00",
+    "isForgotten": 0,
+    "message": "✅ _done (5s)_\n→ `web::fetch http://fixtures/northmoor/faculty/`\n→ `web::fetch http://fixtures/northmoor/faculty/page-2.html`\n→ `web::fetch http://fixtures/northmoor/faculty/page-3.html`",
+    "observedAt": "2026-09-27T00:31:28.308+00:00",
+    "authoringTurnId": "yb72w6pkcvntw6yd7c6stdkp",
+    "kind": "status",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "bsxq7ipohfr7xk4b6d14njjf1c",
+    "authorKind": "agent",
+    "authorUsername": "browser",
+    "channelId": "56z6d14owfn78yju4jruokx6ke",
+    "createdAt": "2026-09-27T00:31:32.562+00:00",
+    "isForgotten": 0,
+    "message": "Cognition and Perception has 7 members across the directory's three pages:\n\n| Name | Email |\n| --- | --- |\n| Amara Okafor | a.okafor@northmoor.example |\n| Esperanza Ruiz | e.ruiz@northmoor.example |\n| Imani Mbeki | i.mbeki@northmoor.example |\n| Mei-Ling Chao | m.chao@northmoor.example |\n| Rosa Delgado | r.delgado@northmoor.example |\n| Uma Krishnan | u.krishnan@northmoor.example |\n| Wanjiru Kamau | w.kamau@northmoor.example |\n\nThe directory holds 24 members in total (8 per page): 7 Cognition and Perception, 9 Clinical Science, 8 Developmental. The group counts from the three pages add up to 24, and page 3 is the last.",
+    "observedAt": "2026-09-27T00:31:32.574+00:00",
+    "authoringTurnId": "yb72w6pkcvntw6yd7c6stdkp",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

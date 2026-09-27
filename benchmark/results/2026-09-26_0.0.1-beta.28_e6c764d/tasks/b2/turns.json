@@ -1,0 +1,27 @@
+[
+  {
+    "id": "yb72w6pkcvntw6yd7c6stdkp",
+    "actionCount": 3,
+    "agentUsername": "browser",
+    "channelId": "56z6d14owfn78yju4jruokx6ke",
+    "completionTokens": 876,
+    "depth": 0,
+    "endedAt": "2026-09-27T00:31:32.586+00:00",
+    "modelName": "deepseek-v4-flash",
+    "promptTokens": 23517,
+    "startedAt": "2026-09-27T00:31:27.073+00:00",
+    "status": "completed",
+    "statusPostId": "6hyu9cznq3ygbcrzx37gd34e5a",
+    "triggeringPostId": "c7nhqm7nsffmijx9gnxopn6bio",
+    "cachedPromptTokens": 21760,
+    "reasoningTokens": 436,
+    "chainLength": 1,
+    "costUsd": null,
+    "rootPostId": "c7nhqm7nsffmijx9gnxopn6bio",
+    "activationKind": "addressed",
+    "contextAssembledAt": "2026-09-27T00:31:27.078+00:00",
+    "drainedFromPostId": null,
+    "windowEstimatedTokens": 56,
+    "windowOldestAt": "2026-09-27T00:31:26.295+00:00"
+  }
+]

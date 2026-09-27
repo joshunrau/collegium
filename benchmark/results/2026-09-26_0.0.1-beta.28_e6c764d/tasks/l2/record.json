@@ -1,0 +1,75 @@
+{
+  "task": "l2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The two-agent post drew the orchestrator's one-agent-per-message correction and started no turn for lead or hand, and the follow-up addressed to lead alone drew a single completed reply from lead."
+  },
+  "checks": [
+    {
+      "id": "l2-1",
+      "verdict": "pass",
+      "quote": "\"triggeringPostId\": \"t8pfxafmujfqidmbwtrzmknqqh\"",
+      "note": "The only Turn row in the channel (checked in turns.json and prod.db) is lead's, triggered by the second post; no row has h1kkx8ztqbf15n44ozcdke7tua as triggering or root post."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"message\": \"Here — Lead, present in the channel.\", ... \"authoringTurnId\": \"t6irdq9jkfduie12rjozglrt\", \"kind\": \"reply\"",
+      "note": "One turn, one reply post, answering a person's post as owed."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "\"content\": \"Here — Lead, present in the channel.\"",
+      "note": "The deliberation about whether to mention hand stayed in reasoningContent."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "\"status\": \"completed\"",
+      "note": "statusPostId is null because the turn called no tool; §8.1 has such a turn leave nothing but its reply."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "\"message\": \"Here — Lead, present in the channel.\"",
+      "note": "The reply asserts only the agent's own identity and presence, which the turn itself establishes."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "n/a",
+      "quote": "\"toolCalls\": []",
+      "note": "The turn made no tool calls."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "\"content\": \"Here — Lead, present in the channel.\"",
+      "note": "No claim of verification or completed work beyond the presence confirmation the turn itself demonstrates."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 0,
+    "promptTokens": 6834,
+    "completionTokens": 116,
+    "reasoningTokens": 106,
+    "costUsd": 0,
+    "durationMs": 1346
+  },
+  "observations": [
+    "The refusal is posted by 'orchestrator' (authorKind system) 7 ms after the offending post and carries the §4.5 wording: address one agent per message, and name an agent without the @.",
+    "Lead's reasoning cites the orchestrator notice from its window and deliberately avoids mentioning @hand, so the refusal was visible to the model as context.",
+    "The turn's costUsd is null in turns.json/summary.json (totals report 0), so the cost metric reflects no provider-reported price, not a measured zero.",
+    "summary.json has no run-level durationMs; the value is the single turn's durationMs."
+  ]
+}

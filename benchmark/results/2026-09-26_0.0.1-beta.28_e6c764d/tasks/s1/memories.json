@@ -1,0 +1,39 @@
+{
+  "heldByAgents": [
+    {
+      "id": "dxpamkrzft4ctd4az1ld1paz",
+      "agentUsername": "scribe",
+      "body": "bench-admin (person, bench channel) sometimes posts design/process questions explicitly marked as thinking out loud, and says when they are not asking for a draft. Treat those as discussion: give a considered view and the shape of an answer, and write nothing until asked.\n\nContext: asked on 2026-09-27 how to structure a weekly team summary so people actually read it; said \"Not asking you to write one.\"",
+      "createdAt": "2026-09-27T00:29:57.748+00:00",
+      "description": "When bench-admin posts an exploratory \"how could we...\" question, they want discussion, not a deliverable",
+      "lastUsedAt": "2026-09-27T00:30:36.452+00:00",
+      "originPostId": "aiapswk84f838coq4doacy5nhw",
+      "revisedAt": null,
+      "revision": 0
+    },
+    {
+      "id": "ygxarsw14rl4toiett4p34cr",
+      "agentUsername": "scribe",
+      "body": "bench-admin asked on 2026-09-27 that our written reports always use ISO dates (YYYY-MM-DD) and never contain emoji. Treated as a standing house style for anything I write (reports, findings, summaries), not just one-off replies.\n\nCaveat recorded at the time: the request was phrased \"remember this for the whole team\", but my memories are private to me — no colleague can read them, so this binds my own output only. What would bind everyone here is a pinned post in the channel, which only a person can pin (I cannot pin or unpin).",
+      "createdAt": "2026-09-27T00:30:19.333+00:00",
+      "description": "When writing any report or deliverable for this workspace: ISO dates (YYYY-MM-DD), no emoji",
+      "lastUsedAt": "2026-09-27T00:30:36.452+00:00",
+      "originPostId": "eex8kq3f9jnatni3eyku7nme3e",
+      "revisedAt": null,
+      "revision": 0
+    }
+  ],
+  "writtenHere": [
+    {
+      "id": "dxpamkrzft4ctd4az1ld1paz",
+      "agentUsername": "scribe",
+      "body": "bench-admin (person, bench channel) sometimes posts design/process questions explicitly marked as thinking out loud, and says when they are not asking for a draft. Treat those as discussion: give a considered view and the shape of an answer, and write nothing until asked.\n\nContext: asked on 2026-09-27 how to structure a weekly team summary so people actually read it; said \"Not asking you to write one.\"",
+      "createdAt": "2026-09-27T00:29:57.748+00:00",
+      "description": "When bench-admin posts an exploratory \"how could we...\" question, they want discussion, not a deliverable",
+      "lastUsedAt": "2026-09-27T00:30:36.452+00:00",
+      "originPostId": "aiapswk84f838coq4doacy5nhw",
+      "revisedAt": null,
+      "revision": 0
+    }
+  ]
+}

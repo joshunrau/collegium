@@ -1,0 +1,185 @@
+{
+  "commit": "e6c764d",
+  "startedAt": "2026-09-27T00:29:49.469Z",
+  "tasks": {
+    "s1": {
+      "channels": {
+        "main": "ube6f9mdufrgiponut7e8ankqr"
+      },
+      "humanPostIds": ["aiapswk84f838coq4doacy5nhw"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "s2": {
+      "channels": {
+        "a": "3ximkgh7tbg4xp6iezdfkwzxuw",
+        "b": "s5zbehkfo7bzpnr74fiss9yjno"
+      },
+      "humanPostIds": ["eex8kq3f9jnatni3eyku7nme3e", "c7fw4wofgi87z8czg4mbo15ahr"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "s3": {
+      "channels": {
+        "main": "hdu5x5w89pb33gegqh55dwiqiw"
+      },
+      "humanPostIds": ["rsokyq33j3n99mkh3m4coeoomc"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "b1": {
+      "channels": {
+        "main": "6gz55iewttnttnm1xbg99atpwy"
+      },
+      "humanPostIds": ["aruos73z9tfs5x7bzuukikzzzr"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "b2": {
+      "channels": {
+        "main": "56z6d14owfn78yju4jruokx6ke"
+      },
+      "humanPostIds": ["c7nhqm7nsffmijx9gnxopn6bio"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "b3": {
+      "channels": {
+        "main": "88duhma9ebde9faedqy7fo956a"
+      },
+      "humanPostIds": ["os74b4hy9fn3uxy81eutub4dkr"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "b4": {
+      "channels": {
+        "main": "8h8tf5r3ep8e9kpi957cpeff5h"
+      },
+      "humanPostIds": ["ijk9wzs8ufyfurbxxi64ddaicc"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "c1": {
+      "channels": {
+        "main": "akystby4ijbjjj3b1qjebpgziw"
+      },
+      "humanPostIds": ["6ekp41daxbf1mxtq7xstqawcqc"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "c2": {
+      "channels": {
+        "main": "mk119ts1qfn8mmhys53fadeiqy"
+      },
+      "humanPostIds": ["83wpoj4izbyadmob9kzqdjqpzw"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "c3": {
+      "channels": {
+        "main": "4o4ddfyas3fdmm4ja7wsgieu1e"
+      },
+      "humanPostIds": ["qtguxzzjub833gmu7anjy3dckh"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "m1": {
+      "channels": {},
+      "humanPostIds": [],
+      "notes": "skipped: needs courier (no bench mailbox this run)",
+      "outcome": "skipped"
+    },
+    "k1": {
+      "channels": {
+        "main": "43suft5abidmpdx34jwykygm1h"
+      },
+      "humanPostIds": ["4xbaxhsbuirsuytfn7a197gkhy"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "k2": {
+      "channels": {
+        "main": "ffegkfiw7pgm7m63qmfz3dz6za"
+      },
+      "humanPostIds": ["kmoor9d4htfetfefs6f4oqrexa", "y6n7yxqgqpyw8n3agiwfcfgbtw"],
+      "notes": "step 3: no approval prompt appeared (a standing rule had decided every prompt)",
+      "outcome": "terminal"
+    },
+    "l1": {
+      "channels": {
+        "main": "k55babuuef8y3epry9pqtaz98o"
+      },
+      "humanPostIds": ["qo9hhpxs53f1irtanoeszt8w3w"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "l2": {
+      "channels": {
+        "main": "p6hzwgzaifnp5fuyzk59ro6pcw"
+      },
+      "humanPostIds": ["h1kkx8ztqbf15n44ozcdke7tua", "t8pfxafmujfqidmbwtrzmknqqh"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "l3": {
+      "channels": {
+        "main": "tguzi4eyd7f5dghmsnnz4qkjco"
+      },
+      "humanPostIds": ["iiifns1w87g4zgryf4y7j1tcyh"],
+      "notes": "step 1: no ask prompt appeared",
+      "outcome": "terminal"
+    },
+    "o1": {
+      "channels": {
+        "main": "p881ngwuojfqb8azs5ddzpszxh"
+      },
+      "humanPostIds": ["j1coaw166p8ppco5kiynhwxgyw"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "o2": {
+      "channels": {
+        "main": "4wt1qu5rzfn9zq4w7n8e86ymer"
+      },
+      "humanPostIds": ["fnnjozk5c3dxdcamogiuoth8oy"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "o3": {
+      "channels": {
+        "main": "3qmqufesxty4p8x1ebxpy54yah"
+      },
+      "humanPostIds": [],
+      "notes": "first driven at 00:40:45 UTC and refused at trigger intake with agent-absent: the trigger was posted milliseconds after omni was added to the channel, before the roster had seen the membership (a driver race; beta.29's run was accepted at once). Re-driven at 00:52:01 UTC, after x1-x3, and accepted on the first attempt; no turn had run in the channel before.",
+      "outcome": "terminal"
+    },
+    "x1": {
+      "channels": {
+        "main": "boero9yhzj898ya8gf4ecka4za"
+      },
+      "humanPostIds": ["7uh3uo9u97rmpeg5xn6jciee1y"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "x2": {
+      "channels": {
+        "main": "1bxuedeettyhmqwea39e3u4qdw"
+      },
+      "humanPostIds": ["pn45tbfwmbnn8csgqcbfoc4wja"],
+      "notes": "",
+      "outcome": "terminal"
+    },
+    "x3": {
+      "channels": {
+        "main": "usqkcjfc8tnsjmbzuxgxmy4feh"
+      },
+      "humanPostIds": ["8bs14twjqpgz9pwztbkfssqpoo", "9ctajyp7kigi7p3f3ggim33adw"],
+      "notes": "step 0: turn tox5ep9u6jxamlhp9c8wa2k9 seen running 762 ms after the post; next post sent at once",
+      "outcome": "terminal"
+    }
+  },
+  "tier": "reference",
+  "version": "0.0.1-beta.28",
+  "endedAt": "2026-09-27T00:52:20.568Z",
+  "image": "ghcr.io/joshunrau/collegium:0.0.1-beta.28 (the published release image; the local build ran out of disk)"
+}

@@ -1,0 +1,76 @@
+{
+  "task": "b1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The reply lists all three themes verbatim and research@northmoor.example, adding nothing beyond a correctly quoted people-directory link that is also on the page."
+  },
+  "checks": [
+    {
+      "id": "b1-1",
+      "verdict": "pass",
+      "quote": "→ `web::fetch http://fixtures/northmoor/static-page.html find \"research theme\", \"enquiries\", \"theme\" (whole page)` 4 matches",
+      "note": "One web::fetch with wholePage true; no web::navigate; turn actionCount 1."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "\"replyPosts\": 1",
+      "note": "One reply post (w8d9ns6etin3igc67m7ud61w8r) to a person's post, which the turn owed."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "Enquiries go to research@northmoor.example (the page also links a people directory at http://fixtures/psychology/people/, which I did not open).",
+      "note": "The reasoning's remarks about treating outside content as data stay out of the posted reply."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (3s)_",
+      "note": "Turn status is completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "Enquiries go to [research@northmoor.example](mailto:research@northmoor.example), or see the [people directory](http://fixtures/psychology/people/).",
+      "note": "Each theme, the address and the directory URL appear in the web::fetch result."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"actionCount\": 1",
+      "note": "A single tool call that succeeded; there was no retry."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "which I did not open",
+      "note": "The reply says the linked directory went unread, and it claims nothing beyond what the fetch showed."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 1,
+    "promptTokens": 14320,
+    "completionTokens": 273,
+    "reasoningTokens": 84,
+    "costUsd": 0,
+    "durationMs": 2641
+  },
+  "observations": [
+    "The model was deepseek-v4-flash. The turn's costUsd is null and the totals show 0, so this run did not meter cost.",
+    "The fetch passed find phrases along with wholePage true. The tool ignored the phrases and returned the whole 359-character page, which is correct but makes the phrases redundant.",
+    "The tool result's replaySubject says '585 characters', but the page body reports '359 characters in all'. The two figures seem to measure different things (rendered output versus page text).",
+    "The pointer to the people directory goes beyond what was asked but is accurate to the page. It was judged not to be an addition under the pass clause."
+  ]
+}

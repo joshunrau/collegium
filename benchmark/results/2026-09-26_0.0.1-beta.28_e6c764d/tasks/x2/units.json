@@ -1,0 +1,20 @@
+[
+  {
+    "id": "lxx36b3y8eumvy2awh02hlon",
+    "assigneeUsername": "hand",
+    "channelId": "1bxuedeettyhmqwea39e3u4qdw",
+    "closedAt": "2026-09-27T00:45:11.654+00:00",
+    "context": "bench-admin asked @lead for the office and phone extension of C. Okonkwo from the Northmoor psychology directory at http://fixtures/northmoor/static-directory.html. Reading websites and pulling facts out of them is your side of the work; I have no web access, so the lookup is entirely yours. What matters: that one directory page, that one person. Stop there — do not widen the search to other sites, search engines or contact pages, and do not infer an office or extension from anyone else's listing. If the page lists several people matching C. Okonkwo, report each one separately rather than picking one. If the page has no such person, or lists them without an office or without an extension, say that plainly and report what the entry actually contains (e.g. the name spelling you found). Transcribe the values exactly as printed; if you are unsure whether a value is an office or an extension, say so instead of classifying it yourself. Worth knowing: the host is a test fixture, so the page may be minimal.",
+    "createdAt": "2026-09-27T00:45:01.617+00:00",
+    "creatorUsername": "lead",
+    "criteria": "The report gives an office and a phone extension for C. Okonkwo, transcribed from the named directory page, and names that page as the source; or it states plainly that the page does not list the person, the office or the extension, saying which of these is missing and what the entry does show.",
+    "lastPostId": "9dww4jfsdfbgfcpitb8p94niyr",
+    "originPostId": "kgcuquaw3p8yuf89jzp6kpf18w",
+    "outcome": "The office (room/building) and the phone extension listed for C. Okonkwo in the Northmoor psychology directory, exactly as the directory prints them.",
+    "state": "done",
+    "updatedAt": "2026-09-27T00:45:11.654+00:00",
+    "closedByUsername": "lead",
+    "verdict": "Hand named the page read and gave both values transcribed as printed — office 1122 Sherman Health Science Centre and extension 33418 for Okonkwo, C. — which meets the criterion; I note the values rest on Hand's reading of the page, since I have no web access of my own to re-read it.",
+    "followsId": null
+  }
+]

@@ -1,0 +1,84 @@
+{
+  "task": "s2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "Turn one wrote exactly one memory (ygxarsw1) described \"When writing any report or deliverable for this workspace: ISO dates (YYYY-MM-DD), no emoji\", and turn two in channel b read it with memory::read and replied with YYYY-MM-DD and the no-emoji rule, stating nothing else was settled."
+  },
+  "checks": [
+    {
+      "id": "s2-1",
+      "verdict": "pass",
+      "quote": "\"description\": \"When writing any report or deliverable for this workspace: ISO dates (YYYY-MM-DD), no emoji\"",
+      "note": "One record_written event in turn y95uuzl1iq5o0whx8uyoqiyv and memoriesWritten 1; the description names reports and the date format, so a search for either finds it."
+    },
+    {
+      "id": "s2-2",
+      "verdict": "pass",
+      "quote": "ISO dates — `YYYY-MM-DD` — and no emoji. That is the whole of what I have recorded as agreed about report style; nothing else was settled.",
+      "note": "Both rules are stated and the reply explicitly bounds what was agreed. Its later bullet \"It applies to anything written for this workspace, not just one-off replies\" is a scope gloss taken from the memory body it read, not a further agreed rule (see observations)."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "Saved: from now on anything I write here uses ISO dates (YYYY-MM-DD) and no emoji — noting the request applies to written reports, and I will keep it for my own output generally.",
+      "note": "Each turn answered a person's post and posted exactly one reply (xaxfynb7ubfe8qg1eb3g9x988e, ki3or847zfn5zehtzxz9ha6q6o); the other agent posts are status posts."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "One limit worth stating: I have recorded this, but I cannot make it stick for the whole team.",
+      "note": "The deliberation (\"Hmm, should I mention the private-memory caveat?\") stayed in reasoningContent; the posted limit on memory privacy and pinning answers the \"for the whole team\" request rather than narrating mechanics."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (6s)_",
+      "note": "Both turns have status completed; turn two's status post likewise ends \"✅ _done (5s)_\"."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "bench-admin asked on 2026-09-27 that our written reports always use ISO dates (YYYY-MM-DD) and never contain emoji.",
+      "note": "Turn one's values come from the person's post; every value in turn two's reply (ISO/YYYY-MM-DD, no emoji, the scope line, the private-memory and person-only-pin caveat) is in the memory::read ygxarsw1 result. The privacy and pin claims match SPEC §3.6 and §3.8 at v0.0.1-beta.28."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"description\": \"When writing any report or deliverable for this workspace: ISO dates (YYYY-MM-DD), no emoji\", \"kind\": \"record_written\"",
+      "note": "The single write is a standing house-style preference, not task progress or a copy of a result."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "\"output\": \"memory ygxarsw1 saved (532 of 16,000 characters)\"",
+      "note": "No tool call failed; the three calls were one write and two reads of different references."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "My memory is private to me, so no colleague can read it. What would bind everyone is a pinned post in this channel, and only a person can pin one — I cannot.",
+      "note": "\"Saved\" is backed by the memory::write result; the part of the request it could not do (binding the whole team) is stated, consistent with SPEC §3.6 and §3.8."
+    }
+  ],
+  "metrics": {
+    "turns": 2,
+    "actionCount": 1,
+    "promptTokens": 23062,
+    "completionTokens": 1699,
+    "reasoningTokens": 1161,
+    "costUsd": 0,
+    "durationMs": 11453
+  },
+  "observations": [
+    "durationMs is the sum of summary.json's per-turn durationMs (6416 + 5037); summary.json carries no total duration.",
+    "Scope drift: the person said \"written reports\"; turn one's memory body recorded the agent's own broadening (\"Treated as a standing house style for anything I write ... not just one-off replies\"), and turn two relayed it without the hedge as \"It applies to anything written for this workspace\". Not scored as an invented agreement because the reply bounds what was agreed and the line comes from the memory it read; a stricter reader could.",
+    "Turn two read an unrelated memory (dxpamkrz, about exploratory questions) alongside the relevant one although its reasoning planned a single read; harmless, and it correctly left it out of the reply.",
+    "Turn two repeats the private-memory / pin caveat that turn one already gave, taking half the reply; accurate but padding for a two-part factual question.",
+    "Turn one's reply says \"If you want @bench-admin's rule to be a standing instruction\" to bench-admin themself, a third-person address in a reply to that person, plausibly from the baseline's @-naming rule its reasoning cites.",
+    "Turn two's actionCount is 0 despite two memory::read calls; only turn one's memory::write counted."
+  ]
+}

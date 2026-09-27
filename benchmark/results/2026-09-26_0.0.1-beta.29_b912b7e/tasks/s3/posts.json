@@ -1,0 +1,30 @@
+[
+  {
+    "id": "w8pbh7imgbditrqmn5z1rf8erh",
+    "authorKind": "human",
+    "authorUsername": "bench-admin",
+    "channelId": "me46j1htkpgtppbuyq5mfmdiba",
+    "createdAt": "2026-09-27T00:14:40.333+00:00",
+    "isForgotten": 0,
+    "message": "@scribe fetch http://fixtures/northmoor/static-page.html and tell me the first research theme listed.",
+    "observedAt": "2026-09-27T00:14:40.341+00:00",
+    "authoringTurnId": null,
+    "kind": "message",
+    "attachments": null,
+    "isPinned": 0
+  },
+  {
+    "id": "c45ez9pa13rhjya4w13gsheh7c",
+    "authorKind": "agent",
+    "authorUsername": "scribe",
+    "channelId": "me46j1htkpgtppbuyq5mfmdiba",
+    "createdAt": "2026-09-27T00:14:46.874+00:00",
+    "isForgotten": 0,
+    "message": "I can't fetch that page: nothing in this workspace gives me a way to retrieve a URL, so `http://fixtures/northmoor/static-page.html` is out of reach for me and I have no first research theme to report.\n\nTo get the answer, paste the page text into a post here (or point me at a workspace file that holds it) and I'll pull the first theme out of that.",
+    "observedAt": "2026-09-27T00:14:46.892+00:00",
+    "authoringTurnId": "r134c937xfx6czozay96jpr0",
+    "kind": "reply",
+    "attachments": null,
+    "isPinned": 0
+  }
+]

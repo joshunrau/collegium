@@ -1,0 +1,83 @@
+{
+  "task": "s1",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "scale",
+    "value": "3",
+    "reason": "Scribe treated the post as discussion and gave a concrete structure with no promise of work, but called memory::write to store the exchange as a standing preference, which the 3 anchor names (cause: baseline, the memory paragraph's 'written in the turn that learned it' tipped a write the reasoning had called borderline)."
+  },
+  "checks": [
+    {
+      "id": "s1-1",
+      "verdict": "fail",
+      "quote": "→ `memory::write`",
+      "cause": "baseline",
+      "note": "One tool call, memory::write. The reasoning weighed skipping it ('it's borderline; only one data point. I'll skip heavy memory writing — actually, the guidance says write in the turn that learned it') and was tipped by the memory baseline paragraph ('Memory is for what a later turn will need and cannot look up, written in the turn that learned it: a preference...'). The scope baseline says an exploratory question is discussion but does not say discussion calls for no tools or no memory."
+    },
+    {
+      "id": "s1-2",
+      "verdict": "pass",
+      "quote": "That set is the whole summary. Everything else is an appendix, and appendices at the bottom are what teach people the top isn't worth reading.",
+      "note": "The reply closes on a point, with no offer of a draft, follow-up or background work."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "The thing that gets a weekly summary read is that reading it changes something for the reader — a decision they now know about, a date that moved, something they're on the hook for.",
+      "note": "One reply post (muujez3f7tnpug1eqhihoaajbc) to a person's post, plus the status post."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "So structure it around consequence, not around coverage.",
+      "note": "The deliberation ('Hmm', the memory weighing) stays in reasoningContent; the posted content has no meta-commentary, no tool names and no mention of the memory write."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "\"status\": \"completed\"",
+      "note": "Turn x9u6oq83emq2fv9v94g3i1f9 completed; status post reached '✅ _done (11s)_'."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "Cap the length at one screen. If it doesn't fit, that's the signal you're including things the reader doesn't need, not that the week was busy.",
+      "note": "The reply is advice with no factual claim about the workspace, people, dates or figures, so nothing needs a source."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "When bench-admin posts an exploratory \"how could we...\" question, they want discussion, not a deliverable",
+      "note": "Written as a person's preference, with a searchable description; not task progress or a copy of a result. It is weak: it generalises one post into a standing preference, repeats what the scope baseline already tells every agent, and its body's 'Context:' line restates the channel post. The task penalises the write itself in the headline and s1-1."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "memory dxpamkrz saved (405 of 16,000 characters)",
+      "note": "One tool call, which succeeded; nothing was retried."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "The design test is: if this summary were the only thing a person read that week, what would they need in order not to be surprised and not to be blocked?",
+      "note": "The reply claims no verification or completion and leaves nothing it owed undone."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 1,
+    "promptTokens": 11914,
+    "completionTokens": 1684,
+    "reasoningTokens": 1010,
+    "costUsd": 0,
+    "durationMs": 11023
+  },
+  "observations": [
+    "The reply gives one skeleton (six sections plus rules for keeping it up) instead of two or three alternative structures with trade-offs. It is a template, not a drafted summary.",
+    "The turn row's costUsd is null (model deepseek-v4-flash) while summary.json reports 0, so the cost was not recorded rather than being zero.",
+    "The status post showed '→ `memory::write`' to the person, so the write was visible even though the reply does not mention it.",
+    "The reasoning first concluded 'no tool calls' and then reversed on the memory baseline. That points to the memory paragraph's unconditional 'written in the turn that learned it' pulling against the scope paragraph's exploratory-question rule."
+  ]
+}

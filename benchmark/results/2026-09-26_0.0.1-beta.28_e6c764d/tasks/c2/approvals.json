@@ -1,0 +1,18 @@
+[
+  {
+    "id": "osd95k3npwwt4f8jsmfiah0m",
+    "args": {
+      "command": "printf '%s' northmoor | sha256sum"
+    },
+    "createdAt": "2026-09-27T00:32:52.284+00:00",
+    "decidedAt": "2026-09-27T00:32:52.824+00:00",
+    "decidedByUsername": "bench-admin",
+    "payloadText": "Run this shell command as this agent's dedicated OS user:\n\n```sh\nprintf '%s' northmoor | sha256sum\n```",
+    "promptPostId": "hmn4x1g4bpy7iba5mf851nzior",
+    "reason": null,
+    "status": "approved",
+    "toolName": "run",
+    "toolNamespace": "shell",
+    "turnId": "wowqscg9r53tkseyv73vkv7k"
+  }
+]

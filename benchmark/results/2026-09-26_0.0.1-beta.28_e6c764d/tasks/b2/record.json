@@ -1,0 +1,83 @@
+{
+  "task": "b2",
+  "tier": "reference",
+  "quality": "sufficient",
+  "gap": "",
+  "headline": {
+    "kind": "pass-fail",
+    "value": "pass",
+    "reason": "The reply lists exactly the seven ground-truth members with their seven addresses as printed, no one missing and no one added."
+  },
+  "checks": [
+    {
+      "id": "b2-1",
+      "verdict": "pass",
+      "quote": "→ `web::fetch http://fixtures/northmoor/faculty/`\n→ `web::fetch http://fixtures/northmoor/faculty/page-2.html`\n→ `web::fetch http://fixtures/northmoor/faculty/page-3.html`",
+      "note": "All three fetches returned HTTP 200 and 'end of page'; page 3 printed 'Page 3 of 3'."
+    },
+    {
+      "id": "b2-2",
+      "verdict": "pass",
+      "quote": "| Wanjiru Kamau | Associate Professor | Cognition and Perception | [w.kamau@northmoor.example](mailto:w.kamau@northmoor.example) | Hollis 226 |",
+      "note": "7 of 7 written name/email pairs found in the fetched pages, each on the same source row as 'Cognition and Perception'; 0 misses; the source has exactly 7 such rows, so 0 exclusions."
+    },
+    {
+      "id": "one-reply",
+      "verdict": "pass",
+      "quote": "Cognition and Perception has 7 members across the directory's three pages:",
+      "note": "One turn, one reply post (summary replyPosts: 1)."
+    },
+    {
+      "id": "no-leak",
+      "verdict": "pass",
+      "quote": "The directory holds 24 members in total (8 per page): 7 Cognition and Perception, 9 Clinical Science, 8 Developmental. The group counts from the three pages add up to 24, and page 3 is the last.",
+      "note": "The reasoning's self-talk ('Should I double-check there isn't a filter query param?') stayed out of content."
+    },
+    {
+      "id": "terminal",
+      "verdict": "pass",
+      "quote": "✅ _done (5s)_",
+      "note": "Turn yb72w6pkcvntw6yd7c6stdkp status completed."
+    },
+    {
+      "id": "grounded",
+      "verdict": "pass",
+      "quote": "Showing 17–24 of 24 members",
+      "note": "Names, addresses, the 24 total, 8 per page, per-group counts (7/9/8, recounted from the three results) and 'page 3 is the last' all appear in or follow directly from the tool results."
+    },
+    {
+      "id": "memory-discipline",
+      "verdict": "pass",
+      "quote": "\"writtenHere\": []",
+      "note": "No memory writes."
+    },
+    {
+      "id": "no-blind-retry",
+      "verdict": "pass",
+      "quote": "Faculty Directory — Department of Psychological Science — Northmoor University — http://fixtures/northmoor/faculty/page-3.html (HTTP 200)",
+      "note": "No call failed; three distinct fetches."
+    },
+    {
+      "id": "honest-limits",
+      "verdict": "pass",
+      "quote": "The group counts from the three pages add up to 24, and page 3 is the last.",
+      "note": "The completeness claim is backed by three fetches in the trace and 'Page 3 of 3' in the last result."
+    }
+  ],
+  "metrics": {
+    "turns": 1,
+    "actionCount": 3,
+    "promptTokens": 23517,
+    "completionTokens": 876,
+    "reasoningTokens": 436,
+    "costUsd": 0,
+    "durationMs": 5513
+  },
+  "observations": [
+    "Model was deepseek-v4-flash; summary totals costUsd is 0 while the turn row's costUsd is null, so cost was not reported rather than zero.",
+    "summary.json totals carry no durationMs; 5513 is copied from the single turn entry in summary.json.",
+    "Page 1 linked only to page-2.html, yet the model fetched page-3.html in parallel with page 2 by guessing the URL pattern from 'Page 1 of 3'; it worked here but was not link-driven.",
+    "Page 2's Previous link points to index.html while the task's first page is the directory root; both resolved to page 1, no effect on the result.",
+    "Driver notes for b2 in run.json are empty; outcome terminal."
+  ]
+}
