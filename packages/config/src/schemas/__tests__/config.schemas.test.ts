@@ -243,6 +243,19 @@ describe('$Config', () => {
     ).toStrictEqual(['agents.mira.model.reasoningEffort']);
   });
 
+  it('should accept OpenRouter upstream slugs and refuse a display name or a repeat (§3.8)', () => {
+    const withUpstreams = (upstreams: unknown) => ({
+      ...config,
+      agents: {
+        mira: { ...declaration([]), model: { name: 'deepseek/deepseek-v4.1-flash', provider: 'openrouter', upstreams } }
+      },
+      providers: { openrouter: { apiKey: 'key_1' } }
+    });
+    expect($Config.safeParse(withUpstreams(['relace', 'streamlake/fp8'])).success).toBe(true);
+    expect(issuePaths(withUpstreams(['Relace']))).toStrictEqual(['agents.mira.model.upstreams.0']);
+    expect(issuePaths(withUpstreams(['relace', 'relace']))).toStrictEqual(['agents.mira.model.upstreams']);
+  });
+
   it('should refuse a config with no agent', () => {
     expect(issuePaths({ ...config, agents: {} })).toStrictEqual(['agents']);
   });

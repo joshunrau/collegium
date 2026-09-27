@@ -51,6 +51,17 @@ const assertIanaTimezone: z.core.CheckFn<string> = (ctx) => {
 export type $ToolSettings = z.infer<typeof $ToolSettings>;
 export const $ToolSettings = z.record(z.string().regex(TOOL_SEGMENT_PATTERN), z.unknown());
 
+export type $OpenRouterUpstream = z.infer<typeof $OpenRouterUpstream>;
+export const $OpenRouterUpstream = z
+  .string()
+  .regex(
+    /^[a-z0-9][a-z0-9-]*(?:\/[a-z0-9][a-z0-9-]*)?$/u,
+    'an OpenRouter provider slug, such as relace or streamlake/fp8, not its display name'
+  )
+  .describe(
+    'An upstream as OpenRouter names it in a provider order: its lowercase slug, optionally with one variant after a slash, such as relace or streamlake/fp8. A bare slug covers every variant that upstream serves.'
+  );
+
 export type $ModelRef = z.infer<typeof $ModelRef>;
 export const $ModelRef = z
   .discriminatedUnion('provider', [
@@ -72,6 +83,14 @@ export const $ModelRef = z
         .optional()
         .describe(
           'How hard the model thinks before it answers, in OpenRouter’s unified vocabulary, mapped onto what the model supports. Omit for the model’s default; a Claude model then reasons without extended thinking.'
+        ),
+      upstreams: z
+        .array($OpenRouterUpstream)
+        .nonempty()
+        .refine((upstreams) => isUnique(upstreams), { message: 'upstreams must be unique' })
+        .optional()
+        .describe(
+          'The upstreams to prefer for this model, in order, sent to OpenRouter as its provider order. Each upstream caches prompts separately, so holding a model to one keeps its cache warm (§3.8); the model itself never changes. OpenRouter falls back to its own choice when none of them can serve. Omit to leave routing to OpenRouter.'
         )
     })
   ])

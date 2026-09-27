@@ -97,6 +97,19 @@ describe('toCompletionBody', () => {
     });
   });
 
+  it('should send an upstream order only for an OpenRouter model that names one (§3.8)', () => {
+    const ordered: $ModelRef = {
+      name: 'deepseek/deepseek-v4.1-flash',
+      provider: 'openrouter',
+      upstreams: ['relace', 'streamlake/fp8']
+    };
+    expect(toCompletionBody({ ...request, model: ordered })).toMatchObject({
+      provider: { order: ['relace', 'streamlake/fp8'] }
+    });
+    expect(toCompletionBody({ ...request, model: CLAUDE_SONNET })).not.toHaveProperty('provider');
+    expect(toCompletionBody(request)).not.toHaveProperty('provider');
+  });
+
   it('should serialize the same tools identically regardless of registration order', () => {
     const tools = [
       { description: 'Write', name: 'write', parameters: {} },

@@ -40,9 +40,13 @@ function renderLabel(name: string): string {
   return `**${renderName(name)}**`;
 }
 
-function renderModel({ name, provider, reasoningEffort }: AgentProfile['model']): string {
-  const effort = reasoningEffort === undefined ? '' : `, reasoning: ${reasoningEffort}`;
-  return `${renderCodeSpan(name)} (${provider}${effort})`;
+function renderModel(model: AgentProfile['model']): string {
+  const effort = model.reasoningEffort === undefined ? '' : `, reasoning: ${model.reasoningEffort}`;
+  const upstreams =
+    model.provider === 'openrouter' && model.upstreams !== undefined
+      ? `, upstreams: ${model.upstreams.join(' → ')}`
+      : '';
+  return `${renderCodeSpan(model.name)} (${model.provider}${effort}${upstreams})`;
 }
 
 function renderProfile(profile: AgentProfile): string {

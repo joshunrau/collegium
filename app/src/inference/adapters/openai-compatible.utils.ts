@@ -56,6 +56,16 @@ function toReasoningOptions(model: $ModelRef) {
     .exhaustive();
 }
 
+/** `allow_fallbacks` stays at OpenRouter's default: the order is a cache preference, and turning fallback off would make one upstream's outage the agent's (§3.8) */
+function toRoutingOptions(model: $ModelRef) {
+  return match(model)
+    .with({ provider: 'deepseek' }, () => ({}))
+    .with({ provider: 'openrouter' }, ({ upstreams }) => {
+      return upstreams === undefined ? {} : { provider: { order: upstreams } };
+    })
+    .exhaustive();
+}
+
 function toWireTool(tool: ToolSchema) {
   return {
     function: { description: tool.description, name: tool.name, parameters: tool.parameters },
@@ -113,6 +123,7 @@ export function toCompletionBody(request: CompletionRequest) {
   return {
     ...caching.options,
     ...toReasoningOptions(request.model),
+    ...toRoutingOptions(request.model),
     messages: [caching.systemMessage, ...request.messages.map((message) => toWireMessage(message, provider))],
     model: request.model.name,
     stream: true,

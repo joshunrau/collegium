@@ -42,6 +42,20 @@ describe('renderInspectResponse', () => {
     expect(report).toContain('| **Completion Time Limit** | 20 minutes |');
   });
 
+  it('should show an OpenRouter model’s upstreams, in order, beside its reasoning effort', () => {
+    const profile = buildAgentProfile({
+      model: {
+        name: 'deepseek/deepseek-v4.1-flash',
+        provider: 'openrouter',
+        reasoningEffort: 'high',
+        upstreams: ['relace', 'streamlake/fp8']
+      }
+    });
+    expect(renderInspectResponse({ ...REPORT, profile })).toContain(
+      '| **Model** | `deepseek/deepseek-v4.1-flash` (openrouter, reasoning: high, upstreams: relace → streamlake/fp8) |'
+    );
+  });
+
   it('should table tools by namespace, marking a gated tool beside its ungated neighbours (§3.4)', () => {
     expect(renderInspectResponse(REPORT)).toContain(
       [
