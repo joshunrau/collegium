@@ -1,3 +1,22 @@
+## [0.0.1-beta.30](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.29...v0.0.1-beta.30) (2026-09-28)
+
+### Features
+
+- **inference:** let an openrouter model name the upstreams to prefer, in order ([888e0a6](https://github.com/joshunrau/collegium/commit/888e0a6249377ffff526f9e86a86917f6c54ef3b))
+- **tasks:** record the state every unit closed from and what closed it ([cf374c9](https://github.com/joshunrau/collegium/commit/cf374c9adec4d21345754232ec1a699894c480c2))
+- **turns:** let a unit post end the turn when the call asks to and nothing is owed ([1bca705](https://github.com/joshunrau/collegium/commit/1bca70513249c38817ac65d9b1d2bf2f57fa139c))
+
+### Bug Fixes
+
+- **conversations:** hide an agent's own actions up to the moment of its reset ([af55fc0](https://github.com/joshunrau/collegium/commit/af55fc017e0753f39620720b05c53162ac0af13f))
+- **memory:** say a missing memory may have been deleted, not only that it may be another agent's ([78d0e42](https://github.com/joshunrau/collegium/commit/78d0e428177ea1ab4f77512292b69590aa383448))
+- **tasks:** stop a close result asking for a reply ([160680f](https://github.com/joshunrau/collegium/commit/160680f266f056950f0119f44b79e6da5efe46a9))
+- **tools:** state argument size limits in descriptions, so no provider cuts a value to fit ([cbcc5f3](https://github.com/joshunrau/collegium/commit/cbcc5f35ffa16b9fe7c1bd9e78ac69684eb93d5f))
+- **turns:** always show the newest pinned post whole, even over the pinned-posts cap ([80291ea](https://github.com/joshunrau/collegium/commit/80291eadf317e4d5a21a63a4090b52d725621b67))
+- **web:** list every visible form control on a snapshot before the hidden ones ([ac0506d](https://github.com/joshunrau/collegium/commit/ac0506d1d8b4f40d9f460f38218000b0ace2da98))
+- **web:** say a browser action that timed out in plain words, and refuse a fill on a drop-down ([1f3413f](https://github.com/joshunrau/collegium/commit/1f3413fce673ad324e4aef1f779e6fc3d63c614d))
+- **web:** stop pointing a whole snapshot's overflowing controls at a reference it lacks ([af5ae1e](https://github.com/joshunrau/collegium/commit/af5ae1e4ca1315a62ba30a065ee874e1b3cee912))
+
 ## [0.0.1-beta.29](https://github.com/joshunrau/collegium/compare/v0.0.1-beta.28...v0.0.1-beta.29) (2026-09-26)
 
 ### Features
