@@ -280,6 +280,7 @@ describe('renderEndingLine (§3.15, §8.1)', () => {
       'ended with no reply; unit ab12cd34 still awaits my verdict'
     );
     expect(renderEndingLine({ ending: 'at-ceiling', leftOpen: [] })).toBe('ended at its ceiling after its hand-off');
+    expect(renderEndingLine({ ending: 'at-unit-post', leftOpen: [] })).toBe('ended at its unit post');
     expect(
       renderEndingLine({ ending: 'reply', leftOpen: [renderUnitLeftOpen({ awaits: 'report', reference: 'cd34ef56' })] })
     ).toBe('ended with a reply; unit cd34ef56 is still assigned to me');

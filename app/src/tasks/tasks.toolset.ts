@@ -30,6 +30,14 @@ const $AnyReference = z
     'The reference of the work unit: from Open work, or from the post in this channel that assigned, reported or closed it'
   );
 
+/** §3.15 — the ask is the model's; whether the turn ends at the post is the runner's */
+const $EndTurn = z
+  .boolean()
+  .optional()
+  .describe(
+    'Set to end your turn with this post and write nothing after it. Set it only when this post is the last thing you do: a call whose result you still need to read belongs in an earlier response. The turn does not end where you owe someone a reply or a unit a move; you are then told why.'
+  );
+
 const refused = (failure: TaskFailure, wording: UnitWording) => {
   return Result.err({ kind: 'invalid-arguments' as const, message: renderTaskRefusal(failure, wording) });
 };
@@ -80,7 +88,12 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         // F65 — bookkeeping after a hand-off is what the colleague waits on
         const assigned = `unit ${renderReference(unit.id)} assigned to ${wording.nameOf(addressee)}, whose turn starts when this turn ends or waits on a person, so anything more you do first delays it`;
         return Result.ok({
-          post: { addressee, onPublished: (postId) => context.tasks.commitAssign(unit, postId), text },
+          post: {
+            addressee,
+            endTurn: args.endTurn,
+            onPublished: (postId) => context.tasks.commitAssign(unit, postId),
+            text
+          },
           text:
             unit.follows === null
               ? `${assigned}; the assignment is posted`
@@ -104,6 +117,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
           .describe(
             'How you will judge the result when it comes back. State it as a checkable condition, not as a step, and one the context you are supplying can meet.'
           ),
+        endTurn: $EndTurn,
         follows: z
           .string()
           .min(1)
@@ -183,7 +197,7 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
     },
     report: {
       description:
-        'Report on a unit handed to you: review when the result is ready for its creator to judge, blocked when something nobody in this channel can answer stops you. The framework posts the report mentioning the creator, which starts their turn once yours ends or waits on a person, so anything more you do first delays it; a turn that owes no one a reply may then end with no text. Until you report, a post of yours starts their turn only if it mentions them. You cannot close a unit yourself, and one in review takes no further report: it is with its creator.',
+        'Report on a unit handed to you: review when the result is ready for its creator to judge, blocked when something nobody in this channel can answer stops you. The framework posts the report mentioning the creator, which starts their turn once yours ends or waits on a person, so anything more you do first delays it; to end your turn with the report, set endTurn. Until you report, a post of yours starts their turn only if it mentions them. You cannot close a unit yourself, and one in review takes no further report: it is with its creator.',
       execute: async (args, context) => {
         const wording = wordingFor(context);
         const prepared = await context.tasks.prepareReport({
@@ -198,11 +212,17 @@ export const TASKS_TOOLSET = implementToolset(TASKS_TOOLSET_DEF, {
         }
         const { addressee, prepared: transition, text } = prepared.value;
         return Result.ok({
-          post: { addressee, onPublished: (postId) => context.tasks.commitTransition(transition, postId), text },
+          post: {
+            addressee,
+            endTurn: args.endTurn,
+            onPublished: (postId) => context.tasks.commitTransition(transition, postId),
+            text
+          },
           text: `unit ${args.reference} reported ${args.state}; the report is posted to ${wording.nameOf(addressee)}, whose turn starts when this turn ends or waits on a person, so anything more you do first delays it`
         });
       },
       parameters: z.object({
+        endTurn: $EndTurn,
         reference: $OpenReference,
         state: z
           .enum(ASSIGNEE_TARGETS)

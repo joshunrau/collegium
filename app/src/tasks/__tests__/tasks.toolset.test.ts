@@ -140,7 +140,7 @@ describe('TASKS_TOOLSET', () => {
     );
     const report = await executeTool(
       TASKS_TOOLSET.tools.report,
-      { reference: 'unit-1', state: 'review', summary: 'done' },
+      { endTurn: true, reference: 'unit-1', state: 'review', summary: 'done' },
       context
     );
     const close = await executeTool(
@@ -149,6 +149,7 @@ describe('TASKS_TOOLSET', () => {
       context
     );
     expect(report.value?.post?.text).toMatch(/^@mira /);
+    expect(report.value?.post?.endTurn).toBe(true);
     expect(report.value?.text).toContain('the report is posted to Mira, whose turn starts when this turn ends');
     expect(close.value?.post?.text).not.toContain('@');
     expect(close.value?.text).toBe('unit unit-1 closed as done; the close is posted');

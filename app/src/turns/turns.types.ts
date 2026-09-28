@@ -20,6 +20,12 @@ export type Turn = ModelRow<'Turn'>;
 /** how a turn ran out of room: results it accumulated and could not retire, or a starting context that never fit (§7.1) */
 export type ContextExhaustionCause = 'accumulated' | 'initial';
 
+/**
+ * §3.15, §8.1 — how a completed turn that handed work on or left a unit open ended: at its ceiling,
+ * with no reply, at a second overrun, at the unit post that asked to end it, or with a reply
+ */
+export type TurnEnding = 'at-ceiling' | 'at-unit-post' | 'no-reply' | 'overran' | 'reply';
+
 /** a status post a restart left mid-trace: which post, in which channel, under whose account (§7.3) */
 export type AbandonedStatusPost = {
   readonly agentUsername: string;

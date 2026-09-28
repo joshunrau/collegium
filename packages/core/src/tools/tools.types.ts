@@ -67,6 +67,8 @@ export type ToolDisclosure = {
 export type ToolPost = {
   /** the one peer this post addresses; any other agent the text names, but its author, loses its @ before posting (§4.5) */
   readonly addressee?: string;
+  /** §3.15 — the call asked to end the turn at this post; the runner decides whether it ends there */
+  readonly endTurn?: boolean;
   /**
    * Called once the post has landed and been recorded, with its id — the one moment the tool writes
    * anything durable. Never called when the post is refused (§4.5) or fails to deliver (§7.1), so

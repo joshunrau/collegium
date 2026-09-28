@@ -10,7 +10,7 @@ import { OUTCOME_PHRASES, PARKED_LINE_STEMS, WORKING_LINE } from './status-post.
 
 const COUNT_FORMAT = new Intl.NumberFormat('en-US');
 
-import type { ContextExhaustionCause } from '../turns.types.ts';
+import type { ContextExhaustionCause, TurnEnding } from '../turns.types.ts';
 
 const TRACE_DETAIL_LIMIT_CHARS = 150;
 
@@ -312,15 +312,13 @@ export function renderDenialNotice(input: {
 
 /**
  * §3.15, §8.1 — how a completed turn ended where it handed work on or leaves a unit open: with no
- * reply after its hand-off, at its ceiling or a second overrun after it, or with a reply; and each
- * unit it owes a move on that stays open, which nothing queues again
+ * reply after its hand-off, at the unit post that asked to end it, at its ceiling or a second overrun
+ * after it, or with a reply; and each unit it owes a move on that stays open, which nothing queues again
  */
-export function renderEndingLine(input: {
-  readonly ending: 'at-ceiling' | 'no-reply' | 'overran' | 'reply';
-  readonly leftOpen: readonly string[];
-}): string {
+export function renderEndingLine(input: { readonly ending: TurnEnding; readonly leftOpen: readonly string[] }): string {
   const ended = {
     'at-ceiling': 'ended at its ceiling after its hand-off',
+    'at-unit-post': 'ended at its unit post',
     'no-reply': 'ended with no reply',
     overran: 'ended after its hand-off',
     reply: undefined

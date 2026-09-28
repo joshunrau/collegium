@@ -64,11 +64,18 @@ type TurnEventPayloadByKind = {
   };
   /**
    * §3.15, §8.3 — how a completed turn ended where it handed work on or left a unit open: with no
-   * reply, at its ceiling or a second overrun after its hand-off, or with one; whether it owed a
-   * reply, where it handed work on; and each unit it left open, which nothing queues again
+   * reply, at the unit post that asked to end it, at its ceiling or a second overrun after its
+   * hand-off, or with one; whether it owed a reply, where it handed work on; and each unit it left
+   * open, which nothing queues again. Or, marked declined, an end a unit post asked for that the
+   * turn did not take, and why.
    */
   ending_noted: {
-    /** as the status line states it */
+    /**
+     * Not a kind of its own: a release from before it replays a window through an exhaustive match
+     * over the kinds, and a rollback onto this store would fail every turn that read one.
+     */
+    declined?: true;
+    /** as the status line states it; for a declined end, as the trace notes it */
     line: string;
     owedReply?: boolean;
   };

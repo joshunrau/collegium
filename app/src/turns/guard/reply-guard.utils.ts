@@ -35,6 +35,36 @@ function renderOthers(others: number, verb: string): string {
 }
 
 /**
+ * §3.15 — why the turn owes a reply and how to answer: a colleague other than the one addressed is
+ * answered in text without an @, since a mention of them would be refused as a second addressee (§4.5)
+ */
+function renderOwedReplyReason(owed: OwedReply): string {
+  return match(owed)
+    .with({ kind: 'steered' }, () => 'a person steered it; answer them')
+    .with({ kind: 'person' }, () => "a person's post is among those it answers; answer them")
+    .with({ kind: 'trigger' }, () => "a trigger's announcement is among those it answers; say here what it needs")
+    .with(
+      { kind: 'colleague' },
+      ({ addressedUsername, displayName }) =>
+        `a post of ${displayName}'s is among those it answers; answer it here in text and without an @, since this turn has already addressed @${addressedUsername} and a mention of ${displayName} would be refused. Your answer stays in the channel; it does not start their turn.`
+    )
+    .exhaustive();
+}
+
+/** §3.15 — why an end a unit post asked for is not taken, in the words the model reads */
+function renderEndDeclinedReason(reason: EndDeclinedReason): string {
+  return match(reason)
+    .with({ kind: 'call-parked' }, ({ call }) => `${call} in the same response waited on a person; read its result`)
+    .with({ kind: 'call-unsettled' }, ({ call }) => `${call} in the same response did not succeed; read its result`)
+    .with({ kind: 'no-handoff' }, () => 'no post of this turn has handed work to a colleague')
+    .with({ kind: 'post-refused' }, () => 'its post was refused')
+    .with({ kind: 'reply-owed' }, ({ owed }) => renderOwedReplyReason(owed))
+    .with({ awaits: 'report', kind: 'unit-owed' }, ({ reference }) => `unit ${reference} is still assigned to you`)
+    .with({ awaits: 'verdict', kind: 'unit-owed' }, ({ reference }) => `unit ${reference} still awaits your verdict`)
+    .exhaustive();
+}
+
+/**
  * Whether output is a tool call written as the transcript line a model reads back from its own
  * history. Posted, it runs nothing and reads as a completed action. The provider's own call markup
  * is recognised behind the inference seam instead (§4.5).
@@ -102,23 +132,39 @@ export type OwedReply =
   | { readonly addressedUsername: string; readonly displayName: string; readonly kind: 'colleague' }
   | { readonly kind: 'person' | 'steered' | 'trigger' };
 
-/**
- * §3.15 — an empty ending sent back once where the turn owes a reply, saying why and how to answer:
- * a colleague other than the one addressed is answered in text without an @, since a mention of
- * them would be refused as a second addressee (§4.5)
- */
+/** §3.15 — an empty ending sent back once where the turn owes a reply, saying why and how to answer */
 export function renderOwedReplyRejection(owed: OwedReply): string {
-  const why = match(owed)
-    .with({ kind: 'steered' }, () => 'a person steered it; answer them')
-    .with({ kind: 'person' }, () => "a person's post is among those it answers; answer them")
-    .with({ kind: 'trigger' }, () => "a trigger's announcement is among those it answers; say here what it needs")
-    .with(
-      { kind: 'colleague' },
-      ({ addressedUsername, displayName }) =>
-        `a post of ${displayName}'s is among those it answers; answer it here in text and without an @, since this turn has already addressed @${addressedUsername} and a mention of ${displayName} would be refused. Your answer stays in the channel; it does not start their turn.`
-    )
-    .exhaustive();
-  return `output rejected: an empty reply, but this turn owes one — ${why}`;
+  return `output rejected: an empty reply, but this turn owes one — ${renderOwedReplyReason(owed)}`;
+}
+
+/** §3.15 — what keeps a turn from ending without a reply after a unit post: no hand-off, a reply it owes, or a unit it owes a move */
+export type QuietEndingObstacle =
+  | { readonly awaits: 'report' | 'verdict'; readonly kind: 'unit-owed'; readonly reference: string }
+  | { readonly kind: 'no-handoff' }
+  | { readonly kind: 'reply-owed'; readonly owed: OwedReply };
+
+/**
+ * §3.15 — why an end a unit post asked for is not taken: what keeps any quiet ending from the turn,
+ * the post itself refused, or another call of the same completion refused, failed or waiting on a person
+ */
+export type EndDeclinedReason =
+  | QuietEndingObstacle
+  | { readonly call: string; readonly kind: 'call-parked' | 'call-unsettled' }
+  | { readonly kind: 'post-refused' };
+
+/** §3.15 — what a unit post's result says where it asked to end the turn and the turn owes something */
+export function renderUnitPostEndRefusal(obstacle: QuietEndingObstacle): string {
+  return `this turn does not end here: ${renderEndDeclinedReason(obstacle)}`;
+}
+
+/** §3.15 — what the model reads before its next completion where an end its unit post asked for was not taken */
+export function renderUnitPostEndDeclined(reason: EndDeclinedReason): string {
+  return `The turn did not end at your unit post: ${renderEndDeclinedReason(reason)}`;
+}
+
+/** §8.3 — the trace's note on an end a unit post asked for that the turn did not take */
+export function renderUnitPostEndDeclinedLine(reason: EndDeclinedReason): string {
+  return `end at unit post declined: ${renderEndDeclinedReason(reason)}`;
 }
 
 /**
@@ -127,7 +173,7 @@ export function renderOwedReplyRejection(owed: OwedReply): string {
  * person has steered it; it is never a tool's to say.
  */
 export const QUIET_ENDING_CLAUSE =
-  'If nothing remains to say to anyone here, end the turn with no text; if a person steers this turn first, answer them.';
+  'If nothing remains to say to anyone here, end the turn with no text; if a person steers this turn first, answer them. Any text you write now is posted, including a note that you are not replying; to end with this post, set endTurn on it instead.';
 
 /**
  * §7.1 — what a completion cut at the agent's time limit is told: nothing of it was kept, and the way

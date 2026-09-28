@@ -196,7 +196,8 @@ function renderStartedLine({ formatDate, turn }: TraceInput): string {
 
 /**
  * §5.2, §8.3 — every post the turn answers: its trigger and what each assembly took, batched in or
- * folded in, in the order it came to answer them; and whether a person steered it (§7.5)
+ * folded in, in the order it came to answer them; whether a person steered it (§7.5); and, where it
+ * handed work on, whether it owed a reply and why an end its unit post asked for was not taken (§3.15)
  */
 function renderAnsweringLine({ events, turn }: TraceInput): string[] {
   const taken = events.flatMap(({ payload }) => {
@@ -206,18 +207,17 @@ function renderAnsweringLine({ events, turn }: TraceInput): string[] {
   });
   const postIds = uniq([...(turn.triggeringPostId === null ? [] : [turn.triggeringPostId]), ...taken]);
   const steered = events.some(({ payload }) => payload.kind === 'steering_received');
-  const owedReply = events.findLast(({ payload }) => payload.kind === 'ending_noted')?.payload;
-  const owed =
-    owedReply?.kind !== 'ending_noted' || owedReply.owedReply === undefined
-      ? ''
-      : owedReply.owedReply
-        ? '; owed a reply'
-        : '; owed no reply';
-  if (postIds.length === 0 && !steered && owed === '') {
+  const endings = events.flatMap(({ payload }) => (payload.kind === 'ending_noted' ? [payload] : []));
+  const owedReply = endings.findLast((ending) => ending.declined !== true)?.owedReply;
+  const owed = owedReply === undefined ? '' : owedReply ? '; owed a reply' : '; owed no reply';
+  const declined = endings
+    .flatMap((ending) => (ending.declined === true ? [`; ${ending.line.replace(/\.$/u, '')}`] : []))
+    .join('');
+  if (postIds.length === 0 && !steered && owed === '' && declined === '') {
     return [];
   }
   const posts = postIds.length === 0 ? 'no post' : postIds.map((postId) => `\`${postId}\``).join(', ');
-  return [`Answering: ${posts}${steered ? '; steered' : ''}${owed}.`];
+  return [`Answering: ${posts}${steered ? '; steered' : ''}${owed}${declined}.`];
 }
 
 /** a running turn's count is written only when it closes, and a restart closes a turn without one (§7.3) */

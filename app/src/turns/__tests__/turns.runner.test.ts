@@ -2622,7 +2622,7 @@ describe('TurnRunner', () => {
   });
 
   describe('how a turn ends after it hands work on (§3.15)', () => {
-    const REPORT: ToolAttempt = {
+    const REPORT = {
       kind: 'continue',
       output: 'unit abcd1234 reported review',
       post: {
@@ -2630,7 +2630,8 @@ describe('TurnRunner', () => {
         onPublished: () => Promise.resolve(),
         text: '@owen — unit `abcd1234` is ready for review: done'
       }
-    };
+    } satisfies ToolAttempt.Continue;
+    const FLAGGED_REPORT = { ...REPORT, post: { ...REPORT.post, endTurn: true } } satisfies ToolAttempt.Continue;
     const stored = (
       authorKind: 'agent' | 'human' | 'system',
       authorUsername: string,
@@ -2693,9 +2694,95 @@ describe('TurnRunner', () => {
       conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen'));
       handingOff('');
       await answering();
-      expect(complete.mock.calls[1]![0].messages.at(-1)?.content).toContain(
+      const result = complete.mock.calls[1]![0].messages.at(-1)?.content;
+      expect(result).toContain(
         'unit abcd1234 reported review\n\nIf nothing remains to say to anyone here, end the turn with no text'
       );
+      expect(result).toContain('to end with this post, set endTurn on it instead');
+    });
+
+    describe('where the unit post asked to end the turn', () => {
+      const endingAtPost = (names: string[], attempts: readonly ToolAttempt[], ending = '') => {
+        multiMentionPolicy.findAddressee.mockImplementation(({ message }) => {
+          return message.includes('@owen') ? 'owen' : undefined;
+        });
+        complete.mockResolvedValueOnce(Result.ok(toolUse(names)));
+        for (const attempt of attempts) {
+          toolExecutor.execute.mockResolvedValueOnce(attempt);
+        }
+        complete.mockResolvedValueOnce(Result.ok(text(ending)));
+      };
+
+      it('should end the turn at the post in a turn that owes nothing, with no further completion', async () => {
+        conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen'));
+        endingAtPost(['tasks__report'], [FLAGGED_REPORT]);
+        expect((await answering()).status).toBe('completed');
+        expect(complete).toHaveBeenCalledOnce();
+        expect(sends.map((send) => send.text)).toStrictEqual([REPORT.post.text]);
+        expect(turnsService.appendEvent).toHaveBeenCalledWith(
+          'turn-1',
+          expect.objectContaining({ kind: 'tool_result', output: REPORT.output })
+        );
+        expect(statusHandle.appendTrace).toHaveBeenCalledWith({ kind: 'note', text: 'ended at its unit post' });
+        expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
+          kind: 'ending_noted',
+          line: 'ended at its unit post',
+          owedReply: false
+        });
+      });
+
+      it('should go on where the turn owes a person a reply, saying why on the result and in the trace', async () => {
+        conversationsService.findUnforgotten.mockResolvedValue(stored('human', 'casey'));
+        const assigned = { ...FLAGGED_REPORT, output: 'unit abcd1234 assigned to Owen' };
+        endingAtPost(['tasks__assign'], [assigned], 'answered, casey');
+        await answering();
+        const why = "a person's post is among those it answers; answer them";
+        expect(complete.mock.calls[1]![0].messages.at(-1)?.content).toBe(
+          `unit abcd1234 assigned to Owen\n\nthis turn does not end here: ${why}`
+        );
+        expect(turnsService.appendEvent).toHaveBeenCalledWith('turn-1', {
+          declined: true,
+          kind: 'ending_noted',
+          line: `end at unit post declined: ${why}`
+        });
+        expect(sends.at(-1)?.text).toBe('answered, casey');
+      });
+
+      it('should go on where another call of the same completion was refused, naming it', async () => {
+        conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen'));
+        endingAtPost(
+          ['tasks__report', 'prospects__record_scrape'],
+          [
+            FLAGGED_REPORT,
+            {
+              kind: 'continue',
+              output: 'invalid arguments for prospects__record_scrape: too long',
+              traceMark: { ran: false, text: '⚠️ invalid arguments' }
+            }
+          ]
+        );
+        expect((await answering()).status).toBe('completed');
+        expect(complete).toHaveBeenCalledTimes(2);
+        expect(complete.mock.calls[1]![0].messages.at(-1)).toStrictEqual({
+          content:
+            'The turn did not end at your unit post: prospects__record_scrape in the same response did not succeed; read its result',
+          role: 'user'
+        });
+      });
+
+      it('should go on where a person steers the turn while its calls run (§7.5)', async () => {
+        conversationsService.findUnforgotten.mockResolvedValue(stored('agent', 'owen'));
+        endingAtPost(['tasks__report'], [], 'done, casey');
+        toolExecutor.execute.mockImplementationOnce(() => {
+          turnControlRegistry.steer('channel-1', undefined, { byUsername: 'casey', text: 'tell me when done' });
+          return Promise.resolve(FLAGGED_REPORT);
+        });
+        await answering();
+        expect(complete.mock.calls[1]![0].messages.slice(-2)).toStrictEqual([
+          { content: 'casey (person): tell me when done', role: 'user' },
+          { content: 'The turn did not end at your unit post: a person steered it; answer them', role: 'user' }
+        ]);
+      });
     });
 
     it.each([

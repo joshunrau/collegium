@@ -103,6 +103,17 @@ describe('renderTrace', () => {
     expect(text).toContain('took queued posts `post-11`; folded in `post-11`');
   });
 
+  it('should say why an end its unit post asked for was not taken, beside whether it owed a reply (§3.15, §8.3)', () => {
+    const text = render([
+      event({ declined: true, kind: 'ending_noted', line: 'end at unit post declined: a person steered it; answer them' }),
+      event({ kind: 'ending_noted', line: 'ended with a reply', owedReply: true })
+    ]);
+    expect(text).toContain(
+      'Answering: `post-9`; owed a reply; end at unit post declined: a person steered it; answer them.'
+    );
+    expect(text).toContain('end at unit post declined: a person steered it; answer them\n');
+  });
+
   it('should say what drained into the turn and how long a running one has run, without a count it lacks (§8.3)', () => {
     const text = render([], {
       turn: {
