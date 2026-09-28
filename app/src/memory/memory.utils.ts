@@ -91,7 +91,7 @@ export function renderListingWithRevisions(entry: MemoryListingWithRevisions, no
 /** what the model reads for a reference its own store cannot resolve (§3.6) */
 export function renderUnresolvedReference(failure: MemoryFailure.Unresolved): string {
   return failure.kind === 'not-found'
-    ? `none of your memories has the reference "${failure.reference}"; memories are private to each agent`
+    ? `none of your memories has the reference "${failure.reference}"; it may have been deleted since it was named, or be another agent's — memories are private to each agent`
     : `reference "${failure.reference}" matches more than one of your memories`;
 }
 

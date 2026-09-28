@@ -82,13 +82,14 @@ describe('MEMORY_TOOLSET', () => {
     expect(result.unwrap().text).toMatch(/^written 3d 2h ago, on .+; last revised 5m ago\n\n/u);
   });
 
-  it('returns an unknown reference to the model as its own recoverable mistake', async () => {
+  it('returns an unknown reference to the model as its own recoverable mistake, naming both causes (§3.6)', async () => {
     const { context, memory } = buildContext();
     memory.read.mockResolvedValue(Result.err({ kind: 'not-found', reference: 'mem-9' }));
     const result = await executeTool(read, { reference: 'mem-9' }, context);
     expect(result.error).toStrictEqual({
       kind: 'invalid-arguments',
-      message: 'none of your memories has the reference "mem-9"; memories are private to each agent'
+      message:
+        'none of your memories has the reference "mem-9"; it may have been deleted since it was named, or be another agent\'s — memories are private to each agent'
     });
     expect(memory.markUsed).not.toHaveBeenCalled();
   });
