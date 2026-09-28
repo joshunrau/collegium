@@ -41,16 +41,21 @@ describe('A long result read on by reference (§3.8)', () => {
     const reference = /memory (\w+)/u.exec(written)![1]!;
 
     inference.willReply({ agent: 'mira' }, toolCallResponse('memory__read', { reference }));
-    inference.willReply({ agent: 'mira' }, toolCallResponse('results__read', { find: ['vault code'], ref: 'r1' }));
+    const afterRead = inference.willBlock({ agent: 'mira' }, textResponse('placeholder'));
     inference.willReply({ agent: 'mira' }, textResponse(FACT));
     await channels.main.mention('mira', 'what is the vault code?');
+    await afterRead.arrived;
+
+    const viewed = inference.requestsFor('mira').at(-1)!.messages.at(-1)!.content ?? '';
+    // read off the view, never assumed: a mention landing while the last turn still holds the lock is
+    // queued, and the drained turn's posts_taken event shifts the event sequence a reference names
+    const ref = /read the rest with results__read ref=(r\d+)/u.exec(viewed)?.[1];
+    expect(ref).toBeDefined();
+    expect(viewed).not.toContain(FACT);
+    afterRead.release(toolCallResponse('results__read', { find: ['vault code'], ref: ref! }));
     await channels.main.awaitReplyFrom('mira', { text: FACT });
 
-    const [, , , afterRead, afterFind] = inference.requestsFor('mira');
-    const viewed = afterRead!.messages.at(-1)!.content ?? '';
-    expect(viewed).toContain('read the rest with results__read ref=r1');
-    expect(viewed).not.toContain(FACT);
-    expect(afterFind!.messages.at(-1)!.content ?? '').toContain(FACT);
+    expect(inference.requestsFor('mira').at(-1)!.messages.at(-1)!.content ?? '').toContain(FACT);
     for (const request of inference.requestsFor('mira')) {
       expect(JSON.stringify(request).length / 4).toBeLessThan(CEILING_TOKENS);
     }
