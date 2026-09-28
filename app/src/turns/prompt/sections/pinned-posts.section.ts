@@ -21,7 +21,8 @@ type PinnedEntry = {
 
 /**
  * §3.8 — the channel's standing instructions, for every agent in it and past any episode boundary.
- * Under the cap the newest are kept and the older ones named by id, so a cut is never silent (A4).
+ * The newest is always shown whole; older ones follow under the cap, and the rest are named by id,
+ * so a cut is never silent (A4).
  */
 @Injectable()
 export class PinnedPostsSection {
@@ -38,7 +39,7 @@ export class PinnedPostsSection {
       return undefined;
     }
     const entries = pinned.map((post) => ({ postId: post.id, text: this.renderEntry(post) }));
-    const shown = this.keepNewestUnderCap(entries);
+    const shown = this.keepNewestThenOlderUnderCap(entries);
     const listing = this.textFormatter.formatParagraphs(
       [
         '## Pinned in this channel',
@@ -63,13 +64,13 @@ export class PinnedPostsSection {
     return `${listing}\n\n${leftOutLine}`;
   }
 
-  /** walked from the newest, stopping at the first that does not fit, so what is left out is always the oldest */
-  private keepNewestUnderCap(entries: readonly PinnedEntry[]): PinnedEntry[] {
+  /** the newest whatever its size, then older ones back to the first that does not fit, so what is left out is always the oldest */
+  private keepNewestThenOlderUnderCap(entries: readonly PinnedEntry[]): PinnedEntry[] {
     const kept: PinnedEntry[] = [];
     let spent = 0;
     for (const entry of entries.toReversed()) {
       spent += estimateTokens(entry.text);
-      if (spent > PINNED_POSTS_TOKEN_CAP) {
+      if (kept.length > 0 && spent > PINNED_POSTS_TOKEN_CAP) {
         break;
       }
       kept.unshift(entry);

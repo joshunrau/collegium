@@ -101,4 +101,18 @@ Rulings so far:
       /\n\n2 older pinned posts are left out, because this section holds about 2,000 tokens: post-1, post-2\.$/u
     );
   });
+
+  it('should show the newest post whole even over the cap, leaving out only the older ones (§3.8)', async () => {
+    const newest = 'n'.repeat(9000);
+    pinsService.listPinned.mockResolvedValue([
+      pinnedPost('post-1', 'Cite the registry.'),
+      pinnedPost('post-2', newest)
+    ]);
+    const rendered = await render();
+    expect(rendered).toContain(`<<<post post-2\n${newest}\n>>>`);
+    expect(rendered).not.toContain('<<<post post-1');
+    expect(rendered).toMatch(
+      /1 older pinned post is left out, because this section holds about 2,000 tokens: post-1\.$/u
+    );
+  });
 });
