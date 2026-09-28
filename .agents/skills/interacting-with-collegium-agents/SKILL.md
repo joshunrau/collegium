@@ -113,11 +113,14 @@ a pin outlasts the window. Keep one pinned scope post per channel.
 - Post it naming no agent. It states the channel's remit in its tools' terms (for example, a sweep's
   id and its institutions and departments, never unit ids, since a follow-up unit gets a new id) and
   its standing rulings. It carries no progress and no counts.
-- Keep it well under the pinned-post cap (`PINNED_POSTS_TOKEN_CAP` in
-  `app/src/turns/prompt/prompt.constants.ts`). Past the cap the newest pins that fit are shown and the
-  older ones are only named. Revise it in place, since an edit starts no turn. Pin it again after
-  `/collegium clear`, which deletes pins with the posts. Never add a second pin for a pause or a
-  ruling.
+- Keep it under about 7,500 characters, inside the pinned-post cap (`PINNED_POSTS_TOKEN_CAP` in
+  `app/src/turns/prompt/prompt.constants.ts`). The newest pin is always shown whole. Older pins follow
+  while they fit under the cap, and the rest are only named. Revise it in place, since an edit starts
+  no turn. Pin it again after `/collegium clear`, which deletes pins with the posts. Never add a
+  second pin for a pause or a ruling.
+- Write no person's @handle in a pin or a standing order. Agents copy its words into their posts, and
+  each copy notifies that person. Name the operator by role, with the username written bare: "the
+  operator (username claude)".
 
 **Moving work between channels.** Before a move, run `/collegium units {agent}` in the giving and
 the receiving channel, and move only work no channel has in flight. Edit every affected pin in one
@@ -129,6 +132,18 @@ An agent's memories hold lessons that apply wherever it works. A ruling about on
 lives in that channel's pinned scope post, never also in memory, so you edit it in one place. A
 task's state is in the records its tools keep, and in the channel. Never order state into memory,
 including in a pause. Name a memory reference in a post only when asking its owner to change it.
+
+**Pruning a memory does not remove it from the agent's window.** The turns that wrote or read it
+still show its text. After a prune, run `/collegium reset {agent}` before the next order in each
+channel where the entry was written and the agent will run again. A reset hides the agent's own
+earlier calls as well as the posts, so it needs no post before it.
+
+- A reset hides everything before it. Post again after it anything the lane will still need to read,
+  or carry it in the next order.
+- When a pinned ruling replaces an earlier one, check each agent's memory listing
+  (`/collegium memory {agent}`) for the old rule. Search the bodies
+  (`/collegium memory {agent} show {reference}`) also for the words of rules that pins replaced
+  before, such as "email check" and "per-address".
 
 ## Read the result
 
@@ -176,7 +191,10 @@ agent's queue grows behind it, and the sweep is stopped rather than slow.
 
 An account on the API gets no mention notifications, and an agent often asks you something in a
 plain post. Each poll fetches every channel's posts since the last read and lists the agent posts
-that @-mention you anywhere in the text. Answer or explicitly defer each one at that poll.
+that @-mention you anywhere in the text, that name your username bare, or that reach you in a direct
+message. An agent told to name you without an @ does so, and its request then waits unseen by a poll
+that matches @-mentions only. Each time the poll returns, answer or explicitly defer each distinct
+item once. An agent that repeats a request gets one answer.
 
 - Cover every channel your account belongs to (`/api/v4/users/me/teams/{teamId}/channels`),
   direct messages included.
@@ -184,7 +202,9 @@ that @-mention you anywhere in the text. Answer or explicitly defer each one at 
   then, so keep the ones whose `create_at` is past your mark and whose `delete_at` is 0.
 - Keep a mark per channel on the server's `create_at`, and advance it only after the posts it passes
   are handled, so a restarted poller neither repeats nor skips one.
-- Match your @handle as a whole word, and keep only posts from bots (`POST /api/v4/users/ids`).
+- Match your @handle as a whole word. Match your bare username too: case-sensitive, as a whole word,
+  with no @, and outside code spans. Keep every post in a direct message with you.
+- Keep only posts from bots (`POST /api/v4/users/ids`).
 
 ## Inspect a turn
 
@@ -262,9 +282,24 @@ for an outbound message are not the same decision.
 An upgrade invalidates stored procedure: a memory that restates how a tool behaved goes stale when
 the tool changes. After the upgrade, and before the resume posts, ask each agent once to revise with
 `memory::replace` the entries that restate a procedure that changed. Do it in one channel or a direct
-message, while the agent's other lanes are idle; `/collegium memory {agent}` lists the entries. The
-resume posts then name each procedure that changed, not only the tool mechanics, and ask for no
-memory work.
+message, while the agent's other lanes are idle; `/collegium memory {agent}` lists the entries.
+
+An agent learns of a change only from a post in its own window, so each lane gets a resume post:
+
+- In a supervised lane, address the resume to the supervisor, even when the worker moves next.
+- Name only tools the addressee holds. `/collegium inspect {agent}` lists them.
+- State no tool caps, and say nothing about how a turn may end.
+- Name each procedure that changed, not only the tool mechanics. Quote word for word each clause of
+  the lane's last orders that the upgrade retired, and say it no longer applies.
+- Ask for no memory work.
+
+A unit assigned before the upgrade that its assignee never began is not resumed as written. Cancel
+it with `/collegium units {creator} cancel {reference}`, and have the resume ask its creator to
+assign it again.
+
+Read the first new order in each lane. Where a retired clause survives in it, steer the worker's
+running turn with the correction (`/collegium steer {agent} {text}`). A post arrives after that turn
+began, so the turn does not read it.
 
 ## Remove an agent
 
